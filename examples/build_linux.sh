@@ -100,6 +100,8 @@ else
     rm -f ../out/example_gfx_5_*.so
     rm -f ../out/example_gfx_6.so
     rm -f ../out/example_gfx_6_*.so
+    rm -f ../out/example_basic_6.so
+    rm -f ../out/example_basic_6_*.so
 
 
 fi
@@ -545,6 +547,40 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=c++14 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES="-ldearimguid "
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="example_basic_6.cpp "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: example_basic_6${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libexample_basic_6.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
 # delete lock file(s)
 rm -f ../out/lock.tmp
 
@@ -605,6 +641,8 @@ else
     rm -f ../out/example_gfx_5_*.so
     rm -f ../out/example_gfx_6.so
     rm -f ../out/example_gfx_6_*.so
+    rm -f ../out/example_basic_6.so
+    rm -f ../out/example_basic_6_*.so
 
 
 fi
@@ -1050,119 +1088,7 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-# delete lock file(s)
-rm -f ../out/lock.tmp
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# end of release
-fi
-
-# ################################################################################
-# #                      configuration | debug_experimental                      #
-# ################################################################################
-
-if [[ "$PL_CONFIG" == "debug_experimental" ]]; then
-
-# create output directory(s)
-mkdir -p "../out"
-
-# create lock file(s)
-echo LOCKING > "../out/lock.tmp"
-
-PL_BUILD_STATUS=0
-
-# check if this is a reload
-PL_HOT_RELOAD_STATUS=0
-
-# # let user know if hot reloading
-if pidof -x "pilot_light" -o $$ >/dev/null;then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
-else
-    # cleanup binaries if not hot reloading
-    PL_HOT_RELOAD_STATUS=0
-    rm -r -f ../out-temp
-    rm -f ../out/example_basic_6.so
-    rm -f ../out/example_basic_6_*.so
-
-
-fi
-#~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
-PL_COMPILER_FLAGS="-std=c++14 -fPIC --debug -g "
-PL_LINKER_FLAGS="-ldl -lm "
-PL_STATIC_LINK_LIBRARIES="-ldearimguid "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="example_basic_6.cpp "
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Step: example_basic_6${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libexample_basic_6.so"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# delete lock file(s)
-rm -f ../out/lock.tmp
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# end of debug_experimental
-fi
-
-# ################################################################################
-# #                     configuration | release_experimental                     #
-# ################################################################################
-
-if [[ "$PL_CONFIG" == "release_experimental" ]]; then
-
-# create output directory(s)
-mkdir -p "../out"
-
-# create lock file(s)
-echo LOCKING > "../out/lock.tmp"
-
-PL_BUILD_STATUS=0
-
-# check if this is a reload
-PL_HOT_RELOAD_STATUS=0
-
-# # let user know if hot reloading
-if pidof -x "pilot_light" -o $$ >/dev/null;then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
-else
-    # cleanup binaries if not hot reloading
-    PL_HOT_RELOAD_STATUS=0
-    rm -r -f ../out-temp
-    rm -f ../out/example_basic_6.so
-    rm -f ../out/example_basic_6_*.so
-
-
-fi
-#~~~~~~~~~~~~~~~~~~~~ example_basic_6 | release_experimental ~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
@@ -1200,7 +1126,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 rm -f ../out/lock.tmp
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# end of release_experimental
+# end of release
 fi
 
 

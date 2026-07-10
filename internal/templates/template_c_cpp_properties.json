@@ -9,7 +9,6 @@
                 "${workspaceFolder}/dependencies/stb",
                 "${workspaceFolder}/dependencies/cgltf",
                 "${workspaceFolder}/dependencies/imgui",
-                "${workspaceFolder}/dependencies/glfw/include",
                 "${workspaceFolder}/dependencies/pilotlight/include",
                 "${workspaceFolder}/dependencies/pilotlight/shaders",
                 "${env:VK_SDK_PATH}/Include"
@@ -49,7 +48,6 @@
                 "${workspaceFolder}/dependencies/stb",
                 "${workspaceFolder}/dependencies/cgltf",
                 "${workspaceFolder}/dependencies/imgui",
-                "${workspaceFolder}/dependencies/glfw/include",
                 "${workspaceFolder}/dependencies/pilotlight/include",
                 "${workspaceFolder}/dependencies/pilotlight/shaders",
                 "${env:VK_SDK_PATH}/Include"
@@ -86,7 +84,6 @@
                 "${workspaceFolder}/dependencies/stb",
                 "${workspaceFolder}/dependencies/cgltf",
                 "${workspaceFolder}/dependencies/imgui",
-                "${workspaceFolder}/dependencies/glfw/include",
                 "${workspaceFolder}/dependencies/pilotlight/include",
                 "${workspaceFolder}/dependencies/pilotlight/shaders",
                 "${env:VK_SDK_PATH}/Include"

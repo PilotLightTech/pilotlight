@@ -70,32 +70,6 @@ jobs:
       run: |
         rmdir /s /q out
 
-    - name: Build Pilot Light (DEBUG EXPERIMENTAL)
-      shell: cmd
-      run: |
-        set VULKAN_SDK=D:/a/VulkanSDK
-        cd src
-        call build.bat -c debug_experimental
-        if %ERRORLEVEL% NEQ 0 exit 1
-
-    - name: Prep 3
-      shell: cmd
-      run: |
-        rmdir /s /q out
-
-    - name: Build Pilot Light (RELEASE EXPERIMENTAL)
-      shell: cmd
-      run: |
-        set VULKAN_SDK=D:/a/VulkanSDK
-        cd src
-        call build.bat -c release_experimental
-        if %ERRORLEVEL% NEQ 0 exit 1
-
-    - name: Prep 4
-      shell: cmd
-      run: |
-        rmdir /s /q out
-
     - name: Build Pilot Light (RELEASE)
       shell: cmd
       run: |
@@ -201,30 +175,6 @@ jobs:
         ./build.sh -c debug || exit 1
 
     - name: Prep 2
-      run: |
-        cd $GITHUB_WORKSPACE
-        rm -r out
-
-    - name: Build Pilot Light (DEBUG EXPERIMENTAL)
-      run: |
-        cd $GITHUB_WORKSPACE
-        cd src
-        chmod +x build.sh
-        ./build.sh -c debug_experimental || exit 1
-
-    - name: Prep 3
-      run: |
-        cd $GITHUB_WORKSPACE
-        rm -r out
-
-    - name: Build Pilot Light (RELEASE EXPERIMENTAL)
-      run: |
-        cd $GITHUB_WORKSPACE
-        cd src
-        chmod +x build.sh
-        ./build.sh -c release_experimental || exit 1
-
-    - name: Prep 4
       run: |
         cd $GITHUB_WORKSPACE
         rm -r out
@@ -338,31 +288,7 @@ jobs:
         chmod +x build.sh
         ./build.sh -c debug || exit 1
 
-    - name: Prep 2
-      run: |
-        cd $GITHUB_WORKSPACE
-        rm -r out
-
-    - name: Build Pilot Light (DEBUG EXPERIMENTAL)
-      run: |
-        cd $GITHUB_WORKSPACE
-        cd src
-        chmod +x build.sh
-        ./build.sh -c debug_experimental || exit 1
-
     - name: Prep 3
-      run: |
-        cd $GITHUB_WORKSPACE
-        rm -r out
-
-    - name: Build Pilot Light (RELEASE EXPERIMENTAL)
-      run: |
-        cd $GITHUB_WORKSPACE
-        cd src
-        chmod +x build.sh
-        ./build.sh -c release_experimental || exit 1
-
-    - name: Prep 4
       run: |
         cd $GITHUB_WORKSPACE
         rm -r out

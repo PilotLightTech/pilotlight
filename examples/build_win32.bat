@@ -44,8 +44,6 @@
 @if "%~1"=="-c" (@set PL_CONFIG=%2) & @shift & @shift & @goto CheckConfiguration
 @if "%PL_CONFIG%" equ "debug" ( goto debug )
 @if "%PL_CONFIG%" equ "release" ( goto release )
-@if "%PL_CONFIG%" equ "debug_experimental" ( goto debug_experimental )
-@if "%PL_CONFIG%" equ "release_experimental" ( goto release_experimental )
 
 :: ################################################################################
 :: #                            configuration | debug                             #
@@ -101,6 +99,8 @@
     @if exist "../out/example_gfx_5_*.pdb" del "..\out\example_gfx_5_*.pdb"
     @if exist "../out/example_gfx_6.dll" del "..\out\example_gfx_6.dll"
     @if exist "../out/example_gfx_6_*.pdb" del "..\out\example_gfx_6_*.pdb"
+    @if exist "../out/example_basic_6.dll" del "..\out\example_basic_6.dll"
+    @if exist "../out/example_basic_6_*.pdb" del "..\out\example_basic_6_*.pdb"
 
 )
 
@@ -533,6 +533,39 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
+@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
+@set PL_STATIC_LINK_LIBRARIES=dearimguid.lib 
+@set PL_SOURCES="example_basic_6.cpp" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: example_basic_6[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_6.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_6_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanupdebug
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+@del "..\out\*.obj"  > nul 2> nul
+
 :Cleanupdebug
 
 @echo [1m[36mCleaning...[0m
@@ -601,6 +634,8 @@ goto ExitLabel
     @if exist "../out/example_gfx_5_*.pdb" del "..\out\example_gfx_5_*.pdb"
     @if exist "../out/example_gfx_6.dll" del "..\out\example_gfx_6.dll"
     @if exist "../out/example_gfx_6_*.pdb" del "..\out\example_gfx_6_*.pdb"
+    @if exist "../out/example_basic_6.dll" del "..\out\example_basic_6.dll"
+    @if exist "../out/example_basic_6_*.pdb" del "..\out\example_basic_6_*.pdb"
 
 )
 
@@ -1033,134 +1068,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-:Cleanuprelease
-
-@echo [1m[36mCleaning...[0m
-
-:: delete obj files(s)
-@del "..\out\*.obj"  > nul 2> nul
-
-:: delete lock file(s)
-@if exist "../out/lock.tmp" del "..\out\lock.tmp"
-
-:: ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-:: end of release configuration
-goto ExitLabel
-
-:: ################################################################################
-:: #                      configuration | debug_experimental                      #
-:: ################################################################################
-
-:debug_experimental
-
-:: create output directories
-@if not exist "../out" @mkdir "../out"
-
-:: create lock file(s)
-@echo LOCKING > "../out/lock.tmp"
-
-:: check if this is a hot reload
-@set PL_HOT_RELOAD_STATUS=0
-
-:: hack to see if hot reload target exes are running
-@echo off
-2>nul (>>"../out/pilot_light.exe" echo off) && (@set PL_HOT_RELOAD_STATUS=%PL_HOT_RELOAD_STATUS%) || (@set PL_HOT_RELOAD_STATUS=1)
-
-:: let user know if hot reloading
-@if %PL_HOT_RELOAD_STATUS% equ 1 (
-    @echo [1m[97m[41m--------[42m HOT RELOADING [41m--------[0m
-)
-
-:: cleanup binaries if not hot reloading
-@if %PL_HOT_RELOAD_STATUS% equ 0 (
-
-    @if exist "../out-temp" rmdir "../out-temp" /s /q
-    @if exist "../out/example_basic_6.dll" del "..\out\example_basic_6.dll"
-    @if exist "../out/example_basic_6_*.pdb" del "..\out\example_basic_6_*.pdb"
-
-)
-
-::~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
-
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
-@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_STATIC_LINK_LIBRARIES=dearimguid.lib 
-@set PL_SOURCES="example_basic_6.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: example_basic_6[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_6.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_6_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-@del "..\out\*.obj"  > nul 2> nul
-
-:Cleanupdebug_experimental
-
-@echo [1m[36mCleaning...[0m
-
-:: delete obj files(s)
-@del "..\out\*.obj"  > nul 2> nul
-
-:: delete lock file(s)
-@if exist "../out/lock.tmp" del "..\out\lock.tmp"
-
-:: ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-:: end of debug_experimental configuration
-goto ExitLabel
-
-:: ################################################################################
-:: #                     configuration | release_experimental                     #
-:: ################################################################################
-
-:release_experimental
-
-:: create output directories
-@if not exist "../out" @mkdir "../out"
-
-:: create lock file(s)
-@echo LOCKING > "../out/lock.tmp"
-
-:: check if this is a hot reload
-@set PL_HOT_RELOAD_STATUS=0
-
-:: hack to see if hot reload target exes are running
-@echo off
-2>nul (>>"../out/pilot_light.exe" echo off) && (@set PL_HOT_RELOAD_STATUS=%PL_HOT_RELOAD_STATUS%) || (@set PL_HOT_RELOAD_STATUS=1)
-
-:: let user know if hot reloading
-@if %PL_HOT_RELOAD_STATUS% equ 1 (
-    @echo [1m[97m[41m--------[42m HOT RELOADING [41m--------[0m
-)
-
-:: cleanup binaries if not hot reloading
-@if %PL_HOT_RELOAD_STATUS% equ 0 (
-
-    @if exist "../out-temp" rmdir "../out-temp" /s /q
-    @if exist "../out/example_basic_6.dll" del "..\out\example_basic_6.dll"
-    @if exist "../out/example_basic_6_*.pdb" del "..\out\example_basic_6_*.pdb"
-
-)
-
-::~~~~~~~~~~~~~~~~~~~~ example_basic_6 | release_experimental ~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
@@ -1184,7 +1092,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_BUILD_STATUS% NEQ 0 (
     @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
     @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease_experimental
+    goto Cleanuprelease
 )
 
 :: print results
@@ -1193,7 +1101,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-:Cleanuprelease_experimental
+:Cleanuprelease
 
 @echo [1m[36mCleaning...[0m
 
@@ -1204,7 +1112,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if exist "../out/lock.tmp" del "..\out\lock.tmp"
 
 :: ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-:: end of release_experimental configuration
+:: end of release configuration
 goto ExitLabel
 
 :ExitLabel

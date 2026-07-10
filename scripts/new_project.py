@@ -38,7 +38,6 @@ if os.path.isdir(target_directory + "/dependencies"):
     print("Updating Existing Project")
     shutil.rmtree(target_directory + "/dependencies/pilotlight")
     shutil.rmtree(target_directory + "/dependencies/cgltf")
-    shutil.rmtree(target_directory + "/dependencies/glfw")
     shutil.rmtree(target_directory + "/dependencies/imgui")
     shutil.rmtree(target_directory + "/dependencies/stb")
 
@@ -86,7 +85,6 @@ for file in glob.glob(file_directory + "/../extensions/*internal.h"):
     shutil.copy(file, target_directory + "/dependencies/pilotlight/src/")
 
 shutil.copytree(file_directory + "/../thirdparty/cgltf", target_directory + "/dependencies/cgltf")
-shutil.copytree(file_directory + "/../thirdparty/glfw", target_directory + "/dependencies/glfw")
 shutil.copytree(file_directory + "/../thirdparty/imgui", target_directory + "/dependencies/imgui")
 shutil.copytree(file_directory + "/../thirdparty/stb", target_directory + "/dependencies/stb")
 shutil.copytree(file_directory + "/../shaders", target_directory + "/dependencies/pilotlight/shaders")

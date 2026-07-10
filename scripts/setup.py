@@ -30,7 +30,6 @@ includes = [
     "${workspaceFolder}/thirdparty/stb",
     "${workspaceFolder}/thirdparty/cgltf",
     "${workspaceFolder}/thirdparty/imgui",
-    "${workspaceFolder}/thirdparty/glfw",
     "${env:VK_SDK_PATH}/Include"
 ]
 

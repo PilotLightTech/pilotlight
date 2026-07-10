@@ -44,10 +44,7 @@
 @if "%~1"=="-c" (@set PL_CONFIG=%2) & @shift & @shift & @goto CheckConfiguration
 @if "%PL_CONFIG%" equ "debug" ( goto debug )
 @if "%PL_CONFIG%" equ "release" ( goto release )
-@if "%PL_CONFIG%" equ "debug_experimental" ( goto debug_experimental )
-@if "%PL_CONFIG%" equ "release_experimental" ( goto release_experimental )
 @if "%PL_CONFIG%" equ "moltenvk" ( goto moltenvk )
-@if "%PL_CONFIG%" equ "moltenvk_experimental" ( goto moltenvk_experimental )
 
 :: ################################################################################
 :: #                            configuration | debug                             #
@@ -87,13 +84,17 @@
     @if exist "../out/app_*.pdb" del "..\out\app_*.pdb"
     @if exist "../out/pilot_light.exe" del "..\out\pilot_light.exe"
     @if exist "../out/pilot_light_*.pdb" del "..\out\pilot_light_*.pdb"
+    @if exist "../out/pl_dear_imgui_ext.dll" del "..\out\pl_dear_imgui_ext.dll"
+    @if exist "../out/pl_dear_imgui_ext_*.pdb" del "..\out\pl_dear_imgui_ext_*.pdb"
+    @if exist "../out/demo.dll" del "..\out\demo.dll"
+    @if exist "../out/demo_*.pdb" del "..\out\demo_*.pdb"
 
 )
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
 @set PL_LINKER_FLAGS=-noexp -incremental:no -nodefaultlib:MSVCRT 
@@ -126,7 +127,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
 @set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
@@ -161,7 +162,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_platform_ext
 
 @set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
 @set PL_LINKER_FLAGS=-noexp -incremental:no 
@@ -196,7 +197,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
@@ -231,7 +232,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light
 
 @set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
 @set PL_LINKER_FLAGS=-incremental:no 
@@ -265,6 +266,128 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
 
 :Exit_pilot_light
+
+@del "..\out\*.obj"  > nul 2> nul
+
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:: skip during hot reload
+@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_imgui
+
+:: only build once
+@if exist "..\out\dearimguid.lib" goto Exit_imgui
+
+@set PL_DEFINES=-DPL_UNITY_BUILD 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-nologo -std:c++14 -WX -Od -MDd -Zi -permissive 
+@set PL_LINKER_FLAGS=-incremental:no -nologo 
+
+:: run compiler only
+@echo.
+@echo [1m[93mStep: imgui[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling...[0m
+
+:: each file must be compiled separately
+cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% ../thirdparty/imgui/imgui_unity.cpp -Fo"../out/"
+
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: if failed, skip linking
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanupdebug
+)
+
+:: link object files into a shared lib
+@echo [1m[36mLinking...[0m
+lib -nologo -OUT:"../out/dearimguid.lib" "../out/*.obj"
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+:Exit_imgui
+
+@del "..\out\*.obj"  > nul 2> nul
+
+::~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:: skip during hot reload
+@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_dear_imgui_ext
+
+@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%VULKAN_SDK%\Include" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
+@set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -Od -MDd -Zi -permissive 
+@set PL_LINKER_FLAGS=-incremental:no -nologo -noexp 
+@set PL_STATIC_LINK_LIBRARIES=dearimguid.lib ucrtd.lib vulkan-1.lib 
+@set PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: pl_dear_imgui_ext[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_dear_imgui_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_dear_imgui_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanupdebug
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+:Exit_pl_dear_imgui_ext
+
+@del "..\out\*.obj"  > nul 2> nul
+
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ demo | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:: skip during hot reload
+@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_demo
+
+@set PL_DEFINES=-DPL_UNITY_BUILD 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -Od -MDd -Zi -permissive 
+@set PL_LINKER_FLAGS=-incremental:no -nologo -noimplib -noexp 
+@set PL_STATIC_LINK_LIBRARIES=dearimguid.lib 
+@set PL_SOURCES="../internal/demo/demo.cpp" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: demo[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/demo.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/demo_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanupdebug
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+:Exit_demo
 
 @del "..\out\*.obj"  > nul 2> nul
 
@@ -320,13 +443,17 @@ goto ExitLabel
     @if exist "../out/app_*.pdb" del "..\out\app_*.pdb"
     @if exist "../out/pilot_light.exe" del "..\out\pilot_light.exe"
     @if exist "../out/pilot_light_*.pdb" del "..\out\pilot_light_*.pdb"
+    @if exist "../out/pl_dear_imgui_ext.dll" del "..\out\pl_dear_imgui_ext.dll"
+    @if exist "../out/pl_dear_imgui_ext_*.pdb" del "..\out\pl_dear_imgui_ext_*.pdb"
+    @if exist "../out/demo.dll" del "..\out\demo.dll"
+    @if exist "../out/demo_*.pdb" del "..\out\demo_*.pdb"
 
 )
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
 @set PL_LINKER_FLAGS=-noexp -incremental:no 
@@ -359,7 +486,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | release ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
 @set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
@@ -394,7 +521,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_platform_ext
 
 @set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
 @set PL_LINKER_FLAGS=-noexp -incremental:no 
@@ -429,7 +556,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
@@ -464,7 +591,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light
 
 @set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
 @set PL_LINKER_FLAGS=-incremental:no 
@@ -501,651 +628,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-:Cleanuprelease
-
-@echo [1m[36mCleaning...[0m
-
-:: delete obj files(s)
-@del "..\out\*.obj"  > nul 2> nul
-
-:: delete lock file(s)
-@if exist "../out/lock.tmp" del "..\out\lock.tmp"
-
-:: ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-:: end of release configuration
-goto ExitLabel
-
-:: ################################################################################
-:: #                      configuration | debug_experimental                      #
-:: ################################################################################
-
-:debug_experimental
-
-:: create output directories
-@if not exist "../out" @mkdir "../out"
-
-:: create lock file(s)
-@echo LOCKING > "../out/lock.tmp"
-
-:: check if this is a hot reload
-@set PL_HOT_RELOAD_STATUS=0
-
-:: hack to see if hot reload target exes are running
-@echo off
-2>nul (>>"../out/pilot_light.exe" echo off) && (@set PL_HOT_RELOAD_STATUS=%PL_HOT_RELOAD_STATUS%) || (@set PL_HOT_RELOAD_STATUS=1)
-
-:: let user know if hot reloading
-@if %PL_HOT_RELOAD_STATUS% equ 1 (
-    @echo [1m[97m[41m--------[42m HOT RELOADING [41m--------[0m
-)
-
-:: cleanup binaries if not hot reloading
-@if %PL_HOT_RELOAD_STATUS% equ 0 (
-
-    @if exist "../out/../out-temp" rmdir "../out/../out-temp" /s /q
-    @if exist "../out/pl_unity_ext.dll" del "..\out\pl_unity_ext.dll"
-    @if exist "../out/pl_unity_ext_*.pdb" del "..\out\pl_unity_ext_*.pdb"
-    @if exist "../out/pl_script_camera.dll" del "..\out\pl_script_camera.dll"
-    @if exist "../out/pl_script_camera_*.pdb" del "..\out\pl_script_camera_*.pdb"
-    @if exist "../out/pl_platform_ext.dll" del "..\out\pl_platform_ext.dll"
-    @if exist "../out/pl_platform_ext_*.pdb" del "..\out\pl_platform_ext_*.pdb"
-    @if exist "../out/app.dll" del "..\out\app.dll"
-    @if exist "../out/app_*.pdb" del "..\out\app_*.pdb"
-    @if exist "../out/pl_dear_imgui_ext.dll" del "..\out\pl_dear_imgui_ext.dll"
-    @if exist "../out/pl_dear_imgui_ext_*.pdb" del "..\out\pl_dear_imgui_ext_*.pdb"
-    @if exist "../out/demo.dll" del "..\out\demo.dll"
-    @if exist "../out/demo_*.pdb" del "..\out\demo_*.pdb"
-    @if exist "../out/pilot_light.exe" del "..\out\pilot_light.exe"
-    @if exist "../out/pilot_light_*.pdb" del "..\out\pilot_light_*.pdb"
-
-)
-
-::~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -nodefaultlib:MSVCRT 
-@set PL_STATIC_LINK_LIBRARIES=vulkan-1.lib shaderc_combined.lib spirv-cross-c.lib spirv-cross-core.lib spirv-cross-cpp.lib spirv-cross-glsl.lib spirv-cross-hlsl.lib spirv-cross-msl.lib spirv-cross-reflect.lib spirv-cross-util.lib 
-@set PL_SOURCES="../extensions/pl_unity_ext.c" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: pl_unity_ext[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_unity_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_unity_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~ pl_script_camera | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
-@set PL_SOURCES="../extensions/pl_script_camera.c" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: pl_script_camera[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_script_camera.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_script_camera_%random%.pdb" %PL_LINK_DIRECTORIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~ pl_platform_ext | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_platform_ext
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no 
-@set PL_STATIC_LINK_LIBRARIES=ucrtd.lib user32.lib Ole32.lib 
-@set PL_SOURCES="../extensions/pl_platform_win32_ext.c" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: pl_platform_ext[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_platform_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_platform_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_pl_platform_ext
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
-@set PL_SOURCES="../internal/sandbox/app.c" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: app[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~ glfw | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_glfw
-
-:: only build once
-@if exist "..\out\glfwd.lib" goto Exit_glfw
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DUNICODE -D_UNICODE -D_CRT_SECURE_NO_WARNINGS -D_GLFW_VULKAN_STATIC -D_GLFW_WIN32 -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%VULKAN_SDK%\Include" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c11 -W3 -wd5105 -Od -MDd -Zi -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo 
-
-:: run compiler only
-@echo.
-@echo [1m[93mStep: glfw[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling...[0m
-
-:: each file must be compiled separately
-cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% ../thirdparty/glfw/src/glfw_unity.c -Fo"../out/"
-
-cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% ../thirdparty/glfw/src/null_window.c -Fo"../out/"
-
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: if failed, skip linking
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug_experimental
-)
-
-:: link object files into a shared lib
-@echo [1m[36mLinking...[0m
-lib -nologo -OUT:"../out/glfwd.lib" "../out/*.obj"
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_glfw
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_imgui
-
-:: only build once
-@if exist "..\out\dearimguid.lib" goto Exit_imgui
-
-@set PL_DEFINES=-DPL_UNITY_BUILD 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -WX -Od -MDd -Zi -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo 
-
-:: run compiler only
-@echo.
-@echo [1m[93mStep: imgui[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling...[0m
-
-:: each file must be compiled separately
-cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% ../thirdparty/imgui/imgui_unity.cpp -Fo"../out/"
-
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: if failed, skip linking
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug_experimental
-)
-
-:: link object files into a shared lib
-@echo [1m[36mLinking...[0m
-lib -nologo -OUT:"../out/dearimguid.lib" "../out/*.obj"
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_imgui
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | debug_experimental ~~~~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_dear_imgui_ext
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%VULKAN_SDK%\Include" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -Od -MDd -Zi -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo -noexp 
-@set PL_STATIC_LINK_LIBRARIES=glfwd.lib dearimguid.lib ucrtd.lib vulkan-1.lib 
-@set PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: pl_dear_imgui_ext[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_dear_imgui_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_dear_imgui_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_pl_dear_imgui_ext
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~ demo | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-@set PL_DEFINES=-DPL_UNITY_BUILD 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -Od -MDd -Zi -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo -noimplib -noexp 
-@set PL_STATIC_LINK_LIBRARIES=dearimguid.lib 
-@set PL_SOURCES="../internal/demo/demo.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: demo[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/demo.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/demo_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~ pilot_light_experimental | debug_experimental ~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light_experimental
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4996 -Od -MDd -Zi -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo 
-@set PL_STATIC_LINK_LIBRARIES=glfwd.lib dearimguid.lib user32.lib Shell32.lib Ole32.lib gdi32.lib ucrtd.lib 
-@set PL_SOURCES="pl_main_glfw.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: pilot_light_experimental[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-
-:: skip actual compilation if hot reloading
-@if %PL_HOT_RELOAD_STATUS% equ 1 ( goto Cleanuppilot_light_experimental )
-
-:: call compiler
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pilot_light.exe" -Fo"../out/" -link %PL_LINKER_FLAGS% -PDB:"../out/pilot_light_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_pilot_light_experimental
-
-@del "..\out\*.obj"  > nul 2> nul
-
-:Cleanupdebug_experimental
-
-@echo [1m[36mCleaning...[0m
-
-:: delete obj files(s)
-@del "..\out\*.obj"  > nul 2> nul
-
-:: delete lock file(s)
-@if exist "../out/lock.tmp" del "..\out\lock.tmp"
-
-:: ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-:: end of debug_experimental configuration
-goto ExitLabel
-
-:: ################################################################################
-:: #                     configuration | release_experimental                     #
-:: ################################################################################
-
-:release_experimental
-
-:: create output directories
-@if not exist "../out" @mkdir "../out"
-
-:: create lock file(s)
-@echo LOCKING > "../out/lock.tmp"
-
-:: check if this is a hot reload
-@set PL_HOT_RELOAD_STATUS=0
-
-:: hack to see if hot reload target exes are running
-@echo off
-2>nul (>>"../out/pilot_light.exe" echo off) && (@set PL_HOT_RELOAD_STATUS=%PL_HOT_RELOAD_STATUS%) || (@set PL_HOT_RELOAD_STATUS=1)
-
-:: let user know if hot reloading
-@if %PL_HOT_RELOAD_STATUS% equ 1 (
-    @echo [1m[97m[41m--------[42m HOT RELOADING [41m--------[0m
-)
-
-:: cleanup binaries if not hot reloading
-@if %PL_HOT_RELOAD_STATUS% equ 0 (
-
-    @if exist "../out/../out-temp" rmdir "../out/../out-temp" /s /q
-    @if exist "../out/pl_unity_ext.dll" del "..\out\pl_unity_ext.dll"
-    @if exist "../out/pl_unity_ext_*.pdb" del "..\out\pl_unity_ext_*.pdb"
-    @if exist "../out/pl_script_camera.dll" del "..\out\pl_script_camera.dll"
-    @if exist "../out/pl_script_camera_*.pdb" del "..\out\pl_script_camera_*.pdb"
-    @if exist "../out/pl_platform_ext.dll" del "..\out\pl_platform_ext.dll"
-    @if exist "../out/pl_platform_ext_*.pdb" del "..\out\pl_platform_ext_*.pdb"
-    @if exist "../out/app.dll" del "..\out\app.dll"
-    @if exist "../out/app_*.pdb" del "..\out\app_*.pdb"
-    @if exist "../out/pl_dear_imgui_ext.dll" del "..\out\pl_dear_imgui_ext.dll"
-    @if exist "../out/pl_dear_imgui_ext_*.pdb" del "..\out\pl_dear_imgui_ext_*.pdb"
-    @if exist "../out/demo.dll" del "..\out\demo.dll"
-    @if exist "../out/demo_*.pdb" del "..\out\demo_*.pdb"
-    @if exist "../out/pilot_light.exe" del "..\out\pilot_light.exe"
-    @if exist "../out/pilot_light_*.pdb" del "..\out\pilot_light_*.pdb"
-
-)
-
-::~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | release_experimental ~~~~~~~~~~~~~~~~~~~~~~
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no 
-@set PL_STATIC_LINK_LIBRARIES=vulkan-1.lib shaderc_combined.lib spirv-cross-c.lib spirv-cross-core.lib spirv-cross-cpp.lib spirv-cross-glsl.lib spirv-cross-hlsl.lib spirv-cross-msl.lib spirv-cross-reflect.lib spirv-cross-util.lib 
-@set PL_SOURCES="../extensions/pl_unity_ext.c" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: pl_unity_ext[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_unity_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_unity_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~ pl_script_camera | release_experimental ~~~~~~~~~~~~~~~~~~~~
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
-@set PL_SOURCES="../extensions/pl_script_camera.c" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: pl_script_camera[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_script_camera.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_script_camera_%random%.pdb" %PL_LINK_DIRECTORIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~ pl_platform_ext | release_experimental ~~~~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_platform_ext
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no 
-@set PL_STATIC_LINK_LIBRARIES=ucrt.lib user32.lib Ole32.lib 
-@set PL_SOURCES="../extensions/pl_platform_win32_ext.c" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: pl_platform_ext[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_platform_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_platform_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_pl_platform_ext
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~ app | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
-@set PL_SOURCES="../internal/sandbox/app.c" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: app[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~ glfw | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_glfw
-
-:: only build once
-@if exist "..\out\glfw.lib" goto Exit_glfw
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DUNICODE -D_UNICODE -D_CRT_SECURE_NO_WARNINGS -D_GLFW_VULKAN_STATIC -D_GLFW_WIN32 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%VULKAN_SDK%\Include" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c11 -W3 -wd5105 -O2 -MD -Zi -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo 
-
-:: run compiler only
-@echo.
-@echo [1m[93mStep: glfw[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling...[0m
-
-:: each file must be compiled separately
-cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% ../thirdparty/glfw/src/glfw_unity.c -Fo"../out/"
-
-cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% ../thirdparty/glfw/src/null_window.c -Fo"../out/"
-
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: if failed, skip linking
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease_experimental
-)
-
-:: link object files into a shared lib
-@echo [1m[36mLinking...[0m
-lib -nologo -OUT:"../out/glfw.lib" "../out/*.obj"
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_glfw
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :: skip during hot reload
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_imgui
@@ -1154,7 +637,7 @@ lib -nologo -OUT:"../out/glfw.lib" "../out/*.obj"
 @if exist "..\out\dearimgui.lib" goto Exit_imgui
 
 @set PL_DEFINES=-DPL_UNITY_BUILD 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -WX -O2 -MD -permissive 
 @set PL_LINKER_FLAGS=-incremental:no -nologo 
@@ -1176,7 +659,7 @@ cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% ../thirdparty/im
 @if %PL_BUILD_STATUS% NEQ 0 (
     @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
     @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease_experimental
+    goto Cleanuprelease
 )
 
 :: link object files into a shared lib
@@ -1191,17 +674,17 @@ lib -nologo -OUT:"../out/dearimgui.lib" "../out/*.obj"
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | release_experimental ~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :: skip during hot reload
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_dear_imgui_ext
 
 @set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" -I"%VULKAN_SDK%\Include" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%VULKAN_SDK%\Include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -O2 -MD -permissive 
 @set PL_LINKER_FLAGS=-incremental:no -nologo -noexp 
-@set PL_STATIC_LINK_LIBRARIES=glfw.lib dearimgui.lib ucrtd.lib vulkan-1.lib 
+@set PL_STATIC_LINK_LIBRARIES=dearimgui.lib ucrtd.lib vulkan-1.lib 
 @set PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp" 
 
 :: run compiler (and linker)
@@ -1218,7 +701,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_BUILD_STATUS% NEQ 0 (
     @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
     @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease_experimental
+    goto Cleanuprelease
 )
 
 :: print results
@@ -1229,10 +712,13 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~ demo | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ demo | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:: skip during hot reload
+@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_demo
 
 @set PL_DEFINES=-DPL_UNITY_BUILD 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" 
+@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -O2 -MD -permissive 
 @set PL_LINKER_FLAGS=-incremental:no -nologo -noimplib -noexp 
@@ -1253,59 +739,18 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_BUILD_STATUS% NEQ 0 (
     @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
     @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease_experimental
+    goto Cleanuprelease
 )
 
 :: print results
 @echo [36mResult: [0m %PL_RESULT%
 @echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
 
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~ pilot_light_experimental | release_experimental ~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light_experimental
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND 
-@set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4996 -O2 -MD -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo 
-@set PL_STATIC_LINK_LIBRARIES=glfw.lib dearimgui.lib user32.lib Shell32.lib Ole32.lib gdi32.lib ucrtd.lib 
-@set PL_SOURCES="pl_main_glfw.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: pilot_light_experimental[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-
-:: skip actual compilation if hot reloading
-@if %PL_HOT_RELOAD_STATUS% equ 1 ( goto Cleanuppilot_light_experimental )
-
-:: call compiler
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pilot_light.exe" -Fo"../out/" -link %PL_LINKER_FLAGS% -PDB:"../out/pilot_light_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease_experimental
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_pilot_light_experimental
+:Exit_demo
 
 @del "..\out\*.obj"  > nul 2> nul
 
-:Cleanuprelease_experimental
+:Cleanuprelease
 
 @echo [1m[36mCleaning...[0m
 
@@ -1316,7 +761,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if exist "../out/lock.tmp" del "..\out\lock.tmp"
 
 :: ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-:: end of release_experimental configuration
+:: end of release configuration
 goto ExitLabel
 
 :ExitLabel

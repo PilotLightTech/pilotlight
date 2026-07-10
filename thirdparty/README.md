@@ -8,15 +8,6 @@ has been great. We are currently using version 1.15.
 
 [Repository](https://github.com/jkuhlmann/cgltf)
 
-### glfw
-
-This is a temporary dependency used only for the "editor" application or any
-app wanting to use Dear ImGui. Until the current backends are further along
-and support all the features needed for Dear ImGui, we will have this optional
-dependency available. We are currently using version 3.4.
-
-[Repository](https://github.com/glfw/glfw)
-
 ### stb
 
 This is probably a permanent dependency. There is basically no sane reason to

@@ -33,7 +33,6 @@ except ImportError:
     import build.backend_linux as linux
     import build.backend_macos as apple
 
-
 #-----------------------------------------------------------------------------
 # [SECTION] project
 #-----------------------------------------------------------------------------

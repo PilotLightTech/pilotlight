@@ -8,11 +8,9 @@
 # [SECTION] extensions
 # [SECTION] ecs scripts
 # [SECTION] platform extension
-# [SECTION] glfw
 # [SECTION] imgui & implot
 # [SECTION] pl_dear_imgui_ext
 # [SECTION] app
-# [SECTION] pilot light glfw backend
 # [SECTION] generate_scripts
 
 #-----------------------------------------------------------------------------
@@ -56,7 +54,7 @@ with pl.project("pilotlight"):
                                "../src", "../shaders", "../dependencies/pilotlight/shaders",
                                "../dependencies/pilotlight/include",
                                "../dependencies/stb", "../dependencies/pilotlight/src",
-                               "../dependencies/cgltf", "../dependencies/imgui", '../dependencies/glfw/include')
+                               "../dependencies/cgltf", "../dependencies/imgui")
     pl.add_definitions("PL_UNITY_BUILD")
 
     #-----------------------------------------------------------------------------
@@ -330,82 +328,6 @@ with pl.project("pilotlight"):
     pl.stash_profiles()
 
     #-----------------------------------------------------------------------------
-    # [SECTION] glfw
-    #-----------------------------------------------------------------------------
-
-    with pl.target("glfw", pl.TargetType.STATIC_LIBRARY, False, False):
-
-        pl.add_source_files("../dependencies/glfw/src/glfw_unity.c")
-        pl.add_source_files("../dependencies/glfw/src/null_window.c")
-
-        with pl.configuration("debug"):
-
-            pl.set_output_binary("glfwd")
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pl.add_include_directories("%VULKAN_SDK%\\Include")
-                    pl.add_definitions("UNICODE", "_UNICODE", "_CRT_SECURE_NO_WARNINGS", "_GLFW_VULKAN_STATIC", "_GLFW_WIN32", "_DEBUG")
-                    pl.add_compiler_flags("-nologo", "-std:c11", "-W3", "-wd5105", "-Od", "-MDd", "-Zi", "-permissive")
-                    pl.add_linker_flags("-incremental:no", "-nologo")
-            
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_definitions("_GLFW_VULKAN_STATIC", "_GLFW_X11", "_DEBUG")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "pthread", "xcb-cursor", "vulkan")
-                    pl.add_link_directories('$VULKAN_SDK/lib')
-                    pl.add_compiler_flags("-fPIC", "-std=gnu99", "--debug -g")
-                    pl.add_linker_flags("-ldl -lm")
-                    pl.add_source_files("../dependencies/glfw/src/posix_poll.c")
-
-            # apple
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_definitions("_GLFW_VULKAN_STATIC", "_GLFW_COCOA", "_DEBUG")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared", "vulkan")
-                    pl.add_link_directories('$VULKAN_SDK/lib', "/usr/local/lib")
-                    pl.add_compiler_flags("-Wno-deprecated-declarations", "--debug -g", "-std=c99", "-fmodules", "-ObjC", "-fPIC")
-                    pl.add_link_frameworks("Cocoa", "IOKit", "CoreFoundation")
-
-        with pl.configuration("release"):
-
-            pl.set_output_binary("glfw")
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pl.add_include_directories("%VULKAN_SDK%\\Include")
-                    pl.add_definitions("UNICODE", "_UNICODE", "_CRT_SECURE_NO_WARNINGS", "_GLFW_VULKAN_STATIC", "_GLFW_WIN32")
-                    pl.add_compiler_flags("-nologo", "-std:c11", "-W3", "-wd5105", "-O2", "-MD", "-Zi", "-permissive")
-                    pl.add_linker_flags("-incremental:no", "-nologo")
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_definitions("_GLFW_VULKAN_STATIC", "_GLFW_X11")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "pthread", "xcb-cursor", "vulkan")
-                    pl.add_link_directories('$VULKAN_SDK/lib')
-                    pl.add_compiler_flags("-fPIC", "-std=gnu99")
-                    pl.add_linker_flags("-ldl -lm")
-                    pl.add_source_files("../dependencies/glfw/src/posix_poll.c")
-
-            # apple
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_definitions("_GLFW_VULKAN_STATIC", "_GLFW_COCOA")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_dynamic_link_libraries("vulkan")
-                    pl.add_link_directories('$VULKAN_SDK/lib', "/usr/local/lib")
-                    pl.add_compiler_flags("-std=c99", "-fmodules", "-ObjC", "-fPIC", "-Wno-deprecated-declarations")
-
-                    pl.add_link_frameworks("Cocoa", "IOKit", "CoreFoundation")
-
-    #-----------------------------------------------------------------------------
     # [SECTION] imgui & implot
     #-----------------------------------------------------------------------------
 
@@ -470,7 +392,7 @@ with pl.project("pilotlight"):
 
         with pl.configuration("debug"):
 
-            pl.add_static_link_libraries("glfwd", "dearimguid")
+            pl.add_static_link_libraries("dearimguid")
 
             # win32
             with pl.platform("Windows"):
@@ -501,7 +423,7 @@ with pl.project("pilotlight"):
 
         with pl.configuration("release"):
 
-            pl.add_static_link_libraries("glfw", "dearimgui")
+            pl.add_static_link_libraries("dearimgui")
 
             # win32
             with pl.platform("Windows"):
@@ -590,74 +512,6 @@ with pl.project("pilotlight"):
                     pl.add_compiler_flags("-fPIC", "-ObjC++", "-std=c++14")
                     pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
             
-    #-----------------------------------------------------------------------------
-    # [SECTION] pilot light glfw backend
-    #-----------------------------------------------------------------------------
-
-    with pl.target("pilot_light", pl.TargetType.EXECUTABLE, False, True):
-    
-        pl.add_source_files("../dependencies/pilotlight/src/pl_main_glfw.cpp")
-        pl.set_output_binary("pilot_light")
-
-        # default config
-        with pl.configuration("debug"):
-
-            pl.add_static_link_libraries("glfwd", "dearimguid")
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pl.add_definitions("PL_VULKAN_BACKEND")
-                    pl.add_linker_flags("-incremental:no", "-nologo")
-                    pl.add_static_link_libraries("user32", "Shell32", "Ole32", "gdi32", "ucrtd")
-                    pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-wd4996", "-Od", "-MDd", "-Zi", "-permissive")
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_definitions("PL_VULKAN_BACKEND")
-                    pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
-                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_link_directories('$VULKAN_SDK/lib')
-                    pl.add_dynamic_link_libraries("vulkan", "pthread")
-                    
-            # apple
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_definitions("PL_METAL_BACKEND")
-                    pl.add_compiler_flags("-fPIC", "-ObjC++", "--debug -g", "-std=c++11")
-                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
-
-        with pl.configuration("release"):
-
-            pl.add_static_link_libraries("glfw", "dearimgui")
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pl.add_definitions("PL_VULKAN_BACKEND")
-                    pl.add_linker_flags("-incremental:no", "-nologo")
-                    pl.add_static_link_libraries("user32", "Shell32", "Ole32", "gdi32", "ucrtd")
-                    pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-wd4996", "-O2", "-MD", "-permissive")
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_definitions("PL_VULKAN_BACKEND")
-                    pl.add_compiler_flags("-fPIC", "-std=c++14")
-                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_link_directories('$VULKAN_SDK/lib')
-                    pl.add_dynamic_link_libraries("vulkan", "pthread")
-                    
-            # apple
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_definitions("PL_METAL_BACKEND")
-                    pl.add_compiler_flags("-fPIC", "-ObjC++", "-std=c++11")
-                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
-
     pl.apply_profiles()
          
 #-----------------------------------------------------------------------------
