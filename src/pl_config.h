@@ -35,16 +35,6 @@
 #define PL_INCLUDE_SPIRV_CROSS
 
 // experimental (don't use yet)
-#ifdef PL_CPU_BACKEND
-    #define PL_GRAPHICS_EXPOSE_CPU
-#elif defined(PL_VULKAN_BACKEND)
-    #define PL_GRAPHICS_EXPOSE_VULKAN
-#elif defined(PL_METAL_BACKEND)
-    #define PL_GRAPHICS_EXPOSE_METAL
-#else
-#endif
-
-// experimental (don't use yet)
 // #define PL_USE_ALLOCATOR
 // #define PL_ALLOCATOR_FIXED_SIZE 2147483648 
 

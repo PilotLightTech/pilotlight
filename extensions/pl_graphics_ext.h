@@ -274,32 +274,6 @@ typedef int plBorderColor;            // -> enum _plBorderColor             // E
 // external
 typedef struct _plWindow plWindow; // pl_os.h
 
-//------------------------------NOT STABLE-------------------------------------
-
-#ifdef PL_GRAPHICS_EXPOSE_VULKAN
-typedef struct VkInstance_T*       VkInstance;
-typedef struct VkPhysicalDevice_T* VkPhysicalDevice;
-typedef struct VkDevice_T*         VkDevice;
-typedef struct VkSurfaceKHR_T*     VkSurfaceKHR;
-typedef struct VkQueue_T*          VkQueue;
-typedef struct VkCommandBuffer_T*  VkCommandBuffer;
-
-typedef struct VkRenderPass_T*     VkRenderPass;
-typedef struct VkDescriptorPool_T* VkDescriptorPool;
-typedef struct VkImageView_T*      VkImageView;
-typedef struct VkSampler_T*        VkSampler;
-typedef struct VkDescriptorSet_T*  VkDescriptorSet;
-
-typedef struct VkAllocationCallbacks VkAllocationCallbacks;
-typedef struct VkPhysicalDeviceMemoryProperties VkPhysicalDeviceMemoryProperties;
-typedef enum VkFormat VkFormat;
-#endif
-
-#ifdef PL_GRAPHICS_EXPOSE_METAL
-@class MTL4RenderPassDescriptor;
-@protocol MTLDevice, MTL4CommandBuffer, MTL4RenderCommandEncoder, MTLTexture;
-#endif
-
 //-----------------------------------------------------------------------------
 // [SECTION] pre-declared structs (for C++)
 //-----------------------------------------------------------------------------
@@ -741,37 +715,6 @@ typedef struct _plGraphicsI
     plBlendState (*get_blend_state)   (plBlendMode);
     uint32_t     (*calculate_mip_count)(uint32_t width, uint32_t height);
 
-    //------------------------------NOT STABLE-------------------------------------
-
-    #ifdef PL_GRAPHICS_EXPOSE_VULKAN
-    VkInstance                       (*get_vulkan_instance)            (void);
-    uint32_t                         (*get_vulkan_api_version)         (void);
-    VkDevice                         (*get_vulkan_device)              (plDevice*);
-    VkSurfaceKHR                     (*get_vulkan_surface)             (plSurface*);
-    VkPhysicalDevice                 (*get_vulkan_physical_device)     (plDevice*);
-    VkQueue                          (*get_vulkan_queue)               (plDevice*);
-    VkQueue                          (*get_vulkan_present_queue)       (plDevice*);
-    uint32_t                         (*get_vulkan_queue_family)        (plDevice*);
-    VkDescriptorPool                 (*get_vulkan_descriptor_pool)     (plBindGroupPool*);
-    int                              (*get_vulkan_sample_count)        (plSwapchain*);
-    VkCommandBuffer                  (*get_vulkan_command_buffer)      (plCommandBuffer*);
-    VkImageView                      (*get_vulkan_image_view)          (plDevice*, plTextureHandle);
-    VkSampler                        (*get_vulkan_sampler)             (plDevice*, plSamplerHandle);
-    VkDescriptorSet                  (*get_vulkan_descriptor_set)      (plDevice*, plBindGroupHandle);
-    VkPhysicalDeviceMemoryProperties (*get_vulkan_memory_properties)   (plDevice*);
-    const VkAllocationCallbacks*     (*get_vulkan_allocation_callbacks)(void);
-    VkFormat                         (*get_vulkan_format)              (plFormat);
-    #endif
-
-    #ifdef PL_GRAPHICS_EXPOSE_METAL
-    id<MTLDevice>                (*get_metal_device)                (plDevice*);
-    plTextureHandle              (*get_metal_bind_group_texture)    (plDevice*, plBindGroupHandle);
-    id<MTLTexture>               (*get_metal_texture)               (plDevice*, plTextureHandle);
-    MTL4RenderPassDescriptor*    (*get_metal_render_pass_descriptor)(plCommandBuffer*);
-    id<MTL4CommandBuffer>        (*get_metal_command_buffer)        (plCommandBuffer*);
-    id<MTL4RenderCommandEncoder> (*get_metal_command_encoder)       (plCommandBuffer*);
-    #endif
-
 } plGraphicsI;
 
 //-----------------------------------------------------------------------------
@@ -1207,8 +1150,8 @@ typedef struct _plBufferImageCopy
     uint32_t uMipLevel;
     uint32_t uBaseArrayLayer;
     uint32_t uLayerCount;
-    uint32_t uBufferRowLength;
-    uint32_t uBufferImageHeight;
+    uint32_t uBufferRowLength;   // texels
+    uint32_t uBufferImageHeight; // texels
 } plBufferImageCopy;
 
 typedef struct _plImageCopy

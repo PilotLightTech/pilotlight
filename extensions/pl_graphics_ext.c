@@ -1041,35 +1041,6 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .pop_debug_group                        = pl_graphics_pop_debug_group,
         .insert_debug_label                     = pl_graphics_insert_debug_label,
         .calculate_mip_count                    = pl_graphics_calculate_mip_count,
-
-        #if defined(PL_GRAPHICS_EXPOSE_VULKAN) && defined(PL_VULKAN_BACKEND)
-        .get_vulkan_instance             = pl_graphics_get_vulkan_instance,
-        .get_vulkan_api_version          = pl_graphics_get_vulkan_api_version,
-        .get_vulkan_device               = pl_graphics_get_vulkan_device,
-        .get_vulkan_surface              = pl_graphics_get_vulkan_surface,
-        .get_vulkan_physical_device      = pl_graphics_get_vulkan_physical_device,
-        .get_vulkan_queue                = pl_graphics_get_vulkan_queue,
-        .get_vulkan_present_queue        = pl_graphics_get_vulkan_present_queue,
-        .get_vulkan_queue_family         = pl_graphics_get_vulkan_queue_family,
-        .get_vulkan_descriptor_pool      = pl_graphics_get_vulkan_descriptor_pool,
-        .get_vulkan_sample_count         = pl_graphics_get_vulkan_sample_count,
-        .get_vulkan_command_buffer       = pl_graphics_get_vulkan_command_buffer,
-        .get_vulkan_image_view           = pl_graphics_get_vulkan_image_view,
-        .get_vulkan_sampler              = pl_graphics_get_vulkan_sampler,
-        .get_vulkan_descriptor_set       = pl_graphics_get_vulkan_descriptor_set,
-        .get_vulkan_format               = pl__vulkan_format,
-        .get_vulkan_allocation_callbacks = pl_graphics_get_vulkan_allocation_callbacks,
-        .get_vulkan_memory_properties    = pl_graphics_get_vulkan_memory_properties,
-        #endif
-
-        #if defined(PL_GRAPHICS_EXPOSE_METAL) && defined(PL_METAL_BACKEND)
-        .get_metal_device                 = pl_graphics_get_metal_device,
-        .get_metal_command_buffer         = pl_graphics_get_metal_command_buffer,
-        .get_metal_command_encoder        = pl_graphics_get_metal_command_encoder,
-        .get_metal_texture                = pl_graphics_get_metal_texture,
-        .get_metal_bind_group_texture     = pl_graphics_get_metal_bind_group_texture,
-        .get_metal_render_pass_descriptor = pl_graphics_get_metal_render_pass_descriptor,
-        #endif
     };
     pl_set_api(ptApiRegistry, plGraphicsI, &tApi);
 

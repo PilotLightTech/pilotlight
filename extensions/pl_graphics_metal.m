@@ -3420,33 +3420,3 @@ pl_graphics_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHa
     ptVariantMetalResource->tPipelineState = nil;
     pl_sb_push(ptDevice->sbtComputeShaderFreeIndices, tHandle.uIndex);
 }
-
-id<MTLDevice>
-pl_graphics_get_metal_device(plDevice* ptDevice)
-{
-    return ptDevice->tDevice;
-}
-
-id<MTL4CommandBuffer>
-pl_graphics_get_metal_command_buffer(plCommandBuffer* ptCommandBuffer)
-{
-    return ptCommandBuffer->tCmdBuffer4;
-}
-
-id<MTL4RenderCommandEncoder>
-pl_graphics_get_metal_command_encoder(plCommandBuffer* ptCmdBuffer)
-{
-    return ptCmdBuffer->ptDevice->tRenderEncoder;
-}
-
-id<MTLTexture>
-pl_graphics_get_metal_texture(plDevice* ptDevice, plTextureHandle tHandle)
-{
-    return ptDevice->sbtTexturesHot[tHandle.uIndex].tTexture;
-}
-
-plTextureHandle
-pl_graphics_get_metal_bind_group_texture(plDevice* ptDevice, plBindGroupHandle tHandle)
-{
-    return ptDevice->sbtBindGroupsHot[tHandle.uIndex].tFirstTexture;
-}
