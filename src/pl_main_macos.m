@@ -1,6 +1,11 @@
 /*
-   pl_main_macos.c
+   pl_main_macos.m
      * MacOS platform backend
+     *
+     * This remains a single unity-build translation unit, but application
+     * lifecycle/frame driving and Cocoa window management are intentionally
+     * separated into independent sections. The window backend never calls
+     * pl_app_update(), performs hot reloads, or owns application shutdown.
 */
 
 /*
@@ -10,11 +15,15 @@ Index of this file:
 // [SECTION] structs & interfaces
 // [SECTION] globals
 // [SECTION] entry point
-// [SECTION] plNSView
-// [SECTION] plNSViewController
+// [SECTION] application host
+// [SECTION] Cocoa application delegate
+// [SECTION] Cocoa view
+// [SECTION] Cocoa view controller
+// [SECTION] input
 // [SECTION] library ext
 // [SECTION] window ext
 // [SECTION] clipboard
+// [SECTION] thread ext
 // [SECTION] unity build
 */
 
@@ -29,15 +38,17 @@ Index of this file:
 #import <Carbon/Carbon.h>
 #import <QuartzCore/CAMetalLayer.h>
 #import <Metal/Metal.h>
+#import <CoreVideo/CoreVideo.h>
+#import <dispatch/dispatch.h>
 #import <time.h>
-#include <stdlib.h>   // malloc
+#include <stdlib.h>   // malloc, calloc, free
 #include <string.h>   // strncpy
 #include <sys/stat.h> // timespec
 #include <stdio.h>    // file api
 #include <copyfile.h> // copyfile
 #include <dlfcn.h>    // dlopen, dlsym, dlclose
-#include <unistd.h> // close
-#include <fcntl.h> // O_RDONLY, O_WRONLY ,O_CREAT
+#include <unistd.h>   // close
+#include <fcntl.h>    // O_RDONLY, O_WRONLY, O_CREAT
 #include <pthread.h>
 
 //-----------------------------------------------------------------------------
@@ -52,49 +63,43 @@ pl__get_last_write_time(const char* filename)
     return attr.st_mtimespec;
 }
 
-static inline CFTimeInterval pl__get_absolute_time(void) { return (CFTimeInterval)((double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9); }
+static inline CFTimeInterval
+pl__get_absolute_time(void)
+{
+    return (CFTimeInterval)((double)clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9);
+}
+
+
+
+static void          pl__load_application_functions(void);
+static void          pl__application_frame(void);
+static void          pl__application_shutdown_once(void);
+static bool          pl__start_application_render_loop(void);
+static void          pl__stop_application_render_loop(void);
+static CVReturn      pl__dispatch_render_loop(CVDisplayLinkRef, const CVTimeStamp*, const CVTimeStamp*, CVOptionFlags, CVOptionFlags*, void*);
+
+id                gtAppDelegate = nil;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs & interfaces
 //-----------------------------------------------------------------------------
 
-@protocol plNSViewDelegate <NSObject>
-- (void)drawableResize:(CGSize)size;
-- (void)renderToMetalLayer:(nonnull CAMetalLayer *)metalLayer;
-- (void)shutdown;
-@end
-
-@interface plNSViewController : NSViewController <plNSViewDelegate>
-@end
-
-@interface plNSView : NSView <CALayerDelegate>
-@property (nonatomic, nonnull, readonly) CAMetalLayer *metalLayer;
-@property (nonatomic, getter=isPaused) BOOL paused;
-@property (nonatomic, nullable,retain) plNSViewController* delegate;
-- (void)initCommon;
-- (void)resizeDrawable:(CGFloat)scaleFactor;
-- (CGSize)backingDrawableSize;
-- (void)stopRenderLoop;
-- (void)render;
-@end
-
-@interface plNSAppDelegate : NSObject <NSApplicationDelegate>
-@end
-@implementation plNSAppDelegate
-- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)app { return YES;}
-@end
-
-@interface plKeyEventResponder: NSView<NSTextInputClient>
-@end
+typedef struct _plPlatformExtData
+{
+    NSNumber* tScreen;
+    id<MTLDevice> tDevice;
+    CAMetalLayer* ptLayer;
+    id gtAppDelegate;
+} plPlatformExtData;
 
 typedef struct _plSharedLibrary
 {
     bool            bValid;
     uint32_t        uTempIndex;
-    char            acFileExtension[16];                   // default: "dylib"
-    char            acName[PL_MAX_NAME_LENGTH];            // i.e. "app"
-    char            acPath[PL_MAX_PATH_LENGTH];            // i.e. "app.dylib" or "../out/app.dylib"
-    char            acDirectory[PL_MAX_PATH_LENGTH];       // i.e. "./" or "../out/"
+    char            acFileExtension[16];
+    char            acName[PL_MAX_NAME_LENGTH];
+    char            acPath[PL_MAX_PATH_LENGTH];
+    char            acDirectory[PL_MAX_PATH_LENGTH];
     char            acTransitionalPath[PL_MAX_PATH_LENGTH];
     char            acLockFile[PL_MAX_PATH_LENGTH];
     plLibraryDesc   tDesc;
@@ -102,47 +107,33 @@ typedef struct _plSharedLibrary
     struct timespec tLastWriteTime;
 } plSharedLibrary;
 
-typedef struct _plWindowData
+typedef struct _plMacApplicationState
 {
-    NSWindow*           ptWindow;
-    plNSViewController* ptViewController;
-    CAMetalLayer*       ptLayer;
-} plWindowData;
+    CVDisplayLinkRef  tDisplayLink;
+    dispatch_source_t tDisplaySource;
+    CFTimeInterval    tLastFrameTime;
+    bool              bShutdown;
+} plMacApplicationState;
+
+
 
 typedef struct _plRuntimeMutex
 {
     pthread_mutex_t tHandle;
 } plRuntimeMutex;
 
-// Undocumented methods for creating cursors. (from Dear ImGui)
-@interface NSCursor()
-+ (id)_windowResizeNorthWestSouthEastCursor;
-+ (id)_windowResizeNorthEastSouthWestCursor;
-+ (id)_windowResizeNorthSouthCursor;
-+ (id)_windowResizeEastWestCursor;
-@end
 
-plKey pl__osx_key_to_pl_key(int iKey);
-void  pl__add_osx_tracking_area(NSView* _Nonnull view);
-bool  pl__handle_osx_event(NSEvent* event, NSView* view);
-
-// clip board
-const char* pl_get_clipboard_text(void* user_data_ctx);
-void        pl_set_clipboard_text(void* pUnused, const char* text);
- 
 //-----------------------------------------------------------------------------
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
-// MacOS stuff
-CFTimeInterval gtTime;
-id gtAppDelegate;
+
+
 const plLibraryI* gptLibraryApi = NULL;
 
-plKeyEventResponder* gKeyEventResponder = NULL;
-NSTextInputContext*  gInputContext = NULL;
-id                   gMonitor;
-NSCursor* aptMouseCursors[PL_MOUSE_CURSOR_COUNT];
+static plMacApplicationState gtApplication = {0};
+
+
 const char* gpcLibraryExtension = "dylib";
 const char* gpcLibraryPrefix    = "lib";
 
@@ -150,17 +141,21 @@ const char* gpcLibraryPrefix    = "lib";
 // [SECTION] entry point
 //-----------------------------------------------------------------------------
 
-int main(int argc, char *argv[])
+int
+main(int argc, char* argv[])
 {
-
     const char* pcAppName = "app";
 
     for(int i = 1; i < argc; i++)
-    { 
+    {
         if(strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--app") == 0)
         {
-            pcAppName = argv[i + 1];
-            i++;
+            if(i + 1 >= argc)
+            {
+                fprintf(stderr, "Missing application name after '%s'.\n", argv[i]);
+                return 1;
+            }
+            pcAppName = argv[++i];
         }
         else if(strcmp(argv[i], "-hr") == 0 || strcmp(argv[i], "--hot-reload") == 0)
         {
@@ -180,7 +175,6 @@ int main(int argc, char *argv[])
         }
         else if(strcmp(argv[i], "--apis") == 0)
         {
-            plVersion tWindowExtVersion = plWindowI_version;
             plVersion tLibraryVersion = plLibraryI_version;
             plVersion tDataRegistryVersion = plDataRegistryI_version;
             plVersion tExtensionRegistryVersion = plExtensionRegistryI_version;
@@ -195,13 +189,11 @@ int main(int argc, char *argv[])
                 printf("Config: release\n\n");
             #endif
             printf("~~~~~~~~API Versions~~~~~~~~~\n\n");
-            printf("plWindowI:            v%u.%u.%u\n", tWindowExtVersion.uMajor, tWindowExtVersion.uMinor, tWindowExtVersion.uPatch);
             printf("plLibraryI:           v%u.%u.%u\n", tLibraryVersion.uMajor, tLibraryVersion.uMinor, tLibraryVersion.uPatch);
             printf("plDataRegistryI:      v%u.%u.%u\n", tDataRegistryVersion.uMajor, tDataRegistryVersion.uMinor, tDataRegistryVersion.uPatch);
             printf("plExtensionRegistryI: v%u.%u.%u\n", tExtensionRegistryVersion.uMajor, tExtensionRegistryVersion.uMinor, tExtensionRegistryVersion.uPatch);
             printf("plIOI:                v%u.%u.%u\n", tIOIVersion.uMajor, tIOIVersion.uMinor, tIOIVersion.uPatch);
             printf("plMemoryI:            v%u.%u.%u\n", tMemoryIVersion.uMajor, tMemoryIVersion.uMinor, tMemoryIVersion.uPatch);
-
             return 0;
         }
         else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
@@ -228,688 +220,276 @@ int main(int argc, char *argv[])
         }
     }
 
-#if __has_feature(objc_arc)
-    // ARC is On
-    NSLog(@"ARC on");
+    #if __has_feature(objc_arc)
+        NSLog(@"ARC on");
+    #else
+        NSLog(@"ARC off");
+    #endif
 
-#else
-    // ARC is Off
-    NSLog(@"ARC off");
-
-#endif
-
-    // load core apis
+    // Application host setup.
     pl__load_core_apis();
 
-    // setup & retrieve io context 
     gptIOCtx = gptIOI->get_io();
     gptIOCtx->bHotReloadActive = gbHotReloadActive;
-
-    // command line args
     gptIOCtx->iArgc = argc;
     gptIOCtx->apArgv = argv;
 
-    // create view controller
-    gKeyEventResponder = [[plKeyEventResponder alloc] initWithFrame:NSZeroRect];
+    [NSApplication sharedApplication];
+    
+    
 
-    // set clipboard functions (may need to move this to OS api)
-    gptIOCtx->set_clipboard_text_fn = pl_set_clipboard_text;
-    gptIOCtx->get_clipboard_text_fn = pl_get_clipboard_text;
-
-    gInputContext = [[NSTextInputContext alloc] initWithClient:gKeyEventResponder];
-
-    // create app delegate
-    gtAppDelegate= [[plNSAppDelegate alloc] init];
-    NSApplication.sharedApplication.delegate = gtAppDelegate;
-
-    // Load cursors. Some of them are undocumented.
-    aptMouseCursors[PL_MOUSE_CURSOR_ARROW] = [NSCursor arrowCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_TEXT_INPUT] = [NSCursor IBeamCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_ALL] = [NSCursor closedHandCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_HAND] = [NSCursor pointingHandCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_NOT_ALLOWED] = [NSCursor operationNotAllowedCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NS] = [NSCursor respondsToSelector:@selector(_windowResizeNorthSouthCursor)] ? [NSCursor _windowResizeNorthSouthCursor] : [NSCursor resizeUpDownCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_EW] = [NSCursor respondsToSelector:@selector(_windowResizeEastWestCursor)] ? [NSCursor _windowResizeEastWestCursor] : [NSCursor resizeLeftRightCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NESW] = [NSCursor respondsToSelector:@selector(_windowResizeNorthEastSouthWestCursor)] ? [NSCursor _windowResizeNorthEastSouthWestCursor] : [NSCursor closedHandCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NWSE] = [NSCursor respondsToSelector:@selector(_windowResizeNorthWestSouthEastCursor)] ? [NSCursor _windowResizeNorthWestSouthEastCursor] : [NSCursor closedHandCursor];
-
-    // load library
-    const plLibraryI* ptLibraryApi = pl_get_api_latest(gptApiRegistry, plLibraryI);
-    gptLibraryApi = ptLibraryApi;
+    // Load the application library. The application is free to create its
+    // windows during pl_app_load().
+    gptLibraryApi = pl_get_api_latest(gptApiRegistry, plLibraryI);
     const plLibraryDesc tLibraryDesc = {
         .pcName = pcAppName,
         .tFlags = PL_LIBRARY_FLAGS_RELOADABLE
     };
-    if(ptLibraryApi->load(tLibraryDesc, &gptAppLibrary))
-    {
-        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*))             ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
-        pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
-        
-        if(pl_app_info)
-        {
-            if(!pl_app_info(gptApiRegistry))
-                return 0;
-        }
-        
-        gpUserData = pl_app_load(gptApiRegistry, NULL);
-        bool bApisFound = pl__check_apis();
-        if(!bApisFound)
-            return 3;
-    }
-    else
-        return 2;
 
-    // run app
-    [NSApplication sharedApplication];
+    if(!gptLibraryApi->load(tLibraryDesc, &gptAppLibrary))
+    {
+        pl__application_shutdown_once();
+        NSApplication.sharedApplication.delegate = nil;
+        [gtAppDelegate release];
+        gtAppDelegate = nil;
+        return 2;
+    }
+
+    pl__load_application_functions();
+
+    if(pl_app_info && !pl_app_info(gptApiRegistry))
+    {
+        pl__application_shutdown_once();
+        NSApplication.sharedApplication.delegate = nil;
+        [gtAppDelegate release];
+        gtAppDelegate = nil;
+        return 0;
+    }
+
+    gptIOCtx->pAppUserData = pl_app_load(gptApiRegistry, NULL);
+    if(gptIOCtx->platform_setup)
+        gptIOCtx->pBackendPlatformData = gptIOCtx->platform_setup();
+    gptIOCtx->_bFirstLoadComplete = true;
+    plPlatformExtData* ptWindowData = gptIOCtx->pBackendPlatformData;
+    NSApplication.sharedApplication.delegate = ptWindowData->gtAppDelegate;
+    gtAppDelegate = ptWindowData->gtAppDelegate;
+    if(!pl__check_apis())
+    {
+        pl__application_shutdown_once();
+        NSApplication.sharedApplication.delegate = nil;
+        [gtAppDelegate release];
+        gtAppDelegate = nil;
+        return 3;
+    }
+
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
     [NSApp activateIgnoringOtherApps:YES];
+
+    if(!pl__start_application_render_loop())
+    {
+        pl__application_shutdown_once();
+        NSApplication.sharedApplication.delegate = nil;
+        [gtAppDelegate release];
+        gtAppDelegate = nil;
+        return 4;
+    }
+
     [NSApp run];
-}
 
-//-----------------------------------------------------------------------------
-// [SECTION] plNSView
-//-----------------------------------------------------------------------------
+    // applicationWillTerminate normally performs this. Keep the call here so
+    // an unusual run-loop exit still receives deterministic cleanup.
+    pl__application_shutdown_once();
 
-@implementation plNSView
-{
-    CVDisplayLinkRef _displayLink;
-    dispatch_source_t _displaySource;
-}
-
-- (instancetype) initWithFrame:(CGRect)frame
-{
-    self = [super initWithFrame:frame];
-    if(self)
-    {
-        [self initCommon];
-    }
-    [self addSubview:gKeyEventResponder];
-
-    pl__add_osx_tracking_area(self);
-    return self;
-}
-
-- (void)dealloc
-{
-    [self stopRenderLoop];
+    NSApplication.sharedApplication.delegate = nil;
     [gtAppDelegate release];
-    
-    [_delegate shutdown];
-    [super dealloc];
-}
-
-- (CGSize)backingDrawableSize
-{
-    NSRect bounds = self.bounds;
-    NSRect backingBounds = [self convertRectToBacking:bounds];
-
-    CGFloat w = floor(backingBounds.size.width);
-    CGFloat h = floor(backingBounds.size.height);
-
-    if(w < 1) w = 1;
-    if(h < 1) h = 1;
-
-    return CGSizeMake(w, h);
-}
-
-- (void)resizeDrawable:(CGFloat)scaleFactor
-{
-    CGSize newSize = self.bounds.size;
-
-    // gptIOCtx->tMainFramebufferScale.x = scaleFactor;
-    // gptIOCtx->tMainFramebufferScale.y = scaleFactor;
-
-    if(newSize.width <= 0 || newSize.height <= 0)
-    {
-        return;
-    }
-
-    if(newSize.width == _metalLayer.drawableSize.width && newSize.height == _metalLayer.drawableSize.height)
-    {
-        return;
-    }
-
-    _metalLayer.drawableSize = newSize;
-
-    [(id)_delegate drawableResize:newSize];
-    
-}
-
-- (void)render
-{
-    [(id)_delegate renderToMetalLayer:_metalLayer];
-}
-
-- (void)initCommon
-{
-    self.wantsLayer = YES;
-    // self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawDuringViewResize;
-    self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawBeforeViewResize;
-    _metalLayer = (CAMetalLayer*) self.layer;
-    self.layer.delegate = self;
-}
-
-- (CALayer *)makeBackingLayer
-{
-    return [CAMetalLayer layer];
-}
-
-- (void)viewDidMoveToWindow
-{
-    [super viewDidMoveToWindow];
-    [self setupCVDisplayLinkForScreen:self.window.screen];
-    // gptIOCtx->tMainFramebufferScale.x = self.window.screen.backingScaleFactor;
-    // gptIOCtx->tMainFramebufferScale.y = self.window.screen.backingScaleFactor;
-    if(gpUserData)
-        pl_app_resize(gptMainWindow, gpUserData);
-}
-
-- (BOOL)setupCVDisplayLinkForScreen:(NSScreen*)screen
-{
-    // The CVDisplayLink callback, DispatchRenderLoop, never executes
-    // on the main thread. To execute rendering on the main thread, create
-    // a dispatch source using the main queue (the main thread).
-    // DispatchRenderLoop merges this dispatch source in each call
-    // to execute rendering on the main thread.
-    _displaySource = dispatch_source_create(DISPATCH_SOURCE_TYPE_DATA_ADD, 0, 0, dispatch_get_main_queue());
-    plNSView* weakSelf = self;
-    dispatch_source_set_event_handler(_displaySource, ^(){
-        @autoreleasepool
-        {
-            [weakSelf render];
-        }
-    });
-    dispatch_resume(_displaySource);
-
-    CVReturn cvReturn;
-
-    // Create a display link capable of being used with all active displays
-    cvReturn = CVDisplayLinkCreateWithActiveCGDisplays(&_displayLink);
-
-    if(cvReturn != kCVReturnSuccess)
-    {
-        return NO;
-    }
-
-    // Set DispatchRenderLoop as the callback function and
-    // supply _displaySource as the argument to the callback.
-    cvReturn = CVDisplayLinkSetOutputCallback(_displayLink, &DispatchRenderLoop, (__bridge void*)_displaySource);
-
-    if(cvReturn != kCVReturnSuccess)
-    {
-        return NO;
-    }
-
-    // Associate the display link with the display on which the
-    // view resides
-    CGDirectDisplayID viewDisplayID =
-        (CGDirectDisplayID) [self.window.screen.deviceDescription[@"NSScreenNumber"] unsignedIntegerValue];
-
-    cvReturn = CVDisplayLinkSetCurrentCGDisplay(_displayLink, viewDisplayID);
-
-    if(cvReturn != kCVReturnSuccess)
-    {
-        return NO;
-    }
-
-    CVDisplayLinkStart(_displayLink);
-
-    NSNotificationCenter* notificationCenter = [NSNotificationCenter defaultCenter];
-
-    // Register to be notified when the window closes so that you
-    // can stop the display link
-    [notificationCenter addObserver:self
-                           selector:@selector(windowWillClose:)
-                               name:NSWindowWillCloseNotification
-                             object:self.window];
-
-    return YES;
-}
-
-- (void)windowWillClose:(NSNotification*)notification
-{
-    // Stop the display link when the window is closing since there
-    // is no point in drawing something that can't be seen
-    if(notification.object == self.window)
-    {
-        CVDisplayLinkStop(_displayLink);
-        dispatch_source_cancel(_displaySource);
-    }
-
-    pl_app_shutdown(gpUserData);
-    pl__unload_all_extensions();
-    pl__unload_core_apis();
-
-    pl_sb_free(gsbtWindows);
-
-    if(gptAppLibrary)
-    {
-        PL_FREE(gptAppLibrary);
-    }
-
-    pl__check_for_leaks();
-}
-
-// This is the renderer output callback function
-CVReturn
-DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const CVTimeStamp* outputTime, CVOptionFlags flagsIn, CVOptionFlags* flagsOut, void* displayLinkContext)
-{
-
-    // 'DispatchRenderLoop' is always called on a secondary thread.  Merge the dispatch source
-    // setup for the main queue so that rendering occurs on the main thread
-    dispatch_source_t source = (__bridge dispatch_source_t)displayLinkContext;
-    dispatch_source_merge_data(source, 1);
-    return kCVReturnSuccess;
-}
-
-- (void)stopRenderLoop
-{
-    if(_displayLink)
-    {
-        // Stop the display link BEFORE releasing anything in the view otherwise the display link
-        // thread may call into the view and crash when it encounters something that no longer
-        // exists
-        CVDisplayLinkStop(_displayLink);
-        CVDisplayLinkRelease(_displayLink);
-        dispatch_source_cancel(_displaySource);
-    }
-}
-
-- (void)viewDidChangeBackingProperties
-{
-    [super viewDidChangeBackingProperties];
-
-    // if(gpUserData)
-    //     pl_app_resize(gpUserData);
-}
-
-- (void)setFrameSize:(NSSize)size
-{
-    [super setFrameSize:size];
-    // [self resizeDrawable:self.window.screen.backingScaleFactor];
-}
-
-- (void)setBoundsSize:(NSSize)size
-{
-    [super setBoundsSize:size];
-    printf("set bounds size\n");
-}
-
-@end
-
-//-----------------------------------------------------------------------------
-// [SECTION] plNSViewController
-//-----------------------------------------------------------------------------
-
-@implementation plNSViewController
-
-- (void)loadView
-{
-
-}
-
-- (void)drawableResize:(CGSize)size
-{
-    // gptIOCtx->tMainFramebufferScale.x = self.view.window.screen.backingScaleFactor ?: NSScreen.mainScreen.backingScaleFactor;
-    // gptIOCtx->tMainFramebufferScale.y = gptIOCtx->tMainFramebufferScale.x;
-    // gptIOCtx->tMainViewportSize.x = size.width;
-    // gptIOCtx->tMainViewportSize.y = size.height;
-    // if(gpUserData)
-    // {
-    //     pl_app_resize(gpUserData);
-    // }
-}
-
-- (void)renderToMetalLayer:(nonnull CAMetalLayer *)layer
-{
-    @autoreleasepool
-    {
-        gptIOCtx->pBackendPlatformData = layer;
-
-        // reload library
-        if(gbHotReloadActive && gptLibraryApi->has_changed(gptAppLibrary))
-        {
-            pl_reload_library(gptAppLibrary);
-            pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__attribute__(()) *)(void*))            gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__attribute__(()) *)(void*))            gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
-            pl__handle_extension_reloads();
-            gpUserData = pl_app_load(gptApiRegistry, gpUserData);
-        }
-
-        layer.contentsScale = self.view.window.screen.backingScaleFactor;
-
-        CGSize drawableSize = [(plNSView*)self.view backingDrawableSize];
-
-        bool drawableChanged =
-            layer.drawableSize.width  != drawableSize.width ||
-            layer.drawableSize.height != drawableSize.height;
-
-        if(drawableChanged)
-        {
-            layer.drawableSize = drawableSize;
-
-            gptIOCtx->tMainFramebufferScale.x =
-                (float)self.view.window.screen.backingScaleFactor;
-            gptIOCtx->tMainFramebufferScale.y =
-                (float)self.view.window.screen.backingScaleFactor;
-
-            gptIOCtx->tMainViewportSize.x =
-                (float)self.view.bounds.size.width;
-            gptIOCtx->tMainViewportSize.y =
-                (float)self.view.bounds.size.height;
-
-            pl_app_resize(gptMainWindow, gpUserData);
-
-            return;
-        }
-
-        bool bCursorChanged = false;
-
-        // updating mouse cursor
-        if(gptIOCtx->tCurrentCursor != gptIOCtx->tNextCursor)
-            bCursorChanged = true;
-
-        if(bCursorChanged)
-        {
-            gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
-            NSCursor* ptMacCursor = aptMouseCursors[gptIOCtx->tCurrentCursor] ?: aptMouseCursors[PL_MOUSE_CURSOR_ARROW];
-            [ptMacCursor set];
-        }
-        gptIOCtx->tNextCursor = gptIOCtx->tCurrentCursor;
-
-        if(gtTime == 0.0)
-            gtTime = pl__get_absolute_time();
-
-        double dCurrentTime = pl__get_absolute_time();
-        gptIOCtx->fDeltaTime = (float)(dCurrentTime - gtTime);
-        gtTime = dCurrentTime;
-
-        pl__garbage_collect_data_reg();
-        pl_app_update(gpUserData);
-        pl__handle_extension_reloads();
-
-        if(gbApisDirty)
-            pl__check_apis();
-
-        if(gptIOCtx->bRunning == false)
-        {
-            [NSApp terminate:nil];
-        }
-    }
-}
-
-- (void)shutdown
-{
-    pl_app_shutdown(gpUserData);
-    if(gMonitor != NULL)
-    {
-        [NSEvent removeMonitor:gMonitor];
-        gMonitor = NULL;
-    }
-
-    pl__check_for_leaks();
-}
-
-@end
-
-@implementation plKeyEventResponder
-{
-    float _posX;
-    float _posY;
-    NSRect _imeRect;
-}
-
-#pragma mark - Public
-
-- (void)setImePosX:(float)posX imePosY:(float)posY
-{
-    _posX = posX;
-    _posY = posY;
-}
-
-- (void)updateImePosWithView:(NSView *)view
-{
-    NSWindow *window = view.window;
-    if (!window)
-        return;
-    NSRect contentRect = [window contentRectForFrameRect:window.frame];
-    NSRect rect = NSMakeRect(_posX, contentRect.size.height - _posY, 0, 0);
-    _imeRect = [window convertRectToScreen:rect];
-}
-
-- (void)viewDidMoveToWindow
-{
-    // Eensure self is a first responder to receive the input events.
-    [self.window makeFirstResponder:self];
-}
-
-- (void)keyDown:(NSEvent*)event
-{
-    if (!pl__handle_osx_event(event, self))
-        [super keyDown:event];
-
-    // call to the macOS input manager system.
-    [self interpretKeyEvents:@[event]];
-}
-
-- (void)keyUp:(NSEvent*)event
-{
-    if (!pl__handle_osx_event(event, self))
-        [super keyUp:event];
-}
-
-- (void)insertText:(id)aString replacementRange:(NSRange)replacementRange
-{
-    NSString* characters;
-    if ([aString isKindOfClass:[NSAttributedString class]])
-        characters = [aString string];
-    else
-        characters = (NSString*)aString;
-
-    gptIOI->add_text_events_utf8(characters.UTF8String);
-}
-
-- (BOOL)acceptsFirstResponder
-{
-    return YES;
-}
-
-- (void)doCommandBySelector:(SEL)myselector
-{
-}
-
-- (nullable NSAttributedString*)attributedSubstringForProposedRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange
-{
-    return nil;
-}
-
-- (NSUInteger)characterIndexForPoint:(NSPoint)point
-{
+    gtAppDelegate = nil;
     return 0;
 }
 
-- (NSRect)firstRectForCharacterRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange
+//-----------------------------------------------------------------------------
+// [SECTION] application host
+//-----------------------------------------------------------------------------
+
+static void
+pl__load_application_functions(void)
 {
-    return _imeRect;
+    pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
+    pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+    pl_app_resize   = (void  (__attribute__(()) *)(void*, void*))             gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+    pl_app_update   = (void  (__attribute__(()) *)(void*))                        gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+    pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))        gptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
+    gptIOCtx->pl_app_resize = pl_app_resize;
+    gptIOCtx->pl_app_update = pl_app_update;
 }
 
-- (BOOL)hasMarkedText
+static bool
+pl__start_application_render_loop(void)
 {
-    return NO;
-}
-
-- (NSRange)markedRange
-{
-    return NSMakeRange(NSNotFound, 0);
-}
-
-- (NSRange)selectedRange
-{
-    return NSMakeRange(NSNotFound, 0);
-}
-
-- (void)setMarkedText:(nonnull id)string selectedRange:(NSRange)selectedRange replacementRange:(NSRange)replacementRange
-{
-}
-
-- (void)unmarkText
-{
-}
-
-- (nonnull NSArray<NSAttributedStringKey>*)validAttributesForMarkedText
-{
-    return @[];
-}
-
-@end
-
-bool
-pl__handle_osx_event(NSEvent* event, NSView* view)
-{
-    if(gptIOI->add_mouse_pos_event == NULL)
+    if(gtApplication.tDisplayLink)
         return true;
-    if (event.type == NSEventTypeLeftMouseDown || event.type == NSEventTypeRightMouseDown || event.type == NSEventTypeOtherMouseDown)
-    {
-        int button = (int)[event buttonNumber];
-        if (button >= 0 && button < PL_MOUSE_BUTTON_COUNT)
-            gptIOI->add_mouse_button_event(button, true);
-        return true;
-    }
 
-    if (event.type == NSEventTypeLeftMouseUp || event.type == NSEventTypeRightMouseUp || event.type == NSEventTypeOtherMouseUp)
-    {
-        int button = (int)[event buttonNumber];
-        if (button >= 0 && button < PL_MOUSE_BUTTON_COUNT)
-            gptIOI->add_mouse_button_event(button, false);
-        return true;
-    }
+    gtApplication.tDisplaySource = dispatch_source_create(DISPATCH_SOURCE_TYPE_DATA_ADD, 0, 0, dispatch_get_main_queue());
+    if(!gtApplication.tDisplaySource)
+        return false;
 
-    if (event.type == NSEventTypeMouseMoved || event.type == NSEventTypeLeftMouseDragged || event.type == NSEventTypeRightMouseDragged || event.type == NSEventTypeOtherMouseDragged)
-    {
-        NSPoint mousePoint = event.locationInWindow;
-        mousePoint = [view convertPoint:mousePoint fromView:nil];
-        if ([view isFlipped])
-            mousePoint = NSMakePoint(mousePoint.x, mousePoint.y);
-        else
-            mousePoint = NSMakePoint(mousePoint.x, view.bounds.size.height - mousePoint.y);
-        gptIOI->add_mouse_pos_event((float)mousePoint.x, (float)mousePoint.y);
-        return true;
-    }
-
-    if (event.type == NSEventTypeScrollWheel)
-    {
-        // Ignore canceled events.
-        //
-        // From macOS 12.1, scrolling with two fingers and then decelerating
-        // by tapping two fingers results in two events appearing:
-        //
-        // 1. A scroll wheel NSEvent, with a phase == NSEventPhaseMayBegin, when the user taps
-        // two fingers to decelerate or stop the scroll events.
-        //
-        // 2. A scroll wheel NSEvent, with a phase == NSEventPhaseCancelled, when the user releases the
-        // two-finger tap. It is this event that sometimes contains large values for scrollingDeltaX and
-        // scrollingDeltaY. When these are added to the current x and y positions of the scrolling view,
-        // it appears to jump up or down. It can be observed in Preview, various JetBrains IDEs and here.
-        if (event.phase == NSEventPhaseCancelled)
-            return false;
-
-        double wheel_dx = 0.0;
-        double wheel_dy = 0.0;
-
-        #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-        if (floor(NSAppKitVersionNumber) > NSAppKitVersionNumber10_6)
+    dispatch_source_set_event_handler(gtApplication.tDisplaySource, ^{
+        @autoreleasepool
         {
-            wheel_dx = [event scrollingDeltaX];
-            wheel_dy = [event scrollingDeltaY];
-            if ([event hasPreciseScrollingDeltas])
-            {
-                wheel_dx *= 0.1;
-                wheel_dy *= 0.1;
-            }
+            pl__application_frame();
         }
-        else
-        #endif // MAC_OS_X_VERSION_MAX_ALLOWED
-        {
-            wheel_dx = [event deltaX];
-            wheel_dy = [event deltaY];
-        }
-        if (wheel_dx != 0.0 || wheel_dy != 0.0)
-            gptIOI->add_mouse_wheel_event((float)wheel_dx * 0.1f, (float)wheel_dy * 0.1f);
+    });
+    dispatch_resume(gtApplication.tDisplaySource);
 
-        return true;
-    }
-
-    if (event.type == NSEventTypeKeyDown || event.type == NSEventTypeKeyUp)
+    CVReturn tResult = CVDisplayLinkCreateWithActiveCGDisplays(&gtApplication.tDisplayLink);
+    if(tResult != kCVReturnSuccess)
     {
-        if ([event isARepeat])
-            return true;
-
-        int key_code = (int)[event keyCode];
-        gptIOI->add_key_event(pl__osx_key_to_pl_key(key_code), event.type == NSEventTypeKeyDown);
-        return true;
+        dispatch_source_cancel(gtApplication.tDisplaySource);
+        gtApplication.tDisplaySource = NULL;
+        return false;
     }
 
-    if (event.type == NSEventTypeFlagsChanged)
+    tResult = CVDisplayLinkSetOutputCallback(gtApplication.tDisplayLink,
+                                              pl__dispatch_render_loop,
+                                              (__bridge void*)gtApplication.tDisplaySource);
+    if(tResult != kCVReturnSuccess)
     {
-        unsigned short key_code = [event keyCode];
-        NSEventModifierFlags modifier_flags = [event modifierFlags];
-
-        gptIOI->add_key_event(PL_KEY_MOD_SHIFT, (modifier_flags & NSEventModifierFlagShift)   != 0);
-        gptIOI->add_key_event(PL_KEY_MOD_CTRL,  (modifier_flags & NSEventModifierFlagControl) != 0);
-        gptIOI->add_key_event(PL_KEY_MOD_ALT,   (modifier_flags & NSEventModifierFlagOption)  != 0);
-        gptIOI->add_key_event(PL_KEY_MOD_SUPER, (modifier_flags & NSEventModifierFlagCommand) != 0);
-
-        plKey key = pl__osx_key_to_pl_key(key_code);
-        if (key != PL_KEY_NONE)
-        {
-            // macOS does not generate down/up event for modifiers. We're trying
-            // to use hardware dependent masks to extract that information.
-            NSEventModifierFlags mask = 0;
-            switch (key)
-            {
-                case PL_KEY_LEFT_CTRL:   mask = 0x0001; break;
-                case PL_KEY_RIGHT_CTRL:  mask = 0x2000; break;
-                case PL_KEY_LEFT_SHIFT:  mask = 0x0002; break;
-                case PL_KEY_RIGHT_SHIFT: mask = 0x0004; break;
-                case PL_KEY_LEFT_SUPER:  mask = 0x0008; break;
-                case PL_KEY_RIGHT_SUPER: mask = 0x0010; break;
-                case PL_KEY_LEFT_ALT:    mask = 0x0020; break;
-                case PL_KEY_RIGHT_ALT:   mask = 0x0040; break;
-                default: return true;
-            }
-
-            NSEventModifierFlags modifier_flags = [event modifierFlags];
-            gptIOI->add_key_event(key, (modifier_flags & mask) != 0);
-            // io.SetKeyEventNativeData(key, key_code, -1); // To support legacy indexing (<1.87 user code)
-        }
-
-        return true;
+        pl__stop_application_render_loop();
+        return false;
     }
 
-    return false;
+
+
+    plPlatformExtData* ptWindowData = gptIOCtx->pBackendPlatformData;
+
+    // Follow the main window's display when one exists. Failure is not fatal;
+    // the display link created above is still valid for active displays.
+    if(ptWindowData->tScreen)
+    {
+        NSNumber* ptScreenNumber = ptWindowData->tScreen;
+        if(ptScreenNumber)
+            CVDisplayLinkSetCurrentCGDisplay(gtApplication.tDisplayLink, (CGDirectDisplayID)ptScreenNumber.unsignedIntegerValue);
+    }
+
+    tResult = CVDisplayLinkStart(gtApplication.tDisplayLink);
+    if(tResult != kCVReturnSuccess)
+    {
+        pl__stop_application_render_loop();
+        return false;
+    }
+
+    return true;
 }
 
-void 
-pl__add_osx_tracking_area(NSView* _Nonnull view)
+static void
+pl__stop_application_render_loop(void)
 {
-    if(gMonitor) return;
-    NSEventMask eventMask = 0;
-    eventMask |= NSEventMaskMouseMoved | NSEventMaskScrollWheel;
-    eventMask |= NSEventMaskLeftMouseDown | NSEventMaskLeftMouseUp | NSEventMaskLeftMouseDragged;
-    eventMask |= NSEventMaskRightMouseDown | NSEventMaskRightMouseUp | NSEventMaskRightMouseDragged;
-    eventMask |= NSEventMaskOtherMouseDown | NSEventMaskOtherMouseUp | NSEventMaskOtherMouseDragged;
-    eventMask |= NSEventMaskKeyDown | NSEventMaskKeyUp | NSEventMaskFlagsChanged;
-    gMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:eventMask
-                                                        handler:^NSEvent* _Nullable(NSEvent* event)
+    if(gtApplication.tDisplayLink)
     {
-        pl__handle_osx_event(event, view);
-        return event;
-    }]; 
+        CVDisplayLinkStop(gtApplication.tDisplayLink);
+        CVDisplayLinkRelease(gtApplication.tDisplayLink);
+        gtApplication.tDisplayLink = NULL;
+    }
+
+    if(gtApplication.tDisplaySource)
+    {
+        dispatch_source_cancel(gtApplication.tDisplaySource);
+        #if defined(OS_OBJECT_USE_OBJC) && !OS_OBJECT_USE_OBJC
+            dispatch_release(gtApplication.tDisplaySource);
+        #endif
+        gtApplication.tDisplaySource = NULL;
+    }
+}
+
+static CVReturn
+pl__dispatch_render_loop(CVDisplayLinkRef displayLink,
+                         const CVTimeStamp* now,
+                         const CVTimeStamp* outputTime,
+                         CVOptionFlags flagsIn,
+                         CVOptionFlags* flagsOut,
+                         void* displayLinkContext)
+{
+    (void)displayLink;
+    (void)now;
+    (void)outputTime;
+    (void)flagsIn;
+    (void)flagsOut;
+
+    dispatch_source_t tSource = (__bridge dispatch_source_t)displayLinkContext;
+    if(tSource)
+        dispatch_source_merge_data(tSource, 1);
+    return kCVReturnSuccess;
+}
+
+static void
+pl__application_frame(void)
+{
+    if(gtApplication.bShutdown)
+        return;
+
+    if(gbHotReloadActive && gptLibraryApi->has_changed(gptAppLibrary))
+    {
+        pl_reload_library(gptAppLibrary);
+        pl__load_application_functions();
+        pl__handle_extension_reloads();
+        gptIOCtx->pAppUserData = pl_app_load(gptApiRegistry, gptIOCtx->pAppUserData);
+    }
+
+    // The window backend applies native changes and records events. The
+    // application host is the only layer that dispatches pl_app_resize().
+    if(gptIOCtx->bViewportSizeChanged)
+    {
+        gptIOCtx->bViewportSizeChanged = false;
+        return;
+    }
+
+    gptIOCtx->platform_new_frame(gptIOCtx->pBackendPlatformData);
+
+    if(gtApplication.tLastFrameTime == 0.0)
+        gtApplication.tLastFrameTime = pl__get_absolute_time();
+
+    const double dCurrentTime = pl__get_absolute_time();
+    gptIOCtx->fDeltaTime = (float)(dCurrentTime - gtApplication.tLastFrameTime);
+    gtApplication.tLastFrameTime = dCurrentTime;
+
+    pl__garbage_collect_data_reg();
+    if(pl_app_update)
+        pl_app_update(gptIOCtx->pAppUserData);
+    pl__handle_extension_reloads();
+
+    if(gbApisDirty)
+        pl__check_apis();
+
+    if(!gptIOCtx->bRunning)
+        [NSApp terminate:nil];
+}
+
+static void
+pl__application_shutdown_once(void)
+{
+    if(gtApplication.bShutdown)
+        return;
+
+    gtApplication.bShutdown = true;
+    pl__stop_application_render_loop();
+
+    if(pl_app_shutdown)
+    {
+        pl_app_shutdown(gptIOCtx->pAppUserData);
+    }
+
+    gptIOCtx->platform_cleanup(gptIOCtx->pBackendPlatformData);
+    pl__unload_all_extensions();
+
+    // gptAppLibrary was allocated through the core memory API, so release it
+    // before unregistering the core APIs.
+    if(gptAppLibrary)
+    {
+        PL_FREE(gptAppLibrary);
+        gptAppLibrary = NULL;
+    }
+
+    pl__unload_core_apis();
+    pl__check_for_leaks();
 }
 
 //-----------------------------------------------------------------------------
@@ -1061,289 +641,6 @@ pl_load_library_function(plSharedLibrary* library, const char* name)
     return loadedFunction;
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] window ext
-//-----------------------------------------------------------------------------
-
-plWindowResult
-pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
-{
-
-    plWindowData* ptData = malloc(sizeof(plWindowData));
-
-    // create view
-    ptData->ptViewController = [[plNSViewController alloc] init];
-
-   id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-
-    NSRect frame = NSMakeRect(0, 0, tDesc.uWidth, tDesc.uHeight);
-    ptData->ptViewController.view = [[plNSView alloc] initWithFrame:frame];
-
-    plNSView *view = (plNSView *)ptData->ptViewController.view;
-    view.metalLayer.device = device;
-    view.delegate = ptData->ptViewController;
-    view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    gptIOCtx->pBackendPlatformData = device;
-    ptData->ptLayer = view.metalLayer;
-
-    // create window
-    ptData->ptWindow = [NSWindow windowWithContentViewController:ptData->ptViewController];
-    [ptData->ptWindow orderFront:nil];
-    [ptData->ptWindow center];
-    [ptData->ptWindow becomeKeyWindow];
-
-    NSString* tWindowTitle = [NSString stringWithUTF8String:tDesc.pcTitle];
-    [ptData->ptWindow setTitle:tWindowTitle];
-
-
-    NSPoint tOrigin = NSMakePoint(tDesc.iXPos, ptData->ptWindow.screen.frame.size.height - tDesc.iYPos);
-    [ptData->ptWindow setFrameTopLeftPoint:tOrigin];
-
-    
-    ptData->ptWindow.delegate = gtAppDelegate;
-
-    // window size
-    const NSRect contentRect2 = [view frame];
-    gptIOCtx->tMainViewportSize.x = (float)contentRect2.size.width;
-    gptIOCtx->tMainViewportSize.y = (float)contentRect2.size.height;
-
-    plWindow* ptWindow = malloc(sizeof(plWindow));
-
-    if(gptMainWindow == NULL)
-        gptMainWindow = ptWindow;
-    
-    ptWindow->_pBackendData = ptData;
-    pl_sb_push(gsbtWindows, ptWindow);
-    *pptWindowOut = ptWindow;
-
-    return PL_WINDOW_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_window(plWindow* ptWindow)
-{
-    plWindowData* ptData = ptWindow->_pBackendData;
-    [ptData->ptWindow release];
-    free(ptData);
-    free(ptWindow);
-}
-
-void
-pl_show_window(plWindow* ptWindow)
-{
-    
-}
-
-bool 
-pl_set_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
-{
-    return false;
-}
-
-bool
-pl_get_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
-{
-    return false;
-}
-
-bool
-pl_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
-{
-    return tMode == PL_CURSOR_MODE_NORMAL;
-}
-
-plCursorMode
-pl_get_cursor_mode(plWindow* ptWindow)
-{
-    return PL_CURSOR_MODE_NORMAL;
-}
-
-bool
-pl_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
-{
-    return !bValue;
-}
-
-bool
-pl_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* tDesc)
-{
-    return tDesc->tMode == PL_FULLSCREEN_MODE_NONE;
-}
-
-const plWindowCapabilities*
-pl_get_window_capabilities(void)
-{
-    static plWindowCapabilities tCapabilities = {};
-
-    tCapabilities.uCursorModeCount = 1;
-    tCapabilities.uAttributeCount = 1;
-    tCapabilities.uFullScreenModeCount = 2;
-
-    static const plWindowAttribute atSupportedAttributes[] = {
-        -1
-    };
-
-    static const plCursorMode atSupportedCursorModes[] = {
-        PL_CURSOR_MODE_NORMAL
-    };
-
-    static const plFullScreenMode atSupportedScreenModes[] = {
-        PL_FULLSCREEN_MODE_NONE,
-        PL_FULLSCREEN_MODE_EXCLUSIVE
-    };
-
-    tCapabilities.atCursorModes = atSupportedCursorModes;
-    tCapabilities.atFullScreenModes = atSupportedScreenModes;
-    tCapabilities.atWindowAttributes = atSupportedAttributes;
-    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_NONE;
-
-    return &tCapabilities;
-}
-
-plKey
-pl__osx_key_to_pl_key(int iKey)
-{
-    switch (iKey)
-    {
-        case kVK_ANSI_A:              return PL_KEY_A;
-        case kVK_ANSI_S:              return PL_KEY_S;
-        case kVK_ANSI_D:              return PL_KEY_D;
-        case kVK_ANSI_F:              return PL_KEY_F;
-        case kVK_ANSI_H:              return PL_KEY_H;
-        case kVK_ANSI_G:              return PL_KEY_G;
-        case kVK_ANSI_Z:              return PL_KEY_Z;
-        case kVK_ANSI_X:              return PL_KEY_X;
-        case kVK_ANSI_C:              return PL_KEY_C;
-        case kVK_ANSI_V:              return PL_KEY_V;
-        case kVK_ANSI_B:              return PL_KEY_B;
-        case kVK_ANSI_Q:              return PL_KEY_Q;
-        case kVK_ANSI_W:              return PL_KEY_W;
-        case kVK_ANSI_E:              return PL_KEY_E;
-        case kVK_ANSI_R:              return PL_KEY_R;
-        case kVK_ANSI_Y:              return PL_KEY_Y;
-        case kVK_ANSI_T:              return PL_KEY_T;
-        case kVK_ANSI_1:              return PL_KEY_1;
-        case kVK_ANSI_2:              return PL_KEY_2;
-        case kVK_ANSI_3:              return PL_KEY_3;
-        case kVK_ANSI_4:              return PL_KEY_4;
-        case kVK_ANSI_6:              return PL_KEY_6;
-        case kVK_ANSI_5:              return PL_KEY_5;
-        case kVK_ANSI_Equal:          return PL_KEY_EQUAL;
-        case kVK_ANSI_9:              return PL_KEY_9;
-        case kVK_ANSI_7:              return PL_KEY_7;
-        case kVK_ANSI_Minus:          return PL_KEY_MINUS;
-        case kVK_ANSI_8:              return PL_KEY_8;
-        case kVK_ANSI_0:              return PL_KEY_0;
-        case kVK_ANSI_RightBracket:   return PL_KEY_RIGHT_BRACKET;
-        case kVK_ANSI_O:              return PL_KEY_O;
-        case kVK_ANSI_U:              return PL_KEY_U;
-        case kVK_ANSI_LeftBracket:    return PL_KEY_LEFT_BRACKET;
-        case kVK_ANSI_I:              return PL_KEY_I;
-        case kVK_ANSI_P:              return PL_KEY_P;
-        case kVK_ANSI_L:              return PL_KEY_L;
-        case kVK_ANSI_J:              return PL_KEY_J;
-        case kVK_ANSI_Quote:          return PL_KEY_APOSTROPHE;
-        case kVK_ANSI_K:              return PL_KEY_K;
-        case kVK_ANSI_Semicolon:      return PL_KEY_SEMICOLON;
-        case kVK_ANSI_Backslash:      return PL_KEY_BACKSLASH;
-        case kVK_ANSI_Comma:          return PL_KEY_COMMA;
-        case kVK_ANSI_Slash:          return PL_KEY_SLASH;
-        case kVK_ANSI_N:              return PL_KEY_N;
-        case kVK_ANSI_M:              return PL_KEY_M;
-        case kVK_ANSI_Period:         return PL_KEY_PERIOD;
-        case kVK_ANSI_Grave:          return PL_KEY_GRAVE_ACCENT;
-        case kVK_ANSI_KeypadDecimal:  return PL_KEY_KEYPAD_DECIMAL;
-        case kVK_ANSI_KeypadMultiply: return PL_KEY_KEYPAD_MULTIPLY;
-        case kVK_ANSI_KeypadPlus:     return PL_KEY_KEYPAD_ADD;
-        case kVK_ANSI_KeypadClear:    return PL_KEY_NUM_LOCK;
-        case kVK_ANSI_KeypadDivide:   return PL_KEY_KEYPAD_DIVIDE;
-        case kVK_ANSI_KeypadEnter:    return PL_KEY_KEYPAD_ENTER;
-        case kVK_ANSI_KeypadMinus:    return PL_KEY_KEYPAD_SUBTRACT;
-        case kVK_ANSI_KeypadEquals:   return PL_KEY_KEYPAD_EQUAL;
-        case kVK_ANSI_Keypad0:        return PL_KEY_KEYPAD_0;
-        case kVK_ANSI_Keypad1:        return PL_KEY_KEYPAD_1;
-        case kVK_ANSI_Keypad2:        return PL_KEY_KEYPAD_2;
-        case kVK_ANSI_Keypad3:        return PL_KEY_KEYPAD_3;
-        case kVK_ANSI_Keypad4:        return PL_KEY_KEYPAD_4;
-        case kVK_ANSI_Keypad5:        return PL_KEY_KEYPAD_5;
-        case kVK_ANSI_Keypad6:        return PL_KEY_KEYPAD_6;
-        case kVK_ANSI_Keypad7:        return PL_KEY_KEYPAD_7;
-        case kVK_ANSI_Keypad8:        return PL_KEY_KEYPAD_8;
-        case kVK_ANSI_Keypad9:        return PL_KEY_KEYPAD_9;
-        case kVK_Return:              return PL_KEY_ENTER;
-        case kVK_Tab:                 return PL_KEY_TAB;
-        case kVK_Space:               return PL_KEY_SPACE;
-        case kVK_Delete:              return PL_KEY_BACKSPACE;
-        case kVK_Escape:              return PL_KEY_ESCAPE;
-        case kVK_CapsLock:            return PL_KEY_CAPS_LOCK;
-        case kVK_Control:             return PL_KEY_LEFT_CTRL;
-        case kVK_Shift:               return PL_KEY_LEFT_SHIFT;
-        case kVK_Option:              return PL_KEY_LEFT_ALT;
-        case kVK_Command:             return PL_KEY_LEFT_SUPER;
-        case kVK_RightControl:        return PL_KEY_RIGHT_CTRL;
-        case kVK_RightShift:          return PL_KEY_RIGHT_SHIFT;
-        case kVK_RightOption:         return PL_KEY_RIGHT_ALT;
-        case kVK_RightCommand:        return PL_KEY_RIGHT_SUPER;
-        case kVK_F5:                  return PL_KEY_F5;
-        case kVK_F6:                  return PL_KEY_F6;
-        case kVK_F7:                  return PL_KEY_F7;
-        case kVK_F3:                  return PL_KEY_F3;
-        case kVK_F8:                  return PL_KEY_F8;
-        case kVK_F9:                  return PL_KEY_F9;
-        case kVK_F11:                 return PL_KEY_F11;
-        case kVK_F13:                 return PL_KEY_PRINT_SCREEN;
-        case kVK_F10:                 return PL_KEY_F10;
-        case 0x6E:                    return PL_KEY_MENU;
-        case kVK_F12:                 return PL_KEY_F12;
-        case kVK_Help:                return PL_KEY_INSERT;
-        case kVK_Home:                return PL_KEY_HOME;
-        case kVK_PageUp:              return PL_KEY_PAGE_UP;
-        case kVK_ForwardDelete:       return PL_KEY_DELETE;
-        case kVK_F4:                  return PL_KEY_F4;
-        case kVK_End:                 return PL_KEY_END;
-        case kVK_F2:                  return PL_KEY_F2;
-        case kVK_PageDown:            return PL_KEY_PAGE_DOWN;
-        case kVK_F1:                  return PL_KEY_F1;
-        case kVK_LeftArrow:           return PL_KEY_LEFT_ARROW;
-        case kVK_RightArrow:          return PL_KEY_RIGHT_ARROW;
-        case kVK_DownArrow:           return PL_KEY_DOWN_ARROW;
-        case kVK_UpArrow:             return PL_KEY_UP_ARROW;
-        default:                      return PL_KEY_NONE;
-    }
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] clipboard
-//-----------------------------------------------------------------------------
-
-const char*
-pl_get_clipboard_text(void* user_data_ctx)
-{
-    pl_sb_reset(gptIOCtx->sbcClipboardData);
-
-    NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
-    NSString* available = [pasteboard availableTypeFromArray: [NSArray arrayWithObject:NSPasteboardTypeString]];
-    if (![available isEqualToString:NSPasteboardTypeString])
-        return NULL;
-
-    NSString* string = [pasteboard stringForType:NSPasteboardTypeString];
-    if (string == nil)
-        return NULL;
-
-    const char* string_c = (const char*)[string UTF8String];
-    size_t string_len = strlen(string_c);
-    pl_sb_resize(gptIOCtx->sbcClipboardData, (int)string_len + 1);
-    strcpy(gptIOCtx->sbcClipboardData, string_c);
-    return gptIOCtx->sbcClipboardData;
-}
-
-void
-pl_set_clipboard_text(void* pUnused, const char* text)
-{
-    NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
-    [pasteboard declareTypes:[NSArray arrayWithObject:NSPasteboardTypeString] owner:nil];
-    [pasteboard setString:[NSString stringWithUTF8String:text] forType:NSPasteboardTypeString];
-}
 
 //-----------------------------------------------------------------------------
 // [SECTION] thread ext

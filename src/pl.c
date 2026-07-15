@@ -1526,24 +1526,6 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] partial window implementation
-//-----------------------------------------------------------------------------
-
-void
-pl_set_window_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
-{
-    // TODO: implement
-}
-
-plWindowEventCallback
-pl_get_window_callback(plWindow* ptWindow)
-{
-    plWindowEventCallback tCallback = PL_ZERO_INIT;
-    return tCallback;
-}
-
-
-//-----------------------------------------------------------------------------
 // [SECTION] helper implementations
 //-----------------------------------------------------------------------------
 
@@ -1655,26 +1637,11 @@ pl__load_core_apis(void)
     gptIOI               = pl_get_api_latest(ptApiRegistry, plIOI);
     gptApiRegistry       = ptApiRegistry;
 
-    plWindowI tWindowApi = PL_ZERO_INIT;
-    tWindowApi.create              = pl_create_window;
-    tWindowApi.destroy             = pl_destroy_window;
-    tWindowApi.show                = pl_show_window;
-    tWindowApi.set_callback        = pl_set_window_callback;
-    tWindowApi.get_callback        = pl_get_window_callback;
-    tWindowApi.set_attribute       = pl_set_window_attribute;
-    tWindowApi.get_attribute       = pl_get_window_attribute;
-    tWindowApi.set_cursor_mode     = pl_set_cursor_mode;
-    tWindowApi.get_cursor_mode     = pl_get_cursor_mode;
-    tWindowApi.set_raw_mouse_input = pl_set_raw_mouse_input;
-    tWindowApi.set_fullscreen      = pl_set_fullscreen;
-    tWindowApi.get_capabilities    = pl_get_window_capabilities;
- 
     plLibraryI tLibraryApi = PL_ZERO_INIT;
     tLibraryApi.has_changed   = pl_has_library_changed;
     tLibraryApi.load          = pl_load_library;
     tLibraryApi.load_function = pl_load_library_function;
 
-    pl_set_api(gptApiRegistry, plWindowI, &tWindowApi);
     pl_set_api(gptApiRegistry, plLibraryI, &tLibraryApi);
 }
 

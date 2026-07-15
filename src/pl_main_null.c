@@ -10,7 +10,6 @@ Index of this file:
 // [SECTION] structs
 // [SECTION] globals
 // [SECTION] entry point
-// [SECTION] window ext
 // [SECTION] file ext
 // [SECTION] library ext
 // [SECTION] threads ext
@@ -114,6 +113,7 @@ const char* gpcLibraryPrefix    = "lib";
 
 int main(int argc, char *argv[])
 {
+    printf("here\n");
     const char* pcAppName = "app";
 
     for(int i = 1; i < argc; i++)
@@ -141,7 +141,6 @@ int main(int argc, char *argv[])
         }
         else if(strcmp(argv[i], "--apis") == 0)
         {
-            plVersion tWindowExtVersion = plWindowI_version;
             plVersion tLibraryVersion = plLibraryI_version;
             plVersion tDataRegistryVersion = plDataRegistryI_version;
             plVersion tExtensionRegistryVersion = plExtensionRegistryI_version;
@@ -156,7 +155,6 @@ int main(int argc, char *argv[])
                 printf("Config: release null\n\n");
             #endif
             printf("~~~~~~~~API Versions~~~~~~~~~\n\n");
-            printf("plWindowI:            v%u.%u.%u\n", tWindowExtVersion.uMajor, tWindowExtVersion.uMinor, tWindowExtVersion.uPatch);
             printf("plLibraryI:           v%u.%u.%u\n", tLibraryVersion.uMajor, tLibraryVersion.uMinor, tLibraryVersion.uPatch);
             printf("plDataRegistryI:      v%u.%u.%u\n", tDataRegistryVersion.uMajor, tDataRegistryVersion.uMinor, tDataRegistryVersion.uPatch);
             printf("plExtensionRegistryI: v%u.%u.%u\n", tExtensionRegistryVersion.uMajor, tExtensionRegistryVersion.uMinor, tExtensionRegistryVersion.uPatch);
@@ -204,49 +202,51 @@ int main(int argc, char *argv[])
     plLibraryDesc tLibraryDesc = {
         .pcName = pcAppName
     };
-
     if(ptLibraryApi->load(tLibraryDesc, &gptAppLibrary))
     {
         #ifdef _WIN32
             pl_app_load     = (void* (__cdecl  *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__cdecl  *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__cdecl  *)(plWindow*, void*))             ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_resize   = (void  (__cdecl  *)(void*, void*))                 ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__cdecl  *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
             pl_app_info     = (bool  (__cdecl  *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
 
         #else
             pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*))             ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_resize   = (void  (__attribute__(()) *)(void*, void*))                 ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
             pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
         #endif
 
+        gptIOCtx->pl_app_resize = pl_app_resize;
+        gptIOCtx->pl_app_update = pl_app_update;
         if(pl_app_info)
         {
             if(!pl_app_info(gptApiRegistry))
                 return 0;
         }
-        gpUserData = pl_app_load(gptApiRegistry, NULL);
+        gptIOCtx->pAppUserData = pl_app_load(gptApiRegistry, NULL);
+        // if(gptIOCtx->platform_setup)
+        //     gptIOCtx->pBackendPlatformData = gptIOCtx->platform_setup();
         bool bApisFound = pl__check_apis();
         if(!bApisFound)
             return 3;
     }
+    else
+        return 2;
 
     // main loop
     while (gptIOCtx->bRunning)
     {
 
+        // gptIOCtx->platform_new_frame(gptIOCtx->pBackendPlatformData);
+
         pl__garbage_collect_data_reg();
 
-        // setup time step
-        // INT64 ilCurrentTime = 0;
-        // QueryPerformanceCounter((LARGE_INTEGER*)&ilCurrentTime);
-        // gptIOCtx->fDeltaTime = (float)(ilCurrentTime - ilTime) / ilTicksPerSecond;
-        // ilTime = ilCurrentTime;
         if(!gptIOCtx->bViewportMinimized)
         {
-            pl_app_update(gpUserData);
+            pl_app_update(gptIOCtx->pAppUserData);
             // pl__handle_extension_reloads();
         }
     
@@ -256,7 +256,10 @@ int main(int argc, char *argv[])
     }
 
     // app cleanup
-    pl_app_shutdown(gpUserData);
+    pl_app_shutdown(gptIOCtx->pAppUserData);
+
+    // if(gptIOCtx->platform_cleanup)
+    //     gptIOCtx->platform_cleanup(gptIOCtx->pBackendPlatformData);
 
     // unload extensions & APIs
     pl__unload_all_extensions();
@@ -268,92 +271,6 @@ int main(int argc, char *argv[])
     }
 
     pl__check_for_leaks();
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] window ext
-//-----------------------------------------------------------------------------
-
-plWindowResult
-pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
-{
-    return PL_WINDOW_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_window(plWindow* ptWindow)
-{
-}
-
-void
-pl_show_window(plWindow* ptWindow)
-{ 
-}
-
-bool 
-pl_set_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
-{
-    return false;
-}
-
-bool
-pl_get_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
-{
-    return false;
-}
-
-bool
-pl_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
-{
-    return tMode == PL_CURSOR_MODE_NORMAL;
-}
-
-plCursorMode
-pl_get_cursor_mode(plWindow* ptWindow)
-{
-    return PL_CURSOR_MODE_NORMAL;
-}
-
-bool
-pl_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
-{
-    return !bValue;
-}
-
-bool
-pl_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* tDesc)
-{
-    return tDesc->tMode == PL_FULLSCREEN_MODE_NONE;
-}
-
-const plWindowCapabilities*
-pl_get_window_capabilities(void)
-{
-    static plWindowCapabilities tCapabilities = {};
-
-    tCapabilities.uCursorModeCount = 1;
-    tCapabilities.uAttributeCount = 1;
-    tCapabilities.uFullScreenModeCount = 2;
-
-    static const plWindowAttribute atSupportedAttributes[] = {
-        -1
-    };
-
-    static const plCursorMode atSupportedCursorModes[] = {
-        PL_CURSOR_MODE_NORMAL
-    };
-
-    static const plFullScreenMode atSupportedScreenModes[] = {
-        PL_FULLSCREEN_MODE_NONE,
-        PL_FULLSCREEN_MODE_EXCLUSIVE
-    };
-
-    tCapabilities.atCursorModes = atSupportedCursorModes;
-    tCapabilities.atFullScreenModes = atSupportedScreenModes;
-    tCapabilities.atWindowAttributes = atSupportedAttributes;
-    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_NONE;
-
-    return &tCapabilities;
 }
 
 //-----------------------------------------------------------------------------

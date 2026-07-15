@@ -255,8 +255,11 @@ with pl.project("pilotlight"):
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_source_files("../extensions/pl_platform_linux_ext.c")
-                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_source_files("../extensions/pl_platform_x11_ext.c")
+                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes",
+                                                  "xcb-keysyms", "pthread")
+                    pl.add_compiler_flags("-std=gnu11", "-fPIC", "--debug", "-g")
+                    pl.add_linker_flags("-ldl", "-lm")
 
             # mac os
             with pl.platform("Darwin"):
@@ -275,8 +278,11 @@ with pl.project("pilotlight"):
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_source_files("../extensions/pl_platform_linux_ext.c")
-                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_source_files("../extensions/pl_platform_x11_ext.c")
+                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes",
+                                                  "xcb-keysyms", "pthread")
+                    pl.add_compiler_flags("-std=gnu11", "-fPIC")
+                    pl.add_linker_flags("-ldl", "-lm")
 
             # mac os
             with pl.platform("Darwin"):
@@ -343,9 +349,8 @@ with pl.project("pilotlight"):
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_source_files("pl_main_x11.c")
-                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes",
-                                                  "xcb-keysyms", "pthread")
+                    pl.add_source_files("pl_main_linux.c")
+                    pl.add_dynamic_link_libraries("pthread")
 
             # mac os
             with pl.platform("Darwin"):
@@ -366,9 +371,8 @@ with pl.project("pilotlight"):
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_source_files("pl_main_x11.c")
-                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes",
-                                                  "xcb-keysyms", "pthread")
+                    pl.add_source_files("pl_main_linux.c")
+                    pl.add_dynamic_link_libraries("pthread")
 
             # mac os
             with pl.platform("Darwin"):

@@ -83,6 +83,7 @@ Index of this file:
 #include "pl_graphics_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_starter_ext.h"
+#include "pl_platform_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs

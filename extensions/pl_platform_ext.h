@@ -39,11 +39,13 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
+#define plTimerI_version         {1, 0, 0}
 #define plAtomicsI_version       {2, 0, 0}
 #define plFileI_version          {2, 0, 0}
 #define plNetworkI_version       {1, 0, 0}
 #define plThreadsI_version       {1, 0, 1}
 #define plVirtualMemoryI_version {1, 0, 0}
+#define plWindowI_version        {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -56,6 +58,14 @@ extern "C" {
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
+
+// basic types (windows)
+typedef struct _plWindow               plWindow;               // mostly opaque type for windows
+typedef struct _plWindowDesc           plWindowDesc;           // description for window creation
+typedef struct _plWindowEvent          plWindowEvent;          // future window event type
+typedef struct _plFullScreenDesc       plFullScreenDesc;       // full screen options
+typedef struct _plWindowCapabilities   plWindowCapabilities;   // window capabilities for various settings
+typedef union _plWindowAttributeValue  plWindowAttributeValue; // catch all for windows attributes (basically a variant)
 
 // basic types (atomics)
 typedef struct _plAtomicCounter plAtomicCounter; // opaque type
@@ -80,6 +90,16 @@ typedef struct _plThreadKey         plThreadKey;         // opaque type (used by
 
 typedef void* (*plThreadProcedure)(void*); // thread procedure signature
 
+// enums (windows)
+typedef int plWindowEventType;       // -> enum _plWindowEventType       // Enum: A window event type (PL_WINDOW_EVENT_TYPE_XXX)
+typedef int plWindowAttribute;       // -> enum _plWindowAttribute       // Enum: window attribute (PL_WINDOW_ATTRIBUTE_XXX)
+typedef int plCursorMode;            // -> enum _plCursorMode            // Enum: window cursor mode (PL_CURSOR_MODE__XXX)
+typedef int plFullScreenMode;        // -> enum _plFullScreenMode        // Enum: window full screen mode (PL_FULLSCREEN_MODE_XXX)
+typedef int plWindowCapabilityFlags; // -> enum _plWindowCapabilityFlags // Flag: window capability flags (PL_WINDOW_CAPABILITY_FLAGS_XXX)
+typedef int plWindowResult;        // -> enum _plWindowResult        // Enum: Result returned from window API (PL_WINDOW_RESULT_XXXX)
+typedef int plWindowFlags;         // -> enum _plWindowFlags         // Flag: Flags for window creation (PL_WINDOW_FLAG_XXXX)
+typedef int plWindowInternalFlags; // -> enum _plWindowInternalFlags // Flag: Flags for internal window management
+
 // enums (atomics)
 typedef int plAtomicsResult; // -> enum _plAtomicsResult // Enum:
 
@@ -95,6 +115,9 @@ typedef int plNetworkResult;       // -> enum _plNetworkResult       // Enum:
 // enums (thread)
 typedef int plThreadResult; // -> enum _plThreadResult // Enum:
 
+// callbacks (windows)
+typedef void (*plWindowEventCallback)(const plWindowEvent*, void* userData);
+
 //-----------------------------------------------------------------------------
 // [SECTION] public apis
 //-----------------------------------------------------------------------------
@@ -102,6 +125,33 @@ typedef int plThreadResult; // -> enum _plThreadResult // Enum:
 // extension load/unload (must call directly if not using extension system)
 PL_API void pl_load_platform_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_platform_ext(plApiRegistryI*, bool reload);
+
+//--------------------------------timer api------------------------------------
+PL_API double pl_timer_get_time(void);
+
+//-------------------------------window api------------------------------------
+
+// create/destroy
+PL_API plWindowResult              pl_window_create          (plWindowDesc, plWindow** windowPtrOut);
+PL_API void                        pl_window_destroy         (plWindow*);
+PL_API void                        pl_window_show            (plWindow*);
+PL_API const plWindowCapabilities* pl_window_get_capabilities(void);
+
+// attributes
+PL_API bool pl_window_set_attribute (plWindow*, plWindowAttribute, const plWindowAttributeValue*);
+PL_API bool pl_window_get_attribute (plWindow*, plWindowAttribute, plWindowAttributeValue*);
+
+// cursor modes
+PL_API bool         pl_window_set_cursor_mode     (plWindow*, plCursorMode);
+PL_API plCursorMode pl_window_get_cursor_mode     (plWindow*);
+PL_API bool         pl_window_set_raw_mouse_input (plWindow*, bool);
+
+// full screen modes
+PL_API bool pl_window_set_fullscreen(plWindow*, const plFullScreenDesc*);
+
+// future callback system
+PL_API void                  pl_window_set_callback(plWindow*, plWindowEventCallback, void* userData);
+PL_API plWindowEventCallback pl_window_get_callback(plWindow*);
 
 //-----------------------------atomics api-------------------------------------
 
@@ -229,6 +279,37 @@ PL_API void   pl_virtual_memory_free         (void* address, size_t); // frees a
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plTimerI
+{
+    double (*get_time)(void);
+} plTimerI;
+
+typedef struct _plWindowI
+{
+    // create/destroy
+    plWindowResult              (*create)          (plWindowDesc, plWindow** windowPtrOut);
+    void                        (*destroy)         (plWindow*);
+    void                        (*show)            (plWindow*);
+    const plWindowCapabilities* (*get_capabilities)(void);
+
+    // attributes
+    bool (*set_attribute) (plWindow*, plWindowAttribute, const plWindowAttributeValue*);
+    bool (*get_attribute) (plWindow*, plWindowAttribute, plWindowAttributeValue*);
+
+    // cursor modes
+    bool         (*set_cursor_mode)     (plWindow*, plCursorMode);
+    plCursorMode (*get_cursor_mode)     (plWindow*);
+    bool         (*set_raw_mouse_input) (plWindow*, bool);
+
+    // full screen modes
+    bool (*set_fullscreen)(plWindow*, const plFullScreenDesc*);
+
+    // future callback system
+    void                  (*set_callback)(plWindow*, plWindowEventCallback, void* userData);
+    plWindowEventCallback (*get_callback)(plWindow*);
+
+} plWindowI;
 
 typedef struct _plAtomicsI
 {
@@ -372,6 +453,77 @@ typedef struct _plVirtualMemoryI
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
+enum _plWindowResult
+{
+    PL_WINDOW_RESULT_FAIL    = 0,
+    PL_WINDOW_RESULT_SUCCESS = 1
+};
+
+enum _plWindowFlags
+{
+    PL_WINDOW_FLAG_NONE = 0,
+};
+
+ enum _plWindowEventType
+ {
+
+    PL_WINDOW_EVENT_TYPE_NONE = 0,
+
+    // FUTURE
+
+    // PL_WINDOW_EVENT_TYPE_MOUSE_MOVE,
+    // PL_WINDOW_EVENT_TYPE_MOUSE_BUTTON,
+    // PL_WINDOW_EVENT_TYPE_MOUSE_SCROLL,
+    // PL_WINDOW_EVENT_TYPE_KEY,
+    // PL_WINDOW_EVENT_TYPE_CHAR,
+    // PL_WINDOW_EVENT_TYPE_WINDOW_FOCUS,
+    // PL_WINDOW_EVENT_TYPE_WINDOW_RESIZE,
+    // PL_WINDOW_EVENT_TYPE_WINDOW_CLOSE
+ };
+
+  enum _plWindowAttribute
+ {
+    PL_WINDOW_ATTRIBUTE_SIZE = 0,
+    PL_WINDOW_ATTRIBUTE_POSITION,
+    PL_WINDOW_ATTRIBUTE_RESIZABLE,
+    PL_WINDOW_ATTRIBUTE_DECORATED,
+    PL_WINDOW_ATTRIBUTE_TOP_MOST,
+    PL_WINDOW_ATTRIBUTE_MINIMIZED,
+    PL_WINDOW_ATTRIBUTE_MAXIMIZED,
+    PL_WINDOW_ATTRIBUTE_VISIBLE,
+    PL_WINDOW_ATTRIBUTE_FOCUSED,
+    PL_WINDOW_ATTRIBUTE_HOVERED,
+    PL_WINDOW_ATTRIBUTE_SIZE_LIMITS,
+
+    PL_WINDOW_ATTRIBUTE_COUNT
+ };
+
+enum _plCursorMode
+ {
+
+    PL_CURSOR_MODE_NORMAL = 0,
+    PL_CURSOR_MODE_HIDDEN,
+    PL_CURSOR_MODE_CAPTURED,
+    PL_CURSOR_MODE_DISABLED,
+    
+    PL_CURSOR_MODE_COUNT
+ };
+
+ enum _plFullScreenMode
+ {
+    PL_FULLSCREEN_MODE_NONE = 0,
+    PL_FULLSCREEN_MODE_EXCLUSIVE,
+    PL_FULLSCREEN_MODE_BORDERLESS,
+
+    L_FULLSCREEN_MODE_COUNT
+ };
+
+ enum _plWindowCapabilityFlags
+ {
+    PL_WINDOW_CAPABILITY_FLAGS_NONE            = 0,
+    PL_WINDOW_CAPABILITY_FLAGS_RAW_MOUSE_INPUT = 1 << 0
+ };
+
 enum _plAtomicsResult
 {
     PL_ATOMICS_RESULT_FAIL    = 0,
@@ -431,6 +583,64 @@ enum _plThreadResult
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plWindowDesc
+{
+    plWindowFlags tFlags;
+    const char*   pcTitle;
+    uint32_t      uWidth;
+    uint32_t      uHeight;
+    int           iXPos;
+    int           iYPos;
+    const void*   pNext;
+} plWindowDesc;
+
+typedef struct _plWindow
+{
+    void* pUserData;
+
+    // [INTERNAL]
+    void*                 _pBackendData;
+    void*                 _pBackendData2;
+    plWindowInternalFlags _tInternalFlags;
+    uint32_t              _uRequestedWidth;
+    uint32_t              _uRequestedHeight;
+    int                   _iRequestedMonitor;
+    int                   _iXPos;
+    int                   _iYPos;
+} plWindow;
+
+typedef struct _plWindowEvent
+{
+    plWindowEventType tType;
+    plWindow*         ptWindow;
+} plWindowEvent;
+
+typedef union _plWindowAttributeValue
+{
+    bool                            bValue;
+    int                             iValue;
+    struct { int x, y; }            tiVec2;
+    struct { uint32_t x, y; }       tuVec2;
+    struct { uint32_t x, y, z, w; } tuVec4;
+} plWindowAttributeValue;
+
+typedef struct _plFullScreenDesc
+{
+    plFullScreenMode tMode;
+    int              iMonitor; // -1 = automatic
+} plFullScreenDesc;
+
+typedef struct _plWindowCapabilities
+{
+    plWindowCapabilityFlags  tFlags;
+    const plCursorMode*      atCursorModes;
+    uint32_t                 uCursorModeCount;
+    const plFullScreenMode*  atFullScreenModes;
+    uint32_t                 uFullScreenModeCount;
+    const plWindowAttribute* atWindowAttributes;
+    uint32_t                 uAttributeCount;
+} plWindowCapabilities;
 
 typedef struct _plSocketReceiverInfo
 {

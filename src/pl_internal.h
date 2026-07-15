@@ -39,10 +39,6 @@ plSharedLibrary* gptAppLibrary = NULL;
 void*            gpUserData    = NULL;
 plIO*            gptIOCtx      = NULL;
 
-// windows
-plWindow* gptMainWindow = NULL;
-plWindow** gsbtWindows = NULL;
-
 // apis
 const plDataRegistryI*      gptDataRegistry      = NULL;
 const plApiRegistryI*       gptApiRegistry       = NULL;
@@ -54,25 +50,13 @@ bool                        gbApisDirty          = false;
 // app function pointers
 void* (*pl_app_load)    (const plApiRegistryI*, void*);
 void  (*pl_app_shutdown)(void*);
-void  (*pl_app_resize)  (plWindow*, void*);
+void  (*pl_app_resize)  (void*, void*);
 void  (*pl_app_update)  (void*);
 bool  (*pl_app_info)    (const plApiRegistryI*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] os declarations
 //-----------------------------------------------------------------------------
-
-// window api
-plWindowResult              pl_create_window (plWindowDesc, plWindow** pptWindowOut);
-void                        pl_destroy_window(plWindow*);
-void                        pl_show_window(plWindow*);
-bool                        pl_set_window_attribute(plWindow*, plWindowAttribute, const plWindowAttributeValue*);
-bool                        pl_get_window_attribute(plWindow*, plWindowAttribute, plWindowAttributeValue*);
-bool                        pl_set_cursor_mode(plWindow*, plCursorMode);
-plCursorMode                pl_get_cursor_mode(plWindow*);
-bool                        pl_set_raw_mouse_input(plWindow*, bool);
-bool                        pl_set_fullscreen(plWindow*, const plFullScreenDesc*);
-const plWindowCapabilities* pl_get_window_capabilities(void);
 
 // clip board
 const char* pl_get_clipboard_text(void* user_data_ctx);

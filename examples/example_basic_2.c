@@ -81,6 +81,7 @@ Index of this file:
 #include "pl_log_ext.h"
 #include "pl_stats_ext.h"
 #include "pl_console_ext.h"
+#include "pl_platform_ext.h" // plWindowI
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs

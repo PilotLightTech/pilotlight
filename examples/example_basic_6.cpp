@@ -63,6 +63,7 @@ Index of this file:
 #include "pl_ui_ext.h"
 #include "pl_starter_ext.h"
 #include "pl_graphics_ext.h"
+#include "pl_platform_ext.h"
 
 // dear imgui
 #include "pl_dear_imgui_ext.h"

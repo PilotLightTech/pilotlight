@@ -1,6 +1,7 @@
 /*
    example_basic_1.c
      - demonstrates loading APIs
+     - demonstrates loading extensions
      - demonstrates creating a window
      - demonstrates hot reloading
      - demonstrates keyboard input
@@ -48,6 +49,9 @@ Index of this file:
 #include <string.h> // memset
 #include "pl.h"
 
+// extensions
+#include "pl_platform_ext.h" // plWindowI
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -74,6 +78,17 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // NOTE: on first load, "ptAppData" will be NULL but on reloads
     //       it will be the value returned from this function's first
     //       call
+
+    // retrieve extension registry
+    const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
+
+    // load extensions
+    //   * first argument is the shared library name WITHOUT the file extension
+    //   * second & third argument is the load/unload functions names (use NULL for the default of "pl_load_ext" &
+    //     "pl_unload_ext")
+    //   * fourth argument indicates if the extension is reloadable (should the runtime check for changes and reload if changed)
+    ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false); // provides the file API used by the drawing ext
+    
 
     // load required apis (stored as globals for convience)
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);

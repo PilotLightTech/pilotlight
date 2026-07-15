@@ -44,6 +44,7 @@ Index of this file:
 #include "pl_draw_ext.h"
 #include "pl_starter_ext.h"
 #include "pl_graphics_ext.h"
+#include "pl_platform_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs

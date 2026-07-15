@@ -15,6 +15,9 @@ Index of this file:
 
 // #include <math.h>
 #import <Cocoa/Cocoa.h> // dispatch semaphore stuff
+#import <Carbon/Carbon.h>
+#import <QuartzCore/CAMetalLayer.h>
+#import <Metal/Metal.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h> // memset
@@ -42,6 +45,10 @@ Index of this file:
 plThread** gsbtThreads;
 
 static const plMemoryI*  gptMemory = NULL;
+static const plIOI*      gptIOI = NULL;
+
+static plIO* gptIOCtx = NULL;
+
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
 #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
@@ -53,6 +60,1037 @@ static const plMemoryI*  gptMemory = NULL;
 #endif
 
 #include "pl_ds.h"
+
+typedef struct _plPlatformExtData
+{
+    NSNumber* tScreen;
+    id<MTLDevice> tDevice;
+    CAMetalLayer* ptLayer;
+    id gtAppDelegate;
+    double dInitialTime;
+} plPlatformExtData;
+
+static plPlatformExtData* gptWindowCtx = NULL;
+
+//-----------------------------------------------------------------------------
+// [SECTION] timer api
+//-----------------------------------------------------------------------------
+
+double
+pl_timer_get_time(void)
+{
+    double dNewTime = (CFTimeInterval)((double)clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9);
+    return dNewTime - gptWindowCtx->dInitialTime;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] window ext
+//-----------------------------------------------------------------------------
+
+@class plNSView;
+@class plNSViewController;
+@class plKeyEventResponder;
+
+typedef struct _plWindowData plWindowData;
+
+static plWindowData* pl__find_window_data(NSWindow*);
+static void          pl__mark_window_resize(plWindowData*);
+static bool          pl__application_process_window_events(void);
+static void          pl__install_osx_event_monitor(void);
+static void          pl__remove_osx_event_monitor(void);
+static void          pl__update_mouse_cursor(void);
+
+plKey pl__osx_key_to_pl_key(int iKey);
+bool  pl__handle_osx_event(NSEvent* event, NSView* view);
+
+// clipboard
+const char* pl_get_clipboard_text(void* user_data_ctx);
+void        pl_set_clipboard_text(void* pUnused, const char* text);
+
+typedef enum _plMacWindowEventType
+{
+    PL_MAC_WINDOW_EVENT_RESIZED,
+    PL_MAC_WINDOW_EVENT_CLOSE_REQUESTED
+} plMacWindowEventType;
+
+typedef struct _plMacWindowEvent
+{
+    plMacWindowEventType tType;
+    plWindow*            ptWindow;
+    uint32_t             uDrawableWidth;
+    uint32_t             uDrawableHeight;
+    float                fViewportWidth;
+    float                fViewportHeight;
+    float                fScale;
+} plMacWindowEvent;
+
+struct _plWindowData
+{
+    plWindow*             ptPublicWindow;
+    NSWindow*             ptNativeWindow;
+    plNSViewController*   ptViewController;
+    plNSView*             ptView;
+    CAMetalLayer*         ptLayer;
+    id<MTLDevice>         tDevice;
+    plKeyEventResponder*  ptKeyResponder;
+    NSTextInputContext*   ptInputContext;
+    CGSize                tPendingDrawableSize;
+    CGFloat               fPendingScale;
+    bool                  bResizePending;
+    bool                  bClosePending;
+};
+
+@interface plNSAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
+@end
+
+@interface plNSViewController : NSViewController
+@end
+
+@interface plNSView : NSView <CALayerDelegate>
+@property(nonatomic, assign) plWindowData* windowData;
+@property(nonatomic, nonnull, readonly) CAMetalLayer* metalLayer;
+- (void)initCommon;
+- (void)markDrawableResize;
+- (CGSize)backingDrawableSize;
+@end
+
+@interface plKeyEventResponder : NSView <NSTextInputClient>
+@end
+
+// Undocumented methods for creating cursors. (from Dear ImGui)
+@interface NSCursor()
++ (id)_windowResizeNorthWestSouthEastCursor;
++ (id)_windowResizeNorthEastSouthWestCursor;
++ (id)_windowResizeNorthSouthCursor;
++ (id)_windowResizeEastWestCursor;
+@end
+
+id                gMonitor = nil;
+NSCursor*         aptMouseCursors[PL_MOUSE_CURSOR_COUNT];
+static plMacWindowEvent*      gsbtWindowEvents = NULL;
+
+// typedef struct _plPlatformExtData
+// {
+    plWindow* gptMainWindow;
+    plWindow** gsbtWindows;
+// } plPlatformExtData;
+
+@implementation plNSAppDelegate
+
+- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)application
+{
+    (void)application;
+    return YES;
+}
+
+- (void)applicationWillTerminate:(NSNotification*)notification
+{
+    (void)notification;
+    gptIOCtx->bRunning = false;
+}
+
+- (void)windowWillClose:(NSNotification*)notification
+{
+    plWindowData* ptData = pl__find_window_data((NSWindow*)notification.object);
+    if(!ptData)
+        return;
+
+    ptData->bClosePending = true;
+
+    if(ptData->ptPublicWindow == gptMainWindow)
+        gptIOCtx->bRunning = false;
+}
+
+@end
+
+@implementation plNSView
+
+- (instancetype)initWithFrame:(CGRect)frame
+{
+    self = [super initWithFrame:frame];
+    if(self)
+        [self initCommon];
+    return self;
+}
+
+- (void)dealloc
+{
+    self.layer.delegate = nil;
+    _windowData = NULL;
+    [super dealloc];
+}
+
+- (void)initCommon
+{
+    self.wantsLayer = YES;
+    self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawBeforeViewResize;
+    _metalLayer = (CAMetalLayer*)self.layer;
+    self.layer.delegate = self;
+}
+
+- (CALayer*)makeBackingLayer
+{
+    return [CAMetalLayer layer];
+}
+
+- (CGSize)backingDrawableSize
+{
+    NSRect tBackingBounds = [self convertRectToBacking:self.bounds];
+    CGFloat fWidth = floor(tBackingBounds.size.width);
+    CGFloat fHeight = floor(tBackingBounds.size.height);
+
+    if(fWidth < 1.0)
+        fWidth = 1.0;
+    if(fHeight < 1.0)
+        fHeight = 1.0;
+
+    return CGSizeMake(fWidth, fHeight);
+}
+
+- (void)markDrawableResize
+{
+    if(!_windowData || !self.window)
+        return;
+
+    _windowData->tPendingDrawableSize = [self backingDrawableSize];
+    _windowData->fPendingScale = self.window.screen ? self.window.screen.backingScaleFactor : NSScreen.mainScreen.backingScaleFactor;
+    _windowData->bResizePending = true;
+}
+
+- (void)viewDidMoveToWindow
+{
+    [super viewDidMoveToWindow];
+    [self markDrawableResize];
+}
+
+- (void)viewDidChangeBackingProperties
+{
+    [super viewDidChangeBackingProperties];
+    [self markDrawableResize];
+}
+
+- (void)setFrameSize:(NSSize)size
+{
+    [super setFrameSize:size];
+    [self markDrawableResize];
+}
+
+- (void)setBoundsSize:(NSSize)size
+{
+    [super setBoundsSize:size];
+    [self markDrawableResize];
+}
+
+@end
+
+@implementation plNSViewController
+
+- (void)loadView
+{
+    // The window backend assigns the view explicitly in pl_create_window().
+}
+
+@end
+
+@implementation plKeyEventResponder
+{
+    float  _posX;
+    float  _posY;
+    NSRect _imeRect;
+}
+
+- (void)setImePosX:(float)posX imePosY:(float)posY
+{
+    _posX = posX;
+    _posY = posY;
+}
+
+- (void)updateImePosWithView:(NSView*)view
+{
+    NSWindow* ptWindow = view.window;
+    if(!ptWindow)
+        return;
+
+    NSRect tContentRect = [ptWindow contentRectForFrameRect:ptWindow.frame];
+    NSRect tRect = NSMakeRect(_posX, tContentRect.size.height - _posY, 0, 0);
+    _imeRect = [ptWindow convertRectToScreen:tRect];
+}
+
+- (void)viewDidMoveToWindow
+{
+    [super viewDidMoveToWindow];
+    [self.window makeFirstResponder:self];
+}
+
+- (void)keyDown:(NSEvent*)event
+{
+    if(!pl__handle_osx_event(event, self))
+        [super keyDown:event];
+    [self interpretKeyEvents:@[event]];
+}
+
+- (void)keyUp:(NSEvent*)event
+{
+    if(!pl__handle_osx_event(event, self))
+        [super keyUp:event];
+}
+
+- (void)flagsChanged:(NSEvent*)event
+{
+    if(!pl__handle_osx_event(event, self))
+        [super flagsChanged:event];
+}
+
+- (void)insertText:(id)aString replacementRange:(NSRange)replacementRange
+{
+    (void)replacementRange;
+    NSString* ptCharacters = [aString isKindOfClass:[NSAttributedString class]] ? [aString string] : (NSString*)aString;
+    gptIOI->add_text_events_utf8(ptCharacters.UTF8String);
+}
+
+- (BOOL)acceptsFirstResponder
+{
+    return YES;
+}
+
+- (void)doCommandBySelector:(SEL)selector
+{
+    (void)selector;
+}
+
+- (nullable NSAttributedString*)attributedSubstringForProposedRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange
+{
+    (void)range;
+    (void)actualRange;
+    return nil;
+}
+
+- (NSUInteger)characterIndexForPoint:(NSPoint)point
+{
+    (void)point;
+    return 0;
+}
+
+- (NSRect)firstRectForCharacterRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange
+{
+    (void)range;
+    (void)actualRange;
+    return _imeRect;
+}
+
+- (BOOL)hasMarkedText
+{
+    return NO;
+}
+
+- (NSRange)markedRange
+{
+    return NSMakeRange(NSNotFound, 0);
+}
+
+- (NSRange)selectedRange
+{
+    return NSMakeRange(NSNotFound, 0);
+}
+
+- (void)setMarkedText:(nonnull id)string selectedRange:(NSRange)selectedRange replacementRange:(NSRange)replacementRange
+{
+    (void)string;
+    (void)selectedRange;
+    (void)replacementRange;
+}
+
+- (void)unmarkText
+{
+}
+
+- (nonnull NSArray<NSAttributedStringKey>*)validAttributesForMarkedText
+{
+    return @[];
+}
+
+@end
+
+void pl_destroy_window(plWindow* ptWindow);
+
+
+void*
+pl_platform_setup(void)
+{
+    return gptWindowCtx;
+}
+
+void
+pl_platform_new_frame(void* pPlatformData)
+{
+    pl__update_mouse_cursor();
+
+    pl_sb_reset(gsbtWindowEvents);
+
+    // Preserve the existing platform-data convention without making the view
+    // controller responsible for the application frame.
+    if(gptMainWindow)
+    {
+        plWindowData* ptData = (plWindowData*)gptMainWindow->_pBackendData;
+        if(ptData)
+        {
+            gptWindowCtx->ptLayer = ptData->ptLayer;
+        }
+        NSScreen* ptScreen = ptData && ptData->ptNativeWindow.screen ? ptData->ptNativeWindow.screen : NSScreen.mainScreen;
+        NSNumber* ptScreenNumber = ptScreen.deviceDescription[@"NSScreenNumber"];
+        gptWindowCtx->tScreen = ptScreenNumber;
+
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(gsbtWindows); i++)
+    {
+        plWindow* ptWindow = gsbtWindows[i];
+        plWindowData* ptData = ptWindow ? (plWindowData*)ptWindow->_pBackendData : NULL;
+        if(!ptData)
+            continue;
+
+        if(ptData->bClosePending)
+        {
+            const plMacWindowEvent tEvent = {
+                .tType = PL_MAC_WINDOW_EVENT_CLOSE_REQUESTED,
+                .ptWindow = ptWindow
+            };
+            pl_sb_push(gsbtWindowEvents, tEvent);
+            ptData->bClosePending = false;
+        }
+
+        const CGSize tCurrentDrawableSize = [ptData->ptView backingDrawableSize];
+        if(tCurrentDrawableSize.width != ptData->ptLayer.drawableSize.width ||
+           tCurrentDrawableSize.height != ptData->ptLayer.drawableSize.height)
+        {
+            ptData->tPendingDrawableSize = tCurrentDrawableSize;
+            NSScreen* ptScreen = ptData->ptNativeWindow.screen ?: NSScreen.mainScreen;
+            ptData->fPendingScale = ptScreen ? ptScreen.backingScaleFactor : 1.0;
+            ptData->bResizePending = true;
+        }
+
+        if(!ptData->bResizePending)
+            continue;
+
+        ptData->ptLayer.contentsScale = ptData->fPendingScale;
+        ptData->ptLayer.drawableSize = ptData->tPendingDrawableSize;
+        ptData->bResizePending = false;
+
+        const plMacWindowEvent tEvent = {
+            .tType = PL_MAC_WINDOW_EVENT_RESIZED,
+            .ptWindow = ptWindow,
+            .uDrawableWidth = (uint32_t)ptData->tPendingDrawableSize.width,
+            .uDrawableHeight = (uint32_t)ptData->tPendingDrawableSize.height,
+            .fViewportWidth = (float)ptData->ptView.bounds.size.width,
+            .fViewportHeight = (float)ptData->ptView.bounds.size.height,
+            .fScale = (float)ptData->fPendingScale
+        };
+        pl_sb_push(gsbtWindowEvents, tEvent);
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(gsbtWindowEvents); i++)
+    {
+        const plMacWindowEvent* ptEvent = &gsbtWindowEvents[i];
+
+        switch(ptEvent->tType)
+        {
+            case PL_MAC_WINDOW_EVENT_RESIZED:
+            {
+                if(ptEvent->ptWindow == gptMainWindow)
+                {
+                    gptIOCtx->tMainFramebufferScale.x = ptEvent->fScale;
+                    gptIOCtx->tMainFramebufferScale.y = ptEvent->fScale;
+                    gptIOCtx->tMainViewportSize.x = ptEvent->fViewportWidth;
+                    gptIOCtx->tMainViewportSize.y = ptEvent->fViewportHeight;
+                    gptIOCtx->bViewportSizeChanged = true;
+                }
+
+                // if(gptIOCtx->pl_app_resize && gptIOCtx->_bFirstLoadComplete)
+                //    gptIOCtx->pl_app_resize(gptMainWindow, gptIOCtx->pAppUserData);
+                // gptIOCtx->bViewportSizeChanged = true;
+                break;
+            }
+
+            case PL_MAC_WINDOW_EVENT_CLOSE_REQUESTED:
+            {
+                if(ptEvent->ptWindow == gptMainWindow)
+                    gptIOCtx->bRunning = false;
+                break;
+            }
+        }
+    }
+    pl_sb_reset(gsbtWindowEvents);
+
+    if(gptIOCtx->bViewportSizeChanged && gptIOCtx->pl_app_resize && gptIOCtx->_bFirstLoadComplete)
+    {
+        gptIOCtx->pl_app_resize(gptMainWindow, gptIOCtx->pAppUserData);
+    }
+}
+
+void
+pl_platform_cleanup(void* ptPlatformData)
+{
+    pl__remove_osx_event_monitor();
+
+    while(pl_sb_size(gsbtWindows) > 0)
+        pl_destroy_window(pl_sb_last(gsbtWindows));
+
+    pl_sb_free(gsbtWindows);
+    pl_sb_free(gsbtWindowEvents);
+    gptMainWindow = NULL;
+}
+
+bool
+pl__handle_osx_event(NSEvent* event, NSView* view)
+{
+    if(!gptIOI || gptIOI->add_mouse_pos_event == NULL)
+        return true;
+
+    if(event.type == NSEventTypeLeftMouseDown || event.type == NSEventTypeRightMouseDown || event.type == NSEventTypeOtherMouseDown)
+    {
+        const int iButton = (int)event.buttonNumber;
+        if(iButton >= 0 && iButton < PL_MOUSE_BUTTON_COUNT)
+            gptIOI->add_mouse_button_event(iButton, true);
+        return true;
+    }
+
+    if(event.type == NSEventTypeLeftMouseUp || event.type == NSEventTypeRightMouseUp || event.type == NSEventTypeOtherMouseUp)
+    {
+        const int iButton = (int)event.buttonNumber;
+        if(iButton >= 0 && iButton < PL_MOUSE_BUTTON_COUNT)
+            gptIOI->add_mouse_button_event(iButton, false);
+        return true;
+    }
+
+    if(event.type == NSEventTypeMouseMoved || event.type == NSEventTypeLeftMouseDragged || event.type == NSEventTypeRightMouseDragged || event.type == NSEventTypeOtherMouseDragged)
+    {
+        NSPoint tMousePoint = event.locationInWindow;
+        tMousePoint = [view convertPoint:tMousePoint fromView:nil];
+        if(!view.isFlipped)
+            tMousePoint.y = view.bounds.size.height - tMousePoint.y;
+        gptIOI->add_mouse_pos_event((float)tMousePoint.x, (float)tMousePoint.y);
+        return true;
+    }
+
+    if(event.type == NSEventTypeScrollWheel)
+    {
+        if(event.phase == NSEventPhaseCancelled)
+            return false;
+
+        double dWheelX = 0.0;
+        double dWheelY = 0.0;
+
+        #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+        if(floor(NSAppKitVersionNumber) > NSAppKitVersionNumber10_6)
+        {
+            dWheelX = event.scrollingDeltaX;
+            dWheelY = event.scrollingDeltaY;
+            if(event.hasPreciseScrollingDeltas)
+            {
+                dWheelX *= 0.1;
+                dWheelY *= 0.1;
+            }
+        }
+        else
+        #endif
+        {
+            dWheelX = event.deltaX;
+            dWheelY = event.deltaY;
+        }
+
+        if(dWheelX != 0.0 || dWheelY != 0.0)
+            gptIOI->add_mouse_wheel_event((float)dWheelX * 0.1f, (float)dWheelY * 0.1f);
+        return true;
+    }
+
+    if(event.type == NSEventTypeKeyDown || event.type == NSEventTypeKeyUp)
+    {
+        if(event.isARepeat)
+            return true;
+
+        const int iKeyCode = (int)event.keyCode;
+        gptIOI->add_key_event(pl__osx_key_to_pl_key(iKeyCode), event.type == NSEventTypeKeyDown);
+        return true;
+    }
+
+    if(event.type == NSEventTypeFlagsChanged)
+    {
+        const unsigned short uKeyCode = event.keyCode;
+        const NSEventModifierFlags tModifierFlags = event.modifierFlags;
+
+        gptIOI->add_key_event(PL_KEY_MOD_SHIFT, (tModifierFlags & NSEventModifierFlagShift) != 0);
+        gptIOI->add_key_event(PL_KEY_MOD_CTRL,  (tModifierFlags & NSEventModifierFlagControl) != 0);
+        gptIOI->add_key_event(PL_KEY_MOD_ALT,   (tModifierFlags & NSEventModifierFlagOption) != 0);
+        gptIOI->add_key_event(PL_KEY_MOD_SUPER, (tModifierFlags & NSEventModifierFlagCommand) != 0);
+
+        const plKey tKey = pl__osx_key_to_pl_key(uKeyCode);
+        if(tKey != PL_KEY_NONE)
+        {
+            NSEventModifierFlags tMask = 0;
+            switch(tKey)
+            {
+                case PL_KEY_LEFT_CTRL:   tMask = 0x0001; break;
+                case PL_KEY_RIGHT_CTRL:  tMask = 0x2000; break;
+                case PL_KEY_LEFT_SHIFT:  tMask = 0x0002; break;
+                case PL_KEY_RIGHT_SHIFT: tMask = 0x0004; break;
+                case PL_KEY_LEFT_SUPER:  tMask = 0x0008; break;
+                case PL_KEY_RIGHT_SUPER: tMask = 0x0010; break;
+                case PL_KEY_LEFT_ALT:    tMask = 0x0020; break;
+                case PL_KEY_RIGHT_ALT:   tMask = 0x0040; break;
+                default: return true;
+            }
+            gptIOI->add_key_event(tKey, (tModifierFlags & tMask) != 0);
+        }
+        return true;
+    }
+
+    return false;
+}
+
+static void
+pl__install_osx_event_monitor(void)
+{
+    if(gMonitor)
+        return;
+
+    NSEventMask tEventMask = 0;
+    tEventMask |= NSEventMaskMouseMoved | NSEventMaskScrollWheel;
+    tEventMask |= NSEventMaskLeftMouseDown | NSEventMaskLeftMouseUp | NSEventMaskLeftMouseDragged;
+    tEventMask |= NSEventMaskRightMouseDown | NSEventMaskRightMouseUp | NSEventMaskRightMouseDragged;
+    tEventMask |= NSEventMaskOtherMouseDown | NSEventMaskOtherMouseUp | NSEventMaskOtherMouseDragged;
+
+    gMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:tEventMask
+                                                     handler:^NSEvent* _Nullable(NSEvent* event)
+    {
+        NSWindow* ptNativeWindow = event.window ?: NSApp.keyWindow;
+        plWindowData* ptData = pl__find_window_data(ptNativeWindow);
+        if(ptData && ptData->ptView)
+            pl__handle_osx_event(event, ptData->ptView);
+        return event;
+    }];
+}
+
+static void
+pl__remove_osx_event_monitor(void)
+{
+    if(gMonitor)
+    {
+        [NSEvent removeMonitor:gMonitor];
+        gMonitor = nil;
+    }
+}
+
+static void
+pl__update_mouse_cursor(void)
+{
+    // if(gptIOCtx->tCurrentCursor == gptIOCtx->tNextCursor)
+    //     return;
+
+    plMouseCursor tCursor = gptIOCtx->tNextCursor;
+    if(tCursor < 0 || tCursor >= PL_MOUSE_CURSOR_COUNT)
+        tCursor = PL_MOUSE_CURSOR_ARROW;
+
+    gptIOCtx->tCurrentCursor = tCursor;
+    NSCursor* ptCursor = aptMouseCursors[tCursor] ?: aptMouseCursors[PL_MOUSE_CURSOR_ARROW];
+    [ptCursor set];
+    gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
+}
+
+static plWindowData*
+pl__find_window_data(NSWindow* ptNativeWindow)
+{
+    if(!ptNativeWindow)
+        return NULL;
+
+    for(uint32_t i = 0; i < pl_sb_size(gsbtWindows); i++)
+    {
+        plWindow* ptWindow = gsbtWindows[i];
+        plWindowData* ptData = ptWindow ? (plWindowData*)ptWindow->_pBackendData : NULL;
+        if(ptData && ptData->ptNativeWindow == ptNativeWindow)
+            return ptData;
+    }
+    return NULL;
+}
+
+static void
+pl__mark_window_resize(plWindowData* ptData)
+{
+    if(!ptData || !ptData->ptView || !ptData->ptNativeWindow)
+        return;
+
+    ptData->tPendingDrawableSize = [ptData->ptView backingDrawableSize];
+    NSScreen* ptScreen = ptData->ptNativeWindow.screen ?: NSScreen.mainScreen;
+    ptData->fPendingScale = ptScreen ? ptScreen.backingScaleFactor : 1.0;
+    ptData->bResizePending = true;
+}
+
+plWindowResult
+pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
+{
+    if(!pptWindowOut)
+        return PL_WINDOW_RESULT_FAIL;
+
+    *pptWindowOut = NULL;
+
+    plWindow* ptWindow = (plWindow*)calloc(1, sizeof(plWindow));
+    plWindowData* ptData = (plWindowData*)calloc(1, sizeof(plWindowData));
+    if(!ptWindow || !ptData)
+    {
+        free(ptData);
+        free(ptWindow);
+        return PL_WINDOW_RESULT_FAIL;
+    }
+
+    ptWindow->_pBackendData = ptData;
+    ptData->ptPublicWindow = ptWindow;
+
+    ptData->ptViewController = [[plNSViewController alloc] init];
+    ptData->ptKeyResponder = [[plKeyEventResponder alloc] initWithFrame:NSZeroRect];
+    ptData->ptInputContext = [[NSTextInputContext alloc] initWithClient:ptData->ptKeyResponder];
+
+    const NSRect tFrame = NSMakeRect(0, 0, tDesc.uWidth, tDesc.uHeight);
+    plNSView* ptView = [[plNSView alloc] initWithFrame:tFrame];
+    ptView.windowData = ptData;
+    ptData->ptViewController.view = ptView;
+    ptData->ptView = ptView;
+    [ptView release]; // retained by the view controller
+
+    [ptData->ptView addSubview:ptData->ptKeyResponder];
+
+    ptData->ptLayer = ptData->ptView.metalLayer;
+    // ptData->ptLayer.device = ptData->tDevice;
+    ptData->ptLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+
+    // Preserve the old bootstrapping contract: app load sees the Metal device.
+    // gptIOCtx->pBackendPlatformData = ptData->tDevice;
+
+    ptData->ptNativeWindow = [[NSWindow windowWithContentViewController:ptData->ptViewController] retain];
+    if(!ptData->ptNativeWindow)
+    {
+        [ptData->ptInputContext release];
+        [ptData->ptKeyResponder release];
+        [ptData->ptViewController release];
+        // [ptData->tDevice release];
+        free(ptData);
+        free(ptWindow);
+        return PL_WINDOW_RESULT_FAIL;
+    }
+
+    ptData->ptNativeWindow.delegate = gptWindowCtx->gtAppDelegate;
+
+    NSString* ptWindowTitle = [NSString stringWithUTF8String:tDesc.pcTitle ? tDesc.pcTitle : "Pilot Light"];
+    ptData->ptNativeWindow.title = ptWindowTitle;
+
+    NSScreen* ptScreen = ptData->ptNativeWindow.screen ?: NSScreen.mainScreen;
+    const CGFloat fScreenHeight = ptScreen ? ptScreen.frame.size.height : 0.0;
+    const NSPoint tOrigin = NSMakePoint(tDesc.iXPos, fScreenHeight - tDesc.iYPos);
+    [ptData->ptNativeWindow setFrameTopLeftPoint:tOrigin];
+
+    [ptData->ptNativeWindow center];
+    [ptData->ptNativeWindow orderFront:nil];
+    [ptData->ptNativeWindow makeKeyWindow];
+
+    if(gptMainWindow == NULL)
+        gptMainWindow = ptWindow;
+
+    pl_sb_push(gsbtWindows, ptWindow);
+    *pptWindowOut = ptWindow;
+
+    if(ptWindow == gptMainWindow)
+    {
+        gptIOCtx->tMainViewportSize.x = (float)ptData->ptView.bounds.size.width;
+        gptIOCtx->tMainViewportSize.y = (float)ptData->ptView.bounds.size.height;
+    }
+
+    pl__mark_window_resize(ptData);
+    return PL_WINDOW_RESULT_SUCCESS;
+}
+
+void
+pl_destroy_window(plWindow* ptWindow)
+{
+    if(!ptWindow)
+        return;
+
+    plWindowData* ptData = (plWindowData*)ptWindow->_pBackendData;
+
+    for(uint32_t i = 0; i < pl_sb_size(gsbtWindows); i++)
+    {
+        if(gsbtWindows[i] == ptWindow)
+        {
+            pl_sb_del(gsbtWindows, i);
+            break;
+        }
+    }
+
+    if(gptMainWindow == ptWindow)
+        gptMainWindow = pl_sb_size(gsbtWindows) > 0 ? gsbtWindows[0] : NULL;
+
+    if(ptData)
+    {
+        if(ptData->ptView)
+            ptData->ptView.windowData = NULL;
+
+        if(ptData->ptNativeWindow)
+        {
+            ptData->ptNativeWindow.delegate = nil;
+            [ptData->ptNativeWindow orderOut:nil];
+        }
+
+        [ptData->ptKeyResponder removeFromSuperview];
+        [ptData->ptInputContext release];
+        [ptData->ptKeyResponder release];
+        [ptData->ptNativeWindow release];
+        [ptData->ptViewController release];
+        [ptData->tDevice release];
+        free(ptData);
+    }
+
+    ptWindow->_pBackendData = NULL;
+    free(ptWindow);
+}
+
+void
+pl_show_window(plWindow* ptWindow)
+{
+    if(!ptWindow)
+        return;
+    plWindowData* ptData = (plWindowData*)ptWindow->_pBackendData;
+    [ptData->ptNativeWindow orderFront:nil];
+}
+
+bool
+pl_set_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
+{
+    (void)ptWindow;
+    (void)tAttribute;
+    (void)ptValue;
+    return false;
+}
+
+bool
+pl_get_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
+{
+    (void)ptWindow;
+    (void)tAttribute;
+    (void)ptValue;
+    return false;
+}
+
+bool
+pl_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
+{
+    (void)ptWindow;
+    return tMode == PL_CURSOR_MODE_NORMAL;
+}
+
+plCursorMode
+pl_get_cursor_mode(plWindow* ptWindow)
+{
+    (void)ptWindow;
+    return PL_CURSOR_MODE_NORMAL;
+}
+
+bool
+pl_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
+{
+    (void)ptWindow;
+    return !bValue;
+}
+
+bool
+pl_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* ptDesc)
+{
+    (void)ptWindow;
+    return ptDesc && ptDesc->tMode == PL_FULLSCREEN_MODE_NONE;
+}
+
+const plWindowCapabilities*
+pl_get_window_capabilities(void)
+{
+    static plWindowCapabilities tCapabilities = {0};
+
+    static const plWindowAttribute atSupportedAttributes[] = {
+        -1
+    };
+
+    static const plCursorMode atSupportedCursorModes[] = {
+        PL_CURSOR_MODE_NORMAL
+    };
+
+    static const plFullScreenMode atSupportedScreenModes[] = {
+        PL_FULLSCREEN_MODE_NONE,
+        PL_FULLSCREEN_MODE_EXCLUSIVE
+    };
+
+    tCapabilities.uCursorModeCount = 1;
+    tCapabilities.uAttributeCount = 0;
+    tCapabilities.uFullScreenModeCount = 2;
+    tCapabilities.atCursorModes = atSupportedCursorModes;
+    tCapabilities.atFullScreenModes = atSupportedScreenModes;
+    tCapabilities.atWindowAttributes = atSupportedAttributes;
+    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_NONE;
+
+    return &tCapabilities;
+}
+
+plKey
+pl__osx_key_to_pl_key(int iKey)
+{
+    switch (iKey)
+    {
+        case kVK_ANSI_A:              return PL_KEY_A;
+        case kVK_ANSI_S:              return PL_KEY_S;
+        case kVK_ANSI_D:              return PL_KEY_D;
+        case kVK_ANSI_F:              return PL_KEY_F;
+        case kVK_ANSI_H:              return PL_KEY_H;
+        case kVK_ANSI_G:              return PL_KEY_G;
+        case kVK_ANSI_Z:              return PL_KEY_Z;
+        case kVK_ANSI_X:              return PL_KEY_X;
+        case kVK_ANSI_C:              return PL_KEY_C;
+        case kVK_ANSI_V:              return PL_KEY_V;
+        case kVK_ANSI_B:              return PL_KEY_B;
+        case kVK_ANSI_Q:              return PL_KEY_Q;
+        case kVK_ANSI_W:              return PL_KEY_W;
+        case kVK_ANSI_E:              return PL_KEY_E;
+        case kVK_ANSI_R:              return PL_KEY_R;
+        case kVK_ANSI_Y:              return PL_KEY_Y;
+        case kVK_ANSI_T:              return PL_KEY_T;
+        case kVK_ANSI_1:              return PL_KEY_1;
+        case kVK_ANSI_2:              return PL_KEY_2;
+        case kVK_ANSI_3:              return PL_KEY_3;
+        case kVK_ANSI_4:              return PL_KEY_4;
+        case kVK_ANSI_6:              return PL_KEY_6;
+        case kVK_ANSI_5:              return PL_KEY_5;
+        case kVK_ANSI_Equal:          return PL_KEY_EQUAL;
+        case kVK_ANSI_9:              return PL_KEY_9;
+        case kVK_ANSI_7:              return PL_KEY_7;
+        case kVK_ANSI_Minus:          return PL_KEY_MINUS;
+        case kVK_ANSI_8:              return PL_KEY_8;
+        case kVK_ANSI_0:              return PL_KEY_0;
+        case kVK_ANSI_RightBracket:   return PL_KEY_RIGHT_BRACKET;
+        case kVK_ANSI_O:              return PL_KEY_O;
+        case kVK_ANSI_U:              return PL_KEY_U;
+        case kVK_ANSI_LeftBracket:    return PL_KEY_LEFT_BRACKET;
+        case kVK_ANSI_I:              return PL_KEY_I;
+        case kVK_ANSI_P:              return PL_KEY_P;
+        case kVK_ANSI_L:              return PL_KEY_L;
+        case kVK_ANSI_J:              return PL_KEY_J;
+        case kVK_ANSI_Quote:          return PL_KEY_APOSTROPHE;
+        case kVK_ANSI_K:              return PL_KEY_K;
+        case kVK_ANSI_Semicolon:      return PL_KEY_SEMICOLON;
+        case kVK_ANSI_Backslash:      return PL_KEY_BACKSLASH;
+        case kVK_ANSI_Comma:          return PL_KEY_COMMA;
+        case kVK_ANSI_Slash:          return PL_KEY_SLASH;
+        case kVK_ANSI_N:              return PL_KEY_N;
+        case kVK_ANSI_M:              return PL_KEY_M;
+        case kVK_ANSI_Period:         return PL_KEY_PERIOD;
+        case kVK_ANSI_Grave:          return PL_KEY_GRAVE_ACCENT;
+        case kVK_ANSI_KeypadDecimal:  return PL_KEY_KEYPAD_DECIMAL;
+        case kVK_ANSI_KeypadMultiply: return PL_KEY_KEYPAD_MULTIPLY;
+        case kVK_ANSI_KeypadPlus:     return PL_KEY_KEYPAD_ADD;
+        case kVK_ANSI_KeypadClear:    return PL_KEY_NUM_LOCK;
+        case kVK_ANSI_KeypadDivide:   return PL_KEY_KEYPAD_DIVIDE;
+        case kVK_ANSI_KeypadEnter:    return PL_KEY_KEYPAD_ENTER;
+        case kVK_ANSI_KeypadMinus:    return PL_KEY_KEYPAD_SUBTRACT;
+        case kVK_ANSI_KeypadEquals:   return PL_KEY_KEYPAD_EQUAL;
+        case kVK_ANSI_Keypad0:        return PL_KEY_KEYPAD_0;
+        case kVK_ANSI_Keypad1:        return PL_KEY_KEYPAD_1;
+        case kVK_ANSI_Keypad2:        return PL_KEY_KEYPAD_2;
+        case kVK_ANSI_Keypad3:        return PL_KEY_KEYPAD_3;
+        case kVK_ANSI_Keypad4:        return PL_KEY_KEYPAD_4;
+        case kVK_ANSI_Keypad5:        return PL_KEY_KEYPAD_5;
+        case kVK_ANSI_Keypad6:        return PL_KEY_KEYPAD_6;
+        case kVK_ANSI_Keypad7:        return PL_KEY_KEYPAD_7;
+        case kVK_ANSI_Keypad8:        return PL_KEY_KEYPAD_8;
+        case kVK_ANSI_Keypad9:        return PL_KEY_KEYPAD_9;
+        case kVK_Return:              return PL_KEY_ENTER;
+        case kVK_Tab:                 return PL_KEY_TAB;
+        case kVK_Space:               return PL_KEY_SPACE;
+        case kVK_Delete:              return PL_KEY_BACKSPACE;
+        case kVK_Escape:              return PL_KEY_ESCAPE;
+        case kVK_CapsLock:            return PL_KEY_CAPS_LOCK;
+        case kVK_Control:             return PL_KEY_LEFT_CTRL;
+        case kVK_Shift:               return PL_KEY_LEFT_SHIFT;
+        case kVK_Option:              return PL_KEY_LEFT_ALT;
+        case kVK_Command:             return PL_KEY_LEFT_SUPER;
+        case kVK_RightControl:        return PL_KEY_RIGHT_CTRL;
+        case kVK_RightShift:          return PL_KEY_RIGHT_SHIFT;
+        case kVK_RightOption:         return PL_KEY_RIGHT_ALT;
+        case kVK_RightCommand:        return PL_KEY_RIGHT_SUPER;
+        case kVK_F5:                  return PL_KEY_F5;
+        case kVK_F6:                  return PL_KEY_F6;
+        case kVK_F7:                  return PL_KEY_F7;
+        case kVK_F3:                  return PL_KEY_F3;
+        case kVK_F8:                  return PL_KEY_F8;
+        case kVK_F9:                  return PL_KEY_F9;
+        case kVK_F11:                 return PL_KEY_F11;
+        case kVK_F13:                 return PL_KEY_PRINT_SCREEN;
+        case kVK_F10:                 return PL_KEY_F10;
+        case 0x6E:                    return PL_KEY_MENU;
+        case kVK_F12:                 return PL_KEY_F12;
+        case kVK_Help:                return PL_KEY_INSERT;
+        case kVK_Home:                return PL_KEY_HOME;
+        case kVK_PageUp:              return PL_KEY_PAGE_UP;
+        case kVK_ForwardDelete:       return PL_KEY_DELETE;
+        case kVK_F4:                  return PL_KEY_F4;
+        case kVK_End:                 return PL_KEY_END;
+        case kVK_F2:                  return PL_KEY_F2;
+        case kVK_PageDown:            return PL_KEY_PAGE_DOWN;
+        case kVK_F1:                  return PL_KEY_F1;
+        case kVK_LeftArrow:           return PL_KEY_LEFT_ARROW;
+        case kVK_RightArrow:          return PL_KEY_RIGHT_ARROW;
+        case kVK_DownArrow:           return PL_KEY_DOWN_ARROW;
+        case kVK_UpArrow:             return PL_KEY_UP_ARROW;
+        default:                      return PL_KEY_NONE;
+    }
+}
+
+void
+pl_set_window_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
+{
+    // TODO: implement
+}
+
+plWindowEventCallback
+pl_get_window_callback(plWindow* ptWindow)
+{
+    plWindowEventCallback tCallback = PL_ZERO_INIT;
+    return tCallback;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] clipboard
+//-----------------------------------------------------------------------------
+
+const char*
+pl_get_clipboard_text(void* user_data_ctx)
+{
+    pl_sb_reset(gptIOCtx->sbcClipboardData);
+
+    NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
+    NSString* available = [pasteboard availableTypeFromArray: [NSArray arrayWithObject:NSPasteboardTypeString]];
+    if (![available isEqualToString:NSPasteboardTypeString])
+        return NULL;
+
+    NSString* string = [pasteboard stringForType:NSPasteboardTypeString];
+    if (string == nil)
+        return NULL;
+
+    const char* string_c = (const char*)[string UTF8String];
+    size_t string_len = strlen(string_c);
+    pl_sb_resize(gptIOCtx->sbcClipboardData, (int)string_len + 1);
+    strcpy(gptIOCtx->sbcClipboardData, string_c);
+    return gptIOCtx->sbcClipboardData;
+}
+
+void
+pl_set_clipboard_text(void* pUnused, const char* text)
+{
+    NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
+    [pasteboard declareTypes:[NSArray arrayWithObject:NSPasteboardTypeString] owner:nil];
+    [pasteboard setString:[NSString stringWithUTF8String:text] forType:NSPasteboardTypeString];
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] file ext
@@ -1056,6 +2094,25 @@ pl_virtual_memory_uncommit(void* pAddress, size_t szSize)
 void
 pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    const plTimerI tTimerI = {
+        .get_time = pl_timer_get_time
+    };
+
+    const plWindowI tWindowApi = {
+        .create              = pl_create_window,
+        .destroy             = pl_destroy_window,
+        .show                = pl_show_window,
+        .set_callback        = pl_set_window_callback,
+        .get_callback        = pl_get_window_callback,
+        .set_attribute       = pl_set_window_attribute,
+        .get_attribute       = pl_get_window_attribute,
+        .set_cursor_mode     = pl_set_cursor_mode,
+        .get_cursor_mode     = pl_get_cursor_mode,
+        .set_raw_mouse_input = pl_set_raw_mouse_input,
+        .set_fullscreen      = pl_set_fullscreen,
+        .get_capabilities    = pl_get_window_capabilities
+    };
+
     const plFileI tFileApi = {
         .copy                   = pl_file_copy,
         .exists                 = pl_file_exists,
@@ -1143,13 +2200,44 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .free          = pl_virtual_memory_free,
     };
 
+    pl_set_api(ptApiRegistry, plWindowI, &tWindowApi);
     pl_set_api(ptApiRegistry, plFileI, &tFileApi);
     pl_set_api(ptApiRegistry, plVirtualMemoryI, &tVirtualMemoryApi);
     pl_set_api(ptApiRegistry, plAtomicsI, &tAtomicsApi);
     pl_set_api(ptApiRegistry, plThreadsI, &tThreadApi);
     pl_set_api(ptApiRegistry, plNetworkI, &tNetworkApi);
+    pl_set_api(ptApiRegistry, plTimerI, &tTimerI);
 
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptIOI = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptIOCtx = gptIOI->get_io();
+
+    static plPlatformExtData stWindowCtx = {0};
+    gptWindowCtx = &stWindowCtx;
+    gptIOCtx->pBackendPlatformData = gptWindowCtx;
+
+    gptWindowCtx->dInitialTime = (CFTimeInterval)((double)clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9);
+
+    gptIOCtx->platform_setup = pl_platform_setup;
+    gptIOCtx->platform_new_frame = pl_platform_new_frame;
+    gptIOCtx->platform_cleanup = pl_platform_cleanup;
+    gptIOCtx->set_clipboard_text_fn = pl_set_clipboard_text;
+    gptIOCtx->get_clipboard_text_fn = pl_get_clipboard_text;
+
+    // Window-backend setup.
+    aptMouseCursors[PL_MOUSE_CURSOR_ARROW] = [NSCursor arrowCursor];
+    aptMouseCursors[PL_MOUSE_CURSOR_TEXT_INPUT] = [NSCursor IBeamCursor];
+    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_ALL] = [NSCursor closedHandCursor];
+    aptMouseCursors[PL_MOUSE_CURSOR_HAND] = [NSCursor pointingHandCursor];
+    aptMouseCursors[PL_MOUSE_CURSOR_NOT_ALLOWED] = [NSCursor operationNotAllowedCursor];
+    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NS] = [NSCursor respondsToSelector:@selector(_windowResizeNorthSouthCursor)] ? [NSCursor _windowResizeNorthSouthCursor] : [NSCursor resizeUpDownCursor];
+    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_EW] = [NSCursor respondsToSelector:@selector(_windowResizeEastWestCursor)] ? [NSCursor _windowResizeEastWestCursor] : [NSCursor resizeLeftRightCursor];
+    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NESW] = [NSCursor respondsToSelector:@selector(_windowResizeNorthEastSouthWestCursor)] ? [NSCursor _windowResizeNorthEastSouthWestCursor] : [NSCursor closedHandCursor];
+    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NWSE] = [NSCursor respondsToSelector:@selector(_windowResizeNorthWestSouthEastCursor)] ? [NSCursor _windowResizeNorthWestSouthEastCursor] : [NSCursor closedHandCursor];
+    pl__install_osx_event_monitor();
+
+    gptWindowCtx->gtAppDelegate = [[plNSAppDelegate alloc] init];
+
 }
 
 void
@@ -1164,10 +2252,14 @@ pl_unload_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plAtomicsI*       ptApi2 = pl_get_api_latest(ptApiRegistry, plAtomicsI);
     const plThreadsI*       ptApi3 = pl_get_api_latest(ptApiRegistry, plThreadsI);
     const plNetworkI*       ptApi4 = pl_get_api_latest(ptApiRegistry, plNetworkI);
+    const plWindowI*        ptApi5 = pl_get_api_latest(ptApiRegistry, plWindowI);
+    const plTimerI*         ptApi6 = pl_get_api_latest(ptApiRegistry, plTimerI);
 
     ptApiRegistry->remove_api(ptApi0);
     ptApiRegistry->remove_api(ptApi1);
     ptApiRegistry->remove_api(ptApi2);
     ptApiRegistry->remove_api(ptApi3);
     ptApiRegistry->remove_api(ptApi4);
+    ptApiRegistry->remove_api(ptApi5);
+    ptApiRegistry->remove_api(ptApi6);
 }

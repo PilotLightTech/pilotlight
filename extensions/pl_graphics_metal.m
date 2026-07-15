@@ -245,6 +245,14 @@ typedef struct _plSurface
     int _iUnused;
 } plSurface;
 
+typedef struct _plPlatformExtData
+{
+    NSNumber* tScreen;
+    id<MTLDevice> tDevice;
+    CAMetalLayer* ptLayer;
+    id gtAppDelegate;
+} plPlatformExtData;
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
@@ -1518,7 +1526,9 @@ pl_graphics_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCoun
         return;
 
     plIO* ptIOCtx = gptIOI->get_io();
-    id<MTLDevice> tDevice = (__bridge id)ptIOCtx->pBackendPlatformData;
+    plPlatformExtData* ptBackendData = ptIOCtx->pBackendPlatformData;
+    id<MTLDevice> tDevice =  MTLCreateSystemDefaultDevice();
+    ptBackendData->tDevice = tDevice;
 
     strncpy(atDeviceInfo[0].acName, [tDevice.name UTF8String], 256);
     atDeviceInfo[0].eVendorId = PL_VENDOR_ID_APPLE;
@@ -1587,7 +1597,8 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     pl_sb_back(ptDevice->sbtBindGroupsCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtBindGroupLayoutsCold)._uGeneration = 1;
 
-    ptDevice->tDevice = (__bridge id)ptIOCtx->pBackendPlatformData;
+    plPlatformExtData* ptBackendData = ptIOCtx->pBackendPlatformData;
+    ptDevice->tDevice = ptBackendData->tDevice;
 
     uint32_t uDeviceCount = 16;
     plDeviceInfo atDeviceInfos[16] = {0};
@@ -1816,7 +1827,9 @@ pl_graphics_acquire_swapchain_image(plSwapchain* ptSwapchain)
     plDevice* ptDevice = ptSwapchain->ptDevice;
 
     plIO* ptIOCtx = gptIOI->get_io();
-    gptGraphics->pMetalLayer = ptIOCtx->pBackendPlatformData;
+    plPlatformExtData* ptBackendData = ptIOCtx->pBackendPlatformData;
+    gptGraphics->pMetalLayer = ptBackendData->ptLayer;
+    gptGraphics->pMetalLayer.device = ptBackendData->tDevice;
 
     // get next drawable
     // if(ptSwapchain->tCurrentDrawable)

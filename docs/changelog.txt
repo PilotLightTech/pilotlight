@@ -5,7 +5,17 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
-- v0.10.2 (XXXX-XX-XX)
+- v0.11.0 (2026-07-14)(camera    v1.0.3)  -fix camera projection calculation issues
+                      (graphics  v2.1.1)  -add 3D textures support
+                                          -remove "bNonUniformIndexing" from plTextureBinding
+                                          -fix metal bindgroup recycle issue #99
+                                          -fix metal copy_buffer_to_texture issue with buffer row lengths
+                                          -removed native vulkan/metal exposure options
+                      (build     v1.5.1)  -fix unix "always build" no being honored
+                      (general)           -removed experimental backend (& glfw)
+                      (dear imgui)        -added pilot light backend
+                      (windows   v2.0.0)  -moved window api to platform
+                      (starter   v2.2.2)  -allow staging buffers to be index/vertex buffers
 - v0.10.1 (2026-06-17)(scripts)           -improved new_project script
                       (starter   v2.1.0)  -added readback, staging, & resource creation helpers
                                           -added resource manager handling

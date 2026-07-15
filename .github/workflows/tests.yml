@@ -211,6 +211,18 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt update
+        sudo apt install libx11-dev
+        sudo apt install libxkbcommon-x11-dev
+        sudo apt install libx11-xcb-dev
+        sudo apt install libxcb-xfixes0-dev
+        sudo apt install libxcb-cursor-dev
+        sudo apt install libxcb-cursor0
+        sudo apt install libxcb-keysyms1-dev
+        sudo apt install libxcursor-dev
+        sudo apt install libxrandr-dev
+        sudo apt install libxinerama-dev
+        sudo apt install libgl-dev
+        sudo apt install libxi-dev
 
     - name: Prep 1
       run: |
@@ -230,6 +242,10 @@ jobs:
         ((exit 1) || if [ $? != 1 ]; then exit 1; fi)
         ./pilot_light -a tests_c
         ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)
+
+    # - name: SSH into Runner on Failure
+    #   if: failure()
+    #   uses: mxschmitt/action-tmate@v3
 
     - name: Prep 2
       run: |

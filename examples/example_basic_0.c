@@ -92,7 +92,7 @@ pl_app_shutdown(void* pAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_resize(plWindow* ptWindow, void* pAppData)
+pl_app_resize(void* ptWindow, void* pAppData)
 {
     // NOTE: this function is not used here since this example doesn't have a window
 }
