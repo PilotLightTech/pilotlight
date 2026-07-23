@@ -528,10 +528,10 @@ typedef struct _plScene
 
     // scene based options
     plRendererEditorSceneOptions tEditorOptions;
-    plRendererLightingOptions tLightingOptions;
-    plRendererDebugSceneOptions tDebugOptions;
-    plRendererShadowOptions tShadowOptions;
-    plRendererFogOptions tFogOptions;
+    plRendererLightingOptions    tLightingOptions;
+    plRendererDebugSceneOptions  tDebugOptions;
+    plRendererShadowOptions      tShadowOptions;
+    plRendererFogOptions         tFogOptions;
 
     // culling
     plVisibleDrawable* sbtVisibleDrawables0;

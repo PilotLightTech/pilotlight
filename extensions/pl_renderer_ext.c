@@ -430,6 +430,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     memset(ptScene, 0, sizeof(plScene));
     pl_sb_push(gptData->sbptScenes, ptScene);
 
+    // TODO: make this an option
     ptScene->uSunShadowAtlasResolution = 4096 * 4;
 
     // default fog options
@@ -461,10 +462,26 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     ptScene->ptComponentLibrary = tInit.ptComponentLibrary;
     ptScene->pcName = "unnamed scene";
     ptScene->tFlags = PL_SCENE_INTERNAL_FLAG_ACTIVE;
+
+    ptScene->uShadowAtlasResolution = ptInit->uShadowAtlasResolution;
+    if(ptScene->uShadowAtlasResolution == 0)
+        ptScene->uShadowAtlasResolution = 4092;
+
+    // create scene freelists
+    //-----------------------------------------------------------------------------
+
     gptFreeList->create((uint64_t)tInit.szMaterialBufferSize, sizeof(plGpuMaterial), &ptScene->tMaterialFreeList);
+    gptFreeList->create((uint64_t)tInit.szSkinBufferSize, 4096, &ptScene->tSkinBufferFreeList);
+    gptFreeList->create(tInit.szIndexBufferSize, 128, &ptScene->tIndexBufferFreeList);
+    gptFreeList->create(tInit.szVertexBufferSize, 128, &ptScene->tVertexBufferFreeList);
+    gptFreeList->create(tInit.szDataBufferSize, 128, &ptScene->tStorageBufferFreeList);
+    gptFreeList->create(4096, sizeof(plMat4), &ptScene->tShadowCameraFreeList);
 
     // create global bindgroup
     ptScene->uTextureIndexCount = 0;
+
+    // create scene bindgroups
+    //-----------------------------------------------------------------------------
 
     plBindGroupLayoutHandle tGlobalSceneBindGroupLayout = gptShaderVariant->get_bind_group_layout("scene");
 
@@ -477,9 +494,14 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
             .pcDebugName = "global bind group"
         };
         ptScene->atSceneBindGroups[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBindGroupDesc);
-    }
 
-    gptFreeList->create((uint64_t)tInit.szSkinBufferSize, 4096, &ptScene->tSkinBufferFreeList);
+        const plBindGroupDesc tSkinBindGroup2Desc = {
+            .ptPool      = gptData->ptBindGroupPool,
+            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("skinning", 1),
+            .pcDebugName = "skin bind group 2"
+        };
+        ptScene->atSkinBindGroup1[i] = gptGfx->create_bind_group(gptData->ptDevice, &tSkinBindGroup2Desc);
+    }
 
     const plBindGroupDesc tSkinBindGroupDesc = {
         .ptPool      = gptData->ptBindGroupPool,
@@ -488,12 +510,52 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     };
     ptScene->tSkinBindGroup0 = gptGfx->create_bind_group(gptData->ptDevice, &tSkinBindGroupDesc);
 
-    const plBindGroupDesc tSkinBindGroup2Desc = {
-        .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("skinning", 1),
-        .pcDebugName = "skin bind group 2"
-    };
+    // create scene textures
+    //-----------------------------------------------------------------------------
 
+    // shadow atlas
+    const plTextureDesc tShadowDepthTextureDesc = {
+        .tDimensions   = {(float)ptScene->uShadowAtlasResolution, (float)ptScene->uShadowAtlasResolution, 1},
+        .eFormat       = PL_FORMAT_D16_UNORM,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName   = "shadow map"
+    };
+    gptStarter->create_texture(&tShadowDepthTextureDesc, NULL, 0, &ptScene->tShadowTexture);
+    ptScene->uShadowAtlasIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tShadowTexture);
+
+    // sun shadow atlas
+    const plTextureDesc tSunShadowDepthTextureDesc = {
+        .tDimensions   = {(float)ptScene->uSunShadowAtlasResolution, (float)ptScene->uSunShadowAtlasResolution, 1},
+        .eFormat       = PL_FORMAT_D16_UNORM,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName   = "shadow map"
+    };
+    gptStarter->create_texture(&tSunShadowDepthTextureDesc, NULL, 0, &ptScene->tSunShadowTexture);
+    ptScene->uSunShadowAtlasIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tSunShadowTexture);
+
+    // brdf lut
+    const plTextureDesc tLutTextureDesc = {
+        .tDimensions = {(float)1024, (float)1024, 1},
+        .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+        .uLayers     = 1,
+        .uMips       = 1,
+        .eType       = PL_TEXTURE_TYPE_2D,
+        .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName = "tBrdfLutTexture"
+    };
+    gptStarter->create_texture(&tLutTextureDesc, NULL, 0, &ptScene->tBrdfLutTexture);
+    ptScene->tSceneData.iBrdfLutIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tBrdfLutTexture);
+
+
+    // create scene buffers
+    //-----------------------------------------------------------------------------
+    
     const plBufferDesc tIndexBufferDesc = {
         .eUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER,
         .szByteSize  = tInit.szIndexBufferSize,
@@ -512,21 +574,18 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
         .pcDebugName = "storage buffer"
     };
 
-    gptStarter->create_buffer(&tIndexBufferDesc, NULL, &ptScene->tIndexBuffer);
-    gptStarter->create_buffer(&tVertexBufferDesc, NULL, &ptScene->tVertexBuffer);
-    gptStarter->create_buffer(&tStorageBufferDesc, NULL, &ptScene->tStorageBuffer);
-
-    gptFreeList->create(tIndexBufferDesc.szByteSize, 128, &ptScene->tIndexBufferFreeList);
-    gptFreeList->create(tVertexBufferDesc.szByteSize, 128, &ptScene->tVertexBufferFreeList);
-    gptFreeList->create(tStorageBufferDesc.szByteSize, 128, &ptScene->tStorageBufferFreeList);
-
-    // pre-create some global buffers
     const plBufferDesc tMaterialDataBufferDesc = {
         .eUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER,
         .szByteSize = tInit.szMaterialBufferSize,
         .pcDebugName = "material buffer"
     };
+
+    gptStarter->create_buffer(&tIndexBufferDesc, NULL, &ptScene->tIndexBuffer);
+    gptStarter->create_buffer(&tVertexBufferDesc, NULL, &ptScene->tVertexBuffer);
+    gptStarter->create_buffer(&tStorageBufferDesc, NULL, &ptScene->tStorageBuffer);
     gptStarter->create_buffer(&tMaterialDataBufferDesc, NULL, &ptScene->tMaterialDataBuffer);
+
+    gptStarter->get_staging_buffer(4096, &ptScene->tGPUProbeDataBuffers, "probe buffer");
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -535,22 +594,14 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
         gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuSpotLightShadow), &ptScene->atSpotLightShadowDataBuffer[i], "spot shadow buffer");
         gptStarter->get_staging_buffer(4096, &ptScene->atShadowCameraBuffers[i], "shadow camera buffer");
 
-    }
-    gptStarter->get_staging_buffer(4096, &ptScene->tGPUProbeDataBuffers, "probe buffer");
-    gptFreeList->create(4096, sizeof(plMat4), &ptScene->tShadowCameraFreeList);
-
-    for(uint32_t uFrameIndex = 0; uFrameIndex < gptGfx->get_frames_in_flight(); uFrameIndex++)
-    {
-        
-        gptStarter->get_staging_buffer(tInit.szSkinBufferSize, &ptScene->atDynamicSkinBuffer[uFrameIndex], "joint buffer");
+        gptStarter->get_staging_buffer(tInit.szSkinBufferSize, &ptScene->atDynamicSkinBuffer[i], "joint buffer");
 
         const plBindGroupUpdateData tSkinBGData = {
             .atBufferBindings  = {
-                { .uSlot = 0, .tBuffer = ptScene->atDynamicSkinBuffer[uFrameIndex], .szBufferRange = tInit.szSkinBufferSize }
+                { .uSlot = 0, .tBuffer = ptScene->atDynamicSkinBuffer[i], .szBufferRange = tInit.szSkinBufferSize }
             }
         };
-        ptScene->atSkinBindGroup1[uFrameIndex] = gptGfx->create_bind_group(gptData->ptDevice, &tSkinBindGroup2Desc);
-        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atSkinBindGroup1[uFrameIndex], &tSkinBGData);
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atSkinBindGroup1[i], &tSkinBGData);
     }
 
     const plBindGroupUpdateData tBGData0 = {
@@ -601,46 +652,10 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
         gptStarter->create_buffer(&tInputBufferDesc, NULL, &ptScene->atFilterWorkingBuffers[i]);
     }
 
-    // create shadow atlas
-    ptScene->uShadowAtlasResolution = ptInit->uShadowAtlasResolution;
-    if(ptScene->uShadowAtlasResolution == 0)
-        ptScene->uShadowAtlasResolution = 4092;
-    
-    const plTextureDesc tShadowDepthTextureDesc = {
-        .tDimensions   = {(float)ptScene->uShadowAtlasResolution, (float)ptScene->uShadowAtlasResolution, 1},
-        .eFormat       = PL_FORMAT_D16_UNORM,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .eType         = PL_TEXTURE_TYPE_2D,
-        .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
-        .pcDebugName   = "shadow map"
-    };
-    gptStarter->create_texture(&tShadowDepthTextureDesc, NULL, 0, &ptScene->tShadowTexture);
-    ptScene->uShadowAtlasIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tShadowTexture);
+    // update bind groups
+    //-----------------------------------------------------------------------------
 
-    const plTextureDesc tSunShadowDepthTextureDesc = {
-        .tDimensions   = {(float)ptScene->uSunShadowAtlasResolution, (float)ptScene->uSunShadowAtlasResolution, 1},
-        .eFormat       = PL_FORMAT_D16_UNORM,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .eType         = PL_TEXTURE_TYPE_2D,
-        .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
-        .pcDebugName   = "shadow map"
-    };
-    gptStarter->create_texture(&tSunShadowDepthTextureDesc, NULL, 0, &ptScene->tSunShadowTexture);
-    ptScene->uSunShadowAtlasIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tSunShadowTexture);
-
-    const plTextureDesc tLutTextureDesc = {
-        .tDimensions = {(float)1024, (float)1024, 1},
-        .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uLayers     = 1,
-        .uMips       = 1,
-        .eType       = PL_TEXTURE_TYPE_2D,
-        .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
-        .pcDebugName = "tBrdfLutTexture"
-    };
-    gptStarter->create_texture(&tLutTextureDesc, NULL, 0, &ptScene->tBrdfLutTexture);
-    ptScene->tSceneData.iBrdfLutIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tBrdfLutTexture);
+    //-----------------------------------------------------------------------------
 
     const plBindGroupDesc tBrdfBGSet1Desc = {
         .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],

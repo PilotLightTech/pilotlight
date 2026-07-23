@@ -9,7 +9,7 @@
         "bPhysicsDebugDraw": false,
         "bDrawAllBoundingBoxes": false,
         "bFrustumCulling": true,
-        "bMSAA": true,
+        "bMSAA": false,
         "szIndexBufferSize": 64000000,
         "szVertexBufferSize": 64000000,
         "szDataBufferSize": 64000000,
