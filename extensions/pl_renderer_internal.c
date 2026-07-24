@@ -37,7 +37,7 @@ pl_make_plane_from_point_normal(plVec3 tPoint, plVec3 tNormal)
 }
 
 static void
-pl_camera_build_orthographic_frustum(const plCamera* ptCamera, plFrustum* ptFrustum)
+pl__camera_build_orthographic_frustum(const plCamera* ptCamera, plFrustum* ptFrustum)
 {
     plVec3 C = ptCamera->tPositionF;
     plVec3 F = pl_norm_vec3(ptCamera->tForwardVec);
@@ -542,7 +542,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
                 if(ptCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
                     pl__camera_build_perspective_frustum(ptCamera, &tFrustum);
                 else
-                    pl_camera_build_orthographic_frustum(ptCamera, &tFrustum);
+                    pl__camera_build_orthographic_frustum(ptCamera, &tFrustum);
 
                 if(gptGjk->pen(pl_gjk_support_frustum, &tFrustum, pl_gjk_support_sphere, &tSphere, NULL))
                 {
@@ -562,7 +562,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
                 if(ptCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
                     pl__camera_build_perspective_frustum(ptCamera, &tFrustum);
                 else
-                    pl_camera_build_orthographic_frustum(ptCamera, &tFrustum);
+                    pl__camera_build_orthographic_frustum(ptCamera, &tFrustum);
 
                 if(gptGjk->pen(pl_gjk_support_frustum, &tFrustum, pl_gjk_support_cone, &tCone, NULL))
                 {
@@ -2202,7 +2202,6 @@ pl__renderer_probe_data_pack_index(plScene* ptScene, uint32_t uResolution)
         .pcDebugName   = "offscreen depth texture probe"
     };
 
-
     gptStarter->create_texture(&tAlbedoTextureDesc, NULL, 0, &tPack.tAlbedoTexture);
     gptStarter->create_texture(&tNormalTextureDesc, NULL, 0, &tPack.tNormalTexture);
     gptStarter->create_texture(&tEmmissiveTexDesc, NULL, 0, &tPack.tAOMetalRoughnessTexture);
@@ -2310,7 +2309,7 @@ pl__renderer_probe_data_pack_index(plScene* ptScene, uint32_t uResolution)
 }
 
 static uint64_t
-pl_renderer__add_material_to_scene(plScene* ptScene, plEntity tMaterial)
+pl__renderer_add_material_to_scene(plScene* ptScene, plEntity tMaterial)
 {
     const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
 
@@ -2839,184 +2838,7 @@ pl__renderer_return_bindless_cube_texture_index(plScene* ptScene, plTextureHandl
 }
 
 static void
-pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
-{
-    plEnvironmentProbeComponent* ptProbe = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, tProbeHandle);
-
-    plEnvironmentProbeData tProbeData = {
-        .tEntity = tProbeHandle,
-        .tTargetSize = {(float)ptProbe->uResolution, (float)ptProbe->uResolution}
-    };
-
-    // create offscreen per-frame resources
-    const plTextureDesc tRawOutputTextureCubeDesc = {
-        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
-        .eFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
-        .uLayers       = 6,
-        .uMips         = 0,
-        .eType         = PL_TEXTURE_TYPE_CUBE,
-        .eUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .pcDebugName   = "offscreen final cube"
-    };
-
-    gptStarter->get_staging_buffer(4096, &tProbeData.tDShadowCameraBuffers, "directional shadow camera buffer");
-    gptStarter->get_staging_buffer(4096, &tProbeData.tSunCameraBuffers, "directional shadow camera buffer");
-    gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &tProbeData.tDLightShadowDataBuffer, "directional shadow buffer");
-
-    const plBindGroupDesc tGlobalBGDesc = {
-        .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptData->tShadowGlobalBGLayout,
-        .pcDebugName = "temporary global bind group 0"
-    };
-    tProbeData.tDShadowBG = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
-    tProbeData.tSunCameraBG = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
-
-    const plBindGroupUpdateData tDShadowBGData = {
-        .atBufferBindings = {
-            {
-                .tBuffer       = tProbeData.tDShadowCameraBuffers,
-                .uSlot         = 0,
-                .szBufferRange = 4096
-            },
-            {
-                .tBuffer       = ptScene->atInstanceBuffer[0],
-                .uSlot         = 1,
-                .szBufferRange = sizeof(plShadowInstanceBufferData) * 10000
-            }
-        }
-    };
-
-    const plBindGroupUpdateData tDShadowBGData2 = {
-        .atBufferBindings = {
-            {
-                .tBuffer       = tProbeData.tSunCameraBuffers,
-                .uSlot         = 0,
-                .szBufferRange = 4096
-            },
-            {
-                .tBuffer       = ptScene->atInstanceBuffer[0],
-                .uSlot         = 1,
-                .szBufferRange = sizeof(plShadowInstanceBufferData) * 10000
-            }
-        }
-    };
-
-    gptGfx->update_bind_group(gptData->ptDevice, tProbeData.tDShadowBG, &tDShadowBGData);
-    gptGfx->update_bind_group(gptData->ptDevice, tProbeData.tSunCameraBG, &tDShadowBGData2);
-
-    // textures
-    gptStarter->create_texture(&tRawOutputTextureCubeDesc, NULL, 0, &tProbeData.tRawOutputTexture);
-
-    tProbeData.uDataPackIndex = pl__renderer_probe_data_pack_index(ptScene, ptProbe->uResolution);
-
-    const plTextureDesc tSpecularTextureDesc = {
-        .tDimensions = {(float)ptProbe->uResolution, (float)ptProbe->uResolution, 1},
-        .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uLayers     = 6,
-        .uMips       = 1,
-        .eType       = PL_TEXTURE_TYPE_CUBE,
-        .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
-        .pcDebugName = "probe lambertian env"
-    };
-
-    const plTextureDesc tTextureDesc = {
-        .tDimensions = {(float)ptProbe->uResolution, (float)ptProbe->uResolution, 1},
-        .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uLayers     = 6,
-        .uMips       = (uint32_t)floorf(log2f((float)ptProbe->uResolution)) - 3, // guarantee final dispatch during filtering is 16 threads
-        .eType       = PL_TEXTURE_TYPE_CUBE,
-        .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
-        .pcDebugName = "probe tGGXEnvTexture"
-    };
-    gptStarter->create_texture(&tTextureDesc, NULL, 0, &tProbeData.tGGXEnvTexture);
-    gptStarter->create_texture(&tSpecularTextureDesc, NULL, 0, &tProbeData.tLambertianEnvTexture);
-    tProbeData.uLambertianEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tLambertianEnvTexture);
-    tProbeData.uGGXEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tGGXEnvTexture);
-
-    plTextureViewDesc tRawOutputTextureViewDesc = {
-        .eFormat     = tRawOutputTextureCubeDesc.eFormat,
-        .uBaseMip    = 0,
-        .uMips       = 1,
-        .uBaseLayer  = 0,
-        .uLayerCount = 1,
-        .tTexture    = tProbeData.tRawOutputTexture,
-        .eType       = PL_TEXTURE_TYPE_2D
-    };
-
-
-
-    // buffers
-    gptStarter->get_staging_buffer(sizeof(plGpuViewData), &tProbeData.tViewBuffer, "view buffer");
-
-    // for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    // {
-
-        for(uint32_t uFace = 0; uFace < 6; uFace++)
-        {
-            tRawOutputTextureViewDesc.uBaseLayer = uFace;
-            tProbeData.atRawOutputTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tRawOutputTextureViewDesc);
-        }
-
-    // }
-
-    tProbeData.iMips = (int)(uint32_t)floorf(log2f((float)ptProbe->uResolution)) - 3; // guarantee final dispatch during filtering is 16 threads
-    
-    plObjectComponent* ptProbeObj = gptECS->add_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tProbeHandle);
-    ptProbeObj->tMesh = ptScene->tProbeMesh;
-    ptProbeObj->tTransform = tProbeHandle;
-
-    const plBindGroupDesc tGBufferFillBG1Desc = {
-        .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("gbuffer_fill", 1),
-        .pcDebugName = "gbuffer fill bg1"
-    };
-
-    const plBindGroupDesc tViewBGDesc = {
-        .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptData->tViewBGLayout,
-        .pcDebugName = "probe scene bg"
-    };
-
-    // create g-buffer fill bind group 1
-    const plBindGroupUpdateBufferData tGBufferFillBG1BufferData = {
-        .tBuffer       = tProbeData.tViewBuffer,
-        .uSlot         = 0,
-        .szBufferRange = sizeof(plGpuViewData)
-    };
-
-    const plBindGroupUpdateData tGBufferFillBG1Data = {
-        .atBufferBindings = {
-            {
-                .tBuffer       = tProbeData.tViewBuffer,
-                .uSlot         = 0,
-                .szBufferRange = sizeof(plGpuViewData)
-            }
-        }
-    };
-
-    tProbeData.tGBufferBG = gptGfx->create_bind_group(gptData->ptDevice, &tGBufferFillBG1Desc);
-    gptGfx->update_bind_group(gptData->ptDevice, tProbeData.tGBufferBG, &tGBufferFillBG1Data);
-
-    const plBindGroupUpdateData tViewBGData = {
-        .atBufferBindings  = {
-            { .uSlot = 0, .tBuffer = tProbeData.tViewBuffer,            .szBufferRange = sizeof(plGpuViewData) },
-            { .uSlot = 1, .tBuffer = ptScene->atPointLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 2, .tBuffer = ptScene->atSpotLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 3, .tBuffer = ptScene->atDirectionLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atDirectionLightBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 4, .tBuffer = tProbeData.tDLightShadowDataBuffer, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, tProbeData.tDLightShadowDataBuffer)->tDesc.szByteSize},
-            { .uSlot = 5, .tBuffer = ptScene->atPointLightShadowDataBuffer[0],  .szBufferRange =  gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightShadowDataBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 6, .tBuffer = ptScene->atSpotLightShadowDataBuffer[0],  .szBufferRange =  gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightShadowDataBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 7, .tBuffer = ptScene->tGPUProbeDataBuffers,    .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tGPUProbeDataBuffers)->tDesc.szByteSize}
-        }
-    };
-    tProbeData.tViewBG = gptGfx->create_bind_group(gptData->ptDevice, &tViewBGDesc);
-    gptGfx->update_bind_group(gptData->ptDevice, tProbeData.tViewBG, &tViewBGData);
-
-    pl_sb_push(ptScene->sbtProbeData, tProbeData);
-};
-
-static void
-pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironmentProbeData* ptProbe)
+pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeData* ptProbe)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
@@ -4976,7 +4798,7 @@ pl__render_view_tonemap_pass(plView* ptView)
 }
 
 static void
-pl__renderer_update_probes(plScene* ptScene)
+pl__renderer_probe_update_all(plScene* ptScene)
 {
 
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
@@ -5421,7 +5243,7 @@ pl__renderer_update_probes(plScene* ptScene)
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submission~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-        pl__renderer_create_environment_map_from_texture(ptScene, ptProbe);
+        pl__renderer_probe_create_environment_map(ptScene, ptProbe);
 
         ptProbe->uCurrentFace = (ptProbe->uCurrentFace + ptProbeComp->uInterval) % 6;
 
@@ -5435,4 +5257,862 @@ pl__renderer_update_probes(plScene* ptScene)
                 ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
         }
     }
+}
+
+static void
+pl__renderer_scene_create_bindgroups(plScene* ptScene)
+{
+    plBindGroupLayoutHandle tGlobalSceneBindGroupLayout = gptShaderVariant->get_bind_group_layout("scene");
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        // create global bindgroup
+        const plBindGroupDesc tGlobalBindGroupDesc = {
+            .ptPool      = gptData->ptBindGroupPool,
+            .tLayout     = tGlobalSceneBindGroupLayout,
+            .pcDebugName = "global bind group"
+        };
+        ptScene->atSceneBindGroups[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBindGroupDesc);
+
+        const plBindGroupDesc tSkinBindGroup2Desc = {
+            .ptPool      = gptData->ptBindGroupPool,
+            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("skinning", 1),
+            .pcDebugName = "skin bind group 2"
+        };
+        ptScene->atSkinBindGroup1[i] = gptGfx->create_bind_group(gptData->ptDevice, &tSkinBindGroup2Desc);
+
+        const plBindGroupDesc tGlobalBGDesc = {
+            .ptPool      = gptData->ptBindGroupPool,
+            .tLayout     = gptData->tShadowGlobalBGLayout,
+            .pcDebugName = "temporary global bind group 0"
+        };
+        ptScene->atShadowBG[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
+    }
+
+    const plBindGroupDesc tSkinBindGroupDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("skinning", 0),
+        .pcDebugName = "skin bind group"
+    };
+    ptScene->tSkinBindGroup0 = gptGfx->create_bind_group(gptData->ptDevice, &tSkinBindGroupDesc);
+}
+
+static void
+pl__renderer_scene_update_bindgroups(plScene* ptScene)
+{
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        const plBindGroupUpdateData tSkinBGData = {
+            .atBufferBindings  = {
+                { .uSlot = 0, .tBuffer = ptScene->atDynamicSkinBuffer[i], .szBufferRange = ptScene->tInit.szSkinBufferSize }
+            }
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atSkinBindGroup1[i], &tSkinBGData);
+
+        // partially update global bindgroup
+        const plBindGroupUpdateData tGlobalBindGroupData = {
+            .atBufferBindings = {
+                { .uSlot = 0, .tBuffer = ptScene->atSceneBuffer[i], .szBufferRange = sizeof(plGpuSceneData) },
+                { .uSlot = 1, .tBuffer = ptScene->tStorageBuffer, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tStorageBuffer)->tDesc.szByteSize },
+                { .uSlot = 2, .tBuffer = ptScene->atTransformBuffer[i], .szBufferRange = sizeof(plMat4) * 10000 },
+                { .uSlot = 3, .tBuffer = ptScene->tMaterialDataBuffer, .szBufferRange = ptScene->tInit.szMaterialBufferSize },
+            },
+            .atSamplerBindings = {
+                { .uSlot = 4, .tSampler = gptData->tSamplerLinearClamp },
+                { .uSlot = 5, .tSampler = gptData->tSamplerNearestClamp },
+                { .uSlot = 6, .tSampler = gptData->tSamplerLinearRepeat },
+                { .uSlot = 7, .tSampler = gptData->tSamplerNearestRepeat }
+            },
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atSceneBindGroups[i], &tGlobalBindGroupData);
+
+        const plBindGroupUpdateData tShadowBGData = {
+            .atBufferBindings = {
+                {
+                    .tBuffer       = ptScene->atShadowCameraBuffers[i],
+                    .uSlot         = 0,
+                    .szBufferRange = 4096
+                },
+                {
+                    .tBuffer       = ptScene->atInstanceBuffer[i],
+                    .uSlot         = 1,
+                    .szBufferRange = sizeof(plShadowInstanceBufferData) * 10000
+                }   
+            }
+        };
+
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atShadowBG[i], &tShadowBGData);
+    }
+
+    const plBindGroupUpdateData tBGData0 = {
+        .atBufferBindings = {
+            { .uSlot = 0, .tBuffer = ptScene->tStorageBuffer, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tStorageBuffer)->tDesc.szByteSize},
+            { .uSlot = 1, .tBuffer = ptScene->tVertexBuffer,  .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tVertexBuffer)->tDesc.szByteSize}
+        },
+        .atSamplerBindings = {
+             { .uSlot = 2, .tSampler = gptData->tSamplerLinearRepeat}
+        }
+    };
+    gptGfx->update_bind_group(gptData->ptDevice, ptScene->tSkinBindGroup0, &tBGData0);
+}
+
+static void
+pl__renderer_scene_create_textures(plScene* ptScene)
+{
+    // shadow atlas
+    const plTextureDesc tShadowDepthTextureDesc = {
+        .tDimensions   = {(float)ptScene->uShadowAtlasResolution, (float)ptScene->uShadowAtlasResolution, 1},
+        .eFormat       = PL_FORMAT_D16_UNORM,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName   = "shadow map"
+    };
+    gptStarter->create_texture(&tShadowDepthTextureDesc, NULL, 0, &ptScene->tShadowTexture);
+    
+    // sun shadow atlas
+    const plTextureDesc tSunShadowDepthTextureDesc = {
+        .tDimensions   = {(float)ptScene->uSunShadowAtlasResolution, (float)ptScene->uSunShadowAtlasResolution, 1},
+        .eFormat       = PL_FORMAT_D16_UNORM,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName   = "shadow map"
+    };
+    gptStarter->create_texture(&tSunShadowDepthTextureDesc, NULL, 0, &ptScene->tSunShadowTexture);
+    
+    // brdf lut
+    const plTextureDesc tLutTextureDesc = {
+        .tDimensions = {(float)1024, (float)1024, 1},
+        .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+        .uLayers     = 1,
+        .uMips       = 1,
+        .eType       = PL_TEXTURE_TYPE_2D,
+        .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName = "tBrdfLutTexture"
+    };
+    gptStarter->create_texture(&tLutTextureDesc, NULL, 0, &ptScene->tBrdfLutTexture);
+}
+
+static void
+pl__renderer_scene_create_buffers(plScene* ptScene)
+{
+    const plBufferDesc tIndexBufferDesc = {
+        .eUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER,
+        .szByteSize  = ptScene->tInit.szIndexBufferSize,
+        .pcDebugName = "index buffer"
+    };
+
+    const plBufferDesc tVertexBufferDesc = {
+        .eUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER,
+        .szByteSize  = ptScene->tInit.szVertexBufferSize,
+        .pcDebugName = "vertex buffer"
+    };
+
+    const plBufferDesc tStorageBufferDesc = {
+        .eUsage      = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER,
+        .szByteSize  = ptScene->tInit.szDataBufferSize,
+        .pcDebugName = "storage buffer"
+    };
+
+    const plBufferDesc tMaterialDataBufferDesc = {
+        .eUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER,
+        .szByteSize = ptScene->tInit.szMaterialBufferSize,
+        .pcDebugName = "material buffer"
+    };
+
+    gptStarter->create_buffer(&tIndexBufferDesc, NULL, &ptScene->tIndexBuffer);
+    gptStarter->create_buffer(&tVertexBufferDesc, NULL, &ptScene->tVertexBuffer);
+    gptStarter->create_buffer(&tStorageBufferDesc, NULL, &ptScene->tStorageBuffer);
+    gptStarter->create_buffer(&tMaterialDataBufferDesc, NULL, &ptScene->tMaterialDataBuffer);
+
+    gptStarter->get_staging_buffer(4096, &ptScene->tGPUProbeDataBuffers, "probe buffer");
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        gptStarter->get_staging_buffer(sizeof(plGpuSceneData), &ptScene->atSceneBuffer[i], "scene buffer");
+        gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuPointLightShadow), &ptScene->atPointLightShadowDataBuffer[i], "point shadow buffer");
+        gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuSpotLightShadow), &ptScene->atSpotLightShadowDataBuffer[i], "spot shadow buffer");
+        gptStarter->get_staging_buffer(4096, &ptScene->atShadowCameraBuffers[i], "shadow camera buffer");
+        gptStarter->get_staging_buffer(ptScene->tInit.szSkinBufferSize, &ptScene->atDynamicSkinBuffer[i], "joint buffer");
+
+        gptStarter->get_staging_buffer(sizeof(plGpuPointLight) * PL_MAX_LIGHTS, &ptScene->atPointLightBuffer[i], "point light");
+        gptStarter->get_staging_buffer(sizeof(plGpuSpotLight) * PL_MAX_LIGHTS, &ptScene->atSpotLightBuffer[i], "spot light");
+        gptStarter->get_staging_buffer(sizeof(plGpuDirectionLight) * PL_MAX_LIGHTS, &ptScene->atDirectionLightBuffer[i], "direction light");
+        gptStarter->get_staging_buffer(sizeof(plMat4) * 10000, &ptScene->atTransformBuffer[i], "transform");
+        gptStarter->get_staging_buffer(sizeof(plShadowInstanceBufferData) * 10000, &ptScene->atInstanceBuffer[i], "instance");
+    }
+
+    // pre-create working buffers for environment filtering, later we should defer this
+    for(uint32_t i = 0; i < 7; i++)
+    {
+        const size_t uMaxFaceSize = ((size_t)1024 * (size_t)1024) * 4 * sizeof(float);
+
+        const plBufferDesc tInputBufferDesc = {
+            .eUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER,
+            .szByteSize = uMaxFaceSize,
+            .pcDebugName = "filter buffers"
+        };
+        gptStarter->create_buffer(&tInputBufferDesc, NULL, &ptScene->atFilterWorkingBuffers[i]);
+    }
+}
+
+static void
+pl__renderer_scene_create_brdf_lut(plScene* ptScene)
+{
+    const plBindGroupDesc tBrdfBGSet1Desc = {
+        .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("brdf_lut", 0),
+        .pcDebugName = "brdf_lut_set_1"
+    };
+    plBindGroupHandle tBrdfBGSet1 = gptGfx->create_bind_group(gptData->ptDevice, &tBrdfBGSet1Desc);
+    
+    const size_t uFaceSize = ((size_t)1024 * (size_t)1024) * 4 * sizeof(float);
+
+    const plBindGroupUpdateData tBrdfBGSet1Data = {
+        .atBufferBindings = {
+            { .uSlot = 0, .tBuffer = ptScene->atFilterWorkingBuffers[0], .szBufferRange = uFaceSize}
+        }
+    };
+    gptGfx->update_bind_group(gptData->ptDevice, tBrdfBGSet1, &tBrdfBGSet1Data);
+    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tBrdfBGSet1);
+
+    plComputeShaderHandle tBrdfLutShader = gptShaderVariant->get_compute_shader("brdf_lut", NULL);
+    
+    const plDispatch tDispach0 = {
+        .uGroupCountX     = (uint32_t)1024 / 16,
+        .uGroupCountY     = (uint32_t)1024 / 16,
+        .uGroupCountZ     = 1,
+        .uThreadPerGroupX = 16,
+        .uThreadPerGroupY = 16,
+        .uThreadPerGroupZ = 1
+    };
+
+    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
+    plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
+
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 2");
+    gptGfx->begin_command_recording(ptCommandBuffer);
+
+    gptData->tCurrentDynamicDataBlock = gptGfx->allocate_dynamic_data_block(gptData->ptDevice);
+
+    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(gptData->ptDevice, sizeof(plGpuDynFilterSpec));
+    plGpuDynFilterSpec* ptDynamicData = (plGpuDynFilterSpec*)tDynamicBinding.pcData;
+    ptDynamicData->iResolution = 1024;
+    ptDynamicData->fRoughness = 0.0f;
+    ptDynamicData->iSampleCount = (int)1024;
+    ptDynamicData->iWidth = 0;
+    ptDynamicData->fLodBias = 0.0f;
+    ptDynamicData->iCurrentMipLevel = 0;
+
+    const plPassResources tPassResources = {
+        .atBuffers = {
+            {
+                .tHandle = ptScene->atFilterWorkingBuffers[0],
+                .eStages = PL_SHADER_STAGE_COMPUTE,
+                .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
+                .eUsage = PL_BUFFER_USAGE_STORAGE
+            }
+        }
+    };
+
+    gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
+    gptGfx->bind_compute_bind_groups(ptCommandBuffer, tBrdfLutShader, 0, 1, &tBrdfBGSet1, 1, &tDynamicBinding);
+    gptGfx->bind_compute_shader(ptCommandBuffer, tBrdfLutShader);
+    gptGfx->dispatch(ptCommandBuffer, 1, &tDispach0);
+    gptGfx->end_compute_pass(ptCommandBuffer);
+
+    gptGfx->end_command_recording(ptCommandBuffer);
+
+    const plSubmitInfo tSubmitInfo0 = {
+        .uWaitSemaphoreCount     = 1,
+        .atWaitSempahores        = {tSemHandle},
+        .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {tSemHandle},
+        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+    };
+    gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo0);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
+
+    ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 3");
+    gptGfx->begin_command_recording(ptCommandBuffer);
+    gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
+
+    const plBufferImageCopy tBufferImageCopy0 = {
+        .uImageWidth = 1024,
+        .uImageHeight = 1024,
+        .uImageDepth = 1,
+        .uLayerCount = 1,
+        .szBufferOffset = 0,
+        .uBaseArrayLayer = 0,
+    };
+    gptGfx->copy_buffer_to_texture(ptCommandBuffer, ptScene->atFilterWorkingBuffers[0], ptScene->tBrdfLutTexture, 1, &tBufferImageCopy0);
+    gptGfx->end_compute_pass(ptCommandBuffer);
+    gptGfx->end_command_recording(ptCommandBuffer);
+    const plSubmitInfo tSubmitInfo = {
+        .uWaitSemaphoreCount     = 1,
+        .atWaitSempahores        = {tSemHandle},
+        .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {tSemHandle},
+        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+    };
+    gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
+}
+
+static void
+pl__renderer_view_create_textures(plView* ptView)
+{
+
+    plDevice* ptDevice = gptData->ptDevice;
+    plVec3 tNewDimensions = {ptView->tTargetSize.x + 300.0f, ptView->tTargetSize.y + 300.0f, 1};
+
+    if(gptGfx->is_texture_valid(ptDevice, ptView->tRawOutputTexture))
+    {
+        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tRawOutputTexture);
+        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tAlbedoTexture);
+        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tNormalTexture);
+        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tAOMetalRoughnessTexture);
+        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tDepthTexture);
+        gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture0);
+        gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture1);
+        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tFinalTexture);
+        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tPickTexture);
+
+        if(gptGfx->is_texture_valid(ptDevice, ptView->tTransmissionTexture))
+        {
+            gptGfx->queue_texture_for_deletion(ptDevice, ptView->tTransmissionTexture);
+            const plTextureDesc tRawOutput2TextureDesc = {
+                .tDimensions   = tNewDimensions,
+                .eFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+                .uLayers       = 1,
+                .uMips         = 0,
+                .eType         = PL_TEXTURE_TYPE_2D,
+                .eUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
+                .pcDebugName = "tRawOutputTexture2"
+            };
+            gptStarter->create_texture(&tRawOutput2TextureDesc, NULL, 0, &ptView->tTransmissionTexture);
+        }
+    }
+
+    const plTextureDesc tRawOutputTextureDesc = {
+        .tDimensions   = tNewDimensions,
+        .eFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
+        .pcDebugName   = "offscreen final"
+    };
+
+    const plTextureDesc tPickTextureDesc = {
+        .tDimensions   = tNewDimensions,
+        .eFormat       = PL_FORMAT_R8G8B8A8_UNORM,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+        .pcDebugName   = "pick original"
+    };
+
+    const plTextureDesc tNormalTextureDesc = {
+        .tDimensions   = tNewDimensions,
+        .eFormat       = PL_FORMAT_R16G16_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "g-buffer normal"
+    };
+
+    const plTextureDesc tAlbedoTextureDesc = {
+        .tDimensions   = tNewDimensions,
+        .eFormat       = PL_FORMAT_R8G8B8A8_UNORM,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "albedo texture"
+    };
+
+    const plTextureDesc tDepthTextureDesc = {
+        .tDimensions   = tNewDimensions,
+        .eFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "offscreen depth texture"
+    };
+
+    const plTextureDesc tMaskTextureDesc = {
+        .tDimensions   = tNewDimensions,
+        .eFormat       = PL_FORMAT_R32G32_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
+        .pcDebugName   = "mask texture"
+    };
+
+    const plTextureDesc tEmmissiveTexDesc = {
+        .tDimensions   = tNewDimensions,
+        .eFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "emissive texture"
+    };
+
+    gptStarter->create_texture(&tRawOutputTextureDesc, NULL, 0, &ptView->tRawOutputTexture);
+    gptStarter->create_texture(&tAlbedoTextureDesc, NULL, 0, &ptView->tAlbedoTexture);
+    gptStarter->create_texture(&tNormalTextureDesc, NULL, 0, &ptView->tNormalTexture);
+    gptStarter->create_texture(&tEmmissiveTexDesc, NULL, 0, &ptView->tAOMetalRoughnessTexture);
+    gptStarter->create_texture(&tDepthTextureDesc, NULL, 0, &ptView->tDepthTexture);
+    gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture0);
+    gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture1);
+    gptStarter->create_texture(&tRawOutputTextureDesc, NULL, 0, &ptView->tFinalTexture);
+    gptStarter->create_texture(&tPickTextureDesc, NULL, 0, &ptView->tPickTexture);
+}
+
+static void
+pl__renderer_view_create_buffers(plView* ptView)
+{
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        gptStarter->get_staging_buffer(4096, &ptView->atSunCameraBuffers[i], "directional shadow camera buffer");
+        gptStarter->get_staging_buffer(4096, &ptView->atDShadowCameraBuffers[i], "directional shadow camera buffer");
+        gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &ptView->atDLightShadowDataBuffer[i], "directional shadow buffer");
+        gptStarter->get_staging_buffer(sizeof(plGpuViewData), &ptView->atViewBuffers[i], "view buffer");
+
+        const plBufferDesc tPickBufferDesc = {
+            .eUsage     = PL_BUFFER_USAGE_STORAGE,
+            .szByteSize = sizeof(uint32_t) * 2,
+            .pcDebugName = "Picking buffer"
+        };
+        gptStarter->get_readback_buffer(sizeof(uint32_t) * 2, &ptView->atPickBuffer[i], "pick buffer");
+    }
+}
+
+static void
+pl__renderer_view_create_bindgroups(plView* ptView)
+{
+    plScene* ptScene = ptView->ptParentScene;
+
+    ptView->tFinalTextureHandle = gptDraw->create_bind_group_for_texture(ptView->tFinalTexture);
+
+    const plBindGroupDesc tJFABindGroupDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("jumpfloodalgo", 0),
+        .pcDebugName = "temp jfa bind group"
+    };
+
+    ptView->atJFABindGroups[0] = gptGfx->create_bind_group(gptData->ptDevice, &tJFABindGroupDesc);
+    ptView->atJFABindGroups[1] = gptGfx->create_bind_group(gptData->ptDevice, &tJFABindGroupDesc);
+
+    const plBindGroupDesc tOutlineBGDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("jumpfloodalgo2", 1),
+        .pcDebugName = "temp bind group 0"
+    };
+    ptView->atOutlineBG[0] = gptGfx->create_bind_group(gptData->ptDevice, &tOutlineBGDesc);
+    ptView->atOutlineBG[1] = gptGfx->create_bind_group(gptData->ptDevice, &tOutlineBGDesc);
+
+    // lighting bind group
+    const plBindGroupDesc tLightingBindGroupDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptShaderVariant->get_bind_group_layout("deferred lighting 1"),
+        .pcDebugName = "lighting bind group"
+    };
+    ptView->tLightingBindGroup = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupDesc);
+
+    const plBindGroupDesc tTonemapBGDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("tonemap", 0),
+        .pcDebugName = "tonemap bind group c0"
+    };
+    ptView->tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
+
+    const plBindGroupDesc tGlobalBGDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptData->tShadowGlobalBGLayout,
+        .pcDebugName = "temporary global bind group 0"
+    };
+
+    const plBindGroupDesc tPickBindGroupDesc = {
+        .ptPool = gptData->ptBindGroupPool,
+        .tLayout = gptShaderVariant->get_graphics_bind_group_layout("picking", 1),
+        .pcDebugName = "pick bind group"
+    };
+
+    const plBindGroupDesc tDeferredBG1Desc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("gbuffer_fill", 1),
+        .pcDebugName = "view specific bindgroup"
+    };
+
+    const plBindGroupDesc tViewBGDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptData->tViewBGLayout,
+        .pcDebugName = "light bind group 2"
+    };
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        ptView->atDShadowBG[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
+        ptView->atSunCSMBG[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
+        ptView->atPickBindGroup[i] = gptGfx->create_bind_group(gptData->ptDevice, &tPickBindGroupDesc);
+        ptView->atDeferredBG1[i] = gptGfx->create_bind_group(gptData->ptDevice, &tDeferredBG1Desc);
+        ptView->atViewBG[i] = gptGfx->create_bind_group(gptData->ptDevice, &tViewBGDesc);
+    }
+}
+
+static void
+pl__renderer_view_update_bindgroups(plView* ptView)
+{
+    plScene* ptScene = ptView->ptParentScene;
+
+    const plBindGroupUpdateData tJFABGData0 = {
+        .atTextureBindings = {
+            {
+                .tTexture = ptView->atUVMaskTexture0,
+                .uSlot    = 0,
+                .eType    = PL_TEXTURE_BINDING_TYPE_STORAGE
+            },
+            {
+                .tTexture = ptView->atUVMaskTexture1,
+                .uSlot    = 1,
+                .eType    = PL_TEXTURE_BINDING_TYPE_STORAGE
+            }
+        }
+    };
+    const plBindGroupUpdateData tJFABGData1 = {
+        .atTextureBindings = {
+            {
+                .tTexture = ptView->atUVMaskTexture1,
+                .uSlot    = 0,
+                .eType    = PL_TEXTURE_BINDING_TYPE_STORAGE
+            },
+            {
+                .tTexture = ptView->atUVMaskTexture0,
+                .uSlot    = 1,
+                .eType    = PL_TEXTURE_BINDING_TYPE_STORAGE
+            }
+        }
+    };
+
+    gptGfx->update_bind_group(gptData->ptDevice, ptView->atJFABindGroups[0], &tJFABGData0);
+    gptGfx->update_bind_group(gptData->ptDevice, ptView->atJFABindGroups[1], &tJFABGData1);
+
+    const plBindGroupUpdateData tBGData = {
+        .atTextureBindings = {
+            {
+                .tTexture = ptView->tAlbedoTexture,
+                .uSlot    = 0,
+                .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = ptView->tNormalTexture,
+                .uSlot    = 1,
+                .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = ptView->tAOMetalRoughnessTexture,
+                .uSlot    = 2,
+                .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = ptView->tDepthTexture,
+                .uSlot    = 3, 
+                .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            }
+        }
+    };
+    gptGfx->update_bind_group(gptData->ptDevice, ptView->tLightingBindGroup, &tBGData);
+
+    const plBindGroupUpdateData tTonemapBGData = {
+        .atTextureBindings = {
+            {.tTexture = ptView->tFinalTexture, .uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE}
+        }
+    };
+    gptGfx->update_bind_group(gptData->ptDevice, ptView->tTonemapBG, &tTonemapBGData);
+
+    const plBindGroupUpdateData tOutlineBGData0 = {
+        .atTextureBindings = {
+            {
+                .tTexture = ptView->tRawOutputTexture,
+                .uSlot    = 0,
+                .eType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
+            },
+            {
+                .tTexture = ptView->atUVMaskTexture0,
+                .uSlot    = 1,
+                .eType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
+            }
+        }
+    };
+    gptGfx->update_bind_group(gptData->ptDevice, ptView->atOutlineBG[0], &tOutlineBGData0);
+
+    const plBindGroupUpdateData tOutlineBGData1 = {
+        .atTextureBindings = {
+            {
+                .tTexture = ptView->tRawOutputTexture,
+                .uSlot    = 0,
+                .eType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
+            },
+            {
+                .tTexture = ptView->atUVMaskTexture1,
+                .uSlot    = 1,
+                .eType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
+            }
+        }
+    };
+    gptGfx->update_bind_group(gptData->ptDevice, ptView->atOutlineBG[1], &tOutlineBGData1);
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        const plBindGroupUpdateData tDShadowBGData = {
+            .atBufferBindings = {
+                {
+                    .tBuffer       = ptView->atDShadowCameraBuffers[i],
+                    .uSlot         = 0,
+                    .szBufferRange = 4096
+                },
+                {
+                    .tBuffer       = ptScene->atInstanceBuffer[i],
+                    .uSlot         = 1,
+                    .szBufferRange = sizeof(plShadowInstanceBufferData) * 10000
+                } 
+            }
+        };
+
+        const plBindGroupUpdateData tDShadowBGData2 = {
+            .atBufferBindings = {
+                {
+                    .tBuffer       = ptView->atSunCameraBuffers[i],
+                    .uSlot         = 0,
+                    .szBufferRange = 4096
+                },
+                {
+                    .tBuffer       = ptScene->atInstanceBuffer[i],
+                    .uSlot         = 1,
+                    .szBufferRange = sizeof(plShadowInstanceBufferData) * 10000
+                } 
+            }
+        };
+
+        gptGfx->update_bind_group(gptData->ptDevice, ptView->atDShadowBG[i], &tDShadowBGData);
+        gptGfx->update_bind_group(gptData->ptDevice, ptView->atSunCSMBG[i], &tDShadowBGData2);
+
+        const plBindGroupUpdateData tPickBGData = {
+            .atBufferBindings = {
+                { .uSlot = 0, .tBuffer = ptView->atPickBuffer[i], .szBufferRange = sizeof(uint32_t) * 2}
+            }
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, ptView->atPickBindGroup[i], &tPickBGData);
+
+        const plBindGroupUpdateData tView2BGData = {
+            .atBufferBindings = {
+                {
+                    .tBuffer       = ptView->atViewBuffers[i],
+                    .uSlot         = 0,
+                    .szBufferRange = sizeof(plGpuViewData)
+                }
+            }
+        };
+        
+        gptGfx->update_bind_group(gptData->ptDevice, ptView->atDeferredBG1[i], &tView2BGData);
+
+        const plBindGroupUpdateData tViewBGData = {
+            .atBufferBindings  = {
+                { .uSlot = 0, .tBuffer = ptView->atViewBuffers[i], .szBufferRange = sizeof(plGpuViewData) },
+                { .uSlot = 1, .tBuffer = ptScene->atPointLightBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightBuffer[i])->tDesc.szByteSize},
+                { .uSlot = 2, .tBuffer = ptScene->atSpotLightBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightBuffer[i])->tDesc.szByteSize},
+                { .uSlot = 3, .tBuffer = ptScene->atDirectionLightBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atDirectionLightBuffer[i])->tDesc.szByteSize},
+                { .uSlot = 4, .tBuffer = ptView->atDLightShadowDataBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptView->atDLightShadowDataBuffer[i])->tDesc.szByteSize},
+                { .uSlot = 5, .tBuffer = ptScene->atPointLightShadowDataBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightShadowDataBuffer[i])->tDesc.szByteSize},
+                { .uSlot = 6, .tBuffer = ptScene->atSpotLightShadowDataBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightShadowDataBuffer[i])->tDesc.szByteSize},
+                { .uSlot = 7, .tBuffer = ptScene->tGPUProbeDataBuffers, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tGPUProbeDataBuffers)->tDesc.szByteSize} 
+            }
+        };
+
+        gptGfx->update_bind_group(gptData->ptDevice, ptView->atViewBG[i], &tViewBGData);
+
+        if(ptView->ptParentScene->tFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
+        {
+            const plBindGroupUpdateData tGlobalBindGroupData = {
+                .atTextureBindings = {
+                    {
+                        .tTexture = ptView->tTransmissionTexture,
+                        .uSlot    = PL_MAX_BINDLESS_TEXTURE_SLOT,
+                        .uIndex   = (uint32_t)ptView->tViewData.iTransmissionFrameBufferIndex,
+                        .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+                    }  
+                }
+            };
+            gptGfx->update_bind_group(gptData->ptDevice, ptView->ptParentScene->atSceneBindGroups[i], &tGlobalBindGroupData);
+        }
+    }
+}
+
+static void
+pl__renderer_probe_create_textures(plScene* ptScene, plEnvironmentProbeData* ptProbeData)
+{
+    plEnvironmentProbeComponent* ptProbe = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbeData->tEntity);
+
+    const plTextureDesc tRawOutputTextureCubeDesc = {
+        .tDimensions   = {ptProbeData->tTargetSize.x, ptProbeData->tTargetSize.y, 1},
+        .eFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        .uLayers       = 6,
+        .uMips         = 0,
+        .eType         = PL_TEXTURE_TYPE_CUBE,
+        .eUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "offscreen final cube"
+    };
+    gptStarter->create_texture(&tRawOutputTextureCubeDesc, NULL, 0, &ptProbeData->tRawOutputTexture);
+
+    const plTextureDesc tSpecularTextureDesc = {
+        .tDimensions = {(float)ptProbe->uResolution, (float)ptProbe->uResolution, 1},
+        .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+        .uLayers     = 6,
+        .uMips       = 1,
+        .eType       = PL_TEXTURE_TYPE_CUBE,
+        .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName = "probe lambertian env"
+    };
+    gptStarter->create_texture(&tSpecularTextureDesc, NULL, 0, &ptProbeData->tLambertianEnvTexture);
+    ptProbeData->uLambertianEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, ptProbeData->tLambertianEnvTexture);
+
+    const plTextureDesc tTextureDesc = {
+        .tDimensions = {(float)ptProbe->uResolution, (float)ptProbe->uResolution, 1},
+        .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+        .uLayers     = 6,
+        .uMips       = (uint32_t)floorf(log2f((float)ptProbe->uResolution)) - 3, // guarantee final dispatch during filtering is 16 threads
+        .eType       = PL_TEXTURE_TYPE_CUBE,
+        .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName = "probe tGGXEnvTexture"
+    };
+    gptStarter->create_texture(&tTextureDesc, NULL, 0, &ptProbeData->tGGXEnvTexture);
+    ptProbeData->uGGXEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, ptProbeData->tGGXEnvTexture);
+    
+    plTextureViewDesc tRawOutputTextureViewDesc = {
+        .eFormat     = tRawOutputTextureCubeDesc.eFormat,
+        .uBaseMip    = 0,
+        .uMips       = 1,
+        .uBaseLayer  = 0,
+        .uLayerCount = 1,
+        .tTexture    = ptProbeData->tRawOutputTexture,
+        .eType       = PL_TEXTURE_TYPE_2D
+    };
+
+    for(uint32_t uFace = 0; uFace < 6; uFace++)
+    {
+        tRawOutputTextureViewDesc.uBaseLayer = uFace;
+        ptProbeData->atRawOutputTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tRawOutputTextureViewDesc);
+    }
+}
+
+static void
+pl__renderer_probe_create_buffers(plScene* ptScene, plEnvironmentProbeData* ptProbeData)
+{
+    gptStarter->get_staging_buffer(4096, &ptProbeData->tDShadowCameraBuffers, "directional shadow camera buffer");
+    gptStarter->get_staging_buffer(4096, &ptProbeData->tSunCameraBuffers, "directional shadow camera buffer");
+    gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &ptProbeData->tDLightShadowDataBuffer, "directional shadow buffer");
+    gptStarter->get_staging_buffer(sizeof(plGpuViewData), &ptProbeData->tViewBuffer, "view buffer");
+}
+
+static void
+pl__renderer_probe_create_bindgroups(plScene* ptScene, plEnvironmentProbeData* ptProbeData)
+{
+    const plBindGroupDesc tGlobalBGDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptData->tShadowGlobalBGLayout,
+        .pcDebugName = "temporary global bind group 0"
+    };
+    ptProbeData->tDShadowBG = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
+    ptProbeData->tSunCameraBG = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
+
+    const plBindGroupDesc tGBufferFillBG1Desc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("gbuffer_fill", 1),
+        .pcDebugName = "gbuffer fill bg1"
+    };
+    ptProbeData->tGBufferBG = gptGfx->create_bind_group(gptData->ptDevice, &tGBufferFillBG1Desc);
+
+    const plBindGroupDesc tViewBGDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptData->tViewBGLayout,
+        .pcDebugName = "probe scene bg"
+    };
+    ptProbeData->tViewBG = gptGfx->create_bind_group(gptData->ptDevice, &tViewBGDesc);
+}
+
+static void
+pl__renderer_probe_update_bindgroups(plScene* ptScene, plEnvironmentProbeData* ptProbeData)
+{
+    const plBindGroupUpdateData tDShadowBGData = {
+        .atBufferBindings = {
+            {
+                .tBuffer       = ptProbeData->tDShadowCameraBuffers,
+                .uSlot         = 0,
+                .szBufferRange = 4096
+            },
+            {
+                .tBuffer       = ptScene->atInstanceBuffer[0],
+                .uSlot         = 1,
+                .szBufferRange = sizeof(plShadowInstanceBufferData) * 10000
+            }
+        }
+    };
+    gptGfx->update_bind_group(gptData->ptDevice, ptProbeData->tDShadowBG, &tDShadowBGData);
+
+    const plBindGroupUpdateData tDShadowBGData2 = {
+        .atBufferBindings = {
+            {
+                .tBuffer       = ptProbeData->tSunCameraBuffers,
+                .uSlot         = 0,
+                .szBufferRange = 4096
+            },
+            {
+                .tBuffer       = ptScene->atInstanceBuffer[0],
+                .uSlot         = 1,
+                .szBufferRange = sizeof(plShadowInstanceBufferData) * 10000
+            }
+        }
+    };
+    gptGfx->update_bind_group(gptData->ptDevice, ptProbeData->tSunCameraBG, &tDShadowBGData2);
+
+    const plBindGroupUpdateData tGBufferFillBG1Data = {
+        .atBufferBindings = {
+            {
+                .tBuffer       = ptProbeData->tViewBuffer,
+                .uSlot         = 0,
+                .szBufferRange = sizeof(plGpuViewData)
+            }
+        }
+    };
+    gptGfx->update_bind_group(gptData->ptDevice, ptProbeData->tGBufferBG, &tGBufferFillBG1Data);
+
+    const plBindGroupUpdateData tViewBGData = {
+        .atBufferBindings  = {
+            { .uSlot = 0, .tBuffer = ptProbeData->tViewBuffer,            .szBufferRange = sizeof(plGpuViewData) },
+            { .uSlot = 1, .tBuffer = ptScene->atPointLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 2, .tBuffer = ptScene->atSpotLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 3, .tBuffer = ptScene->atDirectionLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atDirectionLightBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 4, .tBuffer = ptProbeData->tDLightShadowDataBuffer, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptProbeData->tDLightShadowDataBuffer)->tDesc.szByteSize},
+            { .uSlot = 5, .tBuffer = ptScene->atPointLightShadowDataBuffer[0],  .szBufferRange =  gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightShadowDataBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 6, .tBuffer = ptScene->atSpotLightShadowDataBuffer[0],  .szBufferRange =  gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightShadowDataBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 7, .tBuffer = ptScene->tGPUProbeDataBuffers,    .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tGPUProbeDataBuffers)->tDesc.szByteSize}
+        }
+    };
+    
+    gptGfx->update_bind_group(gptData->ptDevice, ptProbeData->tViewBG, &tViewBGData);
 }

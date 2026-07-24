@@ -603,7 +603,7 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     if(ptCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
         pl__camera_build_perspective_frustum(ptCamera, &tFrustum);
     else
-        pl_camera_build_orthographic_frustum(ptCamera, &tFrustum);
+        pl__camera_build_orthographic_frustum(ptCamera, &tFrustum);
 
     if(!gptGjk->pen(pl_gjk_support_aabb, &tAABB, pl_gjk_support_frustum, &tFrustum, NULL))
         return;
