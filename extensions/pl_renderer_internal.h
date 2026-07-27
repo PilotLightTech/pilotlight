@@ -435,6 +435,17 @@ typedef struct _plScene
     plShaderHandle tTerrainShadowShader;
     plShaderHandle tTerrainWireframeShader;
 
+    // atmosphere rendering stuff
+    plVec2                tSunTransmissionLutResolution;
+    plVec2                tSunMultiscatterLutResolution;
+    plComputeShaderHandle tSunTransmissionLutShader;
+    plComputeShaderHandle tSunMultiscatterShader;
+    bool                  abSunTransmissionLutDirty[PL_MAX_FRAMES_IN_FLIGHT];
+    plTextureHandle       atSunTransmissionLut[PL_MAX_FRAMES_IN_FLIGHT];
+    plTextureHandle       atSunMultiscatterLut[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupHandle     atSunTransmissionBG1[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupHandle     atSunMultiscatterBG1[PL_MAX_FRAMES_IN_FLIGHT];
+
     // bind groups
     plBindGroupHandle tSkyboxBindGroup;
     plBindGroupHandle tSkinBindGroup0;

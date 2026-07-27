@@ -217,7 +217,7 @@ PL_END_STRUCT(plGpuDynForwardData)
 
 PL_BEGIN_STRUCT(plGpuSceneData)
 
-    vec3 tDirection;
+    vec3 tDirection; // sun direction
     int iCascadeCount;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
@@ -232,9 +232,9 @@ PL_BEGIN_STRUCT(plGpuSceneData)
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     float fIntensity;
+    float fSunRadius;
+    float fAtmosphereConversion;
     int _unused0;
-    int _unused1;
-    int _unused2;
 
     int iBrdfLutIndex;
     int iSceneFlags;
@@ -256,6 +256,37 @@ PL_BEGIN_STRUCT(plGpuSceneData)
     float fFogLinearParam1;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
+    // atmosphere stuff
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    vec3 scatteringRayleighGround;
+    float planetRadius;
+
+    vec3 extinctionRayleighGround;
+    float atmosphereHeight;
+
+    vec3 ozoneExtinction;
+    float scatteringMieGround;
+
+    float extinctionMieGround;
+    float mieScatteringExponent; // used in mie phase function
+    float g_time;
+    int bMultiScatter;
+
+    // vec4 tSunColorRadius; // now "tColor" & "fSunRadius"
+    // vec4 tSunDirection; // now "tDirection"
+    // vec4 tCameraPos; // now in view data as "tCameraPos"
+
+    // x = maximum aerial distance in atmosphere units
+    // y = depth exponent
+    // z = world-to-atmosphere scale
+    // w = sun intensity
+    vec4 tAerialInfo;
+
+    // mat4 tCameraProjectionInv; // camera
+    // mat4 tInvViewMatNoTranslation; // camera
+    // mat4 tShadowViewProj; // shadow camera
+    // mat4 tCameraViewInv; // camera
+
     // ~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuSceneData)
 
@@ -274,7 +305,7 @@ PL_BEGIN_STRUCT(plGpuViewData)
     vec4 afCascadeSplits;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    mat4 viewProjMat[4];
+    mat4 viewProjMat[4]; // main shadow camera (4 for cascades)
     // ~~~~~~~~~~~~~~~~384 bytes~~~~~~~~~~~~~~~~
 
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -293,25 +324,25 @@ PL_BEGIN_STRUCT(plGpuViewData)
     vec4 tViewportSize;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    vec4 tCameraPos;
+    vec4 tCameraPos; // viewing camera
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tCameraView[6];
+    mat4 tCameraView[6]; // viewing camera (6 for probes)
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tCameraViewInv[6];
+    mat4 tCameraViewInv[6]; // viewing camera (6 for probes)
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tCameraProjection[6];
+    mat4 tCameraProjection[6]; // viewing camera (6 for probes)
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tCameraProjectionInv[6];
+    mat4 tCameraProjectionInv[6]; // viewing camera (6 for probes)
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tCameraViewProjection[6];
+    mat4 tCameraViewProjection[6]; // viewing camera (6 for probes)
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tInvViewMatNoTranslation[6];
+    mat4 tInvViewMatNoTranslation[6]; // viewing camera (6 for probes)
 
     // ~~~~~~~~~~~~~~~~xxx bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuViewData)

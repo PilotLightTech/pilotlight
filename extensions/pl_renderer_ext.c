@@ -435,6 +435,39 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     // TODO: make this an option
     ptScene->uSunShadowAtlasResolution = 4096 * 4;
 
+    // atmospheric rendering stuff
+    ptScene->tSunTransmissionLutResolution = (plVec2){256.0f, 256.0f};
+    ptScene->tSunMultiscatterLutResolution = (plVec2){64.0f, 64.0f};
+
+    ptScene->tSceneData.fAtmosphereConversion = 0.001f;
+	ptScene->tSceneData.atmosphereHeight = 100.0f;
+	ptScene->tSceneData.bMultiScatter = 1;
+	ptScene->tSceneData.planetRadius = 6371.0f; // hkm
+    ptScene->tSceneData.scatteringRayleighGround.x = 0.0058f;
+    ptScene->tSceneData.scatteringRayleighGround.y = 0.0135f;
+    ptScene->tSceneData.scatteringRayleighGround.z = 0.0331f;
+    ptScene->tSceneData.extinctionRayleighGround.x = 0.0058f;
+    ptScene->tSceneData.extinctionRayleighGround.y = 0.0135f;
+    ptScene->tSceneData.extinctionRayleighGround.z = 0.0331f;
+    ptScene->tSceneData.ozoneExtinction.x = 0.00065f;
+    ptScene->tSceneData.ozoneExtinction.y = 0.00188f;
+    ptScene->tSceneData.ozoneExtinction.z = 0.00008f;
+    ptScene->tSceneData.scatteringMieGround = 0.006f;
+    ptScene->tSceneData.extinctionMieGround = 0.00666f;
+    ptScene->tSceneData.mieScatteringExponent = 0.76f;
+    ptScene->tSceneData.tAerialInfo.x = 10.0f; // km
+    ptScene->tSceneData.tAerialInfo.y = 2.0f; // quadratic depth distribution
+    ptScene->tSceneData.tAerialInfo.z = 8.0f; // samples per slice
+    ptScene->tSceneData.tAerialInfo.w = 3.0f; // sun intensity
+    ptScene->tSceneData.fSunRadius = 0.00465f;
+    // ptScene->tSceneData.fSunRadius = (plVec4){1.0f, 0.95f, 0.85f, 0.00465f};
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        ptScene->abSunTransmissionLutDirty[i] = true;
+
+    ptScene->tSunTransmissionLutShader = gptShaderVariant->get_compute_shader("sky_transmission_lut", NULL);
+    ptScene->tSunMultiscatterShader = gptShaderVariant->get_compute_shader("sky_multiscatter_lut", NULL);
+
     // default fog options
     ptScene->tFogOptions.fDensity = 0.1f;
     ptScene->tFogOptions.fHeight = 0.0f;
@@ -1931,6 +1964,98 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     memcpy(ptShadowDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtPointLightShadowData, sizeof(plGpuPointLightShadow) * pl_sb_size(ptScene->sbtPointLightShadowData));
     ptShadowDataBuffer = gptGfx->get_buffer(ptDevice, ptScene->atSpotLightShadowDataBuffer[uFrameIdx]);
     memcpy(ptShadowDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtSpotLightShadowData, sizeof(plGpuSpotLightShadow) * pl_sb_size(ptScene->sbtSpotLightShadowData));
+    
+    // atmospheric rendering - sun transmission
+    //-----------------------------------------------------------------------------
+    if(ptScene->abSunTransmissionLutDirty[uFrameIdx])
+    {
+        plCommandBuffer* ptSunCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "sun transmission");
+        gptGfx->begin_command_recording(ptSkinningCmdBuffer);
+
+        // must declare resources & how they are used
+        plPassResources tPassResources0 = {
+            .atTextures = {
+                {
+                    .eUsage  = PL_TEXTURE_USAGE_STORAGE,
+                    .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
+                    .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                    .tHandle = ptScene->atSunTransmissionLut[uFrameIdx]
+                },
+                {
+                    .eUsage  = PL_TEXTURE_USAGE_STORAGE,
+                    .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
+                    .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                    .tHandle = ptScene->atSunMultiscatterLut[uFrameIdx]
+                }
+            }
+        };
+
+        // begin compute pass
+        gptGfx->begin_compute_pass(ptSunCmdBuffer, &tPassResources0);
+
+        // transmission lut
+        plDispatch tDispatch0 = {
+            .uGroupCountX = (uint32_t)ceilf(ptScene->tSunTransmissionLutResolution.x / 8.0f),
+            .uGroupCountY = (uint32_t)ceilf(ptScene->tSunTransmissionLutResolution.y / 8.0f),
+            .uGroupCountZ = 1,
+            .uThreadPerGroupX = 8,
+            .uThreadPerGroupY = 8,
+            .uThreadPerGroupZ = 1
+        };
+
+        // vertical blur
+        gptGfx->bind_compute_shader(ptSunCmdBuffer, ptScene->tSunTransmissionLutShader);
+        plBindGroupHandle atTransmissionBGs[] = {ptScene->atSceneBindGroups[uFrameIdx], ptScene->atSunTransmissionBG1[uFrameIdx] };
+        gptGfx->bind_compute_bind_groups(ptSunCmdBuffer, ptScene->tSunTransmissionLutShader, 0, PL_ARRAYSIZE(atTransmissionBGs), atTransmissionBGs, 0, NULL);
+        gptGfx->dispatch(ptSunCmdBuffer, 1, &tDispatch0);
+
+        plPassResources tPassResources1 = {
+            .atTextures = {
+                {
+                    .eUsage  = PL_TEXTURE_USAGE_SAMPLED,
+                    .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
+                    .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                    .tHandle = ptScene->atSunTransmissionLut[uFrameIdx]
+                }
+            }
+        };
+
+        gptGfx->intra_pass_barrier(ptSunCmdBuffer, PL_PIPELINE_STAGE_COMPUTE,  PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL, &tPassResources1);
+
+        // multiscatter lut
+        plDispatch tDispatch1 = {
+            .uGroupCountX = (uint32_t)ceilf(ptScene->tSunMultiscatterLutResolution.x / 8.0f),
+            .uGroupCountY = (uint32_t)ceilf(ptScene->tSunMultiscatterLutResolution.y / 8.0f),
+            .uGroupCountZ = 1,
+            .uThreadPerGroupX = 8,
+            .uThreadPerGroupY = 8,
+            .uThreadPerGroupZ = 1
+        };
+
+        // vertical blur
+        gptGfx->bind_compute_shader(ptSunCmdBuffer, ptScene->tSunMultiscatterShader);
+        plBindGroupHandle atMultiscatterBGs[] = {ptScene->atSceneBindGroups[uFrameIdx], ptScene->atSunMultiscatterBG1[uFrameIdx] };
+        gptGfx->bind_compute_bind_groups(ptSunCmdBuffer, ptScene->tSunMultiscatterShader, 0, PL_ARRAYSIZE(atMultiscatterBGs), atMultiscatterBGs, 0, NULL);
+        gptGfx->dispatch(ptSunCmdBuffer, 1, &tDispatch1);
+
+        // end compute pass
+        gptGfx->end_compute_pass(ptSunCmdBuffer);
+
+        gptGfx->end_command_recording(ptSunCmdBuffer);
+
+        const plSubmitInfo tSunTransmissionSubmitInfo = {
+            .uWaitSemaphoreCount     = 1,
+            .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+            .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+            .uSignalSemaphoreCount   = 1,
+            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+        };
+        gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
+        gptGfx->return_command_buffer(ptSunCmdBuffer);
+
+        ptScene->abSunTransmissionLutDirty[uFrameIdx] = false;
+    }
     
     // update environment probes
     //-----------------------------------------------------------------------------

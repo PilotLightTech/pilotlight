@@ -5263,6 +5263,8 @@ static void
 pl__renderer_scene_create_bindgroups(plScene* ptScene)
 {
     plBindGroupLayoutHandle tGlobalSceneBindGroupLayout = gptShaderVariant->get_bind_group_layout("scene");
+    plBindGroupLayoutHandle tSunTransmissionBindGroupLayout1 = gptShaderVariant->get_compute_bind_group_layout("sky_transmission_lut", 1);
+    plBindGroupLayoutHandle tSunMultiscatterBindGroupLayout1 = gptShaderVariant->get_compute_bind_group_layout("sky_multiscatter_lut", 1);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -5273,6 +5275,20 @@ pl__renderer_scene_create_bindgroups(plScene* ptScene)
             .pcDebugName = "global bind group"
         };
         ptScene->atSceneBindGroups[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBindGroupDesc);
+
+        const plBindGroupDesc tTransmissionBG1Desc = {
+            .tLayout     = tSunTransmissionBindGroupLayout1,
+            .pcDebugName = "tSunTransmissionBG1",
+            .ptPool      = gptData->ptBindGroupPool
+        };
+        ptScene->atSunTransmissionBG1[i] = gptGfx->create_bind_group(gptData->ptDevice, &tTransmissionBG1Desc);
+
+        const plBindGroupDesc tMultiscatterBG1Desc = {
+            .tLayout     = tSunMultiscatterBindGroupLayout1,
+            .pcDebugName = "tSunMultiscatterBG1",
+            .ptPool      = gptData->ptBindGroupPool
+        };
+        ptScene->atSunMultiscatterBG1[i] = gptGfx->create_bind_group(gptData->ptDevice, &tMultiscatterBG1Desc);
 
         const plBindGroupDesc tSkinBindGroup2Desc = {
             .ptPool      = gptData->ptBindGroupPool,
@@ -5303,6 +5319,22 @@ pl__renderer_scene_update_bindgroups(plScene* ptScene)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
+
+        const plBindGroupUpdateData tBGMultiscatterData1 = {
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tTexture = ptScene->atSunMultiscatterLut[i]},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptScene->atSunTransmissionLut[i]}
+            }
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atSunMultiscatterBG1[i], &tBGMultiscatterData1);
+
+        const plBindGroupUpdateData tBGSunTransmissionLut = {
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tTexture = ptScene->atSunTransmissionLut[i]}
+            }
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atSunTransmissionBG1[i], &tBGSunTransmissionLut);
+
         const plBindGroupUpdateData tSkinBGData = {
             .atBufferBindings  = {
                 { .uSlot = 0, .tBuffer = ptScene->atDynamicSkinBuffer[i], .szBufferRange = ptScene->tInit.szSkinBufferSize }
@@ -5395,6 +5427,32 @@ pl__renderer_scene_create_textures(plScene* ptScene)
         .pcDebugName = "tBrdfLutTexture"
     };
     gptStarter->create_texture(&tLutTextureDesc, NULL, 0, &ptScene->tBrdfLutTexture);
+
+    const plTextureDesc tSunTransmissionLutDesc = {
+        .tDimensions = { .xy = ptScene->tSunTransmissionLutResolution, 1},
+        .eFormat     = PL_FORMAT_R11G11B10_FLOAT,
+        .uLayers     = 1,
+        .uMips       = 1,
+        .eType       = PL_TEXTURE_TYPE_2D,
+        .eUsage      = PL_TEXTURE_USAGE_STORAGE | PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName = "tSunTransmissionLut"
+    };
+
+    const plTextureDesc tSunMultiscatterLutDesc = {
+        .tDimensions = { .xy = ptScene->tSunMultiscatterLutResolution, 1},
+        .eFormat     = PL_FORMAT_R11G11B10_FLOAT,
+        .uLayers     = 1,
+        .uMips       = 1,
+        .eType       = PL_TEXTURE_TYPE_2D,
+        .eUsage      = PL_TEXTURE_USAGE_STORAGE | PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName = "tSunMultiscatterLut"
+    };
+    
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        gptStarter->create_texture(&tSunTransmissionLutDesc, NULL, 0, &ptScene->atSunTransmissionLut[i]);
+        gptStarter->create_texture(&tSunMultiscatterLutDesc, NULL, 0, &ptScene->atSunMultiscatterLut[i]);
+    }
 }
 
 static void

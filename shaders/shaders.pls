@@ -9,7 +9,7 @@
                 { "uSlot": 3, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ],
             "atSamplerBindings": [
-                { "uSlot": 4, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 4, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"] },
                 { "uSlot": 5, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
                 { "uSlot": 6, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
                 { "uSlot": 7, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
@@ -149,6 +149,31 @@
                 {
                     "atBufferBindings": [
                         { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ]
+                }
+            ]
+        },
+        {
+            "pcName": "sky_transmission_lut",
+            "tShader": { "file": "pl_sky_transmission_lut.comp"},
+            "atBindGroupLayouts": [
+                { "pcName": "scene" },
+                {
+                    "atTextureBindings": [
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ]
+                }
+            ]
+        },
+        {
+            "pcName": "sky_multiscatter_lut",
+            "tShader": { "file": "pl_sky_multiscatter_lut.comp"},
+            "atBindGroupLayouts": [
+                { "pcName": "scene" },
+                {
+                    "atTextureBindings": [
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ]
                 }
             ]
