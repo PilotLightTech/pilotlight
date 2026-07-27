@@ -1075,9 +1075,22 @@ static void
 pl__update_events(void)
 {
     const uint32_t uEventCount = pl_sb_size(gtIO._sbtInputEvents);
-    for(uint32_t i = 0; i < uEventCount; i++)
+    if(uEventCount == 0)
+        return;
+
+    // Process as many queued events as possible without hiding a state
+    // transition. Leave the first conflict and the rest for the next frame.
+    uint32_t uProcessedEventCount = 0;
+    uint32_t uChangedMouseButtonMask = 0;
+    bool bMouseMoved = false;
+    bool bMouseWheeled = false;
+    bool bAnyKeyChanged = false;
+    bool abChangedKeys[PL_KEY_COUNT] = {0};
+
+    for(; uProcessedEventCount < uEventCount; uProcessedEventCount++)
     {
-        plInputEvent* ptEvent = &gtIO._sbtInputEvents[i];
+        plInputEvent* ptEvent = &gtIO._sbtInputEvents[uProcessedEventCount];
+        bool bDeferEvent = false;
 
         switch(ptEvent->tType)
         {
@@ -1085,19 +1098,33 @@ pl__update_events(void)
             {
                 // PL_UI_DEBUG_LOG_IO("[%Iu] IO Mouse Pos (%0.0f, %0.0f)", gptCtx->frameCount, ptEvent->fPosX, ptEvent->fPosY);
 
+                if(uChangedMouseButtonMask != 0 || bMouseWheeled || bAnyKeyChanged)
+                {
+                    bDeferEvent = true;
+                    break;
+                }
+
                 if(ptEvent->fPosX != -FLT_MAX && ptEvent->fPosY != -FLT_MAX)
                 {
                     gtIO._tMousePos.x = ptEvent->fPosX;
                     gtIO._tMousePos.y = ptEvent->fPosY;
                 }
+                bMouseMoved = true;
                 break;
             }
 
             case PL_INPUT_EVENT_TYPE_MOUSE_WHEEL:
             {
                 // PL_UI_DEBUG_LOG_IO("[%Iu] IO Mouse Wheel (%0.0f, %0.0f)", gptCtx->frameCount, ptEvent->fWheelX, ptEvent->fWheelY);
+                if(bMouseMoved || uChangedMouseButtonMask != 0)
+                {
+                    bDeferEvent = true;
+                    break;
+                }
+
                 gtIO._fMouseWheelH += ptEvent->fWheelX;
                 gtIO._fMouseWheel += ptEvent->fWheelY;
+                bMouseWheeled = true;
                 break;
             }
 
@@ -1105,7 +1132,17 @@ pl__update_events(void)
             {
                 // PL_UI_DEBUG_LOG_IO(ptEvent->bMouseDown ? "[%Iu] IO Mouse Button %i down" : "[%Iu] IO Mouse Button %i up", gptCtx->frameCount, ptEvent->iButton);
                 PL_ASSERT(ptEvent->iButton >= 0 && ptEvent->iButton < PL_MOUSE_BUTTON_COUNT);
+                const uint32_t uButtonMask = 1u << ptEvent->iButton;
+                const bool bStateChanged = gtIO._abMouseDown[ptEvent->iButton] != ptEvent->bMouseDown;
+                if(bStateChanged && ((uChangedMouseButtonMask & uButtonMask) != 0 || bMouseWheeled))
+                {
+                    bDeferEvent = true;
+                    break;
+                }
+
                 gtIO._abMouseDown[ptEvent->iButton] = ptEvent->bMouseDown;
+                if(bStateChanged)
+                    uChangedMouseButtonMask |= uButtonMask;
                 break;
             }
 
@@ -1114,10 +1151,23 @@ pl__update_events(void)
                 // if(ptEvent->tKey < PL_KEY_COUNT)
                 //     PL_UI_DEBUG_LOG_IO(ptEvent->bKeyDown ? "[%Iu] IO Key %i down" : "[%Iu] IO Key %i up", gptCtx->frameCount, ptEvent->tKey);
                 plKey tKey = ptEvent->tKey;
-                if(tKey != PL_KEY_NONE)
+                if(tKey == PL_KEY_NONE)
+                    break;
+
+                plKeyData* ptKeyData = pl__get_key_data(tKey);
+                const uint32_t uKeyIndex = (uint32_t)(ptKeyData - gtIO._tKeyData);
+                const bool bStateChanged = ptKeyData->bDown != ptEvent->bKeyDown;
+                if(bStateChanged && (abChangedKeys[uKeyIndex] || uChangedMouseButtonMask != 0))
                 {
-                    plKeyData* ptKeyData = pl__get_key_data(tKey);
-                    ptKeyData->bDown = ptEvent->bKeyDown;
+                    bDeferEvent = true;
+                    break;
+                }
+
+                ptKeyData->bDown = ptEvent->bKeyDown;
+                if(bStateChanged)
+                {
+                    bAnyKeyChanged = true;
+                    abChangedKeys[uKeyIndex] = true;
                 }
                 break;
             }
@@ -1125,6 +1175,12 @@ pl__update_events(void)
             case PL_INPUT_EVENT_TYPE_TEXT:
             {
                 // PL_UI_DEBUG_LOG_IO("[%Iu] IO Text (U+%08u)", gptCtx->frameCount, (uint32_t)ptEvent->uChar);
+                if(uChangedMouseButtonMask != 0 || bMouseMoved || bMouseWheeled)
+                {
+                    bDeferEvent = true;
+                    break;
+                }
+
                 plUiWChar uChar = (plUiWChar)ptEvent->uChar;
                 pl_sb_push(gtIO._sbInputQueueCharacters, uChar);
                 break;
@@ -1136,8 +1192,14 @@ pl__update_events(void)
                 break;
             }
         }
+
+        if(bDeferEvent)
+            break;
     }
-    pl_sb_reset(gtIO._sbtInputEvents)
+
+    // Remove the events handled above; deferred events stay in order.
+    if(uProcessedEventCount > 0)
+        pl_sb_del_n(gtIO._sbtInputEvents, 0, uProcessedEventCount);
 }
 
 static void
