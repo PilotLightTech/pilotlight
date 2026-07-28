@@ -5739,6 +5739,23 @@ pl__renderer_view_create_textures(plView* ptView)
     gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture1);
     gptStarter->create_texture(&tRawOutputTextureDesc, NULL, 0, &ptView->tFinalTexture);
     gptStarter->create_texture(&tPickTextureDesc, NULL, 0, &ptView->tPickTexture);
+
+    if(!gptGfx->is_texture_valid(ptDevice, ptView->atSkyLut[0]))
+    {
+        const plTextureDesc tSkyLutDesc = {
+            .tDimensions = { .xy = ptView->ptParentScene->tSkyLutResolution, 1},
+            .eFormat     = PL_FORMAT_R11G11B10_FLOAT,
+            .uLayers     = 1,
+            .uMips       = 1,
+            .eType       = PL_TEXTURE_TYPE_2D,
+            .eUsage      = PL_TEXTURE_USAGE_STORAGE | PL_TEXTURE_USAGE_SAMPLED,
+            .pcDebugName = "tSkyLut"
+        };
+        for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        {
+            gptStarter->create_texture(&tSkyLutDesc, NULL, 0, &ptView->atSkyLut[i]);
+        }
+    }
 }
 
 static void
@@ -5823,6 +5840,14 @@ pl__renderer_view_create_bindgroups(plView* ptView)
         .pcDebugName = "light bind group 2"
     };
 
+    plBindGroupLayoutHandle tSkyLutBindGroupLayout2 = gptShaderVariant->get_compute_bind_group_layout("sky_lut", 2);
+
+    const plBindGroupDesc tSkyLutBG2Desc = {
+        .tLayout     = tSkyLutBindGroupLayout2,
+        .pcDebugName = "atSkyLutBG2",
+        .ptPool      = gptData->ptBindGroupPool
+    };
+
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
         ptView->atDShadowBG[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
@@ -5830,6 +5855,7 @@ pl__renderer_view_create_bindgroups(plView* ptView)
         ptView->atPickBindGroup[i] = gptGfx->create_bind_group(gptData->ptDevice, &tPickBindGroupDesc);
         ptView->atDeferredBG1[i] = gptGfx->create_bind_group(gptData->ptDevice, &tDeferredBG1Desc);
         ptView->atViewBG[i] = gptGfx->create_bind_group(gptData->ptDevice, &tViewBGDesc);
+        ptView->atSkyLutBG2[i] = gptGfx->create_bind_group(gptData->ptDevice, &tSkyLutBG2Desc);
     }
 }
 
@@ -6018,6 +6044,15 @@ pl__renderer_view_update_bindgroups(plView* ptView)
             };
             gptGfx->update_bind_group(gptData->ptDevice, ptView->ptParentScene->atSceneBindGroups[i], &tGlobalBindGroupData);
         }
+
+        const plBindGroupUpdateData tBGSkyLut = {
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tTexture = ptView->atSkyLut[i]},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptScene->atSunTransmissionLut[i]},
+                {.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptScene->atSunMultiscatterLut[i]}
+            }
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, ptView->atSkyLutBG2[i], &tBGSkyLut);
     }
 }
 

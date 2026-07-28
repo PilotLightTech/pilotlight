@@ -179,6 +179,21 @@
             ]
         },
         {
+            "pcName": "sky_lut",
+            "tShader": { "file": "pl_sky_lut.comp"},
+            "atBindGroupLayouts": [
+                { "pcName": "scene" },
+                { "pcName": "view" },
+                {
+                    "atTextureBindings": [
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 2, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ]
+                }
+            ]
+        },
+        {
             "pcName": "cube_filter_specular",
             "tShader": { "file": "pl_cube_filter_specular.comp"},
             "atBindGroupLayouts": [

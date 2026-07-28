@@ -438,6 +438,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     // atmospheric rendering stuff
     ptScene->tSunTransmissionLutResolution = (plVec2){256.0f, 256.0f};
     ptScene->tSunMultiscatterLutResolution = (plVec2){64.0f, 64.0f};
+    ptScene->tSkyLutResolution = (plVec2){200.0f, 100.0f};
 
     ptScene->tSceneData.fAtmosphereConversion = 0.001f;
 	ptScene->tSceneData.atmosphereHeight = 100.0f;
@@ -467,6 +468,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     ptScene->tSunTransmissionLutShader = gptShaderVariant->get_compute_shader("sky_transmission_lut", NULL);
     ptScene->tSunMultiscatterShader = gptShaderVariant->get_compute_shader("sky_multiscatter_lut", NULL);
+    ptScene->tSkyViewLutShader = gptShaderVariant->get_compute_shader("sky_lut", NULL);
 
     // default fog options
     ptScene->tFogOptions.fDensity = 0.1f;
@@ -1970,7 +1972,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     if(ptScene->abSunTransmissionLutDirty[uFrameIdx])
     {
         plCommandBuffer* ptSunCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "sun transmission");
-        gptGfx->begin_command_recording(ptSkinningCmdBuffer);
+        gptGfx->begin_command_recording(ptSunCmdBuffer);
 
         // must declare resources & how they are used
         plPassResources tPassResources0 = {
@@ -2221,6 +2223,66 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
         }
     }
 
+    plCommandBuffer* ptSunCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "sun transmission");
+    gptGfx->begin_command_recording(ptSunCmdBuffer);
+
+    plPassResources tPassResources0 = {
+        .atTextures = {
+            {
+                .eUsage  = PL_TEXTURE_USAGE_SAMPLED,
+                .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
+                .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                .tHandle = ptScene->atSunTransmissionLut[uFrameIdx]
+            },
+            {
+                .eUsage  = PL_TEXTURE_USAGE_SAMPLED,
+                .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
+                .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                .tHandle = ptScene->atSunMultiscatterLut[uFrameIdx]
+            },
+            {
+                .eUsage  = PL_TEXTURE_USAGE_STORAGE,
+                .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
+                .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                .tHandle = ptView->atSkyLut[uFrameIdx]
+            }
+        }
+    };
+
+    gptGfx->begin_compute_pass(ptSunCmdBuffer, &tPassResources0);
+    gptGfx->push_debug_group(ptSunCmdBuffer, "Sky LUT", (plVec4){0.33f, 0.42f, 0.70f, 1.0f});
+
+    plDispatch tDispatch3 = {
+        .uGroupCountX = (uint32_t)ceilf(ptScene->tSkyLutResolution.x / 8.0f),
+        .uGroupCountY = (uint32_t)ceilf(ptScene->tSkyLutResolution.y / 8.0f),
+        .uGroupCountZ = 1,
+        .uThreadPerGroupX = 8,
+        .uThreadPerGroupY = 8,
+        .uThreadPerGroupZ = 1
+    };
+
+    // vertical blur
+    gptGfx->bind_compute_shader(ptSunCmdBuffer, ptScene->tSkyViewLutShader);
+    plBindGroupHandle atSkyLutBGs[] = {ptScene->atSceneBindGroups[uFrameIdx], ptView->atViewBG[uFrameIdx], ptView->atSkyLutBG2[uFrameIdx] };
+    gptGfx->bind_compute_bind_groups(ptSunCmdBuffer, ptScene->tSkyViewLutShader, 0, PL_ARRAYSIZE(atSkyLutBGs), atSkyLutBGs, 0, NULL);
+
+    gptGfx->dispatch(ptSunCmdBuffer, 1, &tDispatch3);
+
+    gptGfx->pop_debug_group(ptSunCmdBuffer);
+    gptGfx->end_compute_pass(ptSunCmdBuffer);
+
+    gptGfx->end_command_recording(ptSunCmdBuffer);
+
+    const plSubmitInfo tSunTransmissionSubmitInfo = {
+        .uWaitSemaphoreCount     = 1,
+        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+        .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+    };
+    gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
+    gptGfx->return_command_buffer(ptSunCmdBuffer);
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }

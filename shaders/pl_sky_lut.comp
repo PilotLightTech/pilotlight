@@ -1,0 +1,235 @@
+#version 460
+#extension GL_ARB_separate_shader_objects : enable
+
+/*
+   sky_lut.comp
+*/
+
+/*
+Index of this file:
+// [SECTION] includes
+// [SECTION] defines
+// [SECTION] bind groups
+// [SECTION] helpers
+// [SECTION] entry
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
+#include "pl_sky.inc"
+#include "pl_bg_scene.inc"
+#include "pl_bg_view.inc"
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#define SKY_VIEW_MIN_SAMPLE_COUNT 32.0
+#define SKY_VIEW_MAX_SAMPLE_COUNT 64
+
+// position inside each ray-march interval. Hillaire's implementation uses 0.3.
+#define SKY_VIEW_SAMPLE_SEGMENT_T 0.3
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind groups
+//-----------------------------------------------------------------------------
+
+// bind group 0 (global)
+// layout(set = 0, binding = 0) readonly uniform _plAtmosphereSettings { plAtmosphereSettings tData; } tGpuScene;
+// layout(set = 0, binding = 1)  uniform sampler tSamplerLinearClamp;
+// layout(set = 0, binding = 2)  uniform sampler tSamplerNearestClamp;
+
+// bind group 2
+layout(set = 2, binding = 0, r11f_g11f_b10f) uniform image2D skyLut;
+layout(set = 2, binding = 1) uniform texture2D transmissionLut;
+layout(set = 2, binding = 2) uniform texture2D multiscatterLut;
+
+//-----------------------------------------------------------------------------
+// helpers
+//-----------------------------------------------------------------------------
+
+vec3
+pl__integrate_source(vec3 source, vec3 extinction, float fSegmentLength)
+{
+
+    // Analytically integrates a constant source over one homogeneous segment:
+    //
+    //     integral S exp(-sigma_t x) dx
+    //
+    // The linear fallback avoids division problems for nearly zero extinction.
+
+    vec3 segmentTransmittance = exp(-extinction * fSegmentLength);
+    vec3 safeExtinction = max(extinction, vec3(1e-7));
+    vec3 analyticIntegral = source * (vec3(1.0) - segmentTransmittance) / safeExtinction;
+    vec3 linearIntegral = source * fSegmentLength;
+    bvec3 approximatelyZero = lessThan(abs(extinction), vec3(1e-7));
+    return mix( analyticIntegral, linearIntegral, approximatelyZero);
+}
+
+//-----------------------------------------------------------------------------
+// entry
+//-----------------------------------------------------------------------------
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+void main()
+{
+    ivec2 tOutputSize = imageSize(skyLut);
+    ivec2 tPixel = ivec2(gl_GlobalInvocationID.xy);
+
+    if(any(greaterThanEqual(tPixel, tOutputSize)))
+        return;
+
+    vec2 tSkyUV = (vec2(tPixel) + vec2(0.5)) / vec2(tOutputSize);
+
+    float fCameraAltitude = max(tViewInfo.tData.tCameraPos.y * tGpuScene.tData.fAtmosphereConversion, 0.0);
+
+    float fCameraSurfaceOffset = max(tGpuScene.tData.planetRadius * 1e-7, 1e-6);
+
+    float fViewHeight = tGpuScene.tData.planetRadius + fCameraAltitude + fCameraSurfaceOffset;
+
+    vec3 rayOrigin = vec3(0.0, fViewHeight, 0.0);
+
+    vec3 viewDirection = fromSkyLut(tSkyUV, tOutputSize, fViewHeight, tGpuScene.tData.planetRadius);
+
+    vec3 planetCenter = vec3(0.0);
+
+    fCameraAltitude = max(fCameraAltitude, 0.0);
+
+    plIntersection intersection = pl_ray_intersection_planet(rayOrigin, viewDirection, planetCenter,
+        tGpuScene.tData.planetRadius, tGpuScene.tData.atmosphereHeight);
+
+    float fRayLength = intersection.fDistance;
+
+    if(fRayLength <= 0.0)
+    {
+        imageStore(skyLut, tPixel, vec4(0.0, 0.0, 0.0, 1.0));
+        return;
+    }
+
+    vec3 tDirectionToSun = -pl_safe_normalize(tGpuScene.tData.tDirection);
+
+    float fViewDotLight = clamp(dot(viewDirection, tDirectionToSun), -1.0, 1.0);
+
+    float fRayleighPhaseValue = pl_phase_rayleigh(fViewDotLight);
+
+    float fMiePhaseValue = pl_phase_cornette_shanks(fViewDotLight, tGpuScene.tData.mieScatteringExponent);
+
+    vec3 tSunRadiance = tGpuScene.tData.tColor * tGpuScene.tData.tAerialInfo.w;
+
+    vec3 tAccumulatedTransmittance = vec3(1.0); // light survival factor
+    vec3 tAccumulatedLuminance = vec3(0.0); // light scattered toward camera
+
+    // increase the sample count as the ray becomes long relative to the atmosphere's vertical thickness.
+    float fSampleCountFactor = clamp(fRayLength / max(2.0 * tGpuScene.tData.atmosphereHeight, 1e-6), 0.0, 1.0);
+
+    float fSampleCount = mix(SKY_VIEW_MIN_SAMPLE_COUNT, float(SKY_VIEW_MAX_SAMPLE_COUNT), fSampleCountFactor);
+
+    // handles partial final segment avoiding an abrupt change
+    // whenever the fractional sample count crosses an integer boundary.
+    float fSampleCountFloor = max(floor(fSampleCount), 1.0);
+
+    float fCompleteSegmentsRayLength = fRayLength * fSampleCountFloor / fSampleCount;
+
+    // lut sizes
+    ivec2 tTransmissionLutSize = textureSize(sampler2D(transmissionLut, tSamplerLinearClamp), 0);
+    ivec2 tMultiscatterLutSize = textureSize(sampler2D(multiscatterLut, tSamplerLinearClamp), 0);
+
+    for(int sampleIndex = 0; sampleIndex < SKY_VIEW_MAX_SAMPLE_COUNT; sampleIndex++)
+    {
+        float fSampleNumber = float(sampleIndex);
+
+        if(fSampleNumber >= fSampleCount)
+            break;
+
+        float fInterval0 = fSampleNumber / fSampleCountFloor;
+
+        float fInterval1 = (fSampleNumber + 1.0) / fSampleCountFloor;
+
+        // quadratic distribution concentrates samples near the camera
+        fInterval0 *= fInterval0;
+        fInterval1 *= fInterval1;
+
+        float fDistance0 = fCompleteSegmentsRayLength * fInterval0;
+
+        float fDistance1;
+
+        // fractional sample count produces one partial final segment
+        if(fInterval1 > 1.0)
+        {
+            fDistance1 = fRayLength;
+        }
+        else
+        {
+            fDistance1 = fCompleteSegmentsRayLength * fInterval1;
+        }
+
+        float fSegmentLength = max(fDistance1 - fDistance0, 0.0);
+
+        if(fSegmentLength <= 0.0)
+            continue;
+
+        float fSampleDistance = mix(fDistance0, fDistance1, SKY_VIEW_SAMPLE_SEGMENT_T);
+
+        // compute directly from the origin rather than incrementing a
+        // position repeatedly, avoiding accumulated floating-point error.
+        vec3 tCurrentPosition = rayOrigin + viewDirection * fSampleDistance;
+
+        vec3 tRadialVector = tCurrentPosition - planetCenter;
+
+        float fRadialLength = length(tRadialVector);
+
+        vec3 tUpDirection = tRadialVector / max(fRadialLength, 1e-20);
+
+        float fCurrentHeight = fRadialLength - tGpuScene.tData.planetRadius;
+
+        // small numerical errors near either sphere should not create
+        // negative densities or out-of-range LUT coordinates.
+        fCurrentHeight = clamp(fCurrentHeight, 0.0, tGpuScene.tData.atmosphereHeight);
+
+        vec2 atmosphereUV = pl_compute_lut_uv(fCurrentHeight, tGpuScene.tData.atmosphereHeight, tUpDirection, tDirectionToSun);
+
+        vec2 transmissionUV = pl_clamp_lut_uv(atmosphereUV, tTransmissionLutSize);
+
+        vec2 multiscatterUV = pl_clamp_lut_uv(atmosphereUV, tMultiscatterLutSize);
+
+        vec3 transmittanceToSun = textureLod(sampler2D(transmissionLut, tSamplerLinearClamp), transmissionUV, 0.0).rgb;
+
+        vec3 multipleScatteredLuminance = textureLod(sampler2D(multiscatterLut, tSamplerLinearClamp), multiscatterUV, 0.0).rgb;
+
+        plAtmosphereCoefficients coefficients = pl_calculate_coefficients(fCurrentHeight, tGpuScene.tData);
+
+        float planetVisibility = pl_planet_visibility(tCurrentPosition, tDirectionToSun, planetCenter, tGpuScene.tData.planetRadius);
+
+        // direct sunlight scattered toward the camera.
+        vec3 phaseTimesScattering = coefficients.tScatterRayleigh * fRayleighPhaseValue + coefficients.tScatterMie * fMiePhaseValue;
+
+        vec3 directSource = planetVisibility * transmittanceToSun * phaseTimesScattering;
+
+        // multiple-scattering LUT represents incoming multiple-scattered
+        // luminance. It is multiplied by local scattering, but not by the
+        // direct solar transmittance or the binary Earth shadow again.
+        vec3 totalScattering = coefficients.tScatterRayleigh + coefficients.tScatterMie;
+
+        vec3 multipleScatteringSource = multipleScatteredLuminance * totalScattering;
+
+        if(tGpuScene.tData.bMultiScatter == 0)
+        {
+            multipleScatteringSource = vec3(0);
+        }
+
+        vec3 source = tSunRadiance * (directSource + multipleScatteringSource);
+
+        vec3 segmentLuminance = pl__integrate_source(source, coefficients.tExtinction, fSegmentLength);
+
+        tAccumulatedLuminance += tAccumulatedTransmittance * segmentLuminance;
+
+        vec3 segmentTransmittance = exp(-coefficients.tExtinction * fSegmentLength);
+
+        tAccumulatedTransmittance *= segmentTransmittance;
+    }
+
+    imageStore(skyLut, tPixel, vec4(tAccumulatedLuminance, 1.0));
+}

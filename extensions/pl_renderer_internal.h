@@ -375,6 +375,10 @@ typedef struct _plView
     plRendererEditorViewOptions tEditorOptions;
     plRendererBloomOptions      tBloomOptions;
     plRendererTonemapOptions    tTonemapOptions;
+
+    // atmosphere rendering stuff
+    plTextureHandle   atSkyLut[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupHandle atSkyLutBG2[PL_MAX_FRAMES_IN_FLIGHT];
 } plView;
 
 typedef struct _plScene
@@ -438,14 +442,16 @@ typedef struct _plScene
     // atmosphere rendering stuff
     plVec2                tSunTransmissionLutResolution;
     plVec2                tSunMultiscatterLutResolution;
+    plVec2                tSkyLutResolution;
     plComputeShaderHandle tSunTransmissionLutShader;
     plComputeShaderHandle tSunMultiscatterShader;
+    plComputeShaderHandle tSkyViewLutShader;
     bool                  abSunTransmissionLutDirty[PL_MAX_FRAMES_IN_FLIGHT];
     plTextureHandle       atSunTransmissionLut[PL_MAX_FRAMES_IN_FLIGHT];
     plTextureHandle       atSunMultiscatterLut[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle     atSunTransmissionBG1[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle     atSunMultiscatterBG1[PL_MAX_FRAMES_IN_FLIGHT];
-
+    
     // bind groups
     plBindGroupHandle tSkyboxBindGroup;
     plBindGroupHandle tSkinBindGroup0;
