@@ -2041,6 +2041,27 @@ pl_graphics_begin_render_pass(plCommandBuffer* ptCmdBuffer, const plRenderInfo* 
         plStackedBarrier tBarrier = pl_sb_pop(ptDevice->sbtBarrierStack);
         pl__graphics_consumer_barrier(ptCmdBuffer, tBarrier.tSrcStages, tBarrier.tDstStages, tBarrier.tScope);
     }
+
+
+    MTLScissorRect tScissor = {
+            .x = 0,
+            .y = 0,
+            .width = (NSUInteger)ptInfo->tRenderArea.tMax.x,
+            .height = (NSUInteger)ptInfo->tRenderArea.tMax.y
+    };
+
+    MTLViewport tViewport = {
+        .originX = 0,
+        .originY = 0,
+        .width    = ptInfo->tRenderArea.tMax.x,
+        .height   = ptInfo->tRenderArea.tMax.y,
+        .znear   = 0,
+        .zfar    = 1.0
+    };
+
+    [ptDevice->tRenderEncoder setViewports:&tViewport count:1];
+    [ptDevice->tRenderEncoder setScissorRects:&tScissor count:1];
+    [ptDevice->tRenderEncoder setDepthBias:0.0 slopeScale:1.0 clamp:0.0];
 }
 
 void
