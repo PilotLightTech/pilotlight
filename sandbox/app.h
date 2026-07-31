@@ -1,7 +1,7 @@
 #pragma once
 
 /*
-   editor.h
+   sandbox.h
 
    Notes:
      * absolute mess
@@ -55,9 +55,9 @@ Index of this file:
 #include "pl_compress_ext.h"
 #include "pl_pak_ext.h"
 #include "pl_datetime_ext.h"
+#include "pl_ecs_ext.h"
 
 // unstable extensions
-#include "pl_ecs_ext.h"
 #include "pl_mesh_ext.h"
 #include "pl_animation_ext.h"
 #include "pl_camera_ext.h"
@@ -146,30 +146,25 @@ const plRendererEditorI*    gptRendererEditor   = nullptr;
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plTestModelVariant
+typedef int plSandboxMode;
+
+enum _plSandboxMode
 {
-    char acType[64];
-    char acName[128];
-    char acFilePath[1024];
-} plTestModelVariant;
+    PL_SANDBOX_MODE_EDITOR = 0,
+    PL_SANDBOX_MODE_GAME_DEBUG,
+    PL_SANDBOX_MODE_GAME,
+};
 
-typedef struct _plTestModel
+typedef struct _plSandboxSceneFile
 {
-    char acLabel[256];
-    char acName[128];
-    
-    bool bCore;
-    bool bExtension;
-    bool bTesting;
-    bool bSelected;
-
-    uint32_t uVariantCount;
-    plTestModelVariant acVariants[8];
-
-} plTestModel;
+    char acName[PL_MAX_PATH_LENGTH];
+    char acTemplate[PL_MAX_PATH_LENGTH];
+} plSandboxSceneFile;
 
 typedef struct _plAppData
 {
+
+    plSandboxMode tMode;
 
     // windows
     plWindow* ptWindow;
@@ -183,17 +178,17 @@ typedef struct _plAppData
     bool bVSync;
 
     // ui options
-    bool  bShowBVH;
-    bool  bShowImGuiDemo;
-    bool  bContinuousBVH;
-    bool  bShowPlotDemo;
+    bool bContinuousBVH;
+
+    // dear imgui ui windows
+    bool bShowImGuiDemo;
+    bool bShowPlotDemo;
+
+    // pilot light ui windows
     bool  bShowUiDemo;
     bool  bShowUiDebug;
     bool  bShowUiStyle;
     bool  bShowEntityWindow;
-    bool  bShowPilotLightTool;
-    bool  bShowDebugLights;
-    bool  bDrawAllBoundingBoxes;
     bool* pbShowDeviceMemoryAnalyzer;
     bool* pbShowMemoryAllocations;
     bool* pbShowProfiling;
@@ -201,15 +196,15 @@ typedef struct _plAppData
     bool* pbShowLogging;
 
     // scene
-    plEntity tMainCamera;
-    plEntity tSecondaryCamera;
+    // plEntity tMainCamera;
+    // plEntity tSecondaryCamera;
     bool     bMainViewHovered;
 
     // scenes/views
     plComponentLibrary* ptCompLibrary;
-    plScene* ptScene;
-    plView*  ptView;
-    plView*  ptSecondaryView;
+    // plScene* ptScene;
+    // plView*  ptView;
+    // plView*  ptSecondaryView;
     plVec2 tView0Offset;
     plVec2 tView0Scale;
 
@@ -224,7 +219,6 @@ typedef struct _plAppData
 
     // test models
     ImGuiTextFilter tFilter;
-    plTestModel*   sbtTestModels;
 
     // physics
     bool bPhysicsDebugDraw;
@@ -232,15 +226,24 @@ typedef struct _plAppData
     // misc
     char* sbcTempBuffer;
     ImGuiTextFilter filter;
+
+    // scene file info
+    char acCurrentScene[PL_MAX_PATH_LENGTH];
+    plSandboxSceneFile* sbtSceneFiles;
+    int iSelectedScene;
+
+    plTestWorldData tTestWorld;
+
 } plAppData;
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper forward declarations
 //-----------------------------------------------------------------------------
 
-void pl__find_models       (plAppData*);
-void pl__create_scene      (plAppData*);
 void pl__show_editor_window(plAppData*);
 void pl__show_ui_demo_window(plAppData* ptAppData);
-void pl__camera_update_imgui(plCamera*);
 void pl__show_entity_components(plAppData*, plScene*, plEntity);
+
+void pl__load_apis(plApiRegistryI*);
+void pl__refresh_files(plAppData*);
+bool pl__verify_scene(plAppData*, const char*);

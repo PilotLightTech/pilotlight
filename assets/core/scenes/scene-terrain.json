@@ -3,7 +3,6 @@
     "format": "pilot_light_scene",
     "dependencies": ["../assets/gltf-samples"],
     "app": {
-        "bShowPilotLightTool": true,
         "bContinuousBVH": false,
         "bShowBVH": false,
         "bShowDebugLights": true,
@@ -35,7 +34,7 @@
             "tPosition": [-7964, 69, 1504],
             "fYFov": 1.04719755,
             "fNearZ": 0.1,
-            "fFarZ": 10000.0,
+            "fFarZ": 100000.0,
             "fPitch": -0.325,
             "fYaw": 2.569
         },
@@ -52,7 +51,7 @@
                     "PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT",
                     "PL_RENDERER_SHADOW_FLAGS_PCF"
                 ],
-                "fMaxShadowRange": 100.0,
+                "fMaxShadowRange": 100000.0,
                 "fConstantDepthBias": -1.250,
                 "fSlopeDepthBias": -1.750
             },
@@ -150,7 +149,7 @@
         },
         "entities": [
             {
-                "active": true,
+                "active": false,
                 "model": "helmet",
                 "transform": {
                     "scale": [1.0, 1.0, 1.0],

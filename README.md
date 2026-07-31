@@ -73,6 +73,7 @@ Information for developers can be found in the [wiki](https://github.com/PilotLi
 * <ins>libs</ins> - Contains standalone "stb-style" libraries that can be used in other projects.
 * <ins>build</ins> - Contains a lightweight python-based build system used for this project.
 * <ins>internal</ins> - Contains code for internal development.
+* <ins>sandbox</ins> - Sandbox application for development & other things.
 * <ins>scripts</ins> - Contains helper scripts for various things.
 * <ins>shaders</ins> - Contains shader code.
 * <ins>src</ins> - Contains the small core of Pilot Light.

@@ -443,6 +443,8 @@ typedef struct _plUiContext
     // keyboard/mouse
     bool bWantCaptureMouse;
     bool bWantCaptureKeyboard;
+    int  iWantCaptureMouseNextFrame;
+    int  iWantCaptureKeyboardNextFrame;
     bool bWantTextInput;
     bool abMouseOwned[5];
     

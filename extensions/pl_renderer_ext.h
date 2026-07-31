@@ -134,6 +134,7 @@ typedef int plRendererShadowFlags;
 typedef int plRendererBloomFlags;
 typedef int plRendererFogFlags;
 typedef int plRendererFogMode;
+typedef int plRendererSceneFlags;
 typedef int plRendererSkyFlags;
 typedef int plRendererSkyMode;
 
@@ -177,8 +178,10 @@ PL_API bool pl_renderer_initialize(const plRendererSettings*);
 PL_API void pl_renderer_cleanup   (void);
 
 // scenes
-PL_API plScene* pl_renderer_create_scene (const plSceneDesc*);
-PL_API void     pl_renderer_destroy_scene(plScene*);
+PL_API plScene*             pl_renderer_create_scene (const plSceneDesc*);
+PL_API void                 pl_renderer_destroy_scene(plScene*);
+PL_API plRendererSceneFlags pl_renderer_get_scene_flags(const plScene*);
+PL_API void                 pl_renderer_set_scene_flags(plScene*, plRendererSceneFlags);
 
 // testing
 PL_API bool pl_renderer_load_test_world(const char* path, plComponentLibrary*, plTestWorldData*);
@@ -309,8 +312,10 @@ typedef struct _plRendererI
     void (*cleanup)   (void);
 
     // scenes
-    plScene* (*create_scene) (const plSceneDesc*);
-    void     (*destroy_scene)(plScene*);
+    plScene*             (*create_scene)   (const plSceneDesc*);
+    void                 (*destroy_scene)  (plScene*);
+    plRendererSceneFlags (*get_scene_flags)(const plScene*);
+    void                 (*set_scene_flags)(plScene*, plRendererSceneFlags);
 
     // views
     plView*           (*create_view)               (plScene*, const plViewDesc*);
@@ -629,7 +634,6 @@ typedef struct _plTestWorldData
 
     plEntity tMainCamera;
     bool bMSAA;
-    bool bShowPilotLightTool;
     bool bContinuousBVH;
     bool bPhysicsDebugDraw;
     bool bShowBVH;
@@ -687,7 +691,10 @@ enum _plRendererSkyFlags
 
     // realistic options
     PL_RENDERER_SKY_FLAGS_MULTISCATTER       = 1 << 5,
-    PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE = 1 << 6
+    PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE = 1 << 6,
+
+    // skybox options
+    PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY       = 1 << 7
 };
 
 enum _plRendererShadowFlags
@@ -727,6 +734,12 @@ enum _plObjectFlags
     PL_OBJECT_FLAGS_CAST_SHADOW = 1 << 1,
     PL_OBJECT_FLAGS_DYNAMIC     = 1 << 2,
     PL_OBJECT_FLAGS_FOREGROUND  = 1 << 3,
+};
+
+enum _plRendererSceneFlags
+{
+    PL_RENDERER_SCENE_FLAGS_NONE             = 0,
+    PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY = 1 << 0,
 };
 
 //-----------------------------------------------------------------------------

@@ -107,7 +107,7 @@
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -140,7 +140,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_1 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -173,7 +173,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_2 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -206,7 +206,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_3 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -239,7 +239,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_4 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -272,7 +272,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_5 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -305,7 +305,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -338,7 +338,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_1 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -371,7 +371,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_2 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -404,7 +404,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_3 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -437,7 +437,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_4 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -470,7 +470,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_5 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -503,7 +503,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_6 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -536,7 +536,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -642,7 +642,7 @@ goto ExitLabel
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -675,7 +675,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_1 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -708,7 +708,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_2 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -741,7 +741,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_3 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -774,7 +774,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_4 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -807,7 +807,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_5 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -840,7 +840,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -873,7 +873,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_1 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -906,7 +906,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_2 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -939,7 +939,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_3 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -972,7 +972,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_4 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -1005,7 +1005,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_5 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -1038,7 +1038,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_6 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -1071,7 +1071,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../internal/sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../internal/demo" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 

@@ -22,8 +22,7 @@ defines = [
 
 includes = [
     "${workspaceFolder}/**",
-    "${workspaceFolder}/internal/demo",
-    "${workspaceFolder}/internal/sandbox",
+    "${workspaceFolder}/sandbox",
     "${workspaceFolder}/src",
     "${workspaceFolder}/libs",
     "${workspaceFolder}/extensions",

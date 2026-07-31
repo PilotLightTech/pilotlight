@@ -80,13 +80,11 @@ else
     rm -f ../out/pl_script_camera_*.so
     rm -f ../out/pl_platform_ext.so
     rm -f ../out/pl_platform_ext_*.so
-    rm -f ../out/app.so
-    rm -f ../out/app_*.so
     rm -f ../out/pilot_light
     rm -f ../out/pl_dear_imgui_ext.so
     rm -f ../out/pl_dear_imgui_ext_*.so
-    rm -f ../out/demo.so
-    rm -f ../out/demo_*.so
+    rm -f ../out/app.so
+    rm -f ../out/app_*.so
 
 
 fi
@@ -94,7 +92,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -128,7 +126,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -165,10 +163,10 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
-PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
-PL_LINKER_FLAGS="-ldl -lm "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g -std=gnu11 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm -ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
 PL_SOURCES="../extensions/pl_platform_x11_ext.c "
@@ -198,40 +196,6 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
-PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
-PL_LINKER_FLAGS="-ldl -lm "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
-PL_SOURCES="../internal/sandbox/app.c "
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Step: app${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libapp.so"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
@@ -239,7 +203,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -284,7 +248,7 @@ if [ ! -f "../out/libdearimguid.a" ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -334,7 +298,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -367,27 +331,24 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ demo | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-ldearimguid "
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../internal/demo/demo.cpp "
+PL_SOURCES="../sandbox/app.cpp "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: demo${NC}
+echo ${YELLOW}Step: sandbox${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libdemo.so"
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libapp.so"
 
 # check build status
 if [ $? -ne 0 ]
@@ -403,9 +364,6 @@ fi
 # print results
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# hot reload skip
-fi
 
 # delete lock file(s)
 rm -f ../out/lock.tmp
@@ -447,13 +405,11 @@ else
     rm -f ../out/pl_script_camera_*.so
     rm -f ../out/pl_platform_ext.so
     rm -f ../out/pl_platform_ext_*.so
-    rm -f ../out/app.so
-    rm -f ../out/app_*.so
     rm -f ../out/pilot_light
     rm -f ../out/pl_dear_imgui_ext.so
     rm -f ../out/pl_dear_imgui_ext_*.so
-    rm -f ../out/demo.so
-    rm -f ../out/demo_*.so
+    rm -f ../out/app.so
+    rm -f ../out/app_*.so
 
 
 fi
@@ -461,7 +417,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -495,7 +451,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -532,10 +488,10 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
-PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
-PL_LINKER_FLAGS="-ldl -lm "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC -std=gnu11 -fPIC "
+PL_LINKER_FLAGS="-ldl -lm -ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
 PL_SOURCES="../extensions/pl_platform_x11_ext.c "
@@ -565,40 +521,6 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
-PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
-PL_LINKER_FLAGS="-ldl -lm "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
-PL_SOURCES="../internal/sandbox/app.c "
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Step: app${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libapp.so"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
@@ -606,7 +528,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -651,7 +573,7 @@ if [ ! -f "../out/libdearimgui.a" ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -701,7 +623,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -734,27 +656,24 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ demo | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD "
-PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-ldearimgui "
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../internal/demo/demo.cpp "
+PL_SOURCES="../sandbox/app.cpp "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: demo${NC}
+echo ${YELLOW}Step: sandbox${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libdemo.so"
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libapp.so"
 
 # check build status
 if [ $? -ne 0 ]
@@ -770,9 +689,6 @@ fi
 # print results
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# hot reload skip
-fi
 
 # delete lock file(s)
 rm -f ../out/lock.tmp

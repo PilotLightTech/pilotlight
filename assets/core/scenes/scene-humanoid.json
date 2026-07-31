@@ -2,7 +2,6 @@
     "version": 1,
     "format": "pilot_light_scene",
     "app": {
-        "bShowPilotLightTool": true,
         "bContinuousBVH": false,
         "bShowBVH": false,
         "bShowDebugLights": true,

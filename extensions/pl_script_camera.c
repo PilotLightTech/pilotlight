@@ -90,7 +90,10 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
         }
 
         if(gptIO->get_mouse_wheel() > 0.0f)
+        {
             fCameraTravelSpeed *= 2.0f;
+            fCameraTravelSpeed = pl_min(fCameraTravelSpeed, 10000.0f);
+        }
         else if(gptIO->get_mouse_wheel() < 0.0f)
         {
             fCameraTravelSpeed /= 2.0f;

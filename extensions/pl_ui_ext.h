@@ -111,9 +111,11 @@ PL_API void pl_ui_new_frame(void); // start a new ui frame, this should be the f
 PL_API void pl_ui_end_frame(void); // ends ui frame
 
 // mouse/keyboard ownership
-PL_API bool pl_ui_wants_mouse_capture   (void);
-PL_API bool pl_ui_wants_keyboard_capture(void);
-PL_API bool pl_ui_wants_text_input      (void);
+PL_API bool pl_ui_wants_mouse_capture                  (void);
+PL_API bool pl_ui_wants_keyboard_capture               (void);
+PL_API bool pl_ui_wants_text_input                     (void);
+PL_API void pl_ui_set_wants_mouse_capture_next_frame   (bool);
+PL_API void pl_ui_set_wants_keyboard_capture_next_frame(bool);
 
 // tools
 PL_API void pl_ui_show_debug_window       (bool* open);
@@ -374,9 +376,11 @@ typedef struct _plUiI
     void (*end_frame)(void); // ends ui frame
 
     // mouse/keyboard ownership
-    bool (*wants_mouse_capture)   (void);
-    bool (*wants_keyboard_capture)(void);
-    bool (*wants_text_input)      (void);
+    bool (*wants_mouse_capture)                  (void);
+    bool (*wants_keyboard_capture)               (void);
+    bool (*wants_text_input)                     (void);
+    void (*set_wants_mouse_capture_next_frame)   (bool);
+    void (*set_wants_keyboard_capture_next_frame)(bool);
 
     // tools
     void (*show_debug_window)       (bool* open);

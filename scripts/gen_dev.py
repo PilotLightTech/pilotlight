@@ -47,7 +47,7 @@ with pl.project("pilotlight"):
     # project wide settings
     pl.set_output_directory(output_directory)
     pl.add_link_directories(output_directory)
-    pl.add_include_directories("../internal/sandbox", "../internal/demo", "../src", "../shaders", "../libs", "../extensions", output_directory, "../thirdparty/stb",
+    pl.add_include_directories("../sandbox", "../src", "../shaders", "../libs", "../extensions", output_directory, "../thirdparty/stb",
                                "../thirdparty/cgltf", "../thirdparty/imgui")
     pl.add_definitions("PL_UNITY_BUILD")
 
@@ -296,39 +296,6 @@ with pl.project("pilotlight"):
                     pl.add_source_files("../extensions/pl_platform_macos_ext.m")
 
     #-----------------------------------------------------------------------------
-    # [SECTION] app
-    #-----------------------------------------------------------------------------
-
-    with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
-
-        pl.add_source_files("../internal/sandbox/app.c")
-        pl.set_output_binary("app")
-
-        def add_app():
-            
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pl.add_linker_flags("-noimplib")
-            
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes",
-                                                    "xcb-keysyms", "pthread")
-                    
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pass
-
-        with pl.configuration("debug"):   add_app()
-        with pl.configuration("release"): add_app()
-
-        # vulkan on macos
-        with pl.configuration("moltenvk"):
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pass
-
-    #-----------------------------------------------------------------------------
     # [SECTION] pilot_light
     #-----------------------------------------------------------------------------
 
@@ -525,13 +492,13 @@ with pl.project("pilotlight"):
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
 
     #-----------------------------------------------------------------------------
-    # [SECTION] demo
+    # [SECTION] sandbox
     #-----------------------------------------------------------------------------
 
-    with pl.target("demo", pl.TargetType.DYNAMIC_LIBRARY, False):
+    with pl.target("sandbox", pl.TargetType.DYNAMIC_LIBRARY, True):
 
-        pl.add_source_files("../internal/demo/demo.cpp")
-        pl.set_output_binary("demo")
+        pl.add_source_files("../sandbox/app.cpp")
+        pl.set_output_binary("app")
 
         # default config
         with pl.configuration("debug"):

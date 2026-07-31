@@ -203,6 +203,11 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
     gptData = PL_ALLOC(sizeof(plRefRendererData));
     memset(gptData, 0, sizeof(plRefRendererData));
 
+    if(gptConsole->add_bool_variable)
+    {
+        gptConsole->add_toggle_variable("r.Tools", &gptData->bShowTools, "shows renderer tools", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    }
+
     gptData->ptDevice = ptSettings->ptDevice;
     gptData->tDeviceInfo = *gptGfx->get_device_info(gptData->ptDevice);
     gptData->ptSwap = ptSettings->ptSwapchain;
@@ -496,7 +501,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     ptScene->ptComponentLibrary = tInit.ptComponentLibrary;
     ptScene->pcName = "unnamed scene";
-    ptScene->tFlags = PL_SCENE_INTERNAL_FLAG_ACTIVE;
+    ptScene->tInternalFlags = PL_SCENE_INTERNAL_FLAG_ACTIVE;
 
     ptScene->uShadowAtlasResolution = ptInit->uShadowAtlasResolution;
     if(ptScene->uShadowAtlasResolution == 0)
@@ -622,7 +627,7 @@ pl_renderer_destroy_view(plView* ptView)
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture0);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture1);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFinalTexture);
-    if(ptView->ptParentScene->tFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
+    if(ptView->ptParentScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tTransmissionTexture);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tFinalTextureHandle);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tLightingBindGroup);
@@ -669,6 +674,21 @@ pl_renderer_destroy_view(plView* ptView)
     PL_FREE(ptView);
 }
 
+plRendererSceneFlags
+pl_renderer_get_scene_flags(const plScene* ptScene)
+{
+    if(ptScene)
+        return ptScene->tFlags;
+    return 0;
+}
+
+void
+pl_renderer_set_scene_flags(plScene* ptScene, plRendererSceneFlags tFlags)
+{
+    if(ptScene)
+        ptScene->tFlags = tFlags;
+}
+
 void
 pl_renderer_destroy_scene(plScene* ptScene)
 {
@@ -704,7 +724,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
 
-        if(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED)
+        if(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED)
             gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tSheenEnvTexture);
 
         pl_sb_free(ptProbe->sbtDLightShadowData);
@@ -1048,7 +1068,7 @@ pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
     gptData->tViewBGLayout = gptShaderVariant->get_bind_group_layout("view");
     gptData->tShadowGlobalBGLayout = gptShaderVariant->get_bind_group_layout("shadow");
 
-    if(!(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
+    if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
     {
         PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
         return;
@@ -1566,7 +1586,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
     // if transmission is required, ensure we have the backing textures needed
     // for the calculations
-    if(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
+    if(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
     {
         for(uint32_t i = 0; i < pl_sb_size(ptScene->sbptViews); i++)
         {
@@ -2566,7 +2586,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     // offscreen texture used for transmission calculations.
     // The separation of the command buffers is just for sync
     // purposes & should probably be reworked soon.
-    if(ptView->ptParentScene->tFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
+    if(ptView->ptParentScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
     {
         gptGfx->end_command_recording(ptSceneCmdBuffer);
 
@@ -2644,9 +2664,6 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     gptGfx->submit_command_buffer(ptSceneCmdBuffer, &tSceneSubmitInfo);
     gptGfx->return_command_buffer(ptSceneCmdBuffer);
 
-    if(ptScene->tSkyOptions.tMode == PL_RENDERER_SKY_MODE_REALISTIC && ptScene->tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE)
-        pl__render_view_aerial_pass(ptView);
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~jump flood outline work~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     pl__render_view_uv_pass(ptView);
@@ -2667,6 +2684,10 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         pl_sb_reset(ptView->sbtBloomDownChain);
         pl_sb_reset(ptView->sbtBloomUpChain);
     }
+
+    // TODO: move before outline
+    if(ptScene->tSkyOptions.tMode == PL_RENDERER_SKY_MODE_REALISTIC && ptScene->tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE)
+        pl__render_view_aerial_pass(ptView);
 
     pl__render_view_tonemap_pass(ptView);
 
@@ -2809,6 +2830,79 @@ pl_renderer_begin_frame(void)
     gptGfx->reset_bind_group_pool(gptData->aptTempGroupPools[gptGfx->get_current_frame_index()]);
     gptData->tCurrentDynamicDataBlock = gptGfx->allocate_dynamic_data_block(gptData->ptDevice);
 
+    if(gptData->bShowTools)
+    {
+        for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
+        {
+            plScene* ptScene = gptData->sbptScenes[uSceneIndex];
+            if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
+                continue;
+
+            if(gptUI->begin_window("Renderer Extension", &gptData->bShowTools, 0))
+            {
+                const float pfRatios[] = {1.0f};
+                const float pfRatios2[] = {0.5f, 0.5f};
+                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+
+                if(gptUI->begin_collapsing_header("Information", 0))
+                {
+                    gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                    gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
+                    gptUI->end_collapsing_header();
+                }
+
+                static const char* apcShaderDebugModeText[] = {
+                    "None",
+                    "Base Color",
+                    "Metallic",
+                    "Roughness",
+                    "Alpha",
+                    "Emissive",
+                    "Occlusion",
+                    "Shading Normal",
+                    "Texture Normal",
+                    "Geometry Normal",
+                    "Geometry Tangent",
+                    "Geometry Bitangent",
+                    "UV 0",
+                    "Clearcoat",
+                    "Clearcoat Roughness",
+                    "Clearcoat Normal",
+                    "Sheen Color",
+                    "Sheen Roughness",
+                    "Iridescence Factor",
+                    "Iridescence Thickness",
+                    "Anisotropy Strength",
+                    "Anisotropy Direction",
+                    "Transmission Strength",
+                    "Volume Thickness",
+                    "Diffuse Transmission Strength",
+                    "Diffuse Transmission Color",
+                };
+                bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
+                abShaderDebugMode[ptScene->tDebugOptions.tShaderDebugMode] = true;
+                if(gptUI->begin_combo("Shader Debug Mode", apcShaderDebugModeText[ptScene->tDebugOptions.tShaderDebugMode], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
+                {
+                    for(uint32_t i = 0; i < PL_ARRAYSIZE(apcShaderDebugModeText); i++)
+                    {
+                        if(gptUI->selectable(apcShaderDebugModeText[i], &abShaderDebugMode[i], 0))
+                        {
+                            if(i == 0)
+                                ptScene->sbptViews[0]->tTonemapOptions.tMode = PL_TONEMAP_MODE_SIMPLE;
+                            else
+                                ptScene->sbptViews[0]->tTonemapOptions.tMode = PL_TONEMAP_MODE_NONE;
+                            ptScene->tDebugOptions.tShaderDebugMode = i;
+                            gptUI->close_current_popup();
+                            pl_renderer_editor_reload_scene_shaders(ptScene);
+                        } 
+                    }
+                    gptUI->end_combo();
+                }
+                gptUI->end_window();
+            }
+        }
+    }
+
 
     // perform GPU buffer updates
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -2818,7 +2912,7 @@ pl_renderer_begin_frame(void)
     for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
     {
         plScene* ptScene = gptData->sbptScenes[uSceneIndex];
-        if(!(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
+        if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
             continue;
 
         if(ptScene->tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_LUTS_DIRTY)
@@ -2827,9 +2921,13 @@ pl_renderer_begin_frame(void)
             pl__renderer_scene_update_sky_luts_bindgroups(ptScene);
         }
 
-        if(ptScene->tSkyOptions.tMode == PL_RENDERER_SKY_MODE_SKYBOX && !gptGfx->is_texture_valid(ptDevice, ptScene->tSkyboxTexture))
+        if(ptScene->tSkyOptions.tMode == PL_RENDERER_SKY_MODE_SKYBOX && ptScene->tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY)
         {
+            if(gptGfx->is_texture_valid(ptDevice, ptScene->tSkyboxTexture))
+                gptGfx->queue_texture_for_deletion(ptDevice, ptScene->tSkyboxTexture);
             pl__renderer_scene_load_skybox_from_panorama(ptScene, ptScene->tSkyOptions.acSkyboxPath, ptScene->tSkyOptions.uSkyboxResolution);
+            ptScene->tSkyOptions.tFlags &= ~PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY;
+            ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
         }
         
 
@@ -2849,9 +2947,9 @@ pl_renderer_begin_frame(void)
                 ptScene->uMaterialDirtyValue = 0;
         }
 
-        if(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY)
+        if(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY)
         {
-            ptScene->tFlags &= ~PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY;
+            ptScene->tInternalFlags &= ~PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY;
             const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
             const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
 
@@ -2961,7 +3059,7 @@ pl_renderer_ecs_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObject
     if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
     if(ptScene->tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF)                iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
         
-    ptScene->tFlags |= PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY;
+    ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY;
 
     uint32_t uStart = pl_sb_size(ptScene->sbtDrawables);
     pl_sb_add_n(ptScene->sbtDrawables, uObjectCount);
@@ -3045,12 +3143,12 @@ pl_renderer_ecs_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObject
             if(ptMaterial->tFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->tFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->tFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
             {
                 ptScene->sbtDrawables[uDrawableIndex].tFlags = PL_DRAWABLE_FLAG_TRANSMISSION;
-                ptScene->tFlags |= PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED;
+                ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED;
             }
             else if(bForward)
             {
                 if(ptMaterial->tFlags & PL_MATERIAL_FLAG_SHEEN) // check if sheen is required (additional scene textures)
-                    ptScene->tFlags |= PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED;
+                    ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED;
                 ptScene->sbtDrawables[uDrawableIndex].tFlags = PL_DRAWABLE_FLAG_FORWARD;
             }
             else
@@ -3807,7 +3905,6 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
         .ptComponentLibrary = ptComponentLibrary
     };
 
-    ptDataOut->bShowPilotLightTool = pl_json_bool_member(ptAppObject, "bShowPilotLightTool", true);
     ptDataOut->bContinuousBVH = pl_json_bool_member(ptAppObject, "bContinuousBVH", false);
     ptDataOut->bPhysicsDebugDraw = pl_json_bool_member(ptAppObject, "bPhysicsDebugDraw", false);
     ptDataOut->bShowBVH = pl_json_bool_member(ptAppObject, "bShowBVH", false);
@@ -3925,6 +4022,8 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
         pl_json_float_array_member(ptSkyObject, "tOzoneExtinction", tSkyOptions.tOzoneExtinction.d, NULL);
 
         pl_json_string_member(ptSkyObject, "acSkyboxPath", tSkyOptions.acSkyboxPath, 256);
+        if(tSkyOptions.tMode == PL_RENDERER_SKY_MODE_SKYBOX)
+            tSkyOptions.tFlags |= PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY;
     }
 
     plJsonObject* ptLightingObject = pl_json_member(ptRendererObject, "lighting");
@@ -4333,6 +4432,8 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi0.get_tonemap_options           = pl_renderer_get_tonemap_options;
     tApi0.load_test_world               = pl_renderer_load_test_world;
     tApi0.unload_test_world             = pl_renderer_unload_test_world;
+    tApi0.set_scene_flags               = pl_renderer_set_scene_flags;
+    tApi0.get_scene_flags               = pl_renderer_get_scene_flags;
 
     plRendererTerrainI tApi1 = {0};
     tApi1.create              = pl_renderer_terrain_create;
@@ -4430,6 +4531,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptScript           = pl_get_api_latest(ptApiRegistry, plScriptI);
         gptModelLoader      = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
         gptGjk              = pl_get_api_latest(ptApiRegistry, plGjkI);
+        gptUI               = pl_get_api_latest(ptApiRegistry, plUiI);
     #endif
 
     if(bReload)

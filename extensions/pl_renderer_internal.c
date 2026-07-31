@@ -2384,10 +2384,10 @@ pl__renderer_add_material_to_scene(plScene* ptScene, plEntity tMaterial)
             sizeof(plGpuMaterial));
 
         if(ptMaterial->tFlags & PL_MATERIAL_FLAG_SHEEN)
-            ptScene->tFlags |= PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED;
+            ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED;
 
         if(ptMaterial->tFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->tFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->tFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
-            ptScene->tFlags |= PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED;
+            ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED;
         pl_hm_insert(&ptScene->tMaterialHashmap, tMaterial.uData, uMaterialIndex);
 
         gptStage->flush();
@@ -3222,7 +3222,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
     }
 
     // sheen
-    if(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED)
+    if(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED)
     {
 
         const size_t uMaxFaceSize = (size_t)iResolution * (size_t)iResolution * 4 * sizeof(float);
@@ -4905,7 +4905,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
         plEnvironmentProbeComponent* ptProbeComp = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
         plEnvironmentProbeDataPack* ptPack = &ptScene->sbtProbeDataPacks[ptProbe->uDataPackIndex];
 
-        if((ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && !gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
+        if((ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && !gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
         {
             PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "creating required sheen env texture");
             const plTextureDesc tTextureDesc = {
@@ -4921,21 +4921,18 @@ pl__renderer_probe_update_all(plScene* ptScene)
             ptProbe->uSheenEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, ptProbe->tSheenEnvTexture);
             ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
         }
-        else if(!(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
+        else if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
         {
             PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "freeing unneeded sheen env texture");
             gptGfx->queue_texture_for_deletion(ptDevice, ptProbe->tSheenEnvTexture);
         }
 
         
-        if(!((ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME) || (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY)))
+        if(ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME || ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY || ptScene->tFlags & PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY)
         {
-            continue;
+            if(ptProbe->uDirtyFaces == 0 && (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY))
+                ptProbe->uDirtyFaces = 6;
         }
-
-        if(ptProbe->uDirtyFaces == 0 && (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY))
-            ptProbe->uDirtyFaces = 6;
-
     }
 
     pl_sb_reset(ptScene->sbtGPUProbeData);
@@ -4988,7 +4985,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
         plEnvironmentProbeComponent* ptProbeComp = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
 
-        if(!((ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME) || (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY)))
+        if(!((ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME) || (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY) || (ptScene->tFlags & PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY)))
         {
             continue;
         }
@@ -5425,6 +5422,8 @@ pl__renderer_probe_update_all(plScene* ptScene)
                 ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
         }
     }
+
+    ptScene->tFlags &= ~PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
 }
 
 static void
@@ -6354,7 +6353,7 @@ pl__renderer_view_update_bindgroups(plView* ptView)
 
         gptGfx->update_bind_group(gptData->ptDevice, ptView->atViewBG[i], &tViewBGData);
 
-        if(ptView->ptParentScene->tFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
+        if(ptView->ptParentScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
         {
             const plBindGroupUpdateData tGlobalBindGroupData = {
                 .atTextureBindings = {
@@ -6667,12 +6666,15 @@ pl__renderer_scene_load_skybox_from_panorama(plScene* ptScene, const char* pcPat
             gptGfx->destroy_buffer(ptDevice, atComputeBuffers[i]);
 
     
-        const plBindGroupDesc tSkyboxBindGroupDesc = {
-            .ptPool = gptData->ptBindGroupPool,
-            .tLayout = gptShaderVariant->get_graphics_bind_group_layout("skybox", 2),
-            .pcDebugName = "skybox bind group"
-        };
-        ptScene->tSkyboxBindGroup = gptGfx->create_bind_group(ptDevice, &tSkyboxBindGroupDesc);
+        if(!gptGfx->is_bind_group_valid(ptDevice, ptScene->tSkyboxBindGroup))
+        {
+            const plBindGroupDesc tSkyboxBindGroupDesc = {
+                .ptPool = gptData->ptBindGroupPool,
+                .tLayout = gptShaderVariant->get_graphics_bind_group_layout("skybox", 2),
+                .pcDebugName = "skybox bind group"
+            };
+            ptScene->tSkyboxBindGroup = gptGfx->create_bind_group(ptDevice, &tSkyboxBindGroupDesc);
+        }
 
         {
             const plBindGroupUpdateData tBGData1 = {

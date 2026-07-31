@@ -119,6 +119,7 @@ Index of this file:
     static const plScreenLogI*     gptScreenLog     = NULL;
     static const plResourceI*      gptResource      = NULL;
     static const plEcsI*           gptECS           = NULL;
+    static const plUiI*            gptUI            = NULL;
     
     // experimental apis
     static const plCameraI*           gptCamera        = NULL;
@@ -180,7 +181,7 @@ enum _plSceneInternalFlags
     PL_SCENE_INTERNAL_FLAG_ACTIVE                = 1 << 0,
     PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED = 1 << 1,
     PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED        = 1 << 2,
-    PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY    = 1 << 3,
+    PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY    = 1 << 3
 };
 
 //-----------------------------------------------------------------------------
@@ -389,7 +390,8 @@ typedef struct _plScene
 {
     plSceneDesc          tInit;
     const char*          pcName;
-    plSceneInternalFlags tFlags;
+    plSceneFlags         tFlags;
+    plSceneInternalFlags tInternalFlags;
     plComponentLibrary*  ptComponentLibrary;
     plView**             sbptViews; // child views
 
@@ -622,6 +624,9 @@ typedef struct _plRefRendererData
 
     // misc
     plBufferHandle tReadbackBuffer;
+
+    // debug tools
+    bool bShowTools;
 } plRefRendererData;
 
 typedef struct _plCullData
