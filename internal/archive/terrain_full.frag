@@ -92,6 +92,7 @@ void main()
 
 
     // outColor.xyz = diffuse;
+    outColor.xyz = vec3(0.2);
     outColor.a = 1.0;
 
     // if(length(shadingPosition.xz - tObjectInfo.tInfo.tPos.xz) < tObjectInfo.tInfo.fStencilRadius * 0.5)

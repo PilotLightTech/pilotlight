@@ -23,7 +23,6 @@
         "bShowOrigin": false
     },
     "editor": {
-        "bShowSkybox": true,
         "bShowSelectedBoundingBox": false,
         "bShowGrid": false,
         "fGridCellSize": 0.025,
@@ -46,12 +45,20 @@
                     "PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED",
                     "PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING",
                     "PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS"
-                ],
-                "tSunColor": [1.0, 1.0, 1.0],
+                ]
+            },
+            "sky": {
+                "tSunColor": [1.0, 0.95, 0.85],
                 "tSunDirection": [0.425, -1.0, -0.384],
-                "fSunStrength": 8.0,
-                "uSunCascadeCount": 4,
-                "uSunResolution": 2048
+                "fSunIntensity": 8.0,
+                "uShadowCascadeCount": 4,
+                "uShadowResolution": 2048,
+                "tMode": "PL_RENDERER_SKY_MODE_SKYBOX",
+                "tFlags": [
+                    "PL_RENDERER_SKY_FLAGS_SHADOWS"
+                ],
+                "acSkyboxPath": "/assets/core/environments/sky.hdr",
+                "uSkyboxResolution": 1024
             },
             "shadows": {
                 "tFlags": [
@@ -96,16 +103,9 @@
             "floor":{
                 "path": "/assets/core/models/gltf/floor.gltf"
             }
-        },
-        "environments": {
-            "sky": "/assets/core/environments/sky.hdr"
         }
     },
     "scene": {
-        "skybox": {
-            "environment": "sky",
-            "resolution": 1024
-        },
         "probes": [
             {
                 "active": true,
@@ -117,7 +117,7 @@
                 "tFlags": ["PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY"]
             },
             {
-                "active": false,
+                "active": true,
                 "tPosition": [-3.0, 3.0, 3.0],
                 "fRange": 30.0,
                 "uResolution": 128,
@@ -126,7 +126,7 @@
                 "tFlags": ["PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY"]
             },
             {
-                "active": false,
+                "active": true,
                 "tPosition": [3.0, 3.0, 3.0],
                 "fRange": 30.0,
                 "uResolution": 128,

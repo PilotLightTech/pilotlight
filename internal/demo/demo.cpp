@@ -173,7 +173,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // defaults
     ptAppData->tSelectedEntity.uData = UINT64_MAX;
     ptAppData->bShowPilotLightTool = true;
-    ptAppData->bFrustumCulling = true;
     ptAppData->bVSync = true;
 
     gptConfig->load_from_disk(nullptr);
@@ -184,7 +183,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptConsole->initialize({PL_CONSOLE_FLAGS_POPUP});
     gptConsole->add_toggle_variable("a.PilotLight", &ptAppData->bShowPilotLightTool, "shows main pilot light window", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
     gptConsole->add_toggle_variable("a.Entities", &ptAppData->bShowEntityWindow, "shows ecs tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
-    gptConsole->add_toggle_variable("a.FreezeCullCamera", &ptAppData->bFreezeCullCamera, "freezes culling camera", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
 
     // initialize APIs that require it
     gptEcsTools->initialize();
@@ -426,7 +424,10 @@ pl_app_update(plAppData* ptAppData)
     {
         // gptOS->sleep(32);
         if(ptAppData->ptScene)
+        {
             gptRenderer->resize_view(ptAppData->ptView, ptIO->tMainViewportSize);
+            gptRenderer->resize_view(ptAppData->ptSecondaryView, ptIO->tMainViewportSize);
+        }
         ptAppData->bResize = false;
     }
 
@@ -438,9 +439,7 @@ pl_app_update(plAppData* ptAppData)
         gptCamera->set_viewport((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera), (ptIO->tMainViewportSize.x * ptAppData->tView0Scale.x), (ptIO->tMainViewportSize.y * ptAppData->tView0Scale.y));
 
         plCamera*  ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera);
-        plCamera*  ptCullCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tCullCamera);
         plCamera*  ptSecondaryCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tSecondaryCamera);
-        gptCamera->update(ptCullCamera);
         gptCamera->update(ptSecondaryCamera);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~selection stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -563,7 +562,6 @@ pl_app_update(plAppData* ptAppData)
             gptRendererDebug->draw_bvh(ptAppData->ptSecondaryView);
         }
 
-        if(ptAppData->bSecondaryViewActive)
         {
             plDrawFrustumDesc tFrustumDesc = {};
             tFrustumDesc.fAspectRatio = ptSecondaryCamera->fAspectRatio;
@@ -578,27 +576,20 @@ pl_app_update(plAppData* ptAppData)
     
         // render scene
         const plCamera* atCameras[] = {ptCamera, ptSecondaryCamera};
-        gptRenderer->prepare_scene(ptAppData->ptScene, atCameras, ptAppData->bSecondaryViewActive ? 2 : 1);
+        gptRenderer->prepare_scene(ptAppData->ptScene, atCameras, 2);
         gptRenderer->prepare_view(ptAppData->ptView, ptCamera);
-        if(ptAppData->bSecondaryViewActive)
-            gptRenderer->prepare_view(ptAppData->ptSecondaryView, ptSecondaryCamera);
-
-        plCamera* ptActiveCullCamera = ptCamera;
-        if(ptAppData->bFreezeCullCamera)
-            ptActiveCullCamera = ptCullCamera;
+        
 
         plRenderViewDesc tViewDesc0 = {};
         tViewDesc0.ptCamera = ptCamera;
-        tViewDesc0.ptCullCamera = ptAppData->bFrustumCulling ? ptActiveCullCamera : nullptr;
+        tViewDesc0.ptCullCamera = ptCamera;
         gptRenderer->render_view(ptAppData->ptView, &tViewDesc0);
 
-        if(ptAppData->bSecondaryViewActive)
-        {
-            plRenderViewDesc tViewDesc1 = {};
-            tViewDesc1.ptCamera = ptSecondaryCamera;
-            tViewDesc1.ptCullCamera = ptSecondaryCamera;
-            gptRenderer->render_view(ptAppData->ptSecondaryView, &tViewDesc1);
-        }
+        plRenderViewDesc tViewDesc1 = {};
+        tViewDesc1.ptCamera = ptSecondaryCamera;
+        tViewDesc1.ptCullCamera = ptSecondaryCamera;
+        gptRenderer->prepare_view(ptAppData->ptSecondaryView, ptSecondaryCamera);
+        gptRenderer->render_view(ptAppData->ptSecondaryView, &tViewDesc1);
     }
 
     ImGui::DockSpaceOverViewport(0, 0, ImGuiDockNodeFlags_PassthruCentralNode);
@@ -728,21 +719,22 @@ pl_app_update(plAppData* ptAppData)
     }
     ImGui::End();
 
-    if(ptAppData->bSecondaryViewActive)
+    if(ImGui::Begin("Secondary View", nullptr, ImGuiWindowFlags_NoTitleBar))
     {
-        plVec2 tUV = {};
-        plBindGroupHandle tTextureHandle = gptRenderer->get_view_color_bind_group(ptAppData->ptSecondaryView, &tUV);
-        ImGui::SetNextWindowSizeConstraints(ImVec2(200.0f, 200.0f), ImVec2(10000.0f, 10000.0f));
-        if(ImGui::Begin("Secondary View", &ptAppData->bSecondaryViewActive, ImGuiWindowFlags_NoDocking))
+        if(ptAppData->ptScene)
         {
+            plVec2 tUV = {};
+            plBindGroupHandle tTextureHandle = gptRenderer->get_view_color_bind_group(ptAppData->ptSecondaryView, &tUV);
+            ImGui::SetNextWindowSizeConstraints(ImVec2(200.0f, 200.0f), ImVec2(10000.0f, 10000.0f));
+
             ImVec2 tContextSize = ImGui::GetContentRegionAvail();
             gptCamera->set_viewport((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tSecondaryCamera), tContextSize.x, tContextSize.y);
 
             ImTextureRef tTexture = ImTextureRef(tTextureHandle.uData);
             ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUV.x, tUV.y));
         }
-        ImGui::End();
     }
+    ImGui::End();
 
     if(ptAppData->bShowPlotDemo)
         ImPlot::ShowDemoWindow(&ptAppData->bShowPlotDemo);
@@ -883,6 +875,7 @@ pl__show_editor_window(plAppData* ptAppData)
     plRendererShadowOptions tShadowOptions = PL_ZERO_INIT;
     plRendererBloomOptions tBloomOptions = PL_ZERO_INIT;
     plRendererFogOptions tFogOptions = PL_ZERO_INIT;
+    plRendererSkyOptions tSkyOptions = PL_ZERO_INIT;
     
     gptRenderer->get_fog_options(ptAppData->ptScene, &tFogOptions);
     gptRenderer->get_bloom_options(ptAppData->ptView, &tBloomOptions);
@@ -892,6 +885,7 @@ pl__show_editor_window(plAppData* ptAppData)
     gptRendererEditor->get_scene_options(ptAppData->ptScene, &tEditorSceneOptions);
     gptRendererEditor->get_view_options(ptAppData->ptView, &tEditorViewOptions);
     gptRendererDebug->get_scene_options(ptAppData->ptScene, &tDebugOptions);
+    gptRenderer->get_sky_options(ptAppData->ptScene, &tSkyOptions);
 
     bool bSceneExists = ptAppData->ptScene != nullptr;
 
@@ -928,17 +922,6 @@ pl__show_editor_window(plAppData* ptAppData)
 
             ImGui::Checkbox("Show Debug Lights", &ptAppData->bShowDebugLights);
             ImGui::Checkbox("Show Bounding Boxes", &ptAppData->bDrawAllBoundingBoxes);
-            ImGui::Checkbox("Secondary View", &ptAppData->bSecondaryViewActive);
-
-            if(ptAppData->ptScene)
-            {
-                if(ImGui::Checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
-                {
-                    plCamera*  ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera);
-                    plCamera*  ptCullCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tCullCamera);
-                    *ptCullCamera = *ptCamera;
-                }
-            }
 
             bool bLoadScene = false;
 
@@ -954,7 +937,6 @@ pl__show_editor_window(plAppData* ptAppData)
                     ptAppData->ptView = nullptr;
                     ptAppData->ptSecondaryView = nullptr;
                     ptAppData->ptScene = nullptr;
-                    ptAppData->bSecondaryViewActive = false;
                 }
             }
             else
@@ -1052,13 +1034,18 @@ pl__show_editor_window(plAppData* ptAppData)
                 {
 
                     pl__create_scene(ptAppData);
+                    gptRenderer->get_sky_options(ptAppData->ptScene, &tSkyOptions);
                     
                     if(uComboSelect > 0)
                     {
                         char* sbcData = nullptr;
                         pl_sb_sprintf(sbcData, "/environments/%s.hdr", apcEnvMaps[uComboSelect]);
-                        gptRendererEcs->load_skybox_from_panorama(ptAppData->ptScene, sbcData, 1024);
+                        tSkyOptions.tMode = PL_RENDERER_SKY_MODE_SKYBOX;
+                        tSkyOptions.tFlags = PL_RENDERER_SKY_FLAGS_SHADOWS | PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER;
+                        tSkyOptions.uSkyboxResolution = 1024;
+                        strncpy(tSkyOptions.acSkyboxPath, sbcData, pl_sb_size(sbcData));
                         pl_sb_free(sbcData);
+                        gptRenderer->set_sky_options(ptAppData->ptScene, &tSkyOptions);
                     }
                     plIO* ptIO = gptIO->get_io();
 
@@ -1066,11 +1053,8 @@ pl__show_editor_window(plAppData* ptAppData)
                     tViewDesc0.uWidth = (uint32_t)ptIO->tMainViewportSize.x;
                     tViewDesc0.uHeight = (uint32_t)ptIO->tMainViewportSize.y;
 
-                    plViewDesc tViewDesc1 = PL_ZERO_INIT;
-                    tViewDesc1.uWidth = 500;
-                    tViewDesc1.uHeight = 500;
                     ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, &tViewDesc0);
-                    ptAppData->ptSecondaryView = gptRenderer->create_view(ptAppData->ptScene, &tViewDesc1);
+                    ptAppData->ptSecondaryView = gptRenderer->create_view(ptAppData->ptScene, &tViewDesc0);
 
                     
 
@@ -1143,7 +1127,6 @@ pl__show_editor_window(plAppData* ptAppData)
             if(ImGui::Combo("Shader Debug Mode", &tDebugOptions.tShaderDebugMode, apcShaderDebugModeText, PL_ARRAYSIZE(apcShaderDebugModeText))) bReloadShaders = true;
             ImGui::Checkbox("Show Origin", &tDebugOptions.bShowOrigin);
             ImGui::Checkbox("Show BVH", &ptAppData->bShowBVH);
-            ImGui::Checkbox("Show Skybox", &tEditorViewOptions.bShowSkybox);
             ImGui::Checkbox("Show Grid", &tEditorViewOptions.bShowGrid);
             if(ImGui::Checkbox("Wireframe", &tDebugOptions.bWireframe)) bReloadShaders = true;
 
@@ -1172,14 +1155,14 @@ pl__show_editor_window(plAppData* ptAppData)
                 bReloadShaders = true;
             }
 
-            ImGui::InputFloat3("Sun Color", tLightingOptions.tSunColor.d);
-            ImGui::SliderFloat3("Sun Direction", tLightingOptions.tSunDirection.d, -1.0f, 1.0f);
-            ImGui::InputFloat("Sun Strength", &tLightingOptions.fSunStrength);
-            int iSunResolution = (int)tLightingOptions.uSunResolution;
-            ImGui::RadioButton("Sun Resolution: Low", &iSunResolution, 1024);
-            ImGui::RadioButton("Sun Resolution: Medium", &iSunResolution, 2048);
-            ImGui::RadioButton("Sun Resolution: High", &iSunResolution, 4096);
-            tLightingOptions.uSunResolution = (uint32_t) iSunResolution;
+            // ImGui::InputFloat3("Sun Color", tLightingOptions.tSunColor.d);
+            // ImGui::SliderFloat3("Sun Direction", tLightingOptions.tSunDirection.d, -1.0f, 1.0f);
+            // ImGui::InputFloat("Sun Strength", &tLightingOptions.fSunStrength);
+            // int iSunResolution = (int)tLightingOptions.uSunResolution;
+            // ImGui::RadioButton("Sun Resolution: Low", &iSunResolution, 1024);
+            // ImGui::RadioButton("Sun Resolution: Medium", &iSunResolution, 2048);
+            // ImGui::RadioButton("Sun Resolution: High", &iSunResolution, 4096);
+            // tLightingOptions.uSunResolution = (uint32_t) iSunResolution;
 
             bool bMultiViewportShadows = tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT;
             bool bPcfShadows = tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF;
@@ -1200,7 +1183,6 @@ pl__show_editor_window(plAppData* ptAppData)
 
             ImGui::Checkbox("Show Probes", &tDebugOptions.bShowProbes);
 
-            ImGui::Checkbox("Frustum Culling", &ptAppData->bFrustumCulling);
             ImGui::Checkbox("Selected Bounding Box", &tEditorViewOptions.bShowSelectedBoundingBox);
             
             ImGui::InputFloat("Depth Bias", &tShadowOptions.fConstantDepthBias);
@@ -1344,6 +1326,7 @@ pl__show_editor_window(plAppData* ptAppData)
         gptRenderer->set_fog_options(ptAppData->ptScene, &tFogOptions);
         gptRenderer->set_shadow_options(ptAppData->ptScene, &tShadowOptions);
         gptRendererDebug->set_scene_options(ptAppData->ptScene, &tDebugOptions);
+        gptRenderer->set_sky_options(ptAppData->ptScene, &tSkyOptions);
     }
 }
 
@@ -1366,19 +1349,6 @@ pl__create_scene(plAppData* ptAppData)
     gptCamera->set_position(ptMainCamera, pl_create_vec3_d(-4.7, 4.2, -3.256));
     gptCamera->set_euler(ptMainCamera, 0.0f, 0.911f, 0.0f);
     gptCamera->update(ptMainCamera);
-
-    // create cull camera
-    plCameraPerspectiveDesc tCullCameraDesc = {};
-    tCullCameraDesc.fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y;
-    tCullCameraDesc.fYFov = PL_PI_3;
-    tCullCameraDesc.fNearZ = 0.1f;
-    tCullCameraDesc.fFarZ = 25.0f;
-    tCullCameraDesc.eDepthMode = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
-    plCamera* ptCullCamera = nullptr;
-    ptAppData->tCullCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "cull camera", &tCullCameraDesc, &ptCullCamera);
-    gptCamera->set_position(ptCullCamera, pl_create_vec3_d(0, 0, 5.0));
-    gptCamera->set_euler(ptCullCamera, 0.0f, PL_PI, 0.0f);
-    gptCamera->update(ptCullCamera);
 
     // create secondary camera
     plCameraPerspectiveDesc tSecondaryCameraDesc = {};

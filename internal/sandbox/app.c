@@ -749,6 +749,7 @@ pl__show_editor_window(plAppData* ptAppData)
     plRendererShadowOptions tShadowOptions = PL_ZERO_INIT;
     plRendererBloomOptions tBloomOptions = PL_ZERO_INIT;
     plRendererFogOptions tFogOptions = PL_ZERO_INIT;
+    plRendererSkyOptions tSkyOptions = PL_ZERO_INIT;
     
     gptRenderer->get_bloom_options(ptAppData->tTestWorld.ptView, &tBloomOptions);
     gptRenderer->get_shadow_options(ptAppData->tTestWorld.ptScene, &tShadowOptions);
@@ -758,6 +759,7 @@ pl__show_editor_window(plAppData* ptAppData)
     gptRendererEditor->get_view_options(ptAppData->tTestWorld.ptView, &tEditorViewOptions);
     gptRendererDebug->get_scene_options(ptAppData->tTestWorld.ptScene, &tDebugOptions);
     gptRenderer->get_fog_options(ptAppData->tTestWorld.ptScene, &tFogOptions);
+    gptRenderer->get_sky_options(ptAppData->tTestWorld.ptScene, &tSkyOptions);
 
     bool bReloadShaders = false;
     bool bReloadScene = false;
@@ -839,6 +841,12 @@ pl__show_editor_window(plAppData* ptAppData)
             gptUI->checkbox("Show Debug Lights", &ptAppData->tTestWorld.bShowDebugLights);
             gptUI->checkbox("Show Bounding Boxes", &ptAppData->tTestWorld.bDrawAllBoundingBoxes);
 
+            gptUI->checkbox("Frustum Culling", &ptAppData->tTestWorld.bFrustumCulling);
+
+            gptUI->checkbox("Dynamic BVH", &ptAppData->tTestWorld.bContinuousBVH);
+            if(gptUI->button("Build BVH") || ptAppData->tTestWorld.bContinuousBVH)
+                gptRendererEditor->rebuild_scene_bvh(ptAppData->tTestWorld.ptScene);
+
             gptUI->vertical_spacing();
 
             if(ptAppData->tTestWorld.ptTerrain)
@@ -883,7 +891,7 @@ pl__show_editor_window(plAppData* ptAppData)
         if(gptUI->begin_collapsing_header(ICON_FA_DICE_D6 " Graphics", 0))
         {
 
-            if(gptUI->checkbox("VSync", &ptAppData->bVSync))
+            if(gptUI->checkbox("V Sync", &ptAppData->bVSync))
             {
                 if(ptAppData->bVSync)
                     gptStarter->activate_vsync();
@@ -891,86 +899,6 @@ pl__show_editor_window(plAppData* ptAppData)
                     gptStarter->deactivate_vsync();
             }
 
-            static const char* apcShaderDebugModeText[] = {
-                "None",
-                "Base Color",
-                "Metallic",
-                "Roughness",
-                "Alpha",
-                "Emissive",
-                "Occlusion",
-                "Shading Normal",
-                "Texture Normal",
-                "Geometry Normal",
-                "Geometry Tangent",
-                "Geometry Bitangent",
-                "UV 0",
-                "Clearcoat",
-                "Clearcoat Roughness",
-                "Clearcoat Normal",
-                "Sheen Color",
-                "Sheen Roughness",
-                "Iridescence Factor",
-                "Iridescence Thickness",
-                "Anisotropy Strength",
-                "Anisotropy Direction",
-                "Transmission Strength",
-                "Volume Thickness",
-                "Diffuse Transmission Strength",
-                "Diffuse Transmission Color",
-            };
-            bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
-            abShaderDebugMode[tDebugOptions.tShaderDebugMode] = true;
-            if(gptUI->begin_combo("Shader Debug Mode", apcShaderDebugModeText[tDebugOptions.tShaderDebugMode], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
-            {
-                for(uint32_t i = 0; i < PL_ARRAYSIZE(apcShaderDebugModeText); i++)
-                {
-                    if(gptUI->selectable(apcShaderDebugModeText[i], &abShaderDebugMode[i], 0))
-                    {
-
-                        bReloadShaders = true;
-                        if(i == 0)
-                            tTonemapOptions.tMode = PL_TONEMAP_MODE_SIMPLE;
-                        else
-                            tTonemapOptions.tMode = PL_TONEMAP_MODE_NONE;
-                        tDebugOptions.tShaderDebugMode = i;
-                        gptUI->close_current_popup();
-                    } 
-                }
-                gptUI->end_combo();
-            }
-
-            gptUI->checkbox("Show Origin", &tDebugOptions.bShowOrigin);
-            gptUI->checkbox("Show BVH", &ptAppData->tTestWorld.bShowBVH);
-            gptUI->checkbox("Show Skybox", &tEditorViewOptions.bShowSkybox);
-            gptUI->checkbox("Show Grid", &tEditorViewOptions.bShowGrid);
-            
-            if(gptUI->checkbox("Wireframe", &tDebugOptions.bWireframe)) bReloadShaders = true;
-            
-            bool bNormalMapping = tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING;
-            if(gptUI->checkbox_flags("Image Based Lighting", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED))
-                bReloadShaders = true;
-
-            if(gptUI->checkbox_flags("Punctual Lighting", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS))
-                bReloadShaders = true;
-            
-            if(gptUI->checkbox_flags("Normal Mapping", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING))
-                bReloadShaders = true;
-
-            gptUI->input_float3("Sun Color", tLightingOptions.tSunColor.d, NULL, 0);
-            gptUI->slider_float("Sun Direction: x", &tLightingOptions.tSunDirection.x, -1.0f, 1.0f, 0);
-            gptUI->slider_float("Sun Direction: y", &tLightingOptions.tSunDirection.y, -1.0f, 1.0f, 0);
-            gptUI->slider_float("Sun Direction: z", &tLightingOptions.tSunDirection.z, -1.0f, 1.0f, 0);
-            gptUI->input_float("Sun Strength", &tLightingOptions.fSunStrength, NULL, 0);
-            gptUI->slider_uint("Sun Cascades", &tLightingOptions.uSunCascadeCount, 1, 4, 0);
-            int iSunResolution = (int)tLightingOptions.uSunResolution;
-            gptUI->radio_button("Sun Resolution: Low", &iSunResolution, 1024);
-            gptUI->radio_button("Sun Resolution: Medium", &iSunResolution, 2048);
-            gptUI->radio_button("Sun Resolution: High", &iSunResolution, 4096);
-            tLightingOptions.uSunResolution = (uint32_t) iSunResolution;
-
-            gptUI->checkbox("Show Probes", &tDebugOptions.bShowProbes);
-            gptUI->checkbox("Show Probe Range", &tDebugOptions.bShowProbeRange);
             if(gptUI->checkbox("UI MSAA", &ptAppData->tTestWorld.bMSAA))
             {
                 if(ptAppData->tTestWorld.bMSAA)
@@ -979,24 +907,238 @@ pl__show_editor_window(plAppData* ptAppData)
                     gptStarter->deactivate_msaa();
             }
 
-            gptUI->checkbox("Frustum Culling", &ptAppData->tTestWorld.bFrustumCulling);
-            gptUI->checkbox("Selected Bounding Box", &tEditorViewOptions.bShowSelectedBoundingBox);
-            
-            gptUI->slider_uint("Outline Width", &tEditorViewOptions.uOutlineWidth, 2, 50, 0);
+            if(gptUI->tree_node("Debug Options", 0))
+            {
 
-            if(gptUI->checkbox_flags("MultiViewport Shadows", &tShadowOptions.tFlags, PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT))
-                bReloadShaders = true;
+                static const char* apcShaderDebugModeText[] = {
+                    "None",
+                    "Base Color",
+                    "Metallic",
+                    "Roughness",
+                    "Alpha",
+                    "Emissive",
+                    "Occlusion",
+                    "Shading Normal",
+                    "Texture Normal",
+                    "Geometry Normal",
+                    "Geometry Tangent",
+                    "Geometry Bitangent",
+                    "UV 0",
+                    "Clearcoat",
+                    "Clearcoat Roughness",
+                    "Clearcoat Normal",
+                    "Sheen Color",
+                    "Sheen Roughness",
+                    "Iridescence Factor",
+                    "Iridescence Thickness",
+                    "Anisotropy Strength",
+                    "Anisotropy Direction",
+                    "Transmission Strength",
+                    "Volume Thickness",
+                    "Diffuse Transmission Strength",
+                    "Diffuse Transmission Color",
+                };
+                bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
+                abShaderDebugMode[tDebugOptions.tShaderDebugMode] = true;
+                if(gptUI->begin_combo("Shader Debug Mode", apcShaderDebugModeText[tDebugOptions.tShaderDebugMode], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
+                {
+                    for(uint32_t i = 0; i < PL_ARRAYSIZE(apcShaderDebugModeText); i++)
+                    {
+                        if(gptUI->selectable(apcShaderDebugModeText[i], &abShaderDebugMode[i], 0))
+                        {
 
-            if(gptUI->checkbox_flags("PCF Shadows", &tShadowOptions.tFlags, PL_RENDERER_SHADOW_FLAGS_PCF))
-                bReloadShaders = true;
+                            bReloadShaders = true;
+                            if(i == 0)
+                                tTonemapOptions.tMode = PL_TONEMAP_MODE_SIMPLE;
+                            else
+                                tTonemapOptions.tMode = PL_TONEMAP_MODE_NONE;
+                            tDebugOptions.tShaderDebugMode = i;
+                            gptUI->close_current_popup();
+                        } 
+                    }
+                    gptUI->end_combo();
+                }
 
-            gptUI->input_float("Depth Bias", &tShadowOptions.fConstantDepthBias, NULL, 0);
-            gptUI->input_float("Slope Depth Bias", &tShadowOptions.fSlopeDepthBias, NULL, 0);
-            gptUI->slider_float("Max Shadow Range", &tShadowOptions.fMaxShadowRange, 10.0f, 1000.0f, 0);
+                gptUI->checkbox("Show Origin", &tDebugOptions.bShowOrigin);
+                gptUI->checkbox("Show BVH", &ptAppData->tTestWorld.bShowBVH);
 
-            gptUI->checkbox("Dynamic BVH", &ptAppData->tTestWorld.bContinuousBVH);
-            if(gptUI->button("Build BVH") || ptAppData->tTestWorld.bContinuousBVH)
-                gptRendererEditor->rebuild_scene_bvh(ptAppData->tTestWorld.ptScene);
+                if(gptUI->checkbox("Wireframe", &tDebugOptions.bWireframe))
+                    bReloadShaders = true;
+                
+                gptUI->checkbox("Show Probes", &tDebugOptions.bShowProbes);
+                gptUI->checkbox("Show Probe Range", &tDebugOptions.bShowProbeRange);
+
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("Editor Options", 0))
+            {
+                gptUI->checkbox("Show Grid", &tEditorViewOptions.bShowGrid);
+                gptUI->checkbox("Selected Bounding Box", &tEditorViewOptions.bShowSelectedBoundingBox);
+                gptUI->slider_uint("Outline Width", &tEditorViewOptions.uOutlineWidth, 2, 50, 0);
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("Lighting Options", 0))
+            {
+                if(gptUI->checkbox_flags("Image Based Lighting", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED))
+                    bReloadShaders = true;
+
+                if(gptUI->checkbox_flags("Punctual Lighting", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS))
+                    bReloadShaders = true;
+                
+                if(gptUI->checkbox_flags("Normal Mapping", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING))
+                    bReloadShaders = true;
+
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("Sky Options", 0))
+            {
+                gptUI->radio_button("Method: None", &tSkyOptions.tMode, PL_RENDERER_SKY_MODE_NONE);
+                gptUI->radio_button("Method: Skybox", &tSkyOptions.tMode, PL_RENDERER_SKY_MODE_SKYBOX);
+                gptUI->radio_button("Method: Realistic", &tSkyOptions.tMode, PL_RENDERER_SKY_MODE_REALISTIC);
+
+                if(tSkyOptions.tMode != PL_RENDERER_SKY_MODE_NONE)
+                {
+
+                    static int saiSkyLutRes[2] = {0};
+                    static int saiTransmissionLutRes[2] = {0};
+                    static int saiMultiscatterLutRes[2] = {0};
+                    static int saiAerialLutRes[3] = {0};
+                    if(saiSkyLutRes[0] == 0) // first run
+                    {
+                        saiSkyLutRes[0] = (int)tSkyOptions.tSkyLutResolution.x;
+                        saiSkyLutRes[1] = (int)tSkyOptions.tSkyLutResolution.y;
+
+                        saiTransmissionLutRes[0] = (int)tSkyOptions.tTransmissionLutResolution.x;
+                        saiTransmissionLutRes[1] = (int)tSkyOptions.tTransmissionLutResolution.y;
+
+                        saiMultiscatterLutRes[0] = (int)tSkyOptions.tMultiscatterLutResolution.x;
+                        saiMultiscatterLutRes[1] = (int)tSkyOptions.tMultiscatterLutResolution.y;
+
+                        saiAerialLutRes[0] = (int)tSkyOptions.tAerialLutResolution.x;
+                        saiAerialLutRes[1] = (int)tSkyOptions.tAerialLutResolution.y;
+                        saiAerialLutRes[2] = (int)tSkyOptions.tAerialLutResolution.z;
+                    }
+
+                    gptUI->input_float("Sun Intensity", &tSkyOptions.fSunIntensity, "%0.3f", 0);
+                    gptUI->input_float3("Sun Color", tSkyOptions.tSunColor.d, NULL, 0);
+
+                    tSkyOptions.tSunDirection = pl_norm_vec3(tSkyOptions.tSunDirection);
+                    float fSunPitch = asinf(pl_clampf(-1.0f, tSkyOptions.tSunDirection.y, 1.0f));
+                    float fSunYaw   = atan2f(tSkyOptions.tSunDirection.x, tSkyOptions.tSunDirection.z);
+
+                    bool bChanged = false;
+                    bChanged |= gptUI->slider_float("Sun Pitch", &fSunPitch, -PL_PI_2, PL_PI_2, 0);
+                    bChanged |= gptUI->slider_float("Sun Yaw", &fSunYaw, -PL_PI, PL_PI, 0);
+                    if(bChanged)
+                    {
+                        const float fCosPitch = cosf(fSunPitch);
+                        tSkyOptions.tSunDirection.x = fCosPitch * sinf(fSunYaw);
+                        tSkyOptions.tSunDirection.y = sinf(fSunPitch);
+                        tSkyOptions.tSunDirection.z = fCosPitch * cosf(fSunYaw);
+                        tSkyOptions.tSunDirection = pl_norm_vec3(tSkyOptions.tSunDirection);
+                    }
+
+                    gptUI->checkbox_flags("Shadow Mapping", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_SHADOWS);
+                    if(tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_SHADOWS)
+                    {
+                        gptUI->separator_text("Shadows");
+                        int iSunResolution = (int)tSkyOptions.uShadowResolution;
+                        gptUI->radio_button("Shadow Resolution: Low", &iSunResolution, 1024);
+                        if(gptUI->was_last_item_hovered())
+                        {
+                            gptUI->begin_tooltip();
+                            gptUI->text("1024 x 1024");
+                            gptUI->end_tooltip();
+                        }
+                        gptUI->radio_button("Shadow Resolution: Medium", &iSunResolution, 2048);
+                        if(gptUI->was_last_item_hovered())
+                        {
+                            gptUI->begin_tooltip();
+                            gptUI->text("2048 x 2048");
+                            gptUI->end_tooltip();
+                        }
+                        gptUI->radio_button("Shadow Resolution: High", &iSunResolution, 4096);
+                        if(gptUI->was_last_item_hovered())
+                        {
+                            gptUI->begin_tooltip();
+                            gptUI->text("4096 x 4096");
+                            gptUI->end_tooltip();
+                        }
+                        tSkyOptions.uShadowResolution = (uint32_t)iSunResolution;
+                        gptUI->slider_uint("Cascades", &tSkyOptions.uShadowCascadeCount, 1, 4, 0);
+                        gptUI->checkbox_flags("Debug Cascades", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES);
+                    }
+
+                    if(tSkyOptions.tMode == PL_RENDERER_SKY_MODE_REALISTIC)
+                    {
+                        gptUI->checkbox_flags("Feature: Visualizer", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER);
+                        gptUI->checkbox_flags("Feature: Multiscattering", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_MULTISCATTER);
+                        gptUI->checkbox_flags("Feature: Aerial Perspective", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE);
+                        
+
+                        gptUI->input_float("Atmosphere Thickness", &tSkyOptions.fAtmosphereHeight, "%0.6f", 0);
+                        gptUI->input_float("Atmosphere Conversion", &tSkyOptions.fAtmosphereConversion, "%0.6f", 0);
+                        gptUI->input_float("Sun Radius", &tSkyOptions.fSunRadius, "%0.6f", 0);
+                        gptUI->input_float("Planet Radius", &tSkyOptions.fPlanetRadius, "%0.6f", 0);
+                        gptUI->input_float3("Rayleigh Scattering", tSkyOptions.tScatteringRayleighGround.d, "%0.6f", 0);
+                        gptUI->input_float3("Rayleigh Absorption", tSkyOptions.tExtinctionRayleighGround.d, "%0.6f", 0);
+                        gptUI->input_float3("Ozone Absorption", tSkyOptions.tOzoneExtinction.d, "%0.6f", 0);
+                        gptUI->input_float("Mie Scattering", &tSkyOptions.fScatteringMieGround, "%0.6f", 0);
+                        gptUI->input_float("Mie Absorption", &tSkyOptions.fExtinctionMieGround, "%0.6f", 0);
+                        gptUI->input_float("Mie Scatter Asymmetry", &tSkyOptions.fMieScatteringExponent, "%0.6f", 0);
+
+                        gptUI->input_int2("Sky LUT Res", saiSkyLutRes, 0);
+                        gptUI->input_int2("Transmission LUT Res", saiTransmissionLutRes, 0);
+
+                        if(tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE)
+                        {
+                            gptUI->separator_text("Aerial Perspective");
+                            gptUI->input_float("Max. Distance", &tSkyOptions.fMaxAerialDistance, NULL, 0);
+                            gptUI->input_float("Depth Exponent", &tSkyOptions.fAerialDepthExponent, NULL, 0);
+                            gptUI->input_uint("Samples per Slice", &tSkyOptions.uAerialSamplesPerSlice, 0);
+                            gptUI->input_int3("Aerial LUT Res", saiAerialLutRes, 0);
+                        }
+
+                        if(tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_MULTISCATTER)
+                        {
+                            gptUI->input_int2("Multiscatter LUT Res", saiMultiscatterLutRes, 0);
+                        }
+
+                        gptUI->layout_static(0.0f, 120.0f, 1);
+                        if(gptUI->button("Update LUTS"))
+                        {
+                            tSkyOptions.tSkyLutResolution.x = (float)saiSkyLutRes[0];
+                            tSkyOptions.tSkyLutResolution.y = (float)saiSkyLutRes[1];
+                            tSkyOptions.tTransmissionLutResolution.x = (float)saiTransmissionLutRes[0];
+                            tSkyOptions.tTransmissionLutResolution.y = (float)saiTransmissionLutRes[1];
+                            tSkyOptions.tMultiscatterLutResolution.x = (float)saiMultiscatterLutRes[0];
+                            tSkyOptions.tMultiscatterLutResolution.y = (float)saiMultiscatterLutRes[1];
+                            tSkyOptions.tAerialLutResolution.x = (float)saiAerialLutRes[0];
+                            tSkyOptions.tAerialLutResolution.y = (float)saiAerialLutRes[1];
+                            tSkyOptions.tAerialLutResolution.z = (float)saiAerialLutRes[2];
+                            tSkyOptions.tFlags |= PL_RENDERER_SKY_FLAGS_LUTS_DIRTY;
+                        }
+                    }
+                }
+
+                gptUI->tree_pop();
+            }
+            if(gptUI->tree_node("Shadow Options", 0))
+            {
+                if(gptUI->checkbox_flags("MultiViewport Shadows", &tShadowOptions.tFlags, PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT))
+                    bReloadShaders = true;
+
+                if(gptUI->checkbox_flags("PCF Shadows", &tShadowOptions.tFlags, PL_RENDERER_SHADOW_FLAGS_PCF))
+                    bReloadShaders = true;
+
+                gptUI->input_float("Depth Bias", &tShadowOptions.fConstantDepthBias, NULL, 0);
+                gptUI->input_float("Slope Depth Bias", &tShadowOptions.fSlopeDepthBias, NULL, 0);
+                gptUI->input_float("Max Shadow Range", &tShadowOptions.fMaxShadowRange, NULL, 0);
+                gptUI->tree_pop();
+            }
             gptUI->end_collapsing_header();
         }
 
@@ -1127,6 +1269,7 @@ pl__show_editor_window(plAppData* ptAppData)
         gptRenderer->set_bloom_options(ptAppData->tTestWorld.ptView, &tBloomOptions);
         gptRenderer->set_fog_options(ptAppData->tTestWorld.ptScene, &tFogOptions);
         gptRenderer->set_shadow_options(ptAppData->tTestWorld.ptScene, &tShadowOptions);
+        gptRenderer->set_sky_options(ptAppData->tTestWorld.ptScene, &tSkyOptions);
         gptRendererDebug->set_scene_options(ptAppData->tTestWorld.ptScene, &tDebugOptions);
     }
 

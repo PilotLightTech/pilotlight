@@ -104,6 +104,7 @@ typedef struct _plRendererShadowOptions      plRendererShadowOptions;
 typedef struct _plRendererDebugSceneOptions  plRendererDebugSceneOptions;
 typedef struct _plRendererDebugViewOptions   plRendererDebugViewOptions;
 typedef struct _plRendererLightingOptions    plRendererLightingOptions;
+typedef struct _plRendererSkyOptions         plRendererSkyOptions;
 typedef struct _plViewDesc                   plViewDesc;
 typedef struct _plRenderViewDesc             plRenderViewDesc;
 typedef struct _plScene                      plScene; // opaque type
@@ -133,6 +134,8 @@ typedef int plRendererShadowFlags;
 typedef int plRendererBloomFlags;
 typedef int plRendererFogFlags;
 typedef int plRendererFogMode;
+typedef int plRendererSkyFlags;
+typedef int plRendererSkyMode;
 
 // external 
 typedef struct _plWindow              plWindow;             // pl_platform_ext.h
@@ -204,6 +207,8 @@ PL_API void pl_renderer_get_shadow_options  (plScene*, plRendererShadowOptions* 
 PL_API void pl_renderer_set_shadow_options  (plScene*, const plRendererShadowOptions*);
 PL_API void pl_renderer_get_fog_options     (plScene*, plRendererFogOptions* out);
 PL_API void pl_renderer_set_fog_options     (plScene*, const plRendererFogOptions*);
+PL_API void pl_renderer_get_sky_options     (plScene*, plRendererSkyOptions*);
+PL_API void pl_renderer_set_sky_options     (plScene*, const plRendererSkyOptions*);
 
 // view runtime options
 PL_API void pl_renderer_get_bloom_options  (plView*, plRendererBloomOptions* out);
@@ -292,7 +297,6 @@ PL_API void pl_renderer_ecs_add_probes_to_scene          (plScene*, uint32_t cou
 PL_API void pl_renderer_ecs_add_lights_to_scene          (plScene*, uint32_t count, const plEntity* lights);
 PL_API void pl_renderer_ecs_add_materials_to_scene       (plScene*, uint32_t count, const plEntity* materials);
 PL_API void pl_renderer_ecs_update_scene_materials       (plScene*, uint32_t count, const plEntity* materials);
-PL_API void pl_renderer_ecs_load_skybox_from_panorama    (plScene*, const char* path, int resolution);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -331,6 +335,8 @@ typedef struct _plRendererI
     void (*set_shadow_options)  (plScene*, const plRendererShadowOptions*);
     void (*get_lighting_options)(plScene*, plRendererLightingOptions* out);
     void (*set_lighting_options)(plScene*, const plRendererLightingOptions*);
+    void (*set_sky_options)     (plScene*, const plRendererSkyOptions*);
+    void (*get_sky_options)     (plScene*, plRendererSkyOptions*);
 
     // view options
     void (*get_bloom_options)  (plView*, plRendererBloomOptions* out);
@@ -360,7 +366,6 @@ typedef struct _plRendererEcsI
     void (*add_probes_to_scene)          (plScene*, uint32_t count, const plEntity* probes);
     void (*add_lights_to_scene)          (plScene*, uint32_t count, const plEntity* lights);
     void (*add_materials_to_scene)       (plScene*, uint32_t count, const plEntity* materials);
-    void (*load_skybox_from_panorama)    (plScene*, const char* path, int resolution);
 
     // ecs system updates
     void (*run_object_update_system)           (plComponentLibrary*);
@@ -457,16 +462,54 @@ typedef struct _plRenderViewDesc
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plRendererSkyOptions
+{
+    plRendererSkyMode  tMode;
+    plRendererSkyFlags tFlags;
+
+    // sun (i.e. main light)
+    plVec3 tSunColor;
+    plVec3 tSunDirection;
+
+    // sun shadows
+    uint32_t uShadowCascadeCount;
+    uint32_t uShadowResolution;
+    float    fSunIntensity;
+
+    //------------skybox rendering options--------------
+
+    char     acSkyboxPath[256];
+    uint32_t uSkyboxResolution;
+
+    //----------realistic rendering options------------
+    
+    // general
+    float  fAtmosphereConversion;
+    float  fSunRadius;
+    float  fPlanetRadius;
+    float  fAtmosphereHeight;
+    plVec3 tScatteringRayleighGround;
+    plVec3 tExtinctionRayleighGround;
+    plVec3 tOzoneExtinction;
+    float  fScatteringMieGround;
+    float  fExtinctionMieGround;
+    float  fMieScatteringExponent; // used in mie phase function
+    plVec2 tTransmissionLutResolution;
+    plVec2 tSkyLutResolution;
+
+    // multiscattering
+    plVec2 tMultiscatterLutResolution;
+
+    // aerial perspective
+    float    fMaxAerialDistance; // in atmosphere units
+    float    fAerialDepthExponent; // samples per slice
+    uint32_t uAerialSamplesPerSlice; // samples per slice
+    plVec3   tAerialLutResolution;
+} plRendererSkyOptions;
+
 typedef struct _plRendererLightingOptions
 {
     plRendererLightingFlags tFlags;
-
-    // sun
-    plVec3 tSunColor;
-    plVec3 tSunDirection;
-    uint32_t uSunCascadeCount;
-    uint32_t uSunResolution;
-    float fSunStrength;
 } plRendererLightingOptions;
 
 typedef struct _plRendererShadowOptions
@@ -528,7 +571,6 @@ typedef struct _plRendererDebugViewOptions
 
 typedef struct _plRendererEditorViewOptions
 {
-    bool bShowSkybox;
     bool bShowGrid;
     bool bShowSelectedBoundingBox;
     uint32_t uOutlineWidth;
@@ -624,6 +666,28 @@ enum _plRendererLightingFlags
     PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED      = 1 << 0,
     PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING   = 1 << 1,
     PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS  = 1 << 2,
+};
+
+enum _plRendererSkyMode
+{
+    PL_RENDERER_SKY_MODE_NONE = 0,
+    PL_RENDERER_SKY_MODE_SKYBOX,
+    PL_RENDERER_SKY_MODE_REALISTIC,
+};
+
+enum _plRendererSkyFlags
+{
+    PL_RENDERER_SKY_FLAGS_NONE = 0,
+
+    // general options
+    PL_RENDERER_SKY_FLAGS_SHADOWS         = 1 << 1,
+    PL_RENDERER_SKY_FLAGS_LUTS_DIRTY      = 1 << 2,
+    PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER = 1 << 3,
+    PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES  = 1 << 4,
+
+    // realistic options
+    PL_RENDERER_SKY_FLAGS_MULTISCATTER       = 1 << 5,
+    PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE = 1 << 6
 };
 
 enum _plRendererShadowFlags

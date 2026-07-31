@@ -105,16 +105,12 @@ void main()
     vec3 f_metal_brdf = vec3(0.0);
 
     // punctual stuff
-    uint cascadeIndex = 0;
+    uint cascadeIndex = tGpuScene.tData.iCascadeCount - 1;
     const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
     {
         float shadow = 1.0;
         vec3 pointToLight = -tGpuScene.tData.tDirection;
         int iCascadeCount = tGpuScene.tData.iCascadeCount;
-        if(tObjectInfo.tData.iProbe == 1)
-        {
-            iCascadeCount = 1;
-        }
 
         if(bShadows)
         {
@@ -133,13 +129,23 @@ void main()
 
             vec4 tWorldPos2 = vec4(tWorldPosition.xyz, 1.0);
 
-            for(int j = 0; j < iCascadeCount; j++)
+            if(tObjectInfo.tData.iProbe == 0)
             {
-                if(viewDepth > tViewInfo.tData.afCascadeSplits[j])
-                    cascadeIndex = j + 1;
+                for(int j = 0; j < iCascadeCount - 1; j++)
+                {
+                    if(viewDepth <= tViewInfo.tData.afCascadeSplits[j])
+                    {
+                        cascadeIndex = j;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                cascadeIndex = 0;
             }
 
-            if(cascadeIndex < 4)
+            // if(cascadeIndex < 4)
             {
                 vec4 shadowCoord = (abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex]) * tWorldPos2;
                 // cascadeIndex = j;
@@ -153,7 +159,7 @@ void main()
                 }
                 else
                 {
-                    shadow = textureProj(shadowCoord, vec2(tGpuScene.tData.fXOffset, tGpuScene.tData.fYOffset) + vec2(cascadeIndex * tGpuScene.tData.fFactor, 0), tGpuScene.tData.iShadowMapTexIdx);
+                    shadow = textureProj2(shadowCoord, vec2(tGpuScene.tData.fXOffset, tGpuScene.tData.fYOffset) + vec2(cascadeIndex * tGpuScene.tData.fFactor, 0), tGpuScene.tData.iShadowMapTexIdx);
                 }
 
                 
@@ -228,22 +234,23 @@ void main()
     outColor.a = fBaseColorAlpha;
     outColor.rgb = color.rgb;
 
-    // if(gl_FragCoord.x < 1800.0)
-    // {
-    //     switch(cascadeIndex) {
-    //         case 0 : 
-    //             outColor.rgb *= vec3(1.0f, 0.25f, 0.25f);
-    //             break;
-    //         case 1 : 
-    //             outColor.rgb *= vec3(0.25f, 1.0f, 0.25f);
-    //             break;
-    //         case 2 : 
-    //             outColor.rgb *= vec3(0.25f, 0.25f, 1.0f);
-    //             break;
-    //         case 3 : 
-    //             outColor.rgb *= vec3(1.0f, 1.0f, 0.25f);
-    //             break;
-    //     }
-    // }
+    if(tGpuScene.tData.bCascadeDebug == 1)
+    {
+        // if(gl_FragCoord.x < 1800.0)
+        switch(cascadeIndex) {
+            case 0 : 
+                outColor.rgb *= vec3(1.0f, 0.25f, 0.25f);
+                break;
+            case 1 : 
+                outColor.rgb *= vec3(0.25f, 1.0f, 0.25f);
+                break;
+            case 2 : 
+                outColor.rgb *= vec3(0.25f, 0.25f, 1.0f);
+                break;
+            case 3 : 
+                outColor.rgb *= vec3(1.0f, 1.0f, 0.25f);
+                break;
+        }
+    }
 
 }

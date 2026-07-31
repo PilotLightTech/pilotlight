@@ -1,0 +1,286 @@
+#version 460
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+
+/*
+   pl_sky_aerial_lut.comp
+*/
+
+/*
+Index of this file:
+// [SECTION] includes
+// [SECTION] defines
+// [SECTION] bind groups
+// [SECTION] helpers
+// [SECTION] entry
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
+#include "pl_sky.inc"
+#include "pl_bg_scene.inc"
+#include "pl_bg_view.inc"
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#define PL_AERIAL_MAX_SAMPLES_PER_SLICE 8
+#define PL_DENSITY_SCALING 1.0
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind groups
+//-----------------------------------------------------------------------------
+
+// bind group 2
+layout(set = 2, binding = 0, rgba16f) uniform image3D aerialPerspectiveLut;
+layout(set = 2, binding = 1) uniform texture2D transmissionLut;
+layout(set = 2, binding = 2) uniform texture2D multiscatterLut;
+
+//-----------------------------------------------------------------------------
+// [SECTION] dynamic bind group
+//-----------------------------------------------------------------------------
+
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
+{
+    uint uCameraIndex;
+} tObjectInfo;
+
+//-----------------------------------------------------------------------------
+// [SECTION] helpers
+//-----------------------------------------------------------------------------
+
+float
+textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
+{
+
+    // Perspective divide
+    vec3 proj = shadowCoord.xyz / shadowCoord.w;
+
+    // Early out: outside light frustum → lit
+    if (proj.z < 0.0 || proj.z > 1.0)
+        return 1.0;
+
+    // Apply atlas offset in UV space
+    vec2 uv = proj.xy + offset;
+
+    float dist =texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), uv).r;
+    return (dist <= proj.z) ? 1.0 : 0.0;
+}
+
+vec2
+pl_aerial_clamp_lut_uv(vec2 uv, ivec2 lutSize)
+{
+    vec2 halfTexel = 0.5 / vec2(lutSize);
+    return clamp(uv, halfTexel, vec2(1.0) - halfTexel);
+}
+
+vec3
+pl_integrate_source(vec3 source, vec3 extinction, float segmentLength)
+{
+    vec3 segmentTransmittance = exp(-extinction * segmentLength);
+    vec3 safeExtinction = max(extinction, vec3(1e-7));
+    vec3 analytic = source * (vec3(1.0) - segmentTransmittance) / safeExtinction;
+    vec3 linear = source * segmentLength;
+
+    return mix(analytic, linear, lessThan(abs(extinction), vec3(1e-7)));
+}
+
+vec3
+pl_get_aerial_view_direction(ivec2 froxelXY, ivec2 volumeXYSize)
+{
+    vec2 uv =(vec2(froxelXY) + 0.5) / vec2(volumeXYSize);
+
+    vec2 ndc = uv * 2.0 - 1.0;
+
+    vec3 viewDirection = normalize(vec3(
+        ndc.x * (tViewInfo.tData.tCameraProjectionInv[tObjectInfo.uCameraIndex])[0][0],
+        ndc.y * (tViewInfo.tData.tCameraProjectionInv[tObjectInfo.uCameraIndex])[1][1],
+        1.0));
+
+    return normalize(mat3(tViewInfo.tData.tInvViewMatNoTranslation[tObjectInfo.uCameraIndex]) * viewDirection);
+}
+
+float
+pl_aerial_depth(float sliceBoundary, float sliceCount, float maxDistance, float depthExponent)
+{
+    float u = sliceBoundary / sliceCount;
+    return maxDistance * pow(u, depthExponent);
+}
+
+float
+pl_planet_visibility(vec3 position, vec3 sunDirection, float planetRadius)
+{
+    // Replace with your existing robust sphere helper.
+    float hit = pl_final_ray_sphere_nearest(position, sunDirection, planetRadius);
+    return hit >= 0.0 ? 0.0 : 1.0;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] entry
+//-----------------------------------------------------------------------------
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+void main()
+{
+    ivec3 volumeSize = imageSize(aerialPerspectiveLut);
+
+    ivec2 froxelXY = ivec2(gl_GlobalInvocationID.xy);
+
+    if(any(greaterThanEqual(froxelXY, volumeSize.xy)))
+    {
+        return;
+    }
+
+    float cameraAltitude = max(tViewInfo.tData.tCameraPos.y * tGpuScene.tData.fAtmosphereConversion, 0.0);
+
+    float cameraSurfaceOffset = max(tGpuScene.tData.planetRadius * 1e-7, 1e-6);
+
+    float viewHeight = tGpuScene.tData.planetRadius + cameraAltitude + cameraSurfaceOffset;
+
+    vec3 cameraPosition = vec3(0.0, viewHeight, 0.0);
+
+    vec3 viewDirection = pl_get_aerial_view_direction(froxelXY, volumeSize.xy);
+
+    vec3 sunDirection = -pl_safe_normalize(tGpuScene.tData.tDirection.xyz);
+
+    float viewSunCos = clamp(dot(viewDirection, sunDirection), -1.0, 1.0);
+
+    float rayleighPhase = pl_phase_rayleigh(viewSunCos);
+
+    float miePhase = pl_phase_cornette_shanks(viewSunCos, tGpuScene.tData.mieScatteringExponent);
+
+    ivec2 transmissionSize = textureSize(sampler2D(transmissionLut, tSamplerLinearClamp), 0);
+
+    ivec2 multiscatterSize = textureSize(sampler2D(multiscatterLut, tSamplerLinearClamp), 0);
+
+    float maxDistance = tGpuScene.tData.tAerialInfo.x;
+
+    float depthExponent = max(tGpuScene.tData.tAerialInfo.y, 1.0);
+
+    int samplesPerSlice = clamp( int(tGpuScene.tData.tAerialInfo.z), 1, PL_AERIAL_MAX_SAMPLES_PER_SLICE);
+
+    vec3 accumulatedLuminance = vec3(0.0);
+
+    vec3 accumulatedTransmittance = vec3(1.0);
+
+    for(int slice = 0; slice < volumeSize.z; slice++)
+    {
+        float distance0 = pl_aerial_depth(float(slice), float(volumeSize.z), maxDistance, depthExponent);
+
+        float distance1 = pl_aerial_depth(float(slice + 1), float(volumeSize.z), maxDistance, depthExponent);
+
+        float sliceLength = distance1 - distance0;
+
+        for(int sampleIndex = 0; sampleIndex < PL_AERIAL_MAX_SAMPLES_PER_SLICE; sampleIndex++)
+        {
+            if(sampleIndex >= samplesPerSlice)
+                break;
+
+            float sampleU = (float(sampleIndex) + 0.5) / float(samplesPerSlice);
+
+            float sampleDistance = mix(distance0, distance1, sampleU);
+
+            float segmentLength = sliceLength / float(samplesPerSlice);
+
+            vec3 position = cameraPosition + viewDirection * sampleDistance;
+
+            float radialDistance = length(position);
+
+            vec3 localUp = position / max(radialDistance, 1e-20);
+
+            float currentHeight = radialDistance - tGpuScene.tData.planetRadius;
+
+            // once ray is below the planet surface, the remaining
+            // aerial volume is invalid/occluded.
+            if(currentHeight < 0.0)
+                break;
+
+            currentHeight = clamp(currentHeight, 0.0, tGpuScene.tData.atmosphereHeight);
+
+            plAtmosphereCoefficients coefficients = pl_calculate_coefficients(currentHeight, tGpuScene.tData);
+
+            coefficients.tScatterRayleigh *= PL_DENSITY_SCALING;
+            coefficients.tScatterMie      *= PL_DENSITY_SCALING;
+            coefficients.tExtinction      *= PL_DENSITY_SCALING;
+
+            vec2 atmosphereUV = pl_compute_lut_uv(currentHeight, tGpuScene.tData.atmosphereHeight, localUp, sunDirection);
+
+            vec2 transmissionUV = pl_aerial_clamp_lut_uv(atmosphereUV, transmissionSize);
+
+            vec2 multiscatterUV = pl_aerial_clamp_lut_uv(atmosphereUV, multiscatterSize);
+
+            vec3 transmittanceToSun = textureLod(sampler2D(transmissionLut, tSamplerLinearClamp), transmissionUV, 0.0).rgb;
+
+            vec3 multipleScatteredLuminance = textureLod(sampler2D(multiscatterLut, tSamplerLinearClamp), multiscatterUV, 0.0).rgb;
+
+            float planetVisibility = pl_planet_visibility(position, sunDirection, tGpuScene.tData.planetRadius);
+
+            vec3 phaseTimesScattering = coefficients.tScatterRayleigh * rayleighPhase + coefficients.tScatterMie * miePhase;
+
+            vec3 worldSamplePosition = tViewInfo.tData.tCameraPos.xyz + viewDirection * sampleDistance / tGpuScene.tData.fAtmosphereConversion;
+
+            uint cascadeIndex = tGpuScene.tData.iCascadeCount - 1;
+
+            // Depth compare for shadowing
+            mat4 abiasMat = biasMat;
+            abiasMat[0][0] *= tGpuScene.tData.fFactor;
+            abiasMat[1][1] *= tGpuScene.tData.fFactor;
+            abiasMat[3][0] *= tGpuScene.tData.fFactor;
+            abiasMat[3][1] *= tGpuScene.tData.fFactor;
+            float shadow = 0.0;
+
+            // float viewDepth = (length(worldSamplePosition - tViewInfo.tData.tCameraPos.xyz) - tViewInfo.tData.fCameraNearZ) / tViewInfo.tData.fCameraRange;
+            // float viewDepth = (sampleDistance / tGpuScene.tData.fAtmosphereConversion - tViewInfo.tData.fCameraNearZ) / tViewInfo.tData.fCameraRange;
+            vec4 viewPosition = tViewInfo.tData.tCameraView[tObjectInfo.uCameraIndex] * vec4(worldSamplePosition, 1.0);
+
+            // Pilot Light uses +Z as camera forward.
+            float viewDepthWorld = (viewPosition.z - tViewInfo.tData.fCameraNearZ) / tViewInfo.tData.fCameraRange;
+            for(int j = 0; j < tGpuScene.tData.iCascadeCount - 1; j++)
+            {
+                if(viewDepthWorld <= tViewInfo.tData.afCascadeSplits[j])
+                {
+                    cascadeIndex = j;
+                    break;
+                }
+            }
+            vec4 tWorldPos2 = vec4(worldSamplePosition, 1.0);
+            vec4 shadowCoord = (abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex]) * tWorldPos2;
+            shadow = textureProj(shadowCoord, vec2(tGpuScene.tData.fXOffset, tGpuScene.tData.fYOffset) + vec2(cascadeIndex * tGpuScene.tData.fFactor, 0), tGpuScene.tData.iShadowMapTexIdx);
+
+
+            // vec4 shadowCoord = biasMat * tViewInfo.tData.tShadowViewProj * vec4(worldSamplePosition, 1.0);
+
+            // float shadow = textureProj(shadowCoord);
+
+            vec3 directSource = shadow * planetVisibility * transmittanceToSun * phaseTimesScattering;
+
+            vec3 totalScattering = coefficients.tScatterRayleigh + coefficients.tScatterMie;
+
+            vec3 multipleSource = multipleScatteredLuminance * totalScattering;
+
+            if(tGpuScene.tData.bMultiScatter == 0)
+            {
+                multipleSource = vec3(0);
+            }
+
+            vec3 sunRadiance = vec3(tGpuScene.tData.tAerialInfo.w);
+
+            vec3 source = sunRadiance * (directSource + multipleSource);
+
+            vec3 segmentLuminance = pl_integrate_source(source, coefficients.tExtinction, segmentLength);
+
+            accumulatedLuminance += accumulatedTransmittance * segmentLuminance;
+
+            accumulatedTransmittance *= exp(-coefficients.tExtinction * segmentLength);
+        }
+
+        float scalarTransmittance = dot(accumulatedTransmittance, vec3(1.0 / tGpuScene.tData.tAerialInfo.w));
+        // float scalarTransmittance = dot(accumulatedTransmittance, vec3(1.0 / 3.0));
+        imageStore(aerialPerspectiveLut, ivec3(froxelXY, slice), vec4(accumulatedLuminance, scalarTransmittance));
+    }
+}

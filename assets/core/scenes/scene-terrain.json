@@ -23,7 +23,6 @@
         "bShowOrigin": false
     },
     "editor": {
-        "bShowSkybox": true,
         "bShowSelectedBoundingBox": false,
         "bShowGrid": false,
         "fGridCellSize": 0.025,
@@ -36,7 +35,7 @@
             "tPosition": [-7964, 69, 1504],
             "fYFov": 1.04719755,
             "fNearZ": 0.1,
-            "fFarZ": 6500.0,
+            "fFarZ": 10000.0,
             "fPitch": -0.325,
             "fYaw": 2.569
         },
@@ -56,6 +55,36 @@
                 "fMaxShadowRange": 100.0,
                 "fConstantDepthBias": -1.250,
                 "fSlopeDepthBias": -1.750
+            },
+            "sky": {
+                "tSunColor": [1.0, 0.95, 0.85],
+                "tSunDirection": [0.425, -1.0, -0.384],
+                "fSunIntensity": 3.0,
+                "uShadowCascadeCount": 4,
+                "uShadowResolution": 2048,
+                "fAtmosphereConversion": 0.001,
+                "fSunRadius": 0.00465,
+                "fPlanetRadius": 6371.0,
+                "fAtmosphereHeight": 100.0,
+                "fScatteringMieGround": 0.006,
+                "fExtinctionMieGround": 0.00666,
+                "fMieScatteringExponent": 0.76,
+                "fMaxAerialDistance": 10.0,
+                "fAerialDepthExponent": 2.0,
+                "uAerialSamplesPerSlice": 8,
+                "tOzoneExtinction": [0.00065, 0.00188, 0.00008],
+                "tExtinctionRayleighGround": [0.0058, 0.0135, 0.0331],
+                "tScatteringRayleighGround": [0.0058, 0.0135, 0.0331],
+                "tTransmissionLutResolution": [256, 256],
+                "tSkyLutResolution": [200, 100],
+                "tMultiscatterLutResolution": [64, 64],
+                "tAerialLutResolution": [128, 128, 32],
+                "tMode": "PL_RENDERER_SKY_MODE_REALISTIC",
+                "tFlags": [
+                    "PL_RENDERER_SKY_FLAGS_MULTISCATTER",
+                    "PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE",
+                    "PL_RENDERER_SKY_FLAGS_SHADOWS"
+                ]
             },
             "bloom": {
                 "active" : false,
@@ -88,19 +117,12 @@
             "helmet":{
                 "path": "/assets/core/models/gltf/DamagedHelmet.glb"
             }
-        },
-        "environments": {
-            "sky": "/assets/core/environments/sky.hdr"
         }
     },
     "scene": {
-        "skybox": {
-            "environment": "sky",
-            "resolution": 1024
-        },
         "probes": [
             {
-                "active": true,
+                "active": false ,
                 "tPosition": [-7956, 70, 1495],
                 "fRange": 30.0,
                 "uResolution": 128,
@@ -135,18 +157,6 @@
                     "translation": [-7956, 68, 1495],
                     "rotation": [0.0, 0.0, 0.0, 1.0]
                 }
-            }
-        ],
-        "lights": [
-            {
-                "active": false,
-                "name": "direction light",
-                "type": "directional",
-                "tDirection": [0.0, -1.0, 0.0],
-                "tColor": [1.0, 1.0, 1.0],
-                "fIntensity": 18.0,
-                "uShadowResolution": 2048,
-                "tFlags": ["PL_LIGHT_FLAG_CAST_SHADOW", "PL_LIGHT_FLAG_VISUALIZER"]
             }
         ]
     }

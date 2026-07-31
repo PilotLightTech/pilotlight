@@ -435,33 +435,6 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     // TODO: make this an option
     ptScene->uSunShadowAtlasResolution = 4096 * 4;
 
-    // atmospheric rendering stuff
-    ptScene->tSunTransmissionLutResolution = (plVec2){256.0f, 256.0f};
-    ptScene->tSunMultiscatterLutResolution = (plVec2){64.0f, 64.0f};
-    ptScene->tSkyLutResolution = (plVec2){200.0f, 100.0f};
-
-    ptScene->tSceneData.fAtmosphereConversion = 0.001f;
-	ptScene->tSceneData.atmosphereHeight = 100.0f;
-	ptScene->tSceneData.bMultiScatter = 1;
-	ptScene->tSceneData.planetRadius = 6371.0f; // hkm
-    ptScene->tSceneData.scatteringRayleighGround.x = 0.0058f;
-    ptScene->tSceneData.scatteringRayleighGround.y = 0.0135f;
-    ptScene->tSceneData.scatteringRayleighGround.z = 0.0331f;
-    ptScene->tSceneData.extinctionRayleighGround.x = 0.0058f;
-    ptScene->tSceneData.extinctionRayleighGround.y = 0.0135f;
-    ptScene->tSceneData.extinctionRayleighGround.z = 0.0331f;
-    ptScene->tSceneData.ozoneExtinction.x = 0.00065f;
-    ptScene->tSceneData.ozoneExtinction.y = 0.00188f;
-    ptScene->tSceneData.ozoneExtinction.z = 0.00008f;
-    ptScene->tSceneData.scatteringMieGround = 0.006f;
-    ptScene->tSceneData.extinctionMieGround = 0.00666f;
-    ptScene->tSceneData.mieScatteringExponent = 0.76f;
-    ptScene->tSceneData.tAerialInfo.x = 10.0f; // km
-    ptScene->tSceneData.tAerialInfo.y = 2.0f; // quadratic depth distribution
-    ptScene->tSceneData.tAerialInfo.z = 8.0f; // samples per slice
-    ptScene->tSceneData.tAerialInfo.w = 3.0f; // sun intensity
-    ptScene->tSceneData.fSunRadius = 0.00465f;
-    // ptScene->tSceneData.fSunRadius = (plVec4){1.0f, 0.95f, 0.85f, 0.00465f};
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         ptScene->abSunTransmissionLutDirty[i] = true;
@@ -469,6 +442,36 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     ptScene->tSunTransmissionLutShader = gptShaderVariant->get_compute_shader("sky_transmission_lut", NULL);
     ptScene->tSunMultiscatterShader = gptShaderVariant->get_compute_shader("sky_multiscatter_lut", NULL);
     ptScene->tSkyViewLutShader = gptShaderVariant->get_compute_shader("sky_lut", NULL);
+    ptScene->tSkyAerialLutShader = gptShaderVariant->get_compute_shader("sky_aerial_lut", NULL);
+    ptScene->tSkyAerialShader = gptShaderVariant->get_compute_shader("sky_aerial", NULL);
+    ptScene->tSkyShader = gptShaderVariant->get_shader("sky", NULL, NULL, NULL, &gptData->tTransparentRenderPassLayout);
+
+    // default sky options
+    ptScene->tSkyOptions.tMode = PL_RENDERER_SKY_MODE_REALISTIC;
+    ptScene->tSkyOptions.tFlags = PL_RENDERER_SKY_FLAGS_SHADOWS | PL_RENDERER_SKY_FLAGS_MULTISCATTER | PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE | PL_RENDERER_SKY_FLAGS_LUTS_DIRTY;
+    ptScene->tSkyOptions.tSunColor = (plVec3){1.0f, 0.95f, 0.85f};
+    ptScene->tSkyOptions.tSunDirection = (plVec3){-0.405f, -0.115f, -0.384f};
+    ptScene->tSkyOptions.uShadowCascadeCount = 4;
+    ptScene->tSkyOptions.uShadowResolution = 2048;
+    ptScene->tSkyOptions.fSunIntensity = 3.0f;
+    ptScene->tSkyOptions.fAtmosphereConversion = 0.001f;
+    ptScene->tSkyOptions.fSunRadius = 0.00465f;
+    ptScene->tSkyOptions.fPlanetRadius = 6371.0f; // earth, km
+    ptScene->tSkyOptions.fAtmosphereHeight = 100.0f; // km
+    ptScene->tSkyOptions.tScatteringRayleighGround = (plVec3){0.0058f, 0.0135f, 0.0331f};
+    ptScene->tSkyOptions.tExtinctionRayleighGround = (plVec3){0.0058f, 0.0135f, 0.0331f};
+    ptScene->tSkyOptions.tOzoneExtinction = (plVec3){0.00065f, 0.00188f, 0.00008f};
+    ptScene->tSkyOptions.fScatteringMieGround = 0.006f;
+    ptScene->tSkyOptions.fExtinctionMieGround = 0.00666f;
+    ptScene->tSkyOptions.fMieScatteringExponent = 0.76f;
+    ptScene->tSkyOptions.fMaxAerialDistance = 10.0f; // km
+    ptScene->tSkyOptions.fAerialDepthExponent = 2.0f;
+    ptScene->tSkyOptions.uAerialSamplesPerSlice = 8;
+    ptScene->tSkyOptions.uSkyboxResolution = 1024;
+    ptScene->tSkyOptions.tTransmissionLutResolution = (plVec2){256.0f, 256.0f};
+    ptScene->tSkyOptions.tMultiscatterLutResolution = (plVec2){64.0f, 64.0f};
+    ptScene->tSkyOptions.tSkyLutResolution = (plVec2){200.0f, 100.0f};
+    ptScene->tSkyOptions.tAerialLutResolution = (plVec3){128.0f, 128.0f, 32.0f};
 
     // default fog options
     ptScene->tFogOptions.fDensity = 0.1f;
@@ -487,11 +490,6 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     // default lighting options
     ptScene->tLightingOptions.tFlags = PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED | PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING | PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS;
-    ptScene->tLightingOptions.tSunDirection = (plVec3){0.425f, -1.0f, -0.384f};
-    ptScene->tLightingOptions.tSunColor = (plVec3){1.0f, 1.0f, 1.0f};
-    ptScene->tLightingOptions.uSunCascadeCount = 4;
-    ptScene->tLightingOptions.fSunStrength = 3.0f;
-    ptScene->tLightingOptions.uSunResolution = 2048;
 
     if(gptData->tDeviceInfo.eCapabilities & PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS)
         ptScene->tShadowOptions.tFlags |= PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT;
@@ -857,7 +855,6 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
     ptView->tTonemapOptions.tMode = PL_TONEMAP_MODE_KHRONOS_PBR_NEUTRAL;
 
     // default editor options
-    ptView->tEditorOptions.bShowSkybox = true;
     ptView->tEditorOptions.uOutlineWidth = 4;
     ptView->tEditorOptions.bShowSelectedBoundingBox = true;
     ptView->tEditorOptions.fGridCellSize = 0.025f;
@@ -883,7 +880,7 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
     ptView->pt3DDrawList = gptDraw->request_3d_drawlist();
     ptView->pt3DGizmoDrawList = gptDraw->request_3d_drawlist();
     ptView->pt3DSelectionDrawList = gptDraw->request_3d_drawlist();
-
+    
     return ptView;
 }
 
@@ -935,166 +932,6 @@ pl_renderer_cleanup(void)
     }
 
     PL_FREE(gptData);
-}
-
-void
-pl_renderer_ecs_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int iResolution)
-{
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
-    const int iSamples = 512;
-    plDevice* ptDevice = gptData->ptDevice;
-    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
-
-    int iPanoramaWidth = 0;
-    int iPanoramaHeight = 0;
-    int iUnused = 0;
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "load image");
-    float* pfPanoramaData = gptImage->load_hdr_from_file(pcPath, &iPanoramaWidth, &iPanoramaHeight, &iUnused, 4);
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-    PL_ASSERT(pfPanoramaData);
-
-    const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
-    {
-        int aiSkyboxSpecializationData[] = {iResolution, iPanoramaWidth, iPanoramaHeight};
-        plComputeShaderHandle tPanoramaShader = gptShaderVariant->get_compute_shader("panorama_to_cubemap", aiSkyboxSpecializationData);
-        pl_temp_allocator_reset(&gptData->tTempAllocator);
-
-        plBufferHandle atComputeBuffers[7] = {0};
-        const uint32_t uPanoramaSize = iPanoramaHeight * iPanoramaWidth * 4 * sizeof(float);
-        const plBufferDesc tInputBufferDesc = {
-            .eUsage     = PL_BUFFER_USAGE_STORAGE,
-            .szByteSize = uPanoramaSize,
-            .pcDebugName = "panorama input buffer"
-        };
-        gptStarter->get_staging_buffer(uPanoramaSize, &atComputeBuffers[0], "panorama input");
-        plBuffer* ptComputeBuffer = gptGfx->get_buffer(ptDevice, atComputeBuffers[0]);
-        memcpy(ptComputeBuffer->tMemoryAllocation.pHostMapped, pfPanoramaData, uPanoramaSize);
-        
-        gptImage->free(pfPanoramaData);
-
-        const plBufferDesc tOutputBufferDesc = {
-            .eUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER,
-            .szByteSize = uFaceSize,
-            .pcDebugName = "panorama output buffer"
-        };
-        
-        for(uint32_t i = 0; i < 6; i++)
-            gptStarter->create_buffer(&tOutputBufferDesc, NULL, &atComputeBuffers[i + 1]);
-
-        const plBindGroupDesc tComputeBindGroupDesc = {
-            .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("panorama_to_cubemap", 0),
-            .pcDebugName = "compute bind group"
-        };
-        plBindGroupHandle tComputeBindGroup = gptGfx->create_bind_group(ptDevice, &tComputeBindGroupDesc);
-
-        const plBindGroupUpdateData tBGData = {
-            .atBufferBindings = {
-                { .uSlot = 0, .tBuffer = atComputeBuffers[0], .szBufferRange = uPanoramaSize},
-                { .uSlot = 1, .tBuffer = atComputeBuffers[1], .szBufferRange = uFaceSize},
-                { .uSlot = 2, .tBuffer = atComputeBuffers[2], .szBufferRange = uFaceSize},
-                { .uSlot = 3, .tBuffer = atComputeBuffers[3], .szBufferRange = uFaceSize},
-                { .uSlot = 4, .tBuffer = atComputeBuffers[4], .szBufferRange = uFaceSize},
-                { .uSlot = 5, .tBuffer = atComputeBuffers[5], .szBufferRange = uFaceSize},
-                { .uSlot = 6, .tBuffer = atComputeBuffers[6], .szBufferRange = uFaceSize} 
-            }
-        };
-        gptGfx->update_bind_group(ptDevice, tComputeBindGroup, &tBGData);
-        gptGfx->queue_bind_group_for_deletion(ptDevice, tComputeBindGroup);
-
-        // calculate cubemap data
-        const plDispatch tDispach = {
-            .uGroupCountX     = (uint32_t)iResolution / 16,
-            .uGroupCountY     = (uint32_t)iResolution / 16,
-            .uGroupCountZ     = 2,
-            .uThreadPerGroupX = 16,
-            .uThreadPerGroupY = 16,
-            .uThreadPerGroupZ = 3
-        };
-        
-        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "load skybox 0");
-        gptGfx->begin_command_recording(ptCommandBuffer);
-
-        const plPassResources tPassResources = {
-            .atBuffers = {
-                { .tHandle = atComputeBuffers[0], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ,  .eUsage = PL_BUFFER_USAGE_STORAGE },
-                { .tHandle = atComputeBuffers[1], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
-                { .tHandle = atComputeBuffers[2], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
-                { .tHandle = atComputeBuffers[3], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
-                { .tHandle = atComputeBuffers[4], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
-                { .tHandle = atComputeBuffers[5], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
-                { .tHandle = atComputeBuffers[6], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE }
-            }
-        };
-
-        gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
-        gptGfx->bind_compute_bind_groups(ptCommandBuffer, tPanoramaShader, 0, 1, &tComputeBindGroup, 0, NULL);
-        gptGfx->bind_compute_shader(ptCommandBuffer, tPanoramaShader);
-        gptGfx->dispatch(ptCommandBuffer, 1, &tDispach);
-        gptGfx->end_compute_pass(ptCommandBuffer);
-        gptGfx->end_command_recording(ptCommandBuffer);
-        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-        gptGfx->wait_on_command_buffer(ptCommandBuffer);
-        gptGfx->return_command_buffer(ptCommandBuffer);
-
-        const plTextureDesc tSkyboxTextureDesc = {
-            .tDimensions = {(float)iResolution, (float)iResolution, 1},
-            .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-            .uLayers     = 6,
-            .uMips       = 1,
-            .eType       = PL_TEXTURE_TYPE_CUBE,
-            .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
-            .pcDebugName = "skybox"
-        };
-        gptStarter->create_texture(&tSkyboxTextureDesc, NULL, 0, &ptScene->tSkyboxTexture);
-
-        ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "load skybox 1");
-        gptGfx->begin_command_recording(ptCommandBuffer);
-        gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
-
-        for(uint32_t i = 0; i < 6; i++)
-        {
-            const plBufferImageCopy tBufferImageCopy = {
-                .uImageWidth = iResolution,
-                .uImageHeight = iResolution,
-                .uImageDepth = 1,
-                .uLayerCount    = 1,
-                .szBufferOffset = 0,
-                .uBaseArrayLayer = i,
-            };
-            gptGfx->copy_buffer_to_texture(ptCommandBuffer, atComputeBuffers[i + 1], ptScene->tSkyboxTexture, 1, &tBufferImageCopy);
-        }
-
-        gptGfx->generate_mipmaps(ptCommandBuffer, ptScene->tSkyboxTexture);
-
-        gptGfx->end_compute_pass(ptCommandBuffer);
-        gptGfx->end_command_recording(ptCommandBuffer);
-        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-        gptGfx->wait_on_command_buffer(ptCommandBuffer);
-        gptGfx->return_command_buffer(ptCommandBuffer);
-        
-        for(uint32_t i = 0; i < 7; i++)
-            gptGfx->destroy_buffer(ptDevice, atComputeBuffers[i]);
-
-    
-        const plBindGroupDesc tSkyboxBindGroupDesc = {
-            .ptPool = gptData->ptBindGroupPool,
-            .tLayout = gptShaderVariant->get_graphics_bind_group_layout("skybox", 2),
-            .pcDebugName = "skybox bind group"
-        };
-        ptScene->tSkyboxBindGroup = gptGfx->create_bind_group(ptDevice, &tSkyboxBindGroupDesc);
-
-        {
-            const plBindGroupUpdateData tBGData1 = {
-                .atTextureBindings = {
-                    {.tTexture = ptScene->tSkyboxTexture, .uSlot = 0, .uIndex = 0, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-                }
-            };
-            gptGfx->update_bind_group(ptDevice, ptScene->tSkyboxBindGroup, &tBGData1);
-        }
-    }
-
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
@@ -1257,7 +1094,13 @@ pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
     ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, NULL, &gptData->tDeferredLightingRenderPassLayout);
     ptScene->tTerrainShader = gptShaderVariant->get_shader("terrain", NULL, NULL, NULL, &gptData->tRenderPassLayout);
     ptScene->tTerrainShadowShader = gptShaderVariant->get_shader("terrain_shadow", NULL, NULL, NULL, &gptData->tDepthRenderPassLayout);
-    
+    ptScene->tSunTransmissionLutShader = gptShaderVariant->get_compute_shader("sky_transmission_lut", NULL);
+    ptScene->tSunMultiscatterShader = gptShaderVariant->get_compute_shader("sky_multiscatter_lut", NULL);
+    ptScene->tSkyViewLutShader = gptShaderVariant->get_compute_shader("sky_lut", NULL);
+    ptScene->tSkyAerialLutShader = gptShaderVariant->get_compute_shader("sky_aerial_lut", NULL);
+    ptScene->tSkyAerialShader = gptShaderVariant->get_compute_shader("sky_aerial", NULL);
+    ptScene->tSkyShader = gptShaderVariant->get_shader("sky", NULL, NULL, NULL, &gptData->tTransparentRenderPassLayout);
+
     plGraphicsState tTerrainVariantTemp = {
         .bDepthWriteEnabled  = 1,
         .eDepthMode          = PL_COMPARE_MODE_GREATER,
@@ -1863,6 +1706,29 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         ptScene->tSceneData.iSceneFlags &= ~PL_SCENE_FLAG_HEIGHT_FOG;
     }
 
+    // atmosphere options
+    ptScene->tSceneData.fSunRadius = ptScene->tSkyOptions.fSunRadius;
+    ptScene->tSceneData.planetRadius = ptScene->tSkyOptions.fPlanetRadius;
+    ptScene->tSceneData.tAerialInfo.x = ptScene->tSkyOptions.fMaxAerialDistance;
+    ptScene->tSceneData.tAerialInfo.y = ptScene->tSkyOptions.fAerialDepthExponent;
+    ptScene->tSceneData.tAerialInfo.z = (float)ptScene->tSkyOptions.uAerialSamplesPerSlice;
+    ptScene->tSceneData.tAerialInfo.w = ptScene->tSkyOptions.fSunIntensity;
+    ptScene->tSceneData.fIntensity = ptScene->tSkyOptions.fSunIntensity;
+    ptScene->tSceneData.mieScatteringExponent = ptScene->tSkyOptions.fMieScatteringExponent;
+    ptScene->tSceneData.extinctionMieGround = ptScene->tSkyOptions.fExtinctionMieGround;
+    ptScene->tSceneData.scatteringMieGround = ptScene->tSkyOptions.fScatteringMieGround;
+    ptScene->tSceneData.ozoneExtinction = ptScene->tSkyOptions.tOzoneExtinction;
+    ptScene->tSceneData.extinctionRayleighGround = ptScene->tSkyOptions.tExtinctionRayleighGround;
+    ptScene->tSceneData.scatteringRayleighGround = ptScene->tSkyOptions.tScatteringRayleighGround;
+    ptScene->tSceneData.atmosphereHeight = ptScene->tSkyOptions.fAtmosphereHeight;
+    ptScene->tSceneData.fAtmosphereConversion = ptScene->tSkyOptions.fAtmosphereConversion;
+    ptScene->tSceneData.bMultiScatter = (bool)(ptScene->tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_MULTISCATTER) ? 1 : 0;
+    ptScene->tSceneData.bCascadeDebug = (bool)(ptScene->tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES) ? 1 : 0;
+    ptScene->tSceneData.tColor = ptScene->tSkyOptions.tSunColor;
+    ptScene->tSceneData.tDirection = ptScene->tSkyOptions.tSunDirection;
+    ptScene->tSceneData.iCascadeCount = (int)ptScene->tSkyOptions.uShadowCascadeCount;
+
+    ptScene->tSceneData.g_time = (float)gptIO->dTime;
     ptScene->tSceneData.fFogDensity = ptScene->tFogOptions.fDensity;
     ptScene->tSceneData.fFogHeight = ptScene->tFogOptions.fHeight;
     ptScene->tSceneData.fFogCutOffDistance = ptScene->tFogOptions.fCutOffDistance;
@@ -1873,12 +1739,8 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     ptScene->tSceneData.fFogLinearParam0 = 1.0f / (ptScene->tSceneData.fFogCutOffDistance - ptScene->tSceneData.fFogStart);
     ptScene->tSceneData.fFogLinearParam1 = -ptScene->tSceneData.fFogStart / (ptScene->tSceneData.fFogCutOffDistance - ptScene->tSceneData.fFogStart);
     ptScene->tSceneData.iShadowMapTexIdx = ptScene->uSunShadowAtlasIndex;
-    ptScene->tSceneData.tColor = ptScene->tLightingOptions.tSunColor;
-    ptScene->tSceneData.tDirection = ptScene->tLightingOptions.tSunDirection;
-    ptScene->tSceneData.iCascadeCount = (int)ptScene->tLightingOptions.uSunCascadeCount;
     ptScene->tSceneData.iCastShadow = 1;
-    ptScene->tSceneData.fIntensity = ptScene->tLightingOptions.fSunStrength;
-    ptScene->tSceneData.fFactor = (float)ptScene->tLightingOptions.uSunResolution / (float)ptScene->uSunShadowAtlasResolution;
+    ptScene->tSceneData.fFactor = (float)ptScene->tSkyOptions.uShadowResolution / (float)ptScene->uSunShadowAtlasResolution;
 
     uint32_t uShadowResolution = (uint32_t)ptScene->sbtShadowViewRects[0].iHeight;
     int iX = ptScene->sbtShadowViewRects[0].iX;
@@ -1969,7 +1831,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     
     // atmospheric rendering - sun transmission
     //-----------------------------------------------------------------------------
-    if(ptScene->abSunTransmissionLutDirty[uFrameIdx])
+    if(ptScene->tSkyOptions.tMode == PL_RENDERER_SKY_MODE_REALISTIC && ptScene->abSunTransmissionLutDirty[uFrameIdx])
     {
         plCommandBuffer* ptSunCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "sun transmission");
         gptGfx->begin_command_recording(ptSunCmdBuffer);
@@ -1997,8 +1859,8 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
         // transmission lut
         plDispatch tDispatch0 = {
-            .uGroupCountX = (uint32_t)ceilf(ptScene->tSunTransmissionLutResolution.x / 8.0f),
-            .uGroupCountY = (uint32_t)ceilf(ptScene->tSunTransmissionLutResolution.y / 8.0f),
+            .uGroupCountX = (uint32_t)ceilf(ptScene->tSkyOptions.tTransmissionLutResolution.x / 8.0f),
+            .uGroupCountY = (uint32_t)ceilf(ptScene->tSkyOptions.tTransmissionLutResolution.y / 8.0f),
             .uGroupCountZ = 1,
             .uThreadPerGroupX = 8,
             .uThreadPerGroupY = 8,
@@ -2026,8 +1888,8 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
         // multiscatter lut
         plDispatch tDispatch1 = {
-            .uGroupCountX = (uint32_t)ceilf(ptScene->tSunMultiscatterLutResolution.x / 8.0f),
-            .uGroupCountY = (uint32_t)ceilf(ptScene->tSunMultiscatterLutResolution.y / 8.0f),
+            .uGroupCountX = (uint32_t)ceilf(ptScene->tSkyOptions.tMultiscatterLutResolution.x / 8.0f),
+            .uGroupCountY = (uint32_t)ceilf(ptScene->tSkyOptions.tMultiscatterLutResolution.y / 8.0f),
             .uGroupCountZ = 1,
             .uThreadPerGroupX = 8,
             .uThreadPerGroupY = 8,
@@ -2056,7 +1918,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
         gptGfx->return_command_buffer(ptSunCmdBuffer);
 
-        ptScene->abSunTransmissionLutDirty[uFrameIdx] = false;
+        // ptScene->abSunTransmissionLutDirty[uFrameIdx] = false;
     }
     
     // update environment probes
@@ -2223,66 +2085,136 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
         }
     }
 
-    plCommandBuffer* ptSunCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "sun transmission");
-    gptGfx->begin_command_recording(ptSunCmdBuffer);
+    if(ptScene->tSkyOptions.tMode & PL_RENDERER_SKY_MODE_REALISTIC)
+    {
+        plCommandBuffer* ptSunCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "sun transmission");
+        gptGfx->begin_command_recording(ptSunCmdBuffer);
 
-    plPassResources tPassResources0 = {
-        .atTextures = {
-            {
-                .eUsage  = PL_TEXTURE_USAGE_SAMPLED,
-                .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
-                .eStages = PL_PIPELINE_STAGE_COMPUTE,
-                .tHandle = ptScene->atSunTransmissionLut[uFrameIdx]
-            },
-            {
-                .eUsage  = PL_TEXTURE_USAGE_SAMPLED,
-                .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
-                .eStages = PL_PIPELINE_STAGE_COMPUTE,
-                .tHandle = ptScene->atSunMultiscatterLut[uFrameIdx]
-            },
-            {
-                .eUsage  = PL_TEXTURE_USAGE_STORAGE,
-                .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
-                .eStages = PL_PIPELINE_STAGE_COMPUTE,
-                .tHandle = ptView->atSkyLut[uFrameIdx]
+        plPassResources tPassResources0 = {
+            .atTextures = {
+                {
+                    .eUsage  = PL_TEXTURE_USAGE_SAMPLED,
+                    .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
+                    .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                    .tHandle = ptScene->atSunTransmissionLut[uFrameIdx]
+                },
+                {
+                    .eUsage  = PL_TEXTURE_USAGE_SAMPLED,
+                    .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
+                    .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                    .tHandle = ptScene->atSunMultiscatterLut[uFrameIdx]
+                },
+                {
+                    .eUsage  = PL_TEXTURE_USAGE_STORAGE,
+                    .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
+                    .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                    .tHandle = ptView->atSkyLut[uFrameIdx]
+                }
             }
-        }
-    };
+        };
 
-    gptGfx->begin_compute_pass(ptSunCmdBuffer, &tPassResources0);
-    gptGfx->push_debug_group(ptSunCmdBuffer, "Sky LUT", (plVec4){0.33f, 0.42f, 0.70f, 1.0f});
+        gptGfx->begin_compute_pass(ptSunCmdBuffer, &tPassResources0);
+        gptGfx->push_debug_group(ptSunCmdBuffer, "Sky LUT", (plVec4){0.33f, 0.42f, 0.70f, 1.0f});
 
-    plDispatch tDispatch3 = {
-        .uGroupCountX = (uint32_t)ceilf(ptScene->tSkyLutResolution.x / 8.0f),
-        .uGroupCountY = (uint32_t)ceilf(ptScene->tSkyLutResolution.y / 8.0f),
-        .uGroupCountZ = 1,
-        .uThreadPerGroupX = 8,
-        .uThreadPerGroupY = 8,
-        .uThreadPerGroupZ = 1
-    };
+        plDispatch tDispatch3 = {
+            .uGroupCountX = (uint32_t)ceilf(ptScene->tSkyOptions.tSkyLutResolution.x / 8.0f),
+            .uGroupCountY = (uint32_t)ceilf(ptScene->tSkyOptions.tSkyLutResolution.y / 8.0f),
+            .uGroupCountZ = 1,
+            .uThreadPerGroupX = 8,
+            .uThreadPerGroupY = 8,
+            .uThreadPerGroupZ = 1
+        };
 
-    // vertical blur
-    gptGfx->bind_compute_shader(ptSunCmdBuffer, ptScene->tSkyViewLutShader);
-    plBindGroupHandle atSkyLutBGs[] = {ptScene->atSceneBindGroups[uFrameIdx], ptView->atViewBG[uFrameIdx], ptView->atSkyLutBG2[uFrameIdx] };
-    gptGfx->bind_compute_bind_groups(ptSunCmdBuffer, ptScene->tSkyViewLutShader, 0, PL_ARRAYSIZE(atSkyLutBGs), atSkyLutBGs, 0, NULL);
+        // vertical blur
+        gptGfx->bind_compute_shader(ptSunCmdBuffer, ptScene->tSkyViewLutShader);
+        plBindGroupHandle atSkyLutBGs[] = {ptScene->atSceneBindGroups[uFrameIdx], ptView->atViewBG[uFrameIdx], ptView->atSkyLutBG2[uFrameIdx] };
+        gptGfx->bind_compute_bind_groups(ptSunCmdBuffer, ptScene->tSkyViewLutShader, 0, PL_ARRAYSIZE(atSkyLutBGs), atSkyLutBGs, 0, NULL);
 
-    gptGfx->dispatch(ptSunCmdBuffer, 1, &tDispatch3);
+        gptGfx->dispatch(ptSunCmdBuffer, 1, &tDispatch3);
 
-    gptGfx->pop_debug_group(ptSunCmdBuffer);
-    gptGfx->end_compute_pass(ptSunCmdBuffer);
+        gptGfx->pop_debug_group(ptSunCmdBuffer);
+        gptGfx->end_compute_pass(ptSunCmdBuffer);
 
-    gptGfx->end_command_recording(ptSunCmdBuffer);
+        gptGfx->end_command_recording(ptSunCmdBuffer);
 
-    const plSubmitInfo tSunTransmissionSubmitInfo = {
-        .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
-        .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-    };
-    gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
-    gptGfx->return_command_buffer(ptSunCmdBuffer);
+        const plSubmitInfo tSunTransmissionSubmitInfo = {
+            .uWaitSemaphoreCount     = 1,
+            .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+            .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+            .uSignalSemaphoreCount   = 1,
+            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+        };
+        gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
+        gptGfx->return_command_buffer(ptSunCmdBuffer);
+    }
+
+    if(ptScene->tSkyOptions.tMode == PL_RENDERER_SKY_MODE_REALISTIC && ptScene->tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE)
+    {
+        plCommandBuffer* ptSunCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "sun aerial lut");
+        gptGfx->begin_command_recording(ptSunCmdBuffer);
+
+        plPassResources tPassResources0 = {
+            .atTextures = {
+                {
+                    .eUsage  = PL_TEXTURE_USAGE_SAMPLED,
+                    .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
+                    .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                    .tHandle = ptScene->atSunTransmissionLut[uFrameIdx]
+                },
+                {
+                    .eUsage  = PL_TEXTURE_USAGE_SAMPLED,
+                    .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
+                    .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                    .tHandle = ptScene->atSunMultiscatterLut[uFrameIdx]
+                },
+                {
+                    .eUsage  = PL_TEXTURE_USAGE_STORAGE,
+                    .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
+                    .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                    .tHandle = ptView->atSkyAerialLut[uFrameIdx]
+                }
+            }
+        };
+
+        gptGfx->begin_compute_pass(ptSunCmdBuffer, &tPassResources0);
+        gptGfx->push_debug_group(ptSunCmdBuffer, "Sky aerial LUT", (plVec4){0.33f, 0.72f, 0.70f, 1.0f});
+
+        plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(uint32_t) * 8);
+        uint32_t* ptDynamicData = (uint32_t*)tDynamicBinding.pcData;
+        *ptDynamicData = 0; // camera index
+
+        plDispatch tDispatch2 = {
+            .uGroupCountX = (uint32_t)roundf(ptScene->tSkyOptions.tAerialLutResolution.x / 8.0f),
+            .uGroupCountY = (uint32_t)roundf(ptScene->tSkyOptions.tAerialLutResolution.y / 8.0f),
+            .uGroupCountZ = 1,
+            .uThreadPerGroupX = 8,
+            .uThreadPerGroupY = 8,
+            .uThreadPerGroupZ = 1
+        };
+
+        gptGfx->bind_compute_shader(ptSunCmdBuffer, ptScene->tSkyAerialLutShader);
+        plBindGroupHandle atSkyLutBGs[] = {ptScene->atSceneBindGroups[uFrameIdx], ptView->atViewBG[uFrameIdx], ptView->atSkyAerialLutBG2[uFrameIdx] };
+        gptGfx->bind_compute_bind_groups(ptSunCmdBuffer, ptScene->tSkyAerialLutShader, 0, PL_ARRAYSIZE(atSkyLutBGs), atSkyLutBGs, 1, &tDynamicBinding);
+
+        gptGfx->dispatch(ptSunCmdBuffer, 1, &tDispatch2);
+
+        gptGfx->pop_debug_group(ptSunCmdBuffer);
+        gptGfx->end_compute_pass(ptSunCmdBuffer);
+
+        gptGfx->end_command_recording(ptSunCmdBuffer);
+
+        const plSubmitInfo tSunTransmissionSubmitInfo = {
+            .uWaitSemaphoreCount     = 1,
+            .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+            .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+            .uSignalSemaphoreCount   = 1,
+            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+        };
+        gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
+        gptGfx->return_command_buffer(ptSunCmdBuffer);
+    }
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
@@ -2503,7 +2435,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         );
 
         for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
-            pl__render_chunk(ptScene, ptScene->ptTerrain, ptCamera, ptSceneCmdBuffer, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &ptCamera->tViewProjMat, 0);
+            pl__render_chunk(ptScene, ptScene->ptTerrain, ptCamera, ptSceneCmdBuffer, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, 0);
 
         gptGfx->pop_debug_group(ptSceneCmdBuffer);
     }
@@ -2593,10 +2525,24 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     gptGfx->push_debug_group(ptSceneCmdBuffer, "Forward Lighting", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
 
     // skybox
-    if(ptScene->tSkyboxTexture.uIndex != 0 && ptView->tEditorOptions.bShowSkybox)
+    if(ptScene->tSkyOptions.tMode == PL_RENDERER_SKY_MODE_SKYBOX && ptScene->tSkyboxTexture.uIndex != 0)
     {
         plMat4 tTransformMat = pl_mat4_translate_vec3(ptCamera->tPositionF);
         pl__render_view_skybox_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tTransformMat, &tArea, 0);
+    }
+    else if(ptScene->tSkyOptions.tMode == PL_RENDERER_SKY_MODE_REALISTIC)
+    {
+        plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(uint32_t) * 16);
+        uint32_t* ptDynamicData = (uint32_t*)tDynamicBinding.pcData;
+        *ptDynamicData = 0; // camera index
+        gptGfx->bind_shader(ptSceneCmdBuffer, ptScene->tSkyShader);
+        plBindGroupHandle atSkyBGs[] = {ptScene->atSceneBindGroups[uFrameIdx], ptView->atViewBG[uFrameIdx], ptView->atSkyBG2[uFrameIdx] };
+        gptGfx->bind_graphics_bind_groups(ptSceneCmdBuffer, ptScene->tSkyShader, 0, PL_ARRAYSIZE(atSkyBGs), atSkyBGs, 1, &tDynamicBinding);
+        plDraw tDraw = {
+            .uInstanceCount = 1,
+            .uVertexCount = 3
+        };
+        gptGfx->draw(ptSceneCmdBuffer, 1, &tDraw);
     }
     
     plForwardPassInfo tForwardPassInfo = {
@@ -2610,7 +2556,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     gptGfx->pop_debug_group(ptSceneCmdBuffer);
 
     // end main render pass
-    gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_FRAGMENT | PL_PIPELINE_STAGE_VERTEX, PL_PIPELINE_STAGE_VERTEX, PL_BARRIER_SCOPE_ALL);
+    gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_FRAGMENT | PL_PIPELINE_STAGE_VERTEX, PL_PIPELINE_STAGE_VERTEX | PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL);
     gptGfx->end_render_pass(ptSceneCmdBuffer);
 
     // blit for transmission
@@ -2697,6 +2643,9 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     };
     gptGfx->submit_command_buffer(ptSceneCmdBuffer, &tSceneSubmitInfo);
     gptGfx->return_command_buffer(ptSceneCmdBuffer);
+
+    if(ptScene->tSkyOptions.tMode == PL_RENDERER_SKY_MODE_REALISTIC && ptScene->tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE)
+        pl__render_view_aerial_pass(ptView);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~jump flood outline work~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2872,6 +2821,18 @@ pl_renderer_begin_frame(void)
         if(!(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
             continue;
 
+        if(ptScene->tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_LUTS_DIRTY)
+        {
+            pl__renderer_scene_create_sky_luts_textures(ptScene);
+            pl__renderer_scene_update_sky_luts_bindgroups(ptScene);
+        }
+
+        if(ptScene->tSkyOptions.tMode == PL_RENDERER_SKY_MODE_SKYBOX && !gptGfx->is_texture_valid(ptDevice, ptScene->tSkyboxTexture))
+        {
+            pl__renderer_scene_load_skybox_from_panorama(ptScene, ptScene->tSkyOptions.acSkyboxPath, ptScene->tSkyOptions.uSkyboxResolution);
+        }
+        
+
         if(ptScene->uMaterialDirtyValue > 0)
         {
                 const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
@@ -2932,6 +2893,12 @@ pl_renderer_begin_frame(void)
         {
             plView* ptView = ptScene->sbptViews[uViewIndex];
 
+            if(ptScene->tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_LUTS_DIRTY)
+            {
+                pl__renderer_view_create_sky_luts_textures(ptView);
+                pl__renderer_view_update_sky_luts_bindgroups(ptView);
+            }
+
             if(ptView->auHoverResultProcessing[uFrameIdx])
             {
                 PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Picking Retrieval");
@@ -2948,6 +2915,8 @@ pl_renderer_begin_frame(void)
                 PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
             }
         }
+
+        ptScene->tSkyOptions.tFlags &= ~PL_RENDERER_SKY_FLAGS_LUTS_DIRTY;
     }
 
     // gptStarter->return_readback_buffer(&gptData->tReadbackBuffer);
@@ -3442,6 +3411,19 @@ pl_renderer_set_fog_options(plScene* ptScene, const plRendererFogOptions* ptOpti
         ptScene->tFogOptions = *ptOptions;
 }
 
+void pl_renderer_get_sky_options(plScene* ptScene, plRendererSkyOptions* ptOptions)
+{
+    if(ptScene)
+        *ptOptions = ptScene->tSkyOptions;
+}
+
+void
+pl_renderer_set_sky_options(plScene* ptScene, const plRendererSkyOptions* ptOptions)
+{
+    if(ptScene)
+        ptScene->tSkyOptions = *ptOptions;
+}
+
 void
 pl_renderer_get_shadow_options(plScene* ptScene, plRendererShadowOptions* ptOptions)
 {
@@ -3816,7 +3798,6 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
 
     plJsonObject* ptAssetsObject = pl_json_member(ptRootJsonObject, "assets");
     plJsonObject* ptModelsObject = pl_json_member(ptAssetsObject, "models");
-    plJsonObject* ptEnvironmentsObject = pl_json_member(ptAssetsObject, "environments");
 
     plIO* ptIO = gptIOI->get_io();
 
@@ -3854,6 +3835,7 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     plRendererShadowOptions tShadowOptions = PL_ZERO_INIT;
     plRendererBloomOptions tBloomOptions = PL_ZERO_INIT;
     plRendererFogOptions tFogOptions = PL_ZERO_INIT;
+    plRendererSkyOptions tSkyOptions = PL_ZERO_INIT;
     
     pl_renderer_get_bloom_options(ptDataOut->ptView, &tBloomOptions);
     pl_renderer_get_shadow_options(ptDataOut->ptScene, &tShadowOptions);
@@ -3863,6 +3845,7 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     pl_renderer_editor_get_view_options(ptDataOut->ptView, &tEditorViewOptions);
     pl_renderer_debug_get_scene_options(ptDataOut->ptScene, &tDebugOptions);
     pl_renderer_get_fog_options(ptDataOut->ptScene, &tFogOptions);
+    pl_renderer_get_sky_options(ptDataOut->ptScene, &tSkyOptions);
 
     plJsonObject* ptSceneObject = pl_json_member(ptRootJsonObject, "scene");
     plJsonObject* ptViewObject = pl_json_member(ptRootJsonObject, "view");
@@ -3874,7 +3857,6 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     tDebugOptions.bShowOrigin = pl_json_bool_member(ptDebugObject, "bShowOrigin", false);
     tDebugOptions.bShowProbes = pl_json_bool_member(ptDebugObject, "bShowProbes", false);
     tDebugOptions.bShowProbeRange = pl_json_bool_member(ptDebugObject, "bShowProbeRange", false);
-    tEditorViewOptions.bShowSkybox = pl_json_bool_member(ptEditorObject, "bShowSkybox", true);
     tEditorViewOptions.bShowGrid = pl_json_bool_member(ptEditorObject, "bShowGrid", false);
     tEditorViewOptions.bShowSelectedBoundingBox = pl_json_bool_member(ptEditorObject, "bShowSelectedBoundingBox", false);
     tEditorViewOptions.fGridCellSize = pl_json_float_member(ptEditorObject, "fGridCellSize", 0.025f);
@@ -3883,6 +3865,67 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     pl_json_float_array_member(ptEditorObject, "tGridColorThick", tEditorViewOptions.tGridColorThick.d, NULL);
 
     plJsonObject* ptRendererObject = pl_json_member(ptViewObject, "renderer");
+
+    plJsonObject* ptSkyObject = pl_json_member(ptRendererObject, "sky");
+    if(ptSkyObject)
+    {
+        if(pl_json_member_exist(ptSkyObject, "tFlags"))
+        {
+            tSkyOptions.tFlags = 0;
+            char acFlag0[64] = {0};
+            char acFlag1[64] = {0};
+            char acFlag2[64] = {0};
+            char acFlag3[64] = {0};
+            char acFlag4[64] = {0};
+            char acFlag5[64] = {0};
+            char* aacFlags[] = {acFlag0, acFlag1, acFlag2, acFlag3, acFlag4, acFlag5};
+            uint32_t auLengths[] = {64, 64, 64, 64, 64, 64};
+            uint32_t uFlagCount = 0;
+            pl_json_string_array_member(ptSkyObject, "tFlags", aacFlags, &uFlagCount, auLengths);
+            for(uint32_t k = 0; k < uFlagCount; k++)
+            {
+                
+                if(aacFlags[k][22] == 'M')      tSkyOptions.tFlags |= PL_RENDERER_SKY_FLAGS_MULTISCATTER;
+                else if(aacFlags[k][22] == 'A') tSkyOptions.tFlags |= PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE;
+                else if(aacFlags[k][22] == 'S') tSkyOptions.tFlags |= PL_RENDERER_SKY_FLAGS_SHADOWS;
+            }
+        }
+
+        char acSkyMode[64] = {0};
+        pl_json_string_member(ptSkyObject, "tMode", acSkyMode, 64);
+        if(acSkyMode[21] == 'S')      tSkyOptions.tMode = PL_RENDERER_SKY_MODE_SKYBOX;
+        else if(acSkyMode[21] == 'R') tSkyOptions.tMode = PL_RENDERER_SKY_MODE_REALISTIC;
+        else                          tSkyOptions.tMode = PL_RENDERER_SKY_MODE_NONE;
+
+
+        tSkyOptions.fSunIntensity = pl_json_float_member(ptSkyObject, "fSunIntensity", tSkyOptions.fSunIntensity);
+        tSkyOptions.fAtmosphereConversion = pl_json_float_member(ptSkyObject, "fAtmosphereConversion", tSkyOptions.fAtmosphereConversion);
+        tSkyOptions.fSunRadius = pl_json_float_member(ptSkyObject, "fSunRadius", tSkyOptions.fSunRadius);
+        tSkyOptions.fPlanetRadius = pl_json_float_member(ptSkyObject, "fPlanetRadius", tSkyOptions.fPlanetRadius);
+        tSkyOptions.fAtmosphereHeight = pl_json_float_member(ptSkyObject, "fAtmosphereHeight", tSkyOptions.fAtmosphereHeight);
+        tSkyOptions.fScatteringMieGround = pl_json_float_member(ptSkyObject, "fScatteringMieGround", tSkyOptions.fScatteringMieGround);
+        tSkyOptions.fExtinctionMieGround = pl_json_float_member(ptSkyObject, "fExtinctionMieGround", tSkyOptions.fExtinctionMieGround);
+        tSkyOptions.fMieScatteringExponent = pl_json_float_member(ptSkyObject, "fMieScatteringExponent", tSkyOptions.fMieScatteringExponent);
+        tSkyOptions.fMaxAerialDistance = pl_json_float_member(ptSkyObject, "fMaxAerialDistance", tSkyOptions.fMaxAerialDistance);
+        tSkyOptions.fAerialDepthExponent = pl_json_float_member(ptSkyObject, "fAerialDepthExponent", tSkyOptions.fAerialDepthExponent);
+        tSkyOptions.uAerialSamplesPerSlice = pl_json_uint_member(ptSkyObject, "uAerialSamplesPerSlice", tSkyOptions.uAerialSamplesPerSlice);
+        tSkyOptions.uShadowResolution = pl_json_uint_member(ptSkyObject, "uShadowResolution", tSkyOptions.uShadowResolution);
+        tSkyOptions.uShadowCascadeCount = pl_json_uint_member(ptSkyObject, "uShadowCascadeCount", tSkyOptions.uShadowCascadeCount);
+        tSkyOptions.uSkyboxResolution = pl_json_uint_member(ptSkyObject, "uSkyboxResolution", tSkyOptions.uSkyboxResolution);
+
+        pl_json_float_array_member(ptSkyObject, "tTransmissionLutResolution", tSkyOptions.tTransmissionLutResolution.d, NULL);
+        pl_json_float_array_member(ptSkyObject, "tSkyLutResolution", tSkyOptions.tSkyLutResolution.d, NULL);
+        pl_json_float_array_member(ptSkyObject, "tMultiscatterLutResolution", tSkyOptions.tMultiscatterLutResolution.d, NULL);
+        pl_json_float_array_member(ptSkyObject, "tAerialLutResolution", tSkyOptions.tAerialLutResolution.d, NULL);
+
+        pl_json_float_array_member(ptSkyObject, "tSunColor", tSkyOptions.tSunColor.d, NULL);
+        pl_json_float_array_member(ptSkyObject, "tSunDirection", tSkyOptions.tSunDirection.d, NULL);
+        pl_json_float_array_member(ptSkyObject, "tScatteringRayleighGround", tSkyOptions.tScatteringRayleighGround.d, NULL);
+        pl_json_float_array_member(ptSkyObject, "tExtinctionRayleighGround", tSkyOptions.tExtinctionRayleighGround.d, NULL);
+        pl_json_float_array_member(ptSkyObject, "tOzoneExtinction", tSkyOptions.tOzoneExtinction.d, NULL);
+
+        pl_json_string_member(ptSkyObject, "acSkyboxPath", tSkyOptions.acSkyboxPath, 256);
+    }
 
     plJsonObject* ptLightingObject = pl_json_member(ptRendererObject, "lighting");
 
@@ -3901,11 +3944,6 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
             else if(aacFlags[k][27] == 'P') tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS;
         }
     }
-    tLightingOptions.fSunStrength = pl_json_float_member(ptLightingObject, "fSunStrength", 3.0f);
-    tLightingOptions.uSunCascadeCount = pl_json_uint_member(ptLightingObject, "uSunCascadeCount", 4);
-    tLightingOptions.uSunResolution = pl_json_uint_member(ptLightingObject, "uSunResolution", 2048);
-    pl_json_float_array_member(ptLightingObject, "tSunDirection", tLightingOptions.tSunDirection.d, NULL);
-    pl_json_float_array_member(ptLightingObject, "tSunColor", tLightingOptions.tSunColor.d, NULL);
 
     plJsonObject* ptShadowsObject = pl_json_member(ptRendererObject, "shadows");
     tShadowOptions.fSlopeDepthBias = pl_json_float_member(ptShadowsObject, "fSlopeDepthBias", -1.750f);
@@ -3985,6 +4023,7 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     pl_renderer_set_bloom_options(ptDataOut->ptView, &tBloomOptions);
     pl_renderer_set_fog_options(ptDataOut->ptScene, &tFogOptions);
     pl_renderer_set_shadow_options(ptDataOut->ptScene, &tShadowOptions);
+    pl_renderer_set_sky_options(ptDataOut->ptScene, &tSkyOptions);
     pl_renderer_debug_set_scene_options(ptDataOut->ptScene, &tDebugOptions);
     pl_renderer_editor_reload_scene_shaders(ptDataOut->ptScene);
 
@@ -4032,23 +4071,6 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     #ifndef PL_LANGUAGE_PYTHON
     gptScript->attach(ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptDataOut->tMainCamera, NULL);
     #endif
-
-    plJsonObject* ptSkyboxObject = pl_json_member(ptSceneObject, "skybox");
-    if(ptSkyboxObject)
-    {
-        uint32_t uSkyboxResolution = pl_json_uint_member(ptSkyboxObject, "resolution", 1024);
-        char acSkyboxAlias[128] = {0};
-        
-        pl_json_string_member(ptSkyboxObject, "environment", acSkyboxAlias, 128);
-
-        plJsonObject* ptEnvironmentObject = pl_json_member(ptEnvironmentsObject, acSkyboxAlias);
-
-        if(ptEnvironmentObject)
-        {
-            const char* acSkyboxPath = pl_json_as_string(ptEnvironmentObject);
-            pl_renderer_ecs_load_skybox_from_panorama(ptDataOut->ptScene, acSkyboxPath, uSkyboxResolution);
-        }
-    }
 
     uint32_t uProbeCount = 0;
     plJsonObject* ptProbesObject = pl_json_array_member(ptSceneObject, "probes", &uProbeCount);
@@ -4305,6 +4327,8 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi0.get_fog_options               = pl_renderer_get_fog_options;
     tApi0.set_bloom_options             = pl_renderer_set_bloom_options;
     tApi0.get_bloom_options             = pl_renderer_get_bloom_options;
+    tApi0.get_sky_options               = pl_renderer_get_sky_options;
+    tApi0.set_sky_options               = pl_renderer_set_sky_options;
     tApi0.set_tonemap_options           = pl_renderer_set_tonemap_options;
     tApi0.get_tonemap_options           = pl_renderer_get_tonemap_options;
     tApi0.load_test_world               = pl_renderer_load_test_world;
@@ -4338,7 +4362,6 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi2.add_lights_to_scene                 = pl_renderer_ecs_add_lights_to_scene;
     tApi2.add_materials_to_scene              = pl_renderer_ecs_add_materials_to_scene;
     tApi2.update_scene_materials              = pl_renderer_ecs_update_scene_materials;
-    tApi2.load_skybox_from_panorama           = pl_renderer_ecs_load_skybox_from_panorama;
 
     plRendererDebugI tApi3 = {0};
     tApi3.get_drawlist            = pl_renderer_debug_get_drawlist;

@@ -480,7 +480,7 @@ void main()
     vec3 f_dielectric_brdf = vec3(0.0);
     vec3 f_metal_brdf = vec3(0.0);
 
-    uint cascadeIndex = 0;
+    uint cascadeIndex = tGpuScene.tData.iCascadeCount - 1;
     const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
     {
 
@@ -517,12 +517,19 @@ void main()
                 {
                     for(int j = 0; j < iCascadeCount - 1; j++)
                     {
-                        if(viewDepth > tViewInfo.tData.afCascadeSplits[j])
-                            cascadeIndex = j + 1;
+                        if(viewDepth <= tViewInfo.tData.afCascadeSplits[j])
+                        {
+                            cascadeIndex = j;
+                            break;
+                        }
                     }
                 }
+                else
+                {
+                    cascadeIndex = 0;
+                }
 
-                if(cascadeIndex < 4)
+                // if(cascadeIndex < 4)
                 {
                     vec4 shadowCoord = (abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex]) * tWorldPos2;
                     // cascadeIndex = j;
@@ -1136,22 +1143,21 @@ void main()
         outColor = fogLinear(outColor, vraw);
     }
 
-
-    // if(gl_FragCoord.x < 600.0)
-    // {
-    //     switch(cascadeIndex) {
-    //         case 0 : 
-    //             outColor.rgb *= vec3(1.0f, 0.25f, 0.25f);
-    //             break;
-    //         case 1 : 
-    //             outColor.rgb *= vec3(0.25f, 1.0f, 0.25f);
-    //             break;
-    //         case 2 : 
-    //             outColor.rgb *= vec3(0.25f, 0.25f, 1.0f);
-    //             break;
-    //         case 3 : 
-    //             outColor.rgb *= vec3(1.0f, 1.0f, 0.25f);
-    //             break;
-    //     }
-    // }
+    if(tGpuScene.tData.bCascadeDebug == 1)
+    {
+        switch(cascadeIndex) {
+            case 0 : 
+                outColor.rgb *= vec3(1.0f, 0.25f, 0.25f);
+                break;
+            case 1 : 
+                outColor.rgb *= vec3(0.25f, 1.0f, 0.25f);
+                break;
+            case 2 : 
+                outColor.rgb *= vec3(0.25f, 0.25f, 1.0f);
+                break;
+            case 3 : 
+                outColor.rgb *= vec3(1.0f, 1.0f, 0.25f);
+                break;
+        }
+    }
 }

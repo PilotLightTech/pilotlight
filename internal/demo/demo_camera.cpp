@@ -44,10 +44,10 @@ pl__camera_update_imgui(plCamera* ptCamera)
         
         if(bRMB)
         {
-            if(ImGui::IsKeyDown(ImGuiKey_W)) gptCamera->translate(ptCamera, {  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime});
-            if(ImGui::IsKeyDown(ImGuiKey_S)) gptCamera->translate(ptCamera, {  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime});
-            if(ImGui::IsKeyDown(ImGuiKey_A)) gptCamera->translate(ptCamera, { -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
-            if(ImGui::IsKeyDown(ImGuiKey_D)) gptCamera->translate(ptCamera, {  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
+            if(ImGui::IsKeyDown(ImGuiKey_W)) gptCamera->translate_local(ptCamera, {  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime});
+            if(ImGui::IsKeyDown(ImGuiKey_S)) gptCamera->translate_local(ptCamera, {  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime});
+            if(ImGui::IsKeyDown(ImGuiKey_A)) gptCamera->translate_local(ptCamera, {  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
+            if(ImGui::IsKeyDown(ImGuiKey_D)) gptCamera->translate_local(ptCamera, { -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
 
             // world space
             if(ImGui::IsKeyDown(ImGuiKey_Q)) { gptCamera->translate(ptCamera, {0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f}); }

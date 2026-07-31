@@ -106,6 +106,7 @@ void main()
     //     slopeBlend);
 
     outAlbedo = zone0 * w0 + zone1 * w1 + zone2 * w2;
+    // outAlbedo = vec4(0.2, 0.2, 0.2, 1.0);
 
     outNormal = Encode(normal);
     outAOMetalnessRoughness = vec4(1.0, 1.0, 1.0, 1.0);

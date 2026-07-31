@@ -234,7 +234,7 @@ PL_BEGIN_STRUCT(plGpuSceneData)
     float fIntensity;
     float fSunRadius;
     float fAtmosphereConversion;
-    int _unused0;
+    int bCascadeDebug;
 
     int iBrdfLutIndex;
     int iSceneFlags;
@@ -296,12 +296,6 @@ PL_END_STRUCT(plGpuSceneData)
 
 PL_BEGIN_STRUCT(plGpuViewData)
 
-    // int _unused0;
-    // int iCascadeCount;
-    // int iCastShadow;
-    // float fIntensity;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
-
     vec4 afCascadeSplits;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
@@ -313,12 +307,13 @@ PL_BEGIN_STRUCT(plGpuViewData)
     float fAspectRatio;
     float _fUnused0;
     float _fUnused1;
-    int   iCameraProjectType;
-
+    float _fUnused2;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    
     int iTransmissionFrameBufferIndex;
     float fCameraRange;
     float fCameraNearZ;
-    float _fUnused2;
+    int   iCameraProjectType;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     vec4 tViewportSize;

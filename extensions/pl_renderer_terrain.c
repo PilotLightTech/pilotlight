@@ -78,8 +78,18 @@ static void pl__make_unresident  (plTerrain*, plTerrainChunk*);
 static bool pl__terrain_load(plTerrain* ptTerrain, plTerrainProcessInfo* ptInfo);
 void pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk);
 
-static void pl__render_chunk(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, const plMat4* ptMVP, uint32_t);
-static void pl__render_chunk_shadow(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, const plMat4* ptMVP, uint32_t);
+static void pl__render_chunk(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t);
+static void
+pl__render_chunk_shadow(
+    plScene* ptScene,
+    plTerrain* ptTerrain,
+    const plCamera* ptCamera,
+    plCommandBuffer* ptCmdBuffer,
+    plTerrainChunk* ptChunk,
+    plTerrainChunkFile* ptFile,
+    uint32_t uGlobalIndex,
+    float fShadowViewportWidth,
+    float fShadowViewportHeight);
 
 static void pl__free_chunk_until(plTerrain* P, uint64_t idx_bytes_needed, uint64_t vtx_bytes_needed);
 
@@ -590,7 +600,7 @@ pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 }
 
 static void
-pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, const plMat4* ptMVP, uint32_t uGlobalIndex)
+pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -701,12 +711,21 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     {
         // Descend into children
         for(uint32_t i = 0; i < 4; i++)
-            pl__render_chunk(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk->aptChildren[i], ptFile, ptMVP, uGlobalIndex);
+            pl__render_chunk(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk->aptChildren[i], ptFile, uGlobalIndex);
     }
 }
 
 static void
-pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera , plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, const plMat4* ptMVP, uint32_t uGlobalIndex)
+pl__render_chunk_shadow(
+    plScene* ptScene,
+    plTerrain* ptTerrain,
+    const plCamera* ptCamera,
+    plCommandBuffer* ptCmdBuffer,
+    plTerrainChunk* ptChunk,
+    plTerrainChunkFile* ptFile,
+    uint32_t uGlobalIndex,
+    float fShadowViewportWidth,
+    float fShadowViewportHeight)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -715,43 +734,66 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
         .tMax = ptChunk->tMaxBound
     };
 
-    // if(ptChunk->uLevel < 3)
-    //     return;
-
+    // This should work for orthographic cameras as long as the camera's
+    // frustum planes were built from its orthographic projection.
     // if(!pl__renderer_sat_visibility_test(ptCamera, &tAABB))
     //     return;
-
-    plVec3 tClosestPoint = gptCollision->point_closest_point_aabb(ptCamera->tPositionF, tAABB);
-    float fDistance = fabsf(pl_length_vec3(pl_sub_vec3(tClosestPoint, ptCamera->tPositionF)));
 
     pl__request_residency(ptTerrain, ptChunk);
 
     if(ptChunk->ptIndexHole == NULL)
         return;
-    
-    float fViewportWidth = gptIOI->get_io()->tMainViewportSize.x;
-    float fHorizontalFieldOfView = 2.0f * atanf(tanf(0.5f * ptCamera->fYFov) * ptCamera->fAspectRatio);
 
-    float fK = fViewportWidth / (2.0f * tanf(0.5f * fHorizontalFieldOfView));
+    // Geometric error is measured in world units.
+    float fGeometricError =
+        ptFile->fMaxBaseError * (float)ptChunk->uLevel;
 
-    float fGeometricError = ptFile->fMaxBaseError * (float)ptChunk->uLevel;
-    float fRho = fGeometricError * fK / fDistance;
+    // Orthographic projection has constant screen-space scale.
+    //
+    // Adjust the matrix member access for your actual plMat4 layout.
+    const float fProjectionScaleX =
+        fabsf(ptCamera->tProjMat.col[0].x);
 
+    const float fProjectionScaleY =
+        fabsf(ptCamera->tProjMat.col[1].y);
 
-    float tauSubdivide = ptTerrain->tRuntimeOptions.fTau;
-    float tauMerge     = tauSubdivide * 0.5f;
+    const float fPixelsPerWorldUnitX =
+        0.5f * fShadowViewportWidth * fProjectionScaleX;
 
-    bool bChildrenResident = pl__all_children_resident(ptChunk);
+    const float fPixelsPerWorldUnitY =
+        0.5f * fShadowViewportHeight * fProjectionScaleY;
 
-    // Decide refinement using hysteresis
-    if(!bChildrenResident || fRho <= tauSubdivide || ptChunk->uLevel < 3)
+    // Conservative choice: refine according to the axis with the
+    // greatest pixel density.
+    const float fPixelsPerWorldUnit =
+        pl_max(fPixelsPerWorldUnitX, fPixelsPerWorldUnitY);
+
+    const float fRho =
+        fGeometricError * fPixelsPerWorldUnit;
+
+    const float fTauSubdivide =
+        ptTerrain->tRuntimeOptions.fTau;
+
+    const float fTauMerge =
+        fTauSubdivide * 0.5f;
+
+    const bool bChildrenResident =
+        pl__all_children_resident(ptChunk);
+
+    if(!bChildrenResident ||
+       fRho <= fTauSubdivide ||
+       ptChunk->uLevel < 3)
     {
         const plDrawIndex tDraw = {
             .uIndexCount    = ptChunk->uIndexCount,
-            .uVertexStart   = (uint32_t)(ptChunk->ptVertexHole->uOffset / sizeof(plTerrainVertex)),
-            .uIndexStart    = (uint32_t)(ptChunk->ptIndexHole->uOffset / sizeof(uint32_t)),
+            .uVertexStart   = (uint32_t)(
+                ptChunk->ptVertexHole->uOffset /
+                sizeof(plTerrainVertex)),
+            .uIndexStart    = (uint32_t)(
+                ptChunk->ptIndexHole->uOffset /
+                sizeof(uint32_t)),
             .tIndexBuffer   = ptTerrain->tIndexBuffer,
-            .uInstanceCount = 1 // uCascadeCount
+            .uInstanceCount = 1
         };
 
         gptGfx->draw_indexed(ptCmdBuffer, 1, &tDraw);
@@ -759,28 +801,41 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
 
         pl__touch_chunk(ptTerrain, ptChunk);
 
-        // --- Hysteresis refinement logic ---
-        if(fRho > tauSubdivide)
+        if(fRho > fTauSubdivide)
         {
-            // Need children soon – schedule them
             for(uint32_t i = 0; i < 4; i++)
             {
                 if(ptChunk->aptChildren[i])
-                    pl__request_residency(ptTerrain, ptChunk->aptChildren[i]);
+                {
+                    pl__request_residency(
+                        ptTerrain,
+                        ptChunk->aptChildren[i]);
+                }
             }
         }
-        else if(fRho < tauMerge)
+        else if(fRho < fTauMerge)
         {
-            // Clearly low detail – unload children
             pl__unload_children(ptTerrain, ptChunk);
         }
-        // else: middle band → keep current state, prevent thrash
     }
     else
     {
-        // Descend into children
         for(uint32_t i = 0; i < 4; i++)
-            pl__render_chunk_shadow(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk->aptChildren[i], ptFile, ptMVP, uGlobalIndex);
+        {
+            if(ptChunk->aptChildren[i])
+            {
+                pl__render_chunk_shadow(
+                    ptScene,
+                    ptTerrain,
+                    ptCamera,
+                    ptCmdBuffer,
+                    ptChunk->aptChildren[i],
+                    ptFile,
+                    uGlobalIndex,
+                    fShadowViewportWidth,
+                    fShadowViewportHeight);
+            }
+        }
     }
 }
 

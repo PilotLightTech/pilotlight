@@ -10,13 +10,13 @@
             ],
             "atSamplerBindings": [
                 { "uSlot": 4, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"] },
-                { "uSlot": 5, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 5, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"] },
                 { "uSlot": 6, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
                 { "uSlot": 7, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ],
             "atTextureBindings": [
-                { "uSlot":    8, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "uDescriptorCount": 4096, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]},
-                { "uSlot": 4104, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "uDescriptorCount": 4096, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]}
+                { "uSlot":    8, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "uDescriptorCount": 4096, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"]},
+                { "uSlot": 4104, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "uDescriptorCount": 4096, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"]}
             ]
         },
         {
@@ -194,6 +194,36 @@
             ]
         },
         {
+            "pcName": "sky_aerial_lut",
+            "tShader": { "file": "pl_sky_aerial_lut.comp"},
+            "atBindGroupLayouts": [
+                { "pcName": "scene" },
+                { "pcName": "view" },
+                {
+                    "atTextureBindings": [
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 2, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ]
+                }
+            ]
+        },
+        {
+            "pcName": "sky_aerial",
+            "tShader": { "file": "pl_sky_aerial.comp"},
+            "atBindGroupLayouts": [
+                { "pcName": "scene" },
+                { "pcName": "view" },
+                {
+                    "atTextureBindings": [
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 2, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ]
+                }
+            ]
+        },
+        {
             "pcName": "cube_filter_specular",
             "tShader": { "file": "pl_cube_filter_specular.comp"},
             "atBindGroupLayouts": [
@@ -315,6 +345,38 @@
                 {
                     "atTextureBindings": [
                         { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                    ]
+                }
+            ]
+        },
+        {
+            "pcName": "sky",
+            "tVertexShader":    { "file": "pl_full_screen.vert"},
+            "tFragmentShader":  { "file": "pl_sky.frag"},
+            "tGraphicsState": {
+                "bDepthWriteEnabled":  false,
+                "eDepthMode":          "PL_COMPARE_MODE_EQUAL",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  false,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
+            },
+            "atBlendStates": [
+                { "bBlendEnabled": false }
+            ],
+            "atBindGroupLayouts": [
+                { "pcName": "scene" },
+                { "pcName": "view"  },
+                {
+                    "atTextureBindings": [
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                        { "uSlot": 1, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
                     ]
                 }
             ]
@@ -928,7 +990,7 @@
             "tGraphicsState": {
                 "bDepthWriteEnabled":  true,
                 "eDepthMode":          "PL_COMPARE_MODE_GREATER",
-                "eCullMode":           "PL_CULL_MODE_CULL_BACK",
+                "eCullMode":           "PL_CULL_MODE_NONE",
                 "bWireframe":          false,
                 "eDepthClampEnabled":  false,
                 "bStencilTestEnabled": false,
