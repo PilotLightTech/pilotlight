@@ -538,9 +538,10 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     //-----------------------------------------------------------------------------
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
-    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED)    iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
-    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
-    if(ptScene->tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF)                iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED)     iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING)  iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PUNCTUAL;
+    if(ptScene->tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF)                 iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
 
     // create lighting shader
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, ptScene->tDebugOptions.tShaderDebugMode};
@@ -1095,9 +1096,10 @@ pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
     pl_sb_reset(ptScene->sbtOutlinedEntities);
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
-    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED)    iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
-    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
-    if(ptScene->tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF)                iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED)     iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING)  iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PUNCTUAL;
+    if(ptScene->tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF)                 iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
         
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, ptScene->tDebugOptions.tShaderDebugMode};
     
@@ -3055,9 +3057,10 @@ pl_renderer_ecs_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObject
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     int iSceneWideRenderingFlags = 0;
-    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED)    iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
-    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
-    if(ptScene->tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF)                iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED)     iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING)  iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PUNCTUAL;
+    if(ptScene->tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF)                 iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
         
     ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY;
 

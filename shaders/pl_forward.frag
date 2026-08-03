@@ -482,6 +482,8 @@ void main()
 
     uint cascadeIndex = tGpuScene.tData.iCascadeCount - 1;
     const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
+    const bool bPunctual = bool(iRenderingFlags & PL_RENDERING_FLAG_PUNCTUAL);
+    if(bPunctual)
     {
 
         // main sun light
@@ -591,7 +593,7 @@ void main()
             vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
 
 
-            if (NdotL > 0.0 || NdotV > 0.0)
+            if (NdotL > 0.0 && NdotV > 0.0)
             {
                 
                 vec3 intensity = tGpuScene.tData.fIntensity * tGpuScene.tData.tColor;
@@ -736,7 +738,7 @@ void main()
             vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
 
 
-            if (NdotL > 0.0 || NdotV > 0.0)
+            if (NdotL > 0.0 && NdotV > 0.0)
             {
                 
                 vec3 intensity = getLightIntensity(tLightData, pointToLight);
@@ -873,7 +875,7 @@ void main()
             vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
 
 
-            if (NdotL > 0.0 || NdotV > 0.0)
+            if (NdotL > 0.0 && NdotV > 0.0)
             {
                 
                 vec3 intensity = getLightIntensity(tLightData, pointToLight);
@@ -1021,7 +1023,7 @@ void main()
             vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
 
 
-            if (NdotL > 0.0 || NdotV > 0.0)
+            if (NdotL > 0.0 && NdotV > 0.0)
             {
                 
                 vec3 intensity = getLightIntensity(tLightData, pointToLight);
@@ -1094,13 +1096,13 @@ void main()
 
                 if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
                 {
-                    l_clearcoat_brdf = intensity * getPunctualRadianceClearCoat(materialInfo.clearcoatNormal, v, l, h, VdotH,
+                    l_clearcoat_brdf = shadow * intensity * getPunctualRadianceClearCoat(materialInfo.clearcoatNormal, v, l, h, VdotH,
                         materialInfo.clearcoatF0, materialInfo.clearcoatF90, materialInfo.clearcoatRoughness);
                 }
 
                 if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
                 {
-                    l_sheen = intensity * getPunctualRadianceSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor, NdotL, NdotV, NdotH);
+                    l_sheen = shadow * intensity * getPunctualRadianceSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor, NdotL, NdotV, NdotH);
                     l_albedoSheenScaling = min(1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor),
                         1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotL, materialInfo.sheenRoughnessFactor));
                 }

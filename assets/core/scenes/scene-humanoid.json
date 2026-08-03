@@ -49,7 +49,7 @@
             "sky": {
                 "tSunColor": [1.0, 0.95, 0.85],
                 "tSunDirection": [0.425, -1.0, -0.384],
-                "fSunIntensity": 8.0,
+                "fSunIntensity": 1.0,
                 "uShadowCascadeCount": 4,
                 "uShadowResolution": 2048,
                 "tMode": "PL_RENDERER_SKY_MODE_SKYBOX",

@@ -155,7 +155,7 @@ void main()
         vec3 metal_fresnel = pl_fresnel_schlick(materialInfo.baseColor, vec3(1.0), abs(clampedDot(v, h)));
 
 
-        if (NdotL > 0.0 || NdotV > 0.0)
+        if (NdotL > 0.0 && NdotV > 0.0)
         {
 
             vec3 intensity = getLightIntensity(tLightData, pointToLight);

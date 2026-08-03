@@ -2923,7 +2923,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         for(uint32_t i = 1; i < tChain.uMipCount; i++)
         {
             // copy memory to mapped staging buffer
-            memcpy(&ptReadbackBuffer->tMemoryAllocation.pHostMapped[uStageOffset], tChain.atLevels[i].pData, tChain.atLevels[i].szFaceStride);
+            memcpy(&ptReadbackBuffer->tMemoryAllocation.pHostMapped[uStageOffset], tChain.atLevels[i].pData, tChain.atLevels[i].szFaceStride * 6);
             
 
             const plBufferImageCopy tBufferImageCopy = {
@@ -6005,10 +6005,20 @@ pl__renderer_view_create_textures(plView* ptView)
         .pcDebugName   = "emissive texture"
     };
 
+    const plTextureDesc tAOMetalRoughnessTextureDesc = {
+        .tDimensions   = tNewDimensions,
+        .eFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "emissive texture"
+    };
+
     gptStarter->create_texture(&tRawOutputTextureDesc, NULL, 0, &ptView->tRawOutputTexture);
     gptStarter->create_texture(&tAlbedoTextureDesc, NULL, 0, &ptView->tAlbedoTexture);
     gptStarter->create_texture(&tNormalTextureDesc, NULL, 0, &ptView->tNormalTexture);
-    gptStarter->create_texture(&tEmmissiveTexDesc, NULL, 0, &ptView->tAOMetalRoughnessTexture);
+    gptStarter->create_texture(&tAOMetalRoughnessTextureDesc, NULL, 0, &ptView->tAOMetalRoughnessTexture);
     gptStarter->create_texture(&tDepthTextureDesc, NULL, 0, &ptView->tDepthTexture);
     gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture0);
     gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture1);
