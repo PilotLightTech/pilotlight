@@ -538,6 +538,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     //-----------------------------------------------------------------------------
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NO_SHADOWS)      iSceneWideRenderingFlags &= ~PL_RENDERING_FLAG_SHADOWS;
     if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED)     iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
     if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING)  iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
     if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PUNCTUAL;
@@ -1096,6 +1097,7 @@ pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
     pl_sb_reset(ptScene->sbtOutlinedEntities);
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NO_SHADOWS)      iSceneWideRenderingFlags &= ~PL_RENDERING_FLAG_SHADOWS;
     if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED)     iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
     if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING)  iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
     if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PUNCTUAL;
@@ -3057,6 +3059,7 @@ pl_renderer_ecs_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObject
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     int iSceneWideRenderingFlags = 0;
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NO_SHADOWS)      iSceneWideRenderingFlags &= ~PL_RENDERING_FLAG_SHADOWS;
     if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED)     iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
     if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING)  iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
     if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PUNCTUAL;
@@ -4035,15 +4038,22 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
         char acFlag0[64] = {0};
         char acFlag1[64] = {0};
         char acFlag2[64] = {0};
-        char* aacFlags[] = {acFlag0, acFlag1, acFlag2};
-        uint32_t auLengths[] = {64, 64, 64};
+        char acFlag3[64] = {0};
+        char* aacFlags[] = {acFlag0, acFlag1, acFlag2, acFlag3};
+        uint32_t auLengths[] = {64, 64, 64, 64};
         uint32_t uFlagCount = 0;
         pl_json_string_array_member(ptLightingObject, "tFlags", aacFlags, &uFlagCount, auLengths);
         for(uint32_t k = 0; k < uFlagCount; k++)
         {
             if(aacFlags[k][27] == 'I')      tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED;
-            else if(aacFlags[k][27] == 'N') tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING;
             else if(aacFlags[k][27] == 'P') tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS;
+            else if(aacFlags[k][27] == 'N')
+            {
+                if(aacFlags[k][29] == 'R')
+                    tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING;
+                else
+                    tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_NO_SHADOWS;
+            }
         }
     }
 
@@ -4330,35 +4340,44 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
                 tHandle = gptModelLoader->load_stl(ptComponentLibrary, acModelPath, tColor, &tTransformation);
 
             const plModelLoaderData* ptLoaderData = gptModelLoader->get_objects(tHandle);
-            bool bResult = pl_renderer_ecs_add_drawable_objects_to_scene(ptDataOut->ptScene, ptLoaderData->uObjectCount, ptLoaderData->atObjects);
+            if(ptLoaderData)
+                pl_renderer_ecs_add_drawable_objects_to_scene(ptDataOut->ptScene, ptLoaderData->uObjectCount, ptLoaderData->atObjects);
 
-            plJsonObject* ptAnimationObject = pl_json_member(ptEntityObject, "animation");
-            if(ptAnimationObject)
+            uint32_t uAnimationCount = 0;
+            plJsonObject* ptAnimationsObject = pl_json_array_member(ptEntityObject, "animations", &uAnimationCount);
+            if(ptAnimationsObject)
             {
-                char acAnimationName[64] = {0};
-                pl_json_string_member(ptAnimationObject, "clip", acAnimationName, 64);
 
-                plEntity tAnimation = {0};
-                bool bAnimationFound = gptModelLoader->get_animation_by_name(tHandle, acAnimationName, &tAnimation);
-
-                if(bAnimationFound)
+                for(uint32_t j = 0; j < uAnimationCount; j++)
                 {
-                    plAnimationComponent* ptAnimation = gptECS->get_component(ptComponentLibrary,
-                        gptAnimation->get_ecs_type_key_animation(), tAnimation);
-                    char acFlag0[64] = {0};
-                    char acFlag1[64] = {0};
-                    char* aacFlags[2] = {acFlag0, acFlag1};
-                    uint32_t auLengths[] = {64, 64};
-                    uint32_t uFlagCount = 0;
-                    pl_json_string_array_member(ptAnimationObject, "tFlags", aacFlags, &uFlagCount, auLengths);
-                    for(uint32_t k = 0; k < uFlagCount; k++)
+                    plJsonObject* ptAnimationObject = pl_json_member_by_index(ptAnimationsObject, j);
+
+                    char acAnimationName[64] = {0};
+                    pl_json_string_member(ptAnimationObject, "clip", acAnimationName, 64);
+
+                    plEntity tAnimation = {0};
+                    bool bAnimationFound = gptModelLoader->get_animation_by_name(tHandle, acAnimationName, &tAnimation);
+
+                    if(bAnimationFound)
                     {
-                        if(aacFlags[k][18] == 'P')      ptAnimation->tFlags |= PL_ANIMATION_FLAG_PLAYING;
-                        else if(aacFlags[k][18] == 'L') ptAnimation->tFlags |= PL_ANIMATION_FLAG_LOOPED;
+                        plAnimationComponent* ptAnimation = gptECS->get_component(ptComponentLibrary,
+                            gptAnimation->get_ecs_type_key_animation(), tAnimation);
+                        char acFlag0[64] = {0};
+                        char acFlag1[64] = {0};
+                        char* aacFlags[2] = {acFlag0, acFlag1};
+                        uint32_t auLengths[] = {64, 64};
+                        uint32_t uFlagCount = 0;
+                        pl_json_string_array_member(ptAnimationObject, "tFlags", aacFlags, &uFlagCount, auLengths);
+                        for(uint32_t k = 0; k < uFlagCount; k++)
+                        {
+                            if(aacFlags[k][18] == 'P')      ptAnimation->tFlags |= PL_ANIMATION_FLAG_PLAYING;
+                            else if(aacFlags[k][18] == 'L') ptAnimation->tFlags |= PL_ANIMATION_FLAG_LOOPED;
+                        }
                     }
                 }
             }
-            gptModelLoader->free_data(tHandle);
+            if(ptLoaderData)
+                gptModelLoader->free_data(tHandle);
         }
     }
 

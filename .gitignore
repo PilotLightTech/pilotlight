@@ -15,6 +15,7 @@ cache/
 # assets
 assets/development
 assets/gltf-samples
+assets/user
 assets/*.zip
 
 # python

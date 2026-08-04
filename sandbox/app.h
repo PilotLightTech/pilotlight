@@ -161,6 +161,12 @@ typedef struct _plSandboxSceneFile
     char acTemplate[PL_MAX_PATH_LENGTH];
 } plSandboxSceneFile;
 
+typedef struct _plSandboxEnvironment
+{
+    char acName[PL_MAX_PATH_LENGTH];
+    char acPath[PL_MAX_PATH_LENGTH];
+} plSandboxEnvironment;
+
 typedef struct _plAppData
 {
 
@@ -229,8 +235,14 @@ typedef struct _plAppData
 
     // scene file info
     char acCurrentScene[PL_MAX_PATH_LENGTH];
-    plSandboxSceneFile* sbtSceneFiles;
-    int iSelectedScene;
+    plSandboxEnvironment* sbtSceneEnvironments;
+    plSandboxSceneFile* sbtSceneFilesCore;
+    plSandboxSceneFile* sbtSceneFilesDev;
+    plSandboxSceneFile* sbtSceneFilesUser;
+    int iSelectedSceneCore;
+    int iSelectedSceneDev;
+    int iSelectedSceneUser;
+    int iSelectedEnvironment;
 
     plTestWorldData tTestWorld;
 

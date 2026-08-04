@@ -143,10 +143,12 @@
                     "translation": [0.0, 0.0, 0.0],
                     "rotation": [0.0, 0.0, 0.0, 1.0]
                 },
-                "animation": {
-                    "clip": "dance",
-                    "tFlags": ["PL_ANIMATION_FLAG_PLAYING", "PL_ANIMATION_FLAG_LOOPED"]
-                }
+                "animations": [
+                    {
+                        "clip": "dance",
+                        "tFlags": ["PL_ANIMATION_FLAG_PLAYING", "PL_ANIMATION_FLAG_LOOPED"]
+                    }
+                ]
             },
             {
                 "active": true,

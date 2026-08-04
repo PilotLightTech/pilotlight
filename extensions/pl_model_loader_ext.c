@@ -1112,7 +1112,10 @@ pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animati
 
     plAnimationComponent* ptAnimationComp = NULL;
     plEntity tAnimationEntity = gptAnimation->create(ptLibrary, ptAnimation->name, (uint32_t)ptAnimation->channels_count, &ptAnimationComp);
-    pl_hm64_insert_str(&gptModelLoaderCtx->sbtModels[ptSceneData->tHandle.uIndex].tAnimationHashmap, ptAnimation->name, tAnimationEntity.uData);
+    const char* pcAnimationName = ptAnimation->name;
+    if(pcAnimationName == NULL)
+        pcAnimationName = "unnamed animation";
+    pl_hm64_insert_str(&gptModelLoaderCtx->sbtModels[ptSceneData->tHandle.uIndex].tAnimationHashmap, pcAnimationName, tAnimationEntity.uData);
 
     // load channels
     for(size_t i = 0; i < ptAnimation->channels_count; i++)

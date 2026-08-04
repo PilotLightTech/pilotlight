@@ -93,7 +93,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // defaults
     ptAppData->tSelectedEntity.uData = UINT64_MAX;
     ptAppData->bVSync = true;
-    ptAppData->iSelectedScene = -1;
+    ptAppData->iSelectedSceneCore = -1;
+    ptAppData->iSelectedSceneDev = -1;
+    ptAppData->iSelectedSceneUser = -1;
+    ptAppData->iSelectedEnvironment = 0;
 
     gptConfig->load_from_disk(nullptr);
     ptAppData->bShowEntityWindow = gptConfig->load_bool("bShowEntityWindow", false);
@@ -284,7 +287,10 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     gptJobs->cleanup();
     pl_sb_free(ptAppData->sbcTempBuffer);
-    pl_sb_free(ptAppData->sbtSceneFiles);
+    pl_sb_free(ptAppData->sbtSceneFilesCore);
+    pl_sb_free(ptAppData->sbtSceneFilesDev);
+    pl_sb_free(ptAppData->sbtSceneFilesUser);
+    pl_sb_free(ptAppData->sbtSceneEnvironments);
 
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
@@ -605,42 +611,45 @@ pl_app_update(plAppData* ptAppData)
         // main "editor" debug window
         pl__show_editor_window(ptAppData);
 
-        pl__show_entity_components(ptAppData, ptAppData->tTestWorld.ptScene, ptAppData->tSelectedEntity);
-
-        ImGui::SetNextWindowViewport(ImGui::GetMainViewport()->ID);
-        ptAppData->bMainViewHovered = false;
-        if(ImGui::Begin("Offscreen", nullptr, ImGuiWindowFlags_NoTitleBar))
+        if(ptAppData->tTestWorld.ptScene)
         {
-            if(ImGui::IsWindowHovered())
-                ptAppData->bMainViewHovered = true;
+            pl__show_entity_components(ptAppData, ptAppData->tTestWorld.ptScene, ptAppData->tSelectedEntity);
 
-            ImVec2 tContextSize = ImGui::GetContentRegionAvail();
-            ImVec2 tCursorStart = ImGui::GetCursorScreenPos();
-            ImVec2 tHoverMousePos = ImGui::GetMousePos();
-            
-            ptAppData->tView0Offset = {
-                tCursorStart.x - ImGui::GetWindowViewport()->Pos.x,
-                tCursorStart.y - ImGui::GetWindowViewport()->Pos.y
-            };
-
-            tLogOffset.x = ptAppData->tView0Offset.x;
-            tLogOffset.y = ptAppData->tView0Offset.y;
-
-            if(ptAppData->tTestWorld.ptScene)
+            ImGui::SetNextWindowViewport(ImGui::GetMainViewport()->ID);
+            ptAppData->bMainViewHovered = false;
+            if(ImGui::Begin("Offscreen", nullptr, ImGuiWindowFlags_NoTitleBar))
             {
-                ptAppData->tView0Scale = {
-                    tContextSize.x / ImGui::GetWindowViewport()->Size.x,
-                    tContextSize.y / ImGui::GetWindowViewport()->Size.y,
+                if(ImGui::IsWindowHovered())
+                    ptAppData->bMainViewHovered = true;
+
+                ImVec2 tContextSize = ImGui::GetContentRegionAvail();
+                ImVec2 tCursorStart = ImGui::GetCursorScreenPos();
+                ImVec2 tHoverMousePos = ImGui::GetMousePos();
+                
+                ptAppData->tView0Offset = {
+                    tCursorStart.x - ImGui::GetWindowViewport()->Pos.x,
+                    tCursorStart.y - ImGui::GetWindowViewport()->Pos.y
                 };
 
-                plVec2 tUV = {};
-                plBindGroupHandle tTextureHandle = gptRenderer->get_view_color_bind_group(ptAppData->tTestWorld.ptView, &tUV);
-                ImTextureRef tTexture = ImTextureRef(tTextureHandle.uData);
-                ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUV.x, tUV.y));
+                tLogOffset.x = ptAppData->tView0Offset.x;
+                tLogOffset.y = ptAppData->tView0Offset.y;
 
+                if(ptAppData->tTestWorld.ptScene)
+                {
+                    ptAppData->tView0Scale = {
+                        tContextSize.x / ImGui::GetWindowViewport()->Size.x,
+                        tContextSize.y / ImGui::GetWindowViewport()->Size.y,
+                    };
+
+                    plVec2 tUV = {};
+                    plBindGroupHandle tTextureHandle = gptRenderer->get_view_color_bind_group(ptAppData->tTestWorld.ptView, &tUV);
+                    ImTextureRef tTexture = ImTextureRef(tTextureHandle.uData);
+                    ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUV.x, tUV.y));
+
+                }
             }
+            ImGui::End();
         }
-        ImGui::End();
     }
 
     if(ptAppData->tMode != PL_SANDBOX_MODE_GAME)
@@ -716,84 +725,13 @@ pl__show_editor_window(plAppData* ptAppData)
 
     bool bSceneExists = ptAppData->tTestWorld.ptScene != nullptr;
 
-    if(ImGui::Begin("Pilot Light", nullptr, ImGuiWindowFlags_None))
+    if(!bSceneExists)
     {
-        ImGui::Dummy({25.0f, 15.0f});
-        if(ImGui::CollapsingHeader(ICON_FA_CIRCLE_INFO " Information"))
+        plIO* ptIO = gptIO->get_io();
+        ImGui::SetNextWindowPos({ptIO->tMainViewportSize.x * 0.25f, ptIO->tMainViewportSize.y * 0.25f});
+        ImGui::SetNextWindowSize({ptIO->tMainViewportSize.x / 2.0f, ptIO->tMainViewportSize.y / 2.0f});
+        if(ImGui::Begin("Select Scene", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoDocking))
         {
-            ImGui::Text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-            ImGui::Text("Graphics Backend: %s", gptGfx->get_backend_string());
-
-            ImGui::SeparatorText("Controls");
-            ImGui::BulletText("F1 - bring up console");
-            ImGui::BulletText("F2 - change to editor mode");
-            ImGui::BulletText("F3 - change to game debug mode");
-            ImGui::BulletText("F4 - change to game mode");
-            ImGui::BulletText("M  - change gizmo mode");
-
-            if(ImGui::Button("Show Camera Controls"))
-            {
-                const char* acMouseInfo = "Camera Controls\n"
-                "_______________\n"
-                "LMB + Drag: Moves camera forward & backward and rotates left & right.\n\n"
-                "RMB + Drag: Rotates camera.\n\n"
-                "LMB + RMB + Drag: Pans Camera\n\n"
-                "Mouse Wheel: Speed\n\n"
-                "Game style (when holding RMB)\n"
-                "_____________________________\n"
-                "W    Moves the camera forward.\n"
-                "S    Moves the camera backward.\n"
-                "A    Moves the camera left.\n"
-                "D    Moves the camera right.\n"
-                "E    Moves the camera up.\n"
-                "Q    Moves the camera down.\n"
-                "Z    Zooms the camera out (raises FOV).\n"
-                "C    Zooms the camera in (lowers FOV).\n";
-                gptScreenLog->add_message_ex(651984984, 45.0, PL_COLOR_32_GREEN, 1.5f, acMouseInfo);
-            }
-        }
-
-        if(ImGui::CollapsingHeader(ICON_FA_SLIDERS " App Options"))
-        {
-
-            plScreenLogFlags tScreenLogFlags = gptScreenLog->get_flags();
-
-            if(ImGui::Checkbox("VSync", &ptAppData->bVSync))
-            {
-                if(ptAppData->bVSync)
-                    gptStarter->activate_vsync();
-                else
-                    gptStarter->deactivate_vsync();
-            }
-
-            // if(ImGui::Checkbox("UI MSAA", &ptAppData->tTestWorld.bMSAA))
-            // {
-            //     if(ptAppData->tTestWorld.bMSAA)
-            //         gptStarter->activate_msaa();
-            //     else
-            //         gptStarter->deactivate_msaa();
-            // }
-
-            ImGui::Checkbox("Frustum Culling", &ptAppData->tTestWorld.bFrustumCulling);
-            if(ImGui::CheckboxFlags("Hide Screen Log", &tScreenLogFlags, PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES))
-                gptScreenLog->set_flags(tScreenLogFlags);
-        }
-
-        if(ImGui::CollapsingHeader(ICON_FA_PHOTO_FILM " Scene"))
-        {
-            if(ptAppData->tTestWorld.ptScene && ImGui::Button("Unload"))
-            {
-                gptPhysics->reset();
-                gptEcs->reset_library(ptAppData->ptCompLibrary);
-                gptRenderer->unload_test_world(&ptAppData->tTestWorld);
-                pl__refresh_files(ptAppData);
-                ptAppData->iSelectedScene = -1;
-                ImGui::SameLine();
-            }
-
-            if(ptAppData->tTestWorld.ptScene)
-                ImGui::SameLine();
-
             if(ImGui::Button("Refresh"))
                 pl__refresh_files(ptAppData);
 
@@ -804,22 +742,35 @@ pl__show_editor_window(plAppData* ptAppData)
             }
             ptAppData->filter.Draw(ICON_FA_MAGNIFYING_GLASS);
 
-            if(ImGui::BeginListBox("Scenes"))
+            static int iSceneGroup = 0;
+            // ImGui::GetTextLineHeight
+            ImGui::AlignTextToFramePadding();
+            ImGui::Text("Scene Group: ");
+            ImGui::SameLine();
+            ImGui::RadioButton("Core", &iSceneGroup, 0);
+            ImGui::SameLine();
+            ImGui::RadioButton("Dev", &iSceneGroup, 1);
+            ImGui::SameLine();
+            ImGui::RadioButton("User", &iSceneGroup, 2);
+
+            if(iSceneGroup == 0 && ImGui::BeginListBox("Scenes", {-75.0f, -1.0f}))
             {
                 
-                uint32_t uSceneCount = pl_sb_size(ptAppData->sbtSceneFiles);
+                uint32_t uSceneCount = pl_sb_size(ptAppData->sbtSceneFilesCore);
 
                 for (uint32_t n = 0; n < uSceneCount; n++)
                 {
-                    if (ptAppData->filter.PassFilter(ptAppData->sbtSceneFiles[n].acName))
+                    if (ptAppData->filter.PassFilter(ptAppData->sbtSceneFilesCore[n].acName))
                     {
-                        bool bPlaceHolder = ptAppData->iSelectedScene == n;
-                        if(ImGui::Selectable(ptAppData->sbtSceneFiles[n].acName, &bPlaceHolder))
+                        bool bPlaceHolder = ptAppData->iSelectedSceneCore == n;
+                        if(ImGui::Selectable(ptAppData->sbtSceneFilesCore[n].acName, &bPlaceHolder))
                         {
                             if(ptAppData->tTestWorld.ptScene)
                                 gptRenderer->unload_test_world(&ptAppData->tTestWorld);
-                            ptAppData->iSelectedScene = n;
-                            pl_sprintf(ptAppData->acCurrentScene, "%s", ptAppData->sbtSceneFiles[n].acTemplate);
+                            ptAppData->iSelectedSceneCore = n;
+                            ptAppData->iSelectedSceneDev = -1;
+                            ptAppData->iSelectedSceneUser = -1;
+                            pl_sprintf(ptAppData->acCurrentScene, "%s", ptAppData->sbtSceneFilesCore[n].acTemplate);
                             gptRenderer->load_test_world(ptAppData->acCurrentScene, ptAppData->ptCompLibrary, &ptAppData->tTestWorld);
 
                             // if(ptAppData->tTestWorld.bMSAA)
@@ -836,386 +787,557 @@ pl__show_editor_window(plAppData* ptAppData)
                 ImGui::EndListBox();
             }
 
-            ImGui::Checkbox("Dynamic BVH", &ptAppData->bContinuousBVH);
-            if(ptAppData->tTestWorld.ptScene && (ImGui::Button("Build BVH") || ptAppData->bContinuousBVH))
-                gptRendererEditor->rebuild_scene_bvh(ptAppData->tTestWorld.ptScene);
-        }
-
-        if(ImGui::CollapsingHeader(ICON_FA_DICE_D6 " Renderer"))
-        {
-            if(ImGui::CheckboxFlags("Image Based Lighting", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED))
-                bReloadShaders = true;
-
-            if(ImGui::CheckboxFlags("Punctual Lighting", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS))
-                bReloadShaders = true;
-            
-            if(ImGui::CheckboxFlags("Normal Mapping", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING))
-                bReloadShaders = true;
-
-            if(ImGui::CheckboxFlags("MultiViewport Shadows", &tShadowOptions.tFlags, PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT))
-                bReloadShaders = true;
-
-            if(ImGui::CheckboxFlags("PCF Shadows", &tShadowOptions.tFlags, PL_RENDERER_SHADOW_FLAGS_PCF))
-                bReloadShaders = true;
-
-            ImGui::InputFloat("Depth Bias", &tShadowOptions.fConstantDepthBias);
-            ImGui::InputFloat("Slope Depth Bias", &tShadowOptions.fSlopeDepthBias);
-            ImGui::InputFloat("Max Shadow Range", &tShadowOptions.fMaxShadowRange);
-
-            if(ImGui::Button("Reload Shaders"))
-                bReloadShaders = true;
-
-        }
-
-        if(ImGui::CollapsingHeader(ICON_FA_CLOUD_SUN " Sky Options"))
-        {
-            bool bProbesDirty = false;
-            if(ImGui::RadioButton("Method: None", &tSkyOptions.tMode, PL_RENDERER_SKY_MODE_NONE)) bProbesDirty = true;
-            if(ImGui::RadioButton("Method: Skybox", &tSkyOptions.tMode, PL_RENDERER_SKY_MODE_SKYBOX)) bProbesDirty = true;
-            if(ImGui::RadioButton("Method: Realistic", &tSkyOptions.tMode, PL_RENDERER_SKY_MODE_REALISTIC)) bProbesDirty = true;
-
-
-            if(bProbesDirty)
+            if(iSceneGroup == 1 && ImGui::BeginListBox("Scenes", {-75.0f, -1.0f}))
             {
-                plRendererSceneFlags tSceneFlags = gptRenderer->get_scene_flags(ptAppData->tTestWorld.ptScene);
-                tSceneFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
-                gptRenderer->set_scene_flags(ptAppData->tTestWorld.ptScene, tSceneFlags);
-            }
+                
+                uint32_t uSceneCount = pl_sb_size(ptAppData->sbtSceneFilesDev);
 
-            if(tSkyOptions.tMode != PL_RENDERER_SKY_MODE_NONE)
-            {
-
-                static int saiSkyLutRes[2] = {0};
-                static int saiTransmissionLutRes[2] = {0};
-                static int saiMultiscatterLutRes[2] = {0};
-                static int saiAerialLutRes[3] = {0};
-                if(saiSkyLutRes[0] == 0) // first run
+                for (uint32_t n = 0; n < uSceneCount; n++)
                 {
-                    saiSkyLutRes[0] = (int)tSkyOptions.tSkyLutResolution.x;
-                    saiSkyLutRes[1] = (int)tSkyOptions.tSkyLutResolution.y;
-
-                    saiTransmissionLutRes[0] = (int)tSkyOptions.tTransmissionLutResolution.x;
-                    saiTransmissionLutRes[1] = (int)tSkyOptions.tTransmissionLutResolution.y;
-
-                    saiMultiscatterLutRes[0] = (int)tSkyOptions.tMultiscatterLutResolution.x;
-                    saiMultiscatterLutRes[1] = (int)tSkyOptions.tMultiscatterLutResolution.y;
-
-                    saiAerialLutRes[0] = (int)tSkyOptions.tAerialLutResolution.x;
-                    saiAerialLutRes[1] = (int)tSkyOptions.tAerialLutResolution.y;
-                    saiAerialLutRes[2] = (int)tSkyOptions.tAerialLutResolution.z;
-                }
-
-                ImGui::InputFloat("Sun Intensity", &tSkyOptions.fSunIntensity);
-                ImGui::InputFloat3("Sun Color", tSkyOptions.tSunColor.d);
-                ImGui::ColorPicker3("Sun Color", tSkyOptions.tSunColor.d);
-
-                tSkyOptions.tSunDirection = pl_norm_vec3(tSkyOptions.tSunDirection);
-                float fSunPitch = asinf(pl_clampf(-1.0f, tSkyOptions.tSunDirection.y, 1.0f));
-                float fSunYaw   = atan2f(tSkyOptions.tSunDirection.x, tSkyOptions.tSunDirection.z);
-
-                bool bChanged = false;
-                bChanged |= ImGui::SliderAngle("Sun Pitch", &fSunPitch, -89.9f, 89.9f, 0);
-                bChanged |= ImGui::SliderAngle("Sun Yaw", &fSunYaw, -180.0f, 180.0f, 0);
-                if(bChanged)
-                {
-                    const float fCosPitch = cosf(fSunPitch);
-                    tSkyOptions.tSunDirection.x = fCosPitch * sinf(fSunYaw);
-                    tSkyOptions.tSunDirection.y = sinf(fSunPitch);
-                    tSkyOptions.tSunDirection.z = fCosPitch * cosf(fSunYaw);
-                    tSkyOptions.tSunDirection = pl_norm_vec3(tSkyOptions.tSunDirection);
-                }
-
-                ImGui::CheckboxFlags("Shadow Mapping", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_SHADOWS);
-                if(tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_SHADOWS)
-                {
-                    ImGui::SeparatorText("Shadows");
-                    int iSunResolution = (int)tSkyOptions.uShadowResolution;
-                    ImGui::RadioButton("Shadow Resolution: Low", &iSunResolution, 1024);
-                    ImGui::RadioButton("Shadow Resolution: Medium", &iSunResolution, 2048);
-                    ImGui::RadioButton("Shadow Resolution: High", &iSunResolution, 4096);
-                    tSkyOptions.uShadowResolution = (uint32_t)iSunResolution;
-                    int iShadowCascadeCount = (int)tSkyOptions.uShadowCascadeCount;
-                    ImGui::SliderInt("Cascades", &iShadowCascadeCount, 1, 4, 0);
-                    tSkyOptions.uShadowCascadeCount = (uint32_t)iShadowCascadeCount;
-                    ImGui::CheckboxFlags("Debug Cascades", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES);
-                }
-
-                if(tSkyOptions.tMode == PL_RENDERER_SKY_MODE_SKYBOX)
-                {
-                    static uint32_t uComboSelect = 0;
-                    static const char* apcEnvMaps[] = {
-                        "none",
-                        "helipad",
-                        "chromatic",
-                        "directional",
-                        "doge2",
-                        "ennis",
-                        "field",
-                        "footprint_court",
-                        "neutral",
-                        "papermill",
-                        "pisa",
-                        "asteroid_field",
-                        "brown_dwarf",
-                        "galaxy",
-                        "nebulae",
-                        "planet",
-                        "ringed_planet",
-                        "hay_bales",
-                        "sunset",
-                        "sunset2",
-                        "sunset3",
-                        "sunrise",
-                        "sky",
-                        "country_road",
-                    };
-                    bool abCombo[24] = {0};
-                    abCombo[uComboSelect] = true;
-                    if(ImGui::BeginCombo("Environment", apcEnvMaps[uComboSelect]))
+                    if (ptAppData->filter.PassFilter(ptAppData->sbtSceneFilesDev[n].acName))
                     {
-                        for(uint32_t i = 0; i < PL_ARRAYSIZE(apcEnvMaps); i++)
+                        bool bPlaceHolder = ptAppData->iSelectedSceneDev == n;
+                        if(ImGui::Selectable(ptAppData->sbtSceneFilesDev[n].acName, &bPlaceHolder))
                         {
-                            if(ImGui::Selectable(apcEnvMaps[i], &abCombo[i], 0) && i > 0)
-                            {
-                                uComboSelect = i;
-                                char* sbcData = nullptr;
-                                pl_sb_sprintf(sbcData, "/environments/%s.hdr", apcEnvMaps[uComboSelect]);
-                                tSkyOptions.uSkyboxResolution = 1024;
-                                tSkyOptions.tFlags |= PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY;
-                                strncpy(tSkyOptions.acSkyboxPath, sbcData, pl_sb_size(sbcData));
-                                pl_sb_free(sbcData);
-                            }
+                            if(ptAppData->tTestWorld.ptScene)
+                                gptRenderer->unload_test_world(&ptAppData->tTestWorld);
+                            ptAppData->iSelectedSceneDev = n;
+                            ptAppData->iSelectedSceneCore = -1;
+                            ptAppData->iSelectedSceneUser = -1;
+                            pl_sprintf(ptAppData->acCurrentScene, "%s", ptAppData->sbtSceneFilesDev[n].acTemplate);
+                            gptRenderer->load_test_world(ptAppData->acCurrentScene, ptAppData->ptCompLibrary, &ptAppData->tTestWorld);
+
+                            // if(ptAppData->tTestWorld.bMSAA)
+                            //     gptStarter->activate_msaa();
+                            // else
+                            //     gptStarter->deactivate_msaa();
+
+                            gptRendererEditor->rebuild_scene_bvh(ptAppData->tTestWorld.ptScene);
+                            bLoadScene = true;
                         }
-                        ImGui::EndCombo();
                     }
                 }
 
-                if(tSkyOptions.tMode == PL_RENDERER_SKY_MODE_REALISTIC)
+                ImGui::EndListBox();
+            }
+
+            if(iSceneGroup == 2 && ImGui::BeginListBox("Scenes", {-75.0f, -1.0f}))
+            {
+                
+                uint32_t uSceneCount = pl_sb_size(ptAppData->sbtSceneFilesUser);
+
+                for (uint32_t n = 0; n < uSceneCount; n++)
                 {
-                    ImGui::CheckboxFlags("Feature: Visualizer", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER);
-                    ImGui::CheckboxFlags("Feature: Multiscattering", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_MULTISCATTER);
-                    ImGui::CheckboxFlags("Feature: Aerial Perspective", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE);
-                    
-                    ImGui::InputFloat("Atmosphere Thickness", &tSkyOptions.fAtmosphereHeight, 0.0f, 0.0f, "%0.6f", 0);
-                    ImGui::InputFloat("Atmosphere Conversion", &tSkyOptions.fAtmosphereConversion, 0.0f, 0.0f, "%0.6f", 0);
-                    ImGui::InputFloat("Sun Radius", &tSkyOptions.fSunRadius, 0.0f, 0.0f, "%0.6f", 0);
-                    ImGui::InputFloat("Planet Radius", &tSkyOptions.fPlanetRadius, 0.0f, 0.0f, "%0.6f", 0);
-                    ImGui::InputFloat3("Rayleigh Scattering", tSkyOptions.tScatteringRayleighGround.d, "%0.6f", 0);
-                    ImGui::InputFloat3("Rayleigh Absorption", tSkyOptions.tExtinctionRayleighGround.d, "%0.6f", 0);
-                    ImGui::InputFloat3("Ozone Absorption", tSkyOptions.tOzoneExtinction.d, "%0.6f", 0);
-                    ImGui::InputFloat("Mie Scattering", &tSkyOptions.fScatteringMieGround, 0.0f, 0.0f, "%0.6f", 0);
-                    ImGui::InputFloat("Mie Absorption", &tSkyOptions.fExtinctionMieGround, 0.0f, 0.0f, "%0.6f", 0);
-                    ImGui::InputFloat("Mie Scatter Asymmetry", &tSkyOptions.fMieScatteringExponent, 0.0f, 0.0f, "%0.6f", 0);
-
-                    ImGui::InputInt2("Sky LUT Res", saiSkyLutRes, 0);
-                    ImGui::InputInt2("Transmission LUT Res", saiTransmissionLutRes, 0);
-
-                    if(tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE)
+                    if (ptAppData->filter.PassFilter(ptAppData->sbtSceneFilesUser[n].acName))
                     {
-                        ImGui::SeparatorText("Aerial Perspective");
-                        ImGui::InputFloat("Max. Distance", &tSkyOptions.fMaxAerialDistance);
-                        ImGui::InputFloat("Depth Exponent", &tSkyOptions.fAerialDepthExponent);
-                        int iAerialSamplesPerSlice = tSkyOptions.uAerialSamplesPerSlice;
-                        ImGui::InputInt("Samples per Slice", &iAerialSamplesPerSlice, 0);
-                        tSkyOptions.uAerialSamplesPerSlice = (uint32_t)iAerialSamplesPerSlice;
-                        ImGui::InputInt3("Aerial LUT Res", saiAerialLutRes, 0);
-                    }
+                        bool bPlaceHolder = ptAppData->iSelectedSceneUser == n;
+                        if(ImGui::Selectable(ptAppData->sbtSceneFilesUser[n].acName, &bPlaceHolder))
+                        {
+                            if(ptAppData->tTestWorld.ptScene)
+                                gptRenderer->unload_test_world(&ptAppData->tTestWorld);
+                            ptAppData->iSelectedSceneUser = n;
+                            ptAppData->iSelectedSceneCore = -1;
+                            ptAppData->iSelectedSceneDev = -1;
+                            pl_sprintf(ptAppData->acCurrentScene, "%s", ptAppData->sbtSceneFilesUser[n].acTemplate);
+                            gptRenderer->load_test_world(ptAppData->acCurrentScene, ptAppData->ptCompLibrary, &ptAppData->tTestWorld);
 
-                    if(tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_MULTISCATTER)
-                    {
-                        ImGui::InputInt2("Multiscatter LUT Res", saiMultiscatterLutRes, 0);
-                    }
+                            // if(ptAppData->tTestWorld.bMSAA)
+                            //     gptStarter->activate_msaa();
+                            // else
+                            //     gptStarter->deactivate_msaa();
 
-                    if(ImGui::Button("Update LUTS"))
-                    {
-                        tSkyOptions.tSkyLutResolution.x = (float)saiSkyLutRes[0];
-                        tSkyOptions.tSkyLutResolution.y = (float)saiSkyLutRes[1];
-                        tSkyOptions.tTransmissionLutResolution.x = (float)saiTransmissionLutRes[0];
-                        tSkyOptions.tTransmissionLutResolution.y = (float)saiTransmissionLutRes[1];
-                        tSkyOptions.tMultiscatterLutResolution.x = (float)saiMultiscatterLutRes[0];
-                        tSkyOptions.tMultiscatterLutResolution.y = (float)saiMultiscatterLutRes[1];
-                        tSkyOptions.tAerialLutResolution.x = (float)saiAerialLutRes[0];
-                        tSkyOptions.tAerialLutResolution.y = (float)saiAerialLutRes[1];
-                        tSkyOptions.tAerialLutResolution.z = (float)saiAerialLutRes[2];
-                        tSkyOptions.tFlags |= PL_RENDERER_SKY_FLAGS_LUTS_DIRTY;
+                            gptRendererEditor->rebuild_scene_bvh(ptAppData->tTestWorld.ptScene);
+                            bLoadScene = true;
+                        }
                     }
                 }
+
+                ImGui::EndListBox();
             }
+            ImGui::End();
         }
-
-        if(ImGui::CollapsingHeader(ICON_FA_INDUSTRY " Terrain Options"))
-        {
-            ImGui::SliderFloat("fTau", &ptRuntimeOptions->fTau, 0.0f, 1.0f);
-
-            ImGui::CheckboxFlags("Wireframe", &ptRuntimeOptions->tFlags, PL_TERRAIN_FLAGS_WIREFRAME);
-            ImGui::CheckboxFlags("Show Levels", &ptRuntimeOptions->tFlags, PL_TERRAIN_FLAGS_SHOW_LEVELS);
-
-            ImGui::SliderFloat("fSlopeStart", &ptRuntimeOptions->fSlopeStart, 0.0f, 1.0f);
-            ImGui::SliderFloat("fSlopeEnd", &ptRuntimeOptions->fSlopeEnd, 0.0f, 1.0f);
-
-            ImGui::InputFloat("Terrain Depth Bias", &ptRuntimeOptions->fTerrainShadowConstantDepthBias);
-            ImGui::InputFloat("Terrain Slope Depth Bias", &ptRuntimeOptions->fTerrainShadowSlopeDepthBias);
-
-            for(uint32_t i = 0; i < PL_MAX_TERRAIN_ELEVATION_ZONES; i++)
-            {
-                if(ImGui::TreeNode(&ptRuntimeOptions->atElevationZones[i], "Zone: %d", i))
-                {
-                    ImGui::InputFloat("fMinElevation", &ptRuntimeOptions->atElevationZones[i].fMinElevation);
-                    ImGui::InputFloat("fMaxElevation", &ptRuntimeOptions->atElevationZones[i].fMaxElevation);
-                    ImGui::InputFloat("fBlendSize", &ptRuntimeOptions->atElevationZones[i].fBlendSize);
-                    ImGui::ColorEdit4("Flat Material", ptRuntimeOptions->atElevationZones[i].tFlatMaterial.tBaseColor.d);
-                    ImGui::ColorEdit4("Steep Material", ptRuntimeOptions->atElevationZones[i].tSteepMaterial.tBaseColor.d);
-                    ImGui::TreePop();
-                }
-            }
-        }
-
-        if(ImGui::CollapsingHeader(ICON_FA_FILE_IMAGE " Post Process"))
-        {
-
-            static const char* apcTonemapText[] = {
-                "None",
-                "Simple",
-                "ACES Filmic (Narkowicz)",
-                "ACES Filmic (Hill)",
-                "ACES Filmic (Hill Exposure Boost)",
-                "Reinhard",
-                "Khronos PBR Neutral",
-            };
-            ImGui::Combo("Tonemapping", &tTonemapOptions.tMode, apcTonemapText, PL_ARRAYSIZE(apcTonemapText));
-
-            ImGui::SliderFloat("Exposure", &tTonemapOptions.fExposure, 0.0f, 3.0f);
-            ImGui::SliderFloat("Brightness", &tTonemapOptions.fBrightness, -1.0f, 1.0f);
-            ImGui::SliderFloat("Contrast", &tTonemapOptions.fContrast, 0.0f, 2.0f);
-            ImGui::SliderFloat("Saturation", &tTonemapOptions.fSaturation, 0.0f, 2.0f);
-
-            ImGui::SeparatorText("Bloom");
-            bool bBloomActive = tBloomOptions.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE;
-            ImGui::Checkbox("Bloom", &bBloomActive);
-
-            if(bBloomActive)
-            {
-                ImGui::SliderFloat("Bloom Radius", &tBloomOptions.fRadius, 0.0f, 10.0f, 0);
-                ImGui::SliderFloat("Bloom Strength", &tBloomOptions.fStrength, 0.0f, 1.0f, 0);
-                int iBloomChainLength = (int)tBloomOptions.uChainLength;
-                if(ImGui::SliderInt("Bloom Chain", &iBloomChainLength, 2, 10, 0))
-                    tBloomOptions.uChainLength = (uint32_t)iBloomChainLength;
-                tBloomOptions.tFlags |= PL_RENDERER_BLOOM_FLAGS_ACTIVE;
-            }
-            else
-                tBloomOptions.tFlags &= ~PL_RENDERER_BLOOM_FLAGS_ACTIVE;
-
-            ImGui::SeparatorText("Fog");
-
-            bool bFog = tFogOptions.tFlags & PL_RENDERER_FOG_FLAGS_ACTIVE;
-            ImGui::Checkbox("Fog", &bFog);
-            if(bFog)
-            {
-                tFogOptions.tFlags |= PL_RENDERER_FOG_FLAGS_ACTIVE;
-                ImGui::RadioButton("Linear Fog", &tFogOptions.tMode, 0);
-                ImGui::RadioButton("Exponential Fog", &tFogOptions.tMode, 1);
-                ImGui::SliderFloat("Fog Start", &tFogOptions.fStart, 0.0f, 100.0f);
-                ImGui::SliderFloat("Fog End", &tFogOptions.fCutOffDistance, 0.0f, 10000.0f);
-                ImGui::ColorEdit3("Fog Color", tFogOptions.tColor.d);
-                if(tFogOptions.tMode == PL_RENDERER_FOG_MODE_EXPONENTIAL)
-                {
-                    ImGui::SliderFloat("Fog Max Opacity", &tFogOptions.fMaxOpacity, 0.0f, 1.0f);
-                    ImGui::SliderFloat("Fog Density", &tFogOptions.fDensity, 0.0f, 1.0f);
-                    ImGui::SliderFloat("Fog Height", &tFogOptions.fHeight, -100.0f, 100.0f);
-                    ImGui::SliderFloat("Fog Height Falloff", &tFogOptions.fHeightFalloff, 0.0f, 1.0f);
-                }  
-            }
-            else
-                tFogOptions.tFlags &= ~PL_RENDERER_FOG_FLAGS_ACTIVE;
-        }
-
-        if(ImGui::CollapsingHeader(ICON_FA_BOXES_STACKED " Physics", 0))
-        {
-            plPhysicsEngineSettings tPhysicsSettings = {};
-            gptPhysics->get_settings(&tPhysicsSettings);
-
-            ImGui::Checkbox("Enabled", &tPhysicsSettings.bEnabled);
-            ImGui::Checkbox("Debug Draw", &ptAppData->bPhysicsDebugDraw);
-            ImGui::SliderFloat("Simulation Speed", &tPhysicsSettings.fSimulationMultiplier, 0.01f, 3.0f);
-            ImGui::InputFloat("Sleep Epsilon", &tPhysicsSettings.fSleepEpsilon);
-            ImGui::InputFloat("Position Epsilon", &tPhysicsSettings.fPositionEpsilon);
-            ImGui::InputFloat("Velocity Epsilon", &tPhysicsSettings.fVelocityEpsilon);
-            ImGui::InputScalar("Max Position Its.", ImGuiDataType_U32, &tPhysicsSettings.uMaxPositionIterations);
-            ImGui::InputScalar("Max Velocity Its.", ImGuiDataType_U32, &tPhysicsSettings.uMaxVelocityIterations);
-            ImGui::InputFloat("Frame Rate", &tPhysicsSettings.fSimulationFrameRate);
-            if(ImGui::Button("Wake All")) gptPhysics->wake_up_all();
-            if(ImGui::Button("Sleep All")) gptPhysics->sleep_all();
-
-            gptPhysics->set_settings(tPhysicsSettings);
-
-        }
-
-        if(ImGui::CollapsingHeader(ICON_FA_SCREWDRIVER_WRENCH " Tools"))
-        {
-            ImGui::Checkbox("Device Memory", ptAppData->pbShowDeviceMemoryAnalyzer);
-            ImGui::Checkbox("Memory Allocations", ptAppData->pbShowMemoryAllocations);
-            ImGui::Checkbox("Profiling", ptAppData->pbShowProfiling);
-            ImGui::Checkbox("Statistics", ptAppData->pbShowStats);
-            ImGui::Checkbox("Logging", ptAppData->pbShowLogging);
-            ImGui::Checkbox("Entities", &ptAppData->bShowEntityWindow);
-        }
-        if(ImGui::CollapsingHeader(ICON_FA_USER_GEAR " User Interface"))
-        {
-            ImGui::Checkbox("UI Demo", &ptAppData->bShowUiDemo);
-            ImGui::Checkbox("UI Debug", &ptAppData->bShowUiDebug);
-            ImGui::Checkbox("UI Style", &ptAppData->bShowUiStyle);
-        }
-
-        if(ImGui::CollapsingHeader(ICON_FA_BUG " Debug Options"))
-        {
-            ImGui::Checkbox("Show Debug Lights", &ptAppData->tTestWorld.bShowDebugLights);
-            ImGui::Checkbox("Show Bounding Boxes", &ptAppData->tTestWorld.bDrawAllBoundingBoxes);
-            ImGui::Checkbox("Show Probes", &tDebugOptions.bShowProbes);
-            ImGui::Checkbox("Show Probe Ranges", &tDebugOptions.bShowProbeRange);
-                ImGui::Checkbox("Show Origin", &tDebugOptions.bShowOrigin);
-                ImGui::Checkbox("Show Grid", &tEditorViewOptions.bShowGrid);
-                ImGui::Checkbox("Selected Bounding Box", &tEditorViewOptions.bShowSelectedBoundingBox);
-                uint32_t uMinOutline = 2;
-                uint32_t uMaxOutline = 50;
-                ImGui::SliderScalar("Outline Width", ImGuiDataType_U32, &tEditorViewOptions.uOutlineWidth, &uMinOutline, &uMaxOutline, 0);
-            
-            ImGui::Checkbox("Show BVH", &ptAppData->tTestWorld.bShowBVH);
-            if(ImGui::Checkbox("Wireframe", &tDebugOptions.bWireframe))
-                bReloadShaders = true;
-
-                static const char* apcShaderDebugModeText[] = {
-                    "None",
-                    "Base Color",
-                    "Metallic",
-                    "Roughness",
-                    "Alpha",
-                    "Emissive",
-                    "Occlusion",
-                    "Shading Normal",
-                    "Texture Normal",
-                    "Geometry Normal",
-                    "Geometry Tangent",
-                    "Geometry Bitangent",
-                    "UV 0",
-                    "Clearcoat",
-                    "Clearcoat Roughness",
-                    "Clearcoat Normal",
-                    "Sheen Color",
-                    "Sheen Roughness",
-                    "Iridescence Factor",
-                    "Iridescence Thickness",
-                    "Anisotropy Strength",
-                    "Anisotropy Direction",
-                    "Transmission Strength",
-                    "Volume Thickness",
-                    "Diffuse Transmission Strength",
-                    "Diffuse Transmission Color",
-                };
-                if(ImGui::Combo("Shader Debug Mode", &tDebugOptions.tShaderDebugMode, apcShaderDebugModeText, PL_ARRAYSIZE(apcShaderDebugModeText)))
-                    bReloadShaders = true;
-        }
+        
     }
-    ImGui::End();
+    
+    if(bSceneExists)
+    {
+        if(ImGui::Begin("Pilot Light", nullptr, ImGuiWindowFlags_None))
+        {
+            ImGui::Dummy({25.0f, 15.0f});
+            // ImGui::PushStyleColor(ImGuiCol_Header, {0.29f, 0.09f, 0.13f, 1.0f});
+            if(ImGui::CollapsingHeader(ICON_FA_CIRCLE_INFO " Information"))
+            {
+                ImGui::Text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                ImGui::Text("Graphics Backend: %s", gptGfx->get_backend_string());
+
+                ImGui::SeparatorText("Controls");
+                ImGui::BulletText("F1 - bring up console");
+                ImGui::BulletText("F2 - change to editor mode");
+                ImGui::BulletText("F3 - change to game debug mode");
+                ImGui::BulletText("F4 - change to game mode");
+                ImGui::BulletText("M  - change gizmo mode");
+
+                if(ImGui::Button("Show Camera Controls"))
+                {
+                    const char* acMouseInfo = "Camera Controls\n"
+                    "_______________\n"
+                    "LMB + Drag: Moves camera forward & backward and rotates left & right.\n\n"
+                    "RMB + Drag: Rotates camera.\n\n"
+                    "LMB + RMB + Drag: Pans Camera\n\n"
+                    "Mouse Wheel: Speed\n\n"
+                    "Game style (when holding RMB)\n"
+                    "_____________________________\n"
+                    "W    Moves the camera forward.\n"
+                    "S    Moves the camera backward.\n"
+                    "A    Moves the camera left.\n"
+                    "D    Moves the camera right.\n"
+                    "E    Moves the camera up.\n"
+                    "Q    Moves the camera down.\n"
+                    "Z    Zooms the camera out (raises FOV).\n"
+                    "C    Zooms the camera in (lowers FOV).\n";
+                    gptScreenLog->add_message_ex(651984984, 45.0, PL_COLOR_32_GREEN, 1.5f, acMouseInfo);
+                }
+            }
+            // ImGui::PopStyleColor(1);
+
+            if(ImGui::CollapsingHeader(ICON_FA_SLIDERS " App Options"))
+            {
+
+                plScreenLogFlags tScreenLogFlags = gptScreenLog->get_flags();
+
+                if(ImGui::Checkbox("VSync", &ptAppData->bVSync))
+                {
+                    if(ptAppData->bVSync)
+                        gptStarter->activate_vsync();
+                    else
+                        gptStarter->deactivate_vsync();
+                }
+
+                // if(ImGui::Checkbox("UI MSAA", &ptAppData->tTestWorld.bMSAA))
+                // {
+                //     if(ptAppData->tTestWorld.bMSAA)
+                //         gptStarter->activate_msaa();
+                //     else
+                //         gptStarter->deactivate_msaa();
+                // }
+
+                ImGui::Checkbox("Frustum Culling", &ptAppData->tTestWorld.bFrustumCulling);
+                if(ImGui::CheckboxFlags("Hide Screen Log", &tScreenLogFlags, PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES))
+                    gptScreenLog->set_flags(tScreenLogFlags);
+            }
+
+            if(ImGui::CollapsingHeader(ICON_FA_PHOTO_FILM " Scene"))
+            {
+                if(ImGui::Button("Reload"))
+                {
+                    gptPhysics->reset();
+                    gptEcs->reset_library(ptAppData->ptCompLibrary);
+                    gptRenderer->unload_test_world(&ptAppData->tTestWorld);
+                    gptRenderer->load_test_world(ptAppData->acCurrentScene, ptAppData->ptCompLibrary, &ptAppData->tTestWorld);
+                    bReloadScene = true;
+                }
+                ImGui::SameLine();
+
+                if(ImGui::Button("Unload"))
+                {
+                    gptPhysics->reset();
+                    gptEcs->reset_library(ptAppData->ptCompLibrary);
+                    gptRenderer->unload_test_world(&ptAppData->tTestWorld);
+                    pl__refresh_files(ptAppData);
+                    ptAppData->iSelectedSceneCore = -1;
+                    ptAppData->iSelectedSceneDev = -1;
+                    ptAppData->iSelectedSceneUser = -1;
+                }
+
+                ImGui::Checkbox("Dynamic BVH", &ptAppData->bContinuousBVH);
+                if((ImGui::Button("Build BVH") || ptAppData->bContinuousBVH))
+                    gptRendererEditor->rebuild_scene_bvh(ptAppData->tTestWorld.ptScene);
+            }
+
+            if(ImGui::CollapsingHeader(ICON_FA_DICE_D6 " Renderer"))
+            {
+                if(ImGui::CheckboxFlags("Image Based Lighting", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED))
+                    bReloadShaders = true;
+
+                if(ImGui::CheckboxFlags("Punctual Lighting", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS))
+                    bReloadShaders = true;
+                
+                if(ImGui::CheckboxFlags("Normal Mapping", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING))
+                    bReloadShaders = true;
+
+                if(ImGui::CheckboxFlags("No Shadows", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_NO_SHADOWS))
+                    bReloadShaders = true;
+
+                if(ImGui::CheckboxFlags("MultiViewport Shadows", &tShadowOptions.tFlags, PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT))
+                    bReloadShaders = true;
+
+                if(ImGui::CheckboxFlags("PCF Shadows", &tShadowOptions.tFlags, PL_RENDERER_SHADOW_FLAGS_PCF))
+                    bReloadShaders = true;
+
+                ImGui::InputFloat("Depth Bias", &tShadowOptions.fConstantDepthBias);
+                ImGui::InputFloat("Slope Depth Bias", &tShadowOptions.fSlopeDepthBias);
+                ImGui::InputFloat("Max Shadow Range", &tShadowOptions.fMaxShadowRange);
+
+                if(ImGui::Button("Reload Shaders"))
+                    bReloadShaders = true;
+
+            }
+
+            if(ImGui::CollapsingHeader(ICON_FA_CLOUD_SUN " Sky Options"))
+            {
+                bool bProbesDirty = false;
+                if(ImGui::RadioButton("Method: None", &tSkyOptions.tMode, PL_RENDERER_SKY_MODE_NONE)) bProbesDirty = true;
+                if(ImGui::RadioButton("Method: Skybox", &tSkyOptions.tMode, PL_RENDERER_SKY_MODE_SKYBOX)) bProbesDirty = true;
+                if(ImGui::RadioButton("Method: Realistic", &tSkyOptions.tMode, PL_RENDERER_SKY_MODE_REALISTIC)) bProbesDirty = true;
+
+
+                if(bProbesDirty)
+                {
+                    plRendererSceneFlags tSceneFlags = gptRenderer->get_scene_flags(ptAppData->tTestWorld.ptScene);
+                    tSceneFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
+                    gptRenderer->set_scene_flags(ptAppData->tTestWorld.ptScene, tSceneFlags);
+                }
+
+                if(tSkyOptions.tMode != PL_RENDERER_SKY_MODE_NONE)
+                {
+
+                    static int saiSkyLutRes[2] = {0};
+                    static int saiTransmissionLutRes[2] = {0};
+                    static int saiMultiscatterLutRes[2] = {0};
+                    static int saiAerialLutRes[3] = {0};
+                    if(saiSkyLutRes[0] == 0) // first run
+                    {
+                        saiSkyLutRes[0] = (int)tSkyOptions.tSkyLutResolution.x;
+                        saiSkyLutRes[1] = (int)tSkyOptions.tSkyLutResolution.y;
+
+                        saiTransmissionLutRes[0] = (int)tSkyOptions.tTransmissionLutResolution.x;
+                        saiTransmissionLutRes[1] = (int)tSkyOptions.tTransmissionLutResolution.y;
+
+                        saiMultiscatterLutRes[0] = (int)tSkyOptions.tMultiscatterLutResolution.x;
+                        saiMultiscatterLutRes[1] = (int)tSkyOptions.tMultiscatterLutResolution.y;
+
+                        saiAerialLutRes[0] = (int)tSkyOptions.tAerialLutResolution.x;
+                        saiAerialLutRes[1] = (int)tSkyOptions.tAerialLutResolution.y;
+                        saiAerialLutRes[2] = (int)tSkyOptions.tAerialLutResolution.z;
+                    }
+
+                    ImGui::InputFloat("Sun Intensity", &tSkyOptions.fSunIntensity);
+                    ImGui::InputFloat3("Sun Color", tSkyOptions.tSunColor.d);
+                    ImGui::ColorPicker3("Sun Color", tSkyOptions.tSunColor.d);
+
+                    tSkyOptions.tSunDirection = pl_norm_vec3(tSkyOptions.tSunDirection);
+                    float fSunPitch = asinf(pl_clampf(-1.0f, tSkyOptions.tSunDirection.y, 1.0f));
+                    float fSunYaw   = atan2f(tSkyOptions.tSunDirection.x, tSkyOptions.tSunDirection.z);
+
+                    bool bChanged = false;
+                    bChanged |= ImGui::SliderAngle("Sun Pitch", &fSunPitch, -89.9f, 89.9f, 0);
+                    bChanged |= ImGui::SliderAngle("Sun Yaw", &fSunYaw, -180.0f, 180.0f, 0);
+                    if(bChanged)
+                    {
+                        const float fCosPitch = cosf(fSunPitch);
+                        tSkyOptions.tSunDirection.x = fCosPitch * sinf(fSunYaw);
+                        tSkyOptions.tSunDirection.y = sinf(fSunPitch);
+                        tSkyOptions.tSunDirection.z = fCosPitch * cosf(fSunYaw);
+                        tSkyOptions.tSunDirection = pl_norm_vec3(tSkyOptions.tSunDirection);
+                    }
+
+                    ImGui::CheckboxFlags("Shadow Mapping", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_SHADOWS);
+                    if(tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_SHADOWS)
+                    {
+                        ImGui::SeparatorText("Shadows");
+                        int iSunResolution = (int)tSkyOptions.uShadowResolution;
+                        ImGui::RadioButton("Shadow Resolution: Low", &iSunResolution, 1024);
+                        ImGui::RadioButton("Shadow Resolution: Medium", &iSunResolution, 2048);
+                        ImGui::RadioButton("Shadow Resolution: High", &iSunResolution, 4096);
+                        tSkyOptions.uShadowResolution = (uint32_t)iSunResolution;
+                        int iShadowCascadeCount = (int)tSkyOptions.uShadowCascadeCount;
+                        ImGui::SliderInt("Cascades", &iShadowCascadeCount, 1, 4, 0);
+                        tSkyOptions.uShadowCascadeCount = (uint32_t)iShadowCascadeCount;
+                        ImGui::CheckboxFlags("Debug Cascades", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES);
+                    }
+
+                    if(tSkyOptions.tMode == PL_RENDERER_SKY_MODE_SKYBOX)
+                    {
+                        // static uint32_t uComboSelect = 0;
+                        // static const char* apcEnvMaps[] = {
+                        //     "none",
+                        //     "helipad",
+                        //     "chromatic",
+                        //     "directional",
+                        //     "doge2",
+                        //     "ennis",
+                        //     "field",
+                        //     "footprint_court",
+                        //     "neutral",
+                        //     "papermill",
+                        //     "pisa",
+                        //     "asteroid_field",
+                        //     "brown_dwarf",
+                        //     "galaxy",
+                        //     "nebulae",
+                        //     "planet",
+                        //     "ringed_planet",
+                        //     "hay_bales",
+                        //     "sunset",
+                        //     "sunset2",
+                        //     "sunset3",
+                        //     "sunrise",
+                        //     "sky",
+                        //     "country_road",
+                        // };
+                        // bool abCombo[24] = {0};
+                        // abCombo[uComboSelect] = true;
+                        if(ImGui::BeginCombo("Environment", ptAppData->sbtSceneEnvironments[ptAppData->iSelectedEnvironment].acName))
+                        {
+                            for(uint32_t i = 0; i < pl_sb_size(ptAppData->sbtSceneEnvironments); i++)
+                            {
+                                if(ImGui::Selectable(ptAppData->sbtSceneEnvironments[i].acName, i == ptAppData->iSelectedEnvironment, 0))
+                                {
+                                    if(i == 0)
+                                    {
+                                        tSkyOptions.tMode = PL_RENDERER_SKY_MODE_NONE;
+                                        bProbesDirty = true;
+                                    }
+                                    else
+                                    {
+                                        ptAppData->iSelectedEnvironment = i;
+                                        tSkyOptions.uSkyboxResolution = 1024;
+                                        tSkyOptions.tFlags |= PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY;
+                                        strncpy(tSkyOptions.acSkyboxPath, ptAppData->sbtSceneEnvironments[i].acPath, 256);
+                                    }
+                                }
+                            }
+                            ImGui::EndCombo();
+                        }
+                    }
+
+                    if(tSkyOptions.tMode == PL_RENDERER_SKY_MODE_REALISTIC)
+                    {
+                        ImGui::CheckboxFlags("Feature: Visualizer", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER);
+                        ImGui::CheckboxFlags("Feature: Multiscattering", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_MULTISCATTER);
+                        ImGui::CheckboxFlags("Feature: Aerial Perspective", &tSkyOptions.tFlags, PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE);
+                        
+                        ImGui::InputFloat("Atmosphere Thickness", &tSkyOptions.fAtmosphereHeight, 0.0f, 0.0f, "%0.6f", 0);
+                        ImGui::InputFloat("Atmosphere Conversion", &tSkyOptions.fAtmosphereConversion, 0.0f, 0.0f, "%0.6f", 0);
+                        ImGui::InputFloat("Sun Radius", &tSkyOptions.fSunRadius, 0.0f, 0.0f, "%0.6f", 0);
+                        ImGui::InputFloat("Planet Radius", &tSkyOptions.fPlanetRadius, 0.0f, 0.0f, "%0.6f", 0);
+                        ImGui::InputFloat3("Rayleigh Scattering", tSkyOptions.tScatteringRayleighGround.d, "%0.6f", 0);
+                        ImGui::InputFloat3("Rayleigh Absorption", tSkyOptions.tExtinctionRayleighGround.d, "%0.6f", 0);
+                        ImGui::InputFloat3("Ozone Absorption", tSkyOptions.tOzoneExtinction.d, "%0.6f", 0);
+                        ImGui::InputFloat("Mie Scattering", &tSkyOptions.fScatteringMieGround, 0.0f, 0.0f, "%0.6f", 0);
+                        ImGui::InputFloat("Mie Absorption", &tSkyOptions.fExtinctionMieGround, 0.0f, 0.0f, "%0.6f", 0);
+                        ImGui::InputFloat("Mie Scatter Asymmetry", &tSkyOptions.fMieScatteringExponent, 0.0f, 0.0f, "%0.6f", 0);
+
+                        ImGui::InputInt2("Sky LUT Res", saiSkyLutRes, 0);
+                        ImGui::InputInt2("Transmission LUT Res", saiTransmissionLutRes, 0);
+
+                        if(tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE)
+                        {
+                            ImGui::SeparatorText("Aerial Perspective");
+                            ImGui::InputFloat("Max. Distance", &tSkyOptions.fMaxAerialDistance);
+                            ImGui::InputFloat("Depth Exponent", &tSkyOptions.fAerialDepthExponent);
+                            int iAerialSamplesPerSlice = tSkyOptions.uAerialSamplesPerSlice;
+                            ImGui::InputInt("Samples per Slice", &iAerialSamplesPerSlice, 0);
+                            tSkyOptions.uAerialSamplesPerSlice = (uint32_t)iAerialSamplesPerSlice;
+                            ImGui::InputInt3("Aerial LUT Res", saiAerialLutRes, 0);
+                        }
+
+                        if(tSkyOptions.tFlags & PL_RENDERER_SKY_FLAGS_MULTISCATTER)
+                        {
+                            ImGui::InputInt2("Multiscatter LUT Res", saiMultiscatterLutRes, 0);
+                        }
+
+                        if(ImGui::Button("Update LUTS"))
+                        {
+                            tSkyOptions.tSkyLutResolution.x = (float)saiSkyLutRes[0];
+                            tSkyOptions.tSkyLutResolution.y = (float)saiSkyLutRes[1];
+                            tSkyOptions.tTransmissionLutResolution.x = (float)saiTransmissionLutRes[0];
+                            tSkyOptions.tTransmissionLutResolution.y = (float)saiTransmissionLutRes[1];
+                            tSkyOptions.tMultiscatterLutResolution.x = (float)saiMultiscatterLutRes[0];
+                            tSkyOptions.tMultiscatterLutResolution.y = (float)saiMultiscatterLutRes[1];
+                            tSkyOptions.tAerialLutResolution.x = (float)saiAerialLutRes[0];
+                            tSkyOptions.tAerialLutResolution.y = (float)saiAerialLutRes[1];
+                            tSkyOptions.tAerialLutResolution.z = (float)saiAerialLutRes[2];
+                            tSkyOptions.tFlags |= PL_RENDERER_SKY_FLAGS_LUTS_DIRTY;
+                        }
+                    }
+                }
+            }
+
+            if(ImGui::CollapsingHeader(ICON_FA_INDUSTRY " Terrain Options"))
+            {
+                ImGui::SliderFloat("fTau", &ptRuntimeOptions->fTau, 0.0f, 1.0f);
+
+                ImGui::CheckboxFlags("Wireframe", &ptRuntimeOptions->tFlags, PL_TERRAIN_FLAGS_WIREFRAME);
+                ImGui::CheckboxFlags("Show Levels", &ptRuntimeOptions->tFlags, PL_TERRAIN_FLAGS_SHOW_LEVELS);
+
+                ImGui::SliderFloat("fSlopeStart", &ptRuntimeOptions->fSlopeStart, 0.0f, 1.0f);
+                ImGui::SliderFloat("fSlopeEnd", &ptRuntimeOptions->fSlopeEnd, 0.0f, 1.0f);
+
+                ImGui::InputFloat("Terrain Depth Bias", &ptRuntimeOptions->fTerrainShadowConstantDepthBias);
+                ImGui::InputFloat("Terrain Slope Depth Bias", &ptRuntimeOptions->fTerrainShadowSlopeDepthBias);
+
+                for(uint32_t i = 0; i < PL_MAX_TERRAIN_ELEVATION_ZONES; i++)
+                {
+                    if(ImGui::TreeNode(&ptRuntimeOptions->atElevationZones[i], "Zone: %d", i))
+                    {
+                        ImGui::InputFloat("fMinElevation", &ptRuntimeOptions->atElevationZones[i].fMinElevation);
+                        ImGui::InputFloat("fMaxElevation", &ptRuntimeOptions->atElevationZones[i].fMaxElevation);
+                        ImGui::InputFloat("fBlendSize", &ptRuntimeOptions->atElevationZones[i].fBlendSize);
+                        ImGui::ColorEdit4("Flat Material", ptRuntimeOptions->atElevationZones[i].tFlatMaterial.tBaseColor.d);
+                        ImGui::ColorEdit4("Steep Material", ptRuntimeOptions->atElevationZones[i].tSteepMaterial.tBaseColor.d);
+                        ImGui::TreePop();
+                    }
+                }
+            }
+
+            if(ImGui::CollapsingHeader(ICON_FA_FILE_IMAGE " Post Process"))
+            {
+
+                static const char* apcTonemapText[] = {
+                    "None",
+                    "Simple",
+                    "ACES Filmic (Narkowicz)",
+                    "ACES Filmic (Hill)",
+                    "ACES Filmic (Hill Exposure Boost)",
+                    "Reinhard",
+                    "Khronos PBR Neutral",
+                };
+                ImGui::Combo("Tonemapping", &tTonemapOptions.tMode, apcTonemapText, PL_ARRAYSIZE(apcTonemapText));
+
+                ImGui::SliderFloat("Exposure", &tTonemapOptions.fExposure, 0.0f, 3.0f);
+                ImGui::SliderFloat("Brightness", &tTonemapOptions.fBrightness, -1.0f, 1.0f);
+                ImGui::SliderFloat("Contrast", &tTonemapOptions.fContrast, 0.0f, 2.0f);
+                ImGui::SliderFloat("Saturation", &tTonemapOptions.fSaturation, 0.0f, 2.0f);
+
+                ImGui::SeparatorText("Bloom");
+                bool bBloomActive = tBloomOptions.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE;
+                ImGui::Checkbox("Bloom", &bBloomActive);
+
+                if(bBloomActive)
+                {
+                    ImGui::SliderFloat("Bloom Radius", &tBloomOptions.fRadius, 0.0f, 10.0f, 0);
+                    ImGui::SliderFloat("Bloom Strength", &tBloomOptions.fStrength, 0.0f, 1.0f, 0);
+                    int iBloomChainLength = (int)tBloomOptions.uChainLength;
+                    if(ImGui::SliderInt("Bloom Chain", &iBloomChainLength, 2, 10, 0))
+                        tBloomOptions.uChainLength = (uint32_t)iBloomChainLength;
+                    tBloomOptions.tFlags |= PL_RENDERER_BLOOM_FLAGS_ACTIVE;
+                }
+                else
+                    tBloomOptions.tFlags &= ~PL_RENDERER_BLOOM_FLAGS_ACTIVE;
+
+                ImGui::SeparatorText("Fog");
+
+                bool bFog = tFogOptions.tFlags & PL_RENDERER_FOG_FLAGS_ACTIVE;
+                ImGui::Checkbox("Fog", &bFog);
+                if(bFog)
+                {
+                    tFogOptions.tFlags |= PL_RENDERER_FOG_FLAGS_ACTIVE;
+                    ImGui::RadioButton("Linear Fog", &tFogOptions.tMode, 0);
+                    ImGui::RadioButton("Exponential Fog", &tFogOptions.tMode, 1);
+                    ImGui::SliderFloat("Fog Start", &tFogOptions.fStart, 0.0f, 100.0f);
+                    ImGui::SliderFloat("Fog End", &tFogOptions.fCutOffDistance, 0.0f, 10000.0f);
+                    ImGui::ColorEdit3("Fog Color", tFogOptions.tColor.d);
+                    if(tFogOptions.tMode == PL_RENDERER_FOG_MODE_EXPONENTIAL)
+                    {
+                        ImGui::SliderFloat("Fog Max Opacity", &tFogOptions.fMaxOpacity, 0.0f, 1.0f);
+                        ImGui::SliderFloat("Fog Density", &tFogOptions.fDensity, 0.0f, 1.0f);
+                        ImGui::SliderFloat("Fog Height", &tFogOptions.fHeight, -100.0f, 100.0f);
+                        ImGui::SliderFloat("Fog Height Falloff", &tFogOptions.fHeightFalloff, 0.0f, 1.0f);
+                    }  
+                }
+                else
+                    tFogOptions.tFlags &= ~PL_RENDERER_FOG_FLAGS_ACTIVE;
+            }
+
+            if(ImGui::CollapsingHeader(ICON_FA_BOXES_STACKED " Physics", 0))
+            {
+                plPhysicsEngineSettings tPhysicsSettings = {};
+                gptPhysics->get_settings(&tPhysicsSettings);
+
+                ImGui::Checkbox("Enabled", &tPhysicsSettings.bEnabled);
+                ImGui::Checkbox("Debug Draw", &ptAppData->bPhysicsDebugDraw);
+                ImGui::SliderFloat("Simulation Speed", &tPhysicsSettings.fSimulationMultiplier, 0.01f, 3.0f);
+                ImGui::InputFloat("Sleep Epsilon", &tPhysicsSettings.fSleepEpsilon);
+                ImGui::InputFloat("Position Epsilon", &tPhysicsSettings.fPositionEpsilon);
+                ImGui::InputFloat("Velocity Epsilon", &tPhysicsSettings.fVelocityEpsilon);
+                ImGui::InputScalar("Max Position Its.", ImGuiDataType_U32, &tPhysicsSettings.uMaxPositionIterations);
+                ImGui::InputScalar("Max Velocity Its.", ImGuiDataType_U32, &tPhysicsSettings.uMaxVelocityIterations);
+                ImGui::InputFloat("Frame Rate", &tPhysicsSettings.fSimulationFrameRate);
+                if(ImGui::Button("Wake All")) gptPhysics->wake_up_all();
+                if(ImGui::Button("Sleep All")) gptPhysics->sleep_all();
+
+                gptPhysics->set_settings(tPhysicsSettings);
+
+            }
+
+            if(ImGui::CollapsingHeader(ICON_FA_SCREWDRIVER_WRENCH " Tools"))
+            {
+                ImGui::Checkbox("Device Memory", ptAppData->pbShowDeviceMemoryAnalyzer);
+                ImGui::Checkbox("Memory Allocations", ptAppData->pbShowMemoryAllocations);
+                ImGui::Checkbox("Profiling", ptAppData->pbShowProfiling);
+                ImGui::Checkbox("Statistics", ptAppData->pbShowStats);
+                ImGui::Checkbox("Logging", ptAppData->pbShowLogging);
+                ImGui::Checkbox("Entities", &ptAppData->bShowEntityWindow);
+            }
+            if(ImGui::CollapsingHeader(ICON_FA_USER_GEAR " User Interface"))
+            {
+                ImGui::Checkbox("UI Demo", &ptAppData->bShowUiDemo);
+                ImGui::Checkbox("UI Debug", &ptAppData->bShowUiDebug);
+                ImGui::Checkbox("UI Style", &ptAppData->bShowUiStyle);
+            }
+
+            if(ImGui::CollapsingHeader(ICON_FA_BUG " Debug Options"))
+            {
+                ImGui::Checkbox("Show Debug Lights", &ptAppData->tTestWorld.bShowDebugLights);
+                ImGui::Checkbox("Show Bounding Boxes", &ptAppData->tTestWorld.bDrawAllBoundingBoxes);
+                ImGui::Checkbox("Show Probes", &tDebugOptions.bShowProbes);
+                ImGui::Checkbox("Show Probe Ranges", &tDebugOptions.bShowProbeRange);
+                    ImGui::Checkbox("Show Origin", &tDebugOptions.bShowOrigin);
+                    ImGui::Checkbox("Show Grid", &tEditorViewOptions.bShowGrid);
+                    ImGui::Checkbox("Selected Bounding Box", &tEditorViewOptions.bShowSelectedBoundingBox);
+                    uint32_t uMinOutline = 2;
+                    uint32_t uMaxOutline = 50;
+                    ImGui::SliderScalar("Outline Width", ImGuiDataType_U32, &tEditorViewOptions.uOutlineWidth, &uMinOutline, &uMaxOutline, 0);
+                
+                ImGui::Checkbox("Show BVH", &ptAppData->tTestWorld.bShowBVH);
+                if(ImGui::Checkbox("Wireframe", &tDebugOptions.bWireframe))
+                    bReloadShaders = true;
+
+                    static const char* apcShaderDebugModeText[] = {
+                        "None",
+                        "Base Color",
+                        "Metallic",
+                        "Roughness",
+                        "Alpha",
+                        "Emissive",
+                        "Occlusion",
+                        "Shading Normal",
+                        "Texture Normal",
+                        "Geometry Normal",
+                        "Geometry Tangent",
+                        "Geometry Bitangent",
+                        "UV 0",
+                        "Clearcoat",
+                        "Clearcoat Roughness",
+                        "Clearcoat Normal",
+                        "Sheen Color",
+                        "Sheen Roughness",
+                        "Iridescence Factor",
+                        "Iridescence Thickness",
+                        "Anisotropy Strength",
+                        "Anisotropy Direction",
+                        "Transmission Strength",
+                        "Volume Thickness",
+                        "Diffuse Transmission Strength",
+                        "Diffuse Transmission Color",
+                    };
+                    if(ImGui::Combo("Shader Debug Mode", &tDebugOptions.tShaderDebugMode, apcShaderDebugModeText, PL_ARRAYSIZE(apcShaderDebugModeText)))
+                        bReloadShaders = true;
+            }
+        }
+        ImGui::End();
+    }
 
     if(!bReloadScene && !bLoadScene)
     {
@@ -1287,13 +1409,19 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
 void
 pl__refresh_files(plAppData* ptAppData)
 {
-    pl_sb_reset(ptAppData->sbtSceneFiles);
+    pl_sb_reset(ptAppData->sbtSceneFilesCore);
+    pl_sb_reset(ptAppData->sbtSceneFilesDev);
+    pl_sb_reset(ptAppData->sbtSceneFilesUser);
+
+    pl_sb_add(ptAppData->sbtSceneEnvironments);
+    strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acName, "None", 5);
+    strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acPath, "None", 5);
 
     // local
     {
         plDirectoryInfo tDirectoryInfo = {0};
         gptFile->get_directory_info("../assets/core/scenes/", &tDirectoryInfo);
-        pl_sb_reserve(ptAppData->sbtSceneFiles, tDirectoryInfo.uFileCount);
+        pl_sb_reserve(ptAppData->sbtSceneFilesCore, tDirectoryInfo.uFileCount);
         for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
         {
             if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
@@ -1310,10 +1438,34 @@ pl__refresh_files(plAppData* ptAppData)
                     pl_sprintf(acFullPath, "../assets/core/scenes/%s.json", acFileNameOnly);
                     if(pl__verify_scene(ptAppData, acCurrentScene))
                     {
-                        pl_sb_add(ptAppData->sbtSceneFiles);
-                        strncpy(pl_sb_back(ptAppData->sbtSceneFiles).acName, &acFileNameOnly[6], PL_MAX_PATH_LENGTH);
-                        strncpy(pl_sb_back(ptAppData->sbtSceneFiles).acTemplate, acFullPath, PL_MAX_PATH_LENGTH);
+                        pl_sb_add(ptAppData->sbtSceneFilesCore);
+                        strncpy(pl_sb_back(ptAppData->sbtSceneFilesCore).acName, &acFileNameOnly[6], PL_MAX_PATH_LENGTH);
+                        strncpy(pl_sb_back(ptAppData->sbtSceneFilesCore).acTemplate, acFullPath, PL_MAX_PATH_LENGTH);
                     }
+                }
+            }
+        }
+        gptFile->cleanup_directory_info(&tDirectoryInfo);
+    }
+
+    {
+        plDirectoryInfo tDirectoryInfo = {0};
+        gptFile->get_directory_info("../assets/core/environments/", &tDirectoryInfo);
+        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
+        {
+            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+            {
+                char acExtensionBuffer[16] = {0};
+                char acFileNameOnly[PL_MAX_PATH_LENGTH] = {0};
+                pl_str_get_file_extension(tDirectoryInfo.sbtEntries[i].acName, acExtensionBuffer, 16);
+                // if(pl_str_equal("json", acExtensionBuffer))
+                {
+                    pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
+                    char acFullPath[PL_MAX_PATH_LENGTH] = {0};
+                    pl_sprintf(acFullPath, "../assets/core/environments/%s.hdr", acFileNameOnly);
+                    pl_sb_add(ptAppData->sbtSceneEnvironments);
+                    strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acName, acFileNameOnly, PL_MAX_PATH_LENGTH);
+                    strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acPath, acFullPath, PL_MAX_PATH_LENGTH);
                 }
             }
         }
@@ -1324,7 +1476,61 @@ pl__refresh_files(plAppData* ptAppData)
     {
         plDirectoryInfo tDirectoryInfo = {0};
         gptFile->get_directory_info("../assets/development/scenes/", &tDirectoryInfo);
-        pl_sb_reserve(ptAppData->sbtSceneFiles, tDirectoryInfo.uFileCount);
+        pl_sb_reserve(ptAppData->sbtSceneFilesDev, tDirectoryInfo.uFileCount);
+        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
+        {
+            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+            {
+                char acExtensionBuffer[16] = {0};
+                char acFileNameOnly[PL_MAX_PATH_LENGTH] = {0};
+                pl_str_get_file_extension(tDirectoryInfo.sbtEntries[i].acName, acExtensionBuffer, 16);
+                // if(pl_str_equal("json", acExtensionBuffer))
+                {
+                    pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
+                    char acCurrentScene[PL_MAX_PATH_LENGTH] = {0};
+                    char acFullPath[PL_MAX_PATH_LENGTH] = {0};
+                    pl_sprintf(acCurrentScene, "../assets/development/scenes/%s.json", acFileNameOnly);
+                    pl_sprintf(acFullPath, "../assets/development/scenes/%s.json", acFileNameOnly);
+                    if(pl__verify_scene(ptAppData, acCurrentScene))
+                    {
+                        pl_sb_add(ptAppData->sbtSceneFilesDev);
+                        strncpy(pl_sb_back(ptAppData->sbtSceneFilesDev).acName, acFileNameOnly, PL_MAX_PATH_LENGTH);
+                        strncpy(pl_sb_back(ptAppData->sbtSceneFilesDev).acTemplate, acFullPath, PL_MAX_PATH_LENGTH);
+                    }
+                }
+            }
+        }
+        gptFile->cleanup_directory_info(&tDirectoryInfo);
+    }
+    {
+        plDirectoryInfo tDirectoryInfo = {0};
+        gptFile->get_directory_info("../assets/development/environments", &tDirectoryInfo);
+        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
+        {
+            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+            {
+                char acExtensionBuffer[16] = {0};
+                char acFileNameOnly[PL_MAX_PATH_LENGTH] = {0};
+                pl_str_get_file_extension(tDirectoryInfo.sbtEntries[i].acName, acExtensionBuffer, 16);
+                // if(pl_str_equal("json", acExtensionBuffer))
+                {
+                    pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
+                    char acFullPath[PL_MAX_PATH_LENGTH] = {0};
+                    pl_sprintf(acFullPath, "../assets/development/environments/%s.hdr", acFileNameOnly);
+                    pl_sb_add(ptAppData->sbtSceneEnvironments);
+                    strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acName, acFileNameOnly, PL_MAX_PATH_LENGTH);
+                    strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acPath, acFullPath, PL_MAX_PATH_LENGTH);
+                }
+            }
+        }
+        gptFile->cleanup_directory_info(&tDirectoryInfo);
+    }
+
+    // user
+    {
+        plDirectoryInfo tDirectoryInfo = {0};
+        gptFile->get_directory_info("../assets/user/scenes/", &tDirectoryInfo);
+        pl_sb_reserve(ptAppData->sbtSceneFilesUser, tDirectoryInfo.uFileCount);
         for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
         {
             if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
@@ -1337,14 +1543,37 @@ pl__refresh_files(plAppData* ptAppData)
                     pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
                     char acCurrentScene[PL_MAX_PATH_LENGTH] = {0};
                     char acFullPath[PL_MAX_PATH_LENGTH] = {0};
-                    pl_sprintf(acCurrentScene, "../assets/development/scenes/%s.json", acFileNameOnly);
-                    pl_sprintf(acFullPath, "../assets/development/scenes/%s.json", acFileNameOnly);
+                    pl_sprintf(acCurrentScene, "../assets/user/scenes/%s.json", acFileNameOnly);
+                    pl_sprintf(acFullPath, "../assets/user/scenes/%s.json", acFileNameOnly);
                     if(pl__verify_scene(ptAppData, acCurrentScene))
                     {
-                        pl_sb_add(ptAppData->sbtSceneFiles);
-                        strncpy(pl_sb_back(ptAppData->sbtSceneFiles).acName, &acFileNameOnly[6], PL_MAX_PATH_LENGTH);
-                        strncpy(pl_sb_back(ptAppData->sbtSceneFiles).acTemplate, acFullPath, PL_MAX_PATH_LENGTH);
+                        pl_sb_add(ptAppData->sbtSceneFilesUser);
+                        strncpy(pl_sb_back(ptAppData->sbtSceneFilesUser).acName, &acFileNameOnly[6], PL_MAX_PATH_LENGTH);
+                        strncpy(pl_sb_back(ptAppData->sbtSceneFilesUser).acTemplate, acFullPath, PL_MAX_PATH_LENGTH);
                     }
+                }
+            }
+        }
+        gptFile->cleanup_directory_info(&tDirectoryInfo);
+    }
+    {
+        plDirectoryInfo tDirectoryInfo = {0};
+        gptFile->get_directory_info("../assets/user/environments/", &tDirectoryInfo);
+        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
+        {
+            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+            {
+                char acExtensionBuffer[16] = {0};
+                char acFileNameOnly[PL_MAX_PATH_LENGTH] = {0};
+                pl_str_get_file_extension(tDirectoryInfo.sbtEntries[i].acName, acExtensionBuffer, 16);
+                if(pl_str_equal("json", acExtensionBuffer))
+                {
+                    pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
+                    char acFullPath[PL_MAX_PATH_LENGTH] = {0};
+                    pl_sprintf(acFullPath, "../assets/user/environments/%s.hdr", acFileNameOnly);
+                    pl_sb_add(ptAppData->sbtSceneEnvironments);
+                    strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acName, &acFileNameOnly[6], PL_MAX_PATH_LENGTH);
+                    strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acPath, acFullPath, PL_MAX_PATH_LENGTH);
                 }
             }
         }
