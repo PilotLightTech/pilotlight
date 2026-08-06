@@ -202,6 +202,8 @@ enum _plWindowInternalFlags
     PL_WINDOW_INTERNAL_FLAG_MINIMIZE_REQUESTED              = 1 << 1,
     PL_WINDOW_INTERNAL_FLAG_RESIZE_REQUESTED                = 1 << 2,
     PL_WINDOW_INTERNAL_FLAG_FULL_SCREEN_REQUESTED           = 1 << 3,
+    PL_WINDOW_INTERNAL_FLAG_BORDERLESS_REQUESTED            = 1 << 4,
+    PL_WINDOW_INTERNAL_FLAG_BORDERLESS_ACTIVE               = 1 << 5,
 };
 
 //-----------------------------------------------------------------------------
@@ -495,7 +497,8 @@ int main(int argc, char *argv[])
             {
                 ptWindow->_tInternalFlags &= ~PL_WINDOW_INTERNAL_FLAG_RESIZE_REQUESTED;
 
-                bool bIsFullScreen = glfwGetWindowMonitor(ptGlfwWindow) != NULL;
+                bool bIsFullScreen = glfwGetWindowMonitor(ptGlfwWindow) != NULL ||
+                                     (ptWindow->_tInternalFlags & PL_WINDOW_INTERNAL_FLAG_BORDERLESS_ACTIVE);
 
                 if(bIsFullScreen)
                 {
@@ -503,6 +506,7 @@ int main(int argc, char *argv[])
                     glfwSetWindowAttrib(ptGlfwWindow, GLFW_RESIZABLE, GLFW_TRUE);
                     glfwSetWindowAttrib(ptGlfwWindow, GLFW_DECORATED, GLFW_TRUE);
                     glfwSetWindowAttrib(ptGlfwWindow, GLFW_FLOATING,  GLFW_FALSE);
+                    ptWindow->_tInternalFlags &= ~PL_WINDOW_INTERNAL_FLAG_BORDERLESS_ACTIVE;
                 }
                 else
                     glfwSetWindowSize(ptGlfwWindow, (int)ptWindow->_uRequestedWidth, ptWindow->_uRequestedHeight);
@@ -545,6 +549,38 @@ int main(int argc, char *argv[])
                 glfwSetWindowMonitor(ptGlfwWindow, ptMonitor, 0, 0, iWidth, iHeight, GLFW_DONT_CARE);
 
                 glfwSetWindowSize(ptGlfwWindow, iWidth, iHeight);
+                ptWindow->_tInternalFlags &= ~PL_WINDOW_INTERNAL_FLAG_BORDERLESS_ACTIVE;
+            }
+
+            if(ptWindow->_tInternalFlags & PL_WINDOW_INTERNAL_FLAG_BORDERLESS_REQUESTED)
+            {
+                ptWindow->_tInternalFlags &= ~PL_WINDOW_INTERNAL_FLAG_BORDERLESS_REQUESTED;
+
+                GLFWmonitor* ptMonitor = NULL;
+                int iMonitorCount = 0;
+                GLFWmonitor** pptMonitors = glfwGetMonitors(&iMonitorCount);
+
+                if(ptWindow->_iRequestedMonitor < 0)
+                    ptMonitor = glfwGetPrimaryMonitor();
+                else if(iMonitorCount > 0 && ptWindow->_iRequestedMonitor < iMonitorCount)
+                    ptMonitor = pptMonitors[ptWindow->_iRequestedMonitor];
+
+                if(ptMonitor)
+                {
+                    const GLFWvidmode* ptMode = glfwGetVideoMode(ptMonitor);
+                    if(ptMode)
+                    {
+                        int iMonitorX = 0;
+                        int iMonitorY = 0;
+                        glfwGetMonitorPos(ptMonitor, &iMonitorX, &iMonitorY);
+                        glfwSetWindowAttrib(ptGlfwWindow, GLFW_RESIZABLE, GLFW_FALSE);
+                        glfwSetWindowAttrib(ptGlfwWindow, GLFW_DECORATED, GLFW_FALSE);
+                        glfwSetWindowAttrib(ptGlfwWindow, GLFW_FLOATING, GLFW_FALSE);
+                        glfwSetWindowMonitor(ptGlfwWindow, NULL, iMonitorX, iMonitorY, ptMode->width, ptMode->height, GLFW_DONT_CARE);
+                        glfwFocusWindow(ptGlfwWindow);
+                        ptWindow->_tInternalFlags |= PL_WINDOW_INTERNAL_FLAG_BORDERLESS_ACTIVE;
+                    }
+                }
 
             }
         }
@@ -1018,6 +1054,7 @@ void
 pl_full_screen_window(plWindow* ptWindow, int iMonitor)
 {
     GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    ptWindow->_tInternalFlags &= ~(PL_WINDOW_INTERNAL_FLAG_BORDERLESS_REQUESTED | PL_WINDOW_INTERNAL_FLAG_RESIZE_REQUESTED);
     ptWindow->_tInternalFlags |= PL_WINDOW_INTERNAL_FLAG_FULL_SCREEN_REQUESTED;
     ptWindow->_iRequestedMonitor = iMonitor;
 }
@@ -1041,14 +1078,19 @@ pl_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* tDesc)
     switch (tDesc->tMode)
     {
         case PL_FULLSCREEN_MODE_EXCLUSIVE:
+            ptWindow->_tInternalFlags &= ~(PL_WINDOW_INTERNAL_FLAG_BORDERLESS_REQUESTED | PL_WINDOW_INTERNAL_FLAG_RESIZE_REQUESTED);
             ptWindow->_tInternalFlags |= PL_WINDOW_INTERNAL_FLAG_FULL_SCREEN_REQUESTED;
             ptWindow->_iRequestedMonitor = tDesc->iMonitor;
             return true;
 
         case PL_FULLSCREEN_MODE_BORDERLESS:
-            return false;
+            ptWindow->_tInternalFlags &= ~(PL_WINDOW_INTERNAL_FLAG_FULL_SCREEN_REQUESTED | PL_WINDOW_INTERNAL_FLAG_RESIZE_REQUESTED);
+            ptWindow->_tInternalFlags |= PL_WINDOW_INTERNAL_FLAG_BORDERLESS_REQUESTED;
+            ptWindow->_iRequestedMonitor = tDesc->iMonitor;
+            return true;
 
         case PL_FULLSCREEN_MODE_NONE:
+            ptWindow->_tInternalFlags &= ~(PL_WINDOW_INTERNAL_FLAG_FULL_SCREEN_REQUESTED | PL_WINDOW_INTERNAL_FLAG_BORDERLESS_REQUESTED);
             ptWindow->_tInternalFlags |= PL_WINDOW_INTERNAL_FLAG_RESIZE_REQUESTED;
             ptWindow->_uRequestedWidth = 500;
             ptWindow->_uRequestedHeight = 500;
@@ -1066,7 +1108,7 @@ pl_get_window_capabilities(void)
 
     tCapabilities.uCursorModeCount = (uint32_t)PL_CURSOR_MODE_COUNT;
     tCapabilities.uAttributeCount = (uint32_t)PL_WINDOW_ATTRIBUTE_COUNT;
-    tCapabilities.uFullScreenModeCount = 2;
+    tCapabilities.uFullScreenModeCount = 3;
 
     static const plWindowAttribute atSupportedAttributes[] = {
         PL_WINDOW_ATTRIBUTE_SIZE,
@@ -1090,7 +1132,8 @@ pl_get_window_capabilities(void)
 
     static const plFullScreenMode atSupportedScreenModes[] = {
         PL_FULLSCREEN_MODE_NONE,
-        PL_FULLSCREEN_MODE_EXCLUSIVE
+        PL_FULLSCREEN_MODE_EXCLUSIVE,
+        PL_FULLSCREEN_MODE_BORDERLESS
     };
 
     tCapabilities.atCursorModes = atSupportedCursorModes;
