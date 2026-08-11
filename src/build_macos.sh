@@ -80,6 +80,14 @@ else
     rm -r -f ../out/../out-temp
     rm -f ../out/pl_unity_ext.dylib
     rm -f ../out/pl_unity_ext_*.dylib
+    rm -f ../out/pl_shader_ext.dylib
+    rm -f ../out/pl_shader_ext_*.dylib
+    rm -f ../out/pl_shader_cpu_ext.dylib
+    rm -f ../out/pl_shader_cpu_ext_*.dylib
+    rm -f ../out/pl_graphics_ext.dylib
+    rm -f ../out/pl_graphics_ext_*.dylib
+    rm -f ../out/pl_graphics_cpu_ext.dylib
+    rm -f ../out/pl_graphics_cpu_ext_*.dylib
     rm -f ../out/pl_script_camera.dylib
     rm -f ../out/pl_script_camera_*.dylib
     rm -f ../out/pl_platform_ext.dylib
@@ -94,12 +102,12 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
 PL_LINKER_FLAGS="-lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
+PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../extensions/pl_unity_ext.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
@@ -133,10 +141,178 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_shader_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-lstdc++ "
+PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_shader_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_shader_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libpl_shader_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_shader_cpu_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_shader_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_shader_cpu_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libpl_shader_cpu_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_graphics_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-lstdc++ "
+PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_graphics_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_graphics_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libpl_graphics_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ pl_graphics_cpu_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_graphics_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_graphics_cpu_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libpl_graphics_cpu_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
@@ -181,7 +357,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
@@ -229,7 +405,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
@@ -340,7 +516,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
+PL_DEFINES="-DPL_UNITY_BUILD "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 --debug -g -Wno-nullability-completeness "
@@ -462,6 +638,14 @@ else
     rm -r -f ../out/../out-temp
     rm -f ../out/pl_unity_ext.dylib
     rm -f ../out/pl_unity_ext_*.dylib
+    rm -f ../out/pl_shader_ext.dylib
+    rm -f ../out/pl_shader_ext_*.dylib
+    rm -f ../out/pl_shader_cpu_ext.dylib
+    rm -f ../out/pl_shader_cpu_ext_*.dylib
+    rm -f ../out/pl_graphics_ext.dylib
+    rm -f ../out/pl_graphics_ext_*.dylib
+    rm -f ../out/pl_graphics_cpu_ext.dylib
+    rm -f ../out/pl_graphics_cpu_ext_*.dylib
     rm -f ../out/pl_script_camera.dylib
     rm -f ../out/pl_script_camera_*.dylib
     rm -f ../out/pl_platform_ext.dylib
@@ -476,12 +660,12 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
 PL_LINKER_FLAGS="-lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
+PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../extensions/pl_unity_ext.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
@@ -515,10 +699,178 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | release ~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_shader_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-lstdc++ "
+PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_shader_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_shader_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libpl_shader_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ pl_shader_cpu_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_shader_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_shader_cpu_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libpl_shader_cpu_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_graphics_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-lstdc++ "
+PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_graphics_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_graphics_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libpl_graphics_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~ pl_graphics_cpu_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_graphics_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_graphics_cpu_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libpl_graphics_cpu_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | release ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
@@ -563,7 +915,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
@@ -611,7 +963,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
@@ -722,7 +1074,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
+PL_DEFINES="-DPL_UNITY_BUILD "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 -Wno-nullability-completeness "
@@ -844,6 +1196,14 @@ else
     rm -r -f ../out/../out-temp
     rm -f ../out/pl_unity_ext.dylib
     rm -f ../out/pl_unity_ext_*.dylib
+    rm -f ../out/pl_shader_ext.dylib
+    rm -f ../out/pl_shader_ext_*.dylib
+    rm -f ../out/pl_shader_cpu_ext.dylib
+    rm -f ../out/pl_shader_cpu_ext_*.dylib
+    rm -f ../out/pl_graphics_ext.dylib
+    rm -f ../out/pl_graphics_ext_*.dylib
+    rm -f ../out/pl_graphics_cpu_ext.dylib
+    rm -f ../out/pl_graphics_cpu_ext_*.dylib
     rm -f ../out/pl_script_camera.dylib
     rm -f ../out/pl_script_camera_*.dylib
     rm -f ../out/pl_platform_ext.dylib
@@ -856,13 +1216,13 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | moltenvk ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
 PL_LINKER_FLAGS="-lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
-PL_DYNAMIC_LINK_LIBRARIES="-lpthread -lvulkan "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
 PL_SOURCES="../extensions/pl_unity_ext.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -895,10 +1255,178 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | moltenvk ~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_shader_ext | moltenvk ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINKER_FLAGS="-lstdc++ "
+PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
+PL_SOURCES="../extensions/pl_shader_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_shader_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libpl_shader_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ pl_shader_cpu_ext | moltenvk ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINKER_FLAGS="-lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
+PL_SOURCES="../extensions/pl_shader_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_shader_cpu_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libpl_shader_cpu_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_graphics_ext | moltenvk ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINKER_FLAGS="-lstdc++ "
+PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread -lvulkan "
+PL_SOURCES="../extensions/pl_graphics_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_graphics_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libpl_graphics_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~ pl_graphics_cpu_ext | moltenvk ~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINKER_FLAGS="-lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
+PL_SOURCES="../extensions/pl_graphics_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_graphics_cpu_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libpl_graphics_cpu_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | moltenvk ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
@@ -943,7 +1471,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
@@ -991,7 +1519,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
@@ -1143,6 +1671,88 @@ rm -f ../out/lock.tmp
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # end of moltenvk
+fi
+
+# ################################################################################
+# #                          configuration | debug_cpu                           #
+# ################################################################################
+
+if [[ "$PL_CONFIG" == "debug_cpu" ]]; then
+
+# create output directory(s)
+mkdir -p "../out"
+
+# create lock file(s)
+echo LOCKING > "../out/lock.tmp"
+
+PL_BUILD_STATUS=0
+
+# check if this is a reload
+PL_HOT_RELOAD_STATUS=0
+
+# # let user know if hot reloading
+running_count=$(ps aux | grep -v grep | grep -ci "pilot_light")
+if [ $running_count -gt 0 ]
+then
+    PL_HOT_RELOAD_STATUS=1
+    echo
+    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
+    echo
+else
+    # cleanup binaries if not hot reloading
+    PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
+    rm -r -f ../out/../out-temp
+    rm -f ../out/app.dylib
+    rm -f ../out/app_*.dylib
+
+fi
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | debug_cpu ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
+PL_COMPILER_FLAGS="-fPIC -ObjC++ --debug -g -std=c++14 "
+PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
+PL_STATIC_LINK_LIBRARIES="-ldearimguid "
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../sandbox/app.cpp "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: sandbox${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libapp.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# delete lock file(s)
+rm -f ../out/lock.tmp
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# end of debug_cpu
 fi
 
 

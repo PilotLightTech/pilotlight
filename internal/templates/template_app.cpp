@@ -99,6 +99,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // load extensions
     pl_load_ext(ptApiRegistry, false);
     pl_load_platform_ext(ptApiRegistry, false);
+    pl_load_graphics_ext(ptApiRegistry, false);
+    pl_load_shader_ext(ptApiRegistry, false);
 
     // this path is taken only during first load, so we
     // allocate app memory here
@@ -141,6 +143,8 @@ pl_app_shutdown(plAppData* ptAppData)
     // unload extensions
     pl_unload_ext(gptApiRegistry, false);
     pl_unload_platform_ext(gptApiRegistry, false);
+    pl_unload_graphics_ext(gptApiRegistry, false);
+    pl_unload_shader_ext(gptApiRegistry, false);
 }
 
 //-----------------------------------------------------------------------------

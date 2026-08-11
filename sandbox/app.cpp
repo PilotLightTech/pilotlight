@@ -72,6 +72,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_unity_ext", nullptr, nullptr, true);
     ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false);
     ptExtensionRegistry->load("pl_dear_imgui_ext", "pl_load_dear_imgui_ext", "pl_unload_dear_imgui_ext", false);
+    ptExtensionRegistry->load("pl_shader_ext", "pl_load_shader_ext", "pl_unload_shader_ext", true);
+    ptExtensionRegistry->load("pl_graphics_ext", "pl_load_graphics_ext", "pl_unload_graphics_ext", true);
 
     // load apis
     pl__load_apis(ptApiRegistry);
@@ -112,6 +114,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create window (only 1 allowed currently)
     plWindowDesc tWindowDesc = {
+        PL_WINDOW_PRESENTATION_MODE_GRAPHICS_API,
         PL_WINDOW_FLAG_NONE,
         "Pilot Light Sandbox",
         1500,

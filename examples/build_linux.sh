@@ -114,7 +114,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_0.c "
 
 # run compiler (and linker)
@@ -148,7 +148,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_1.c "
 
 # run compiler (and linker)
@@ -182,7 +182,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_2.c "
 
 # run compiler (and linker)
@@ -216,7 +216,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_3.c "
 
 # run compiler (and linker)
@@ -250,7 +250,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_4.c "
 
 # run compiler (and linker)
@@ -284,7 +284,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_5.c "
 
 # run compiler (and linker)
@@ -318,7 +318,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_0.c "
 
 # run compiler (and linker)
@@ -352,7 +352,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_1.c "
 
 # run compiler (and linker)
@@ -386,7 +386,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_2.c "
 
 # run compiler (and linker)
@@ -420,7 +420,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_3.c "
 
 # run compiler (and linker)
@@ -454,7 +454,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_4.c "
 
 # run compiler (and linker)
@@ -488,7 +488,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_5.c "
 
 # run compiler (and linker)
@@ -522,7 +522,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_6.c "
 
 # run compiler (and linker)
@@ -655,7 +655,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_0.c "
 
 # run compiler (and linker)
@@ -689,7 +689,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_1.c "
 
 # run compiler (and linker)
@@ -723,7 +723,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_2.c "
 
 # run compiler (and linker)
@@ -757,7 +757,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_3.c "
 
 # run compiler (and linker)
@@ -791,7 +791,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_4.c "
 
 # run compiler (and linker)
@@ -825,7 +825,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_5.c "
 
 # run compiler (and linker)
@@ -859,7 +859,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_0.c "
 
 # run compiler (and linker)
@@ -893,7 +893,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_1.c "
 
 # run compiler (and linker)
@@ -927,7 +927,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_2.c "
 
 # run compiler (and linker)
@@ -961,7 +961,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_3.c "
 
 # run compiler (and linker)
@@ -995,7 +995,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_4.c "
 
 # run compiler (and linker)
@@ -1029,7 +1029,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_5.c "
 
 # run compiler (and linker)
@@ -1063,7 +1063,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_6.c "
 
 # run compiler (and linker)

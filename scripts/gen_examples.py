@@ -71,7 +71,7 @@ with pl.project("pilotlight_examples"):
 
             pl.add_source_files(name + ".c")
             pl.set_output_binary(name)
-            pl.add_dynamic_link_libraries("pl_unity_ext", "pl_platform_ext")
+            pl.add_dynamic_link_libraries("pl_unity_ext", "pl_platform_ext", "pl_graphics_ext", "pl_shader_ext")
 
             with pl.configuration("debug"):
 

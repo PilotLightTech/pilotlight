@@ -487,7 +487,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" 
 @set PL_COMPILER_FLAGS=-std:c11 -Od -MDd -Zi -Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
-@set PL_STATIC_LINK_LIBRARIES=ucrtd.lib user32.lib Ole32.lib 
+@set PL_STATIC_LINK_LIBRARIES=ucrtd.lib user32.lib Ole32.lib gdi32.lib 
 @set PL_SOURCES="../extensions/pl_platform_win32_ext.c" 
 
 :: run compiler (and linker)
@@ -1043,7 +1043,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" 
 @set PL_COMPILER_FLAGS=-std:c11 -O2 -MD -Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
-@set PL_STATIC_LINK_LIBRARIES=ucrt.lib user32.lib Ole32.lib 
+@set PL_STATIC_LINK_LIBRARIES=ucrt.lib user32.lib Ole32.lib gdi32.lib 
 @set PL_SOURCES="../extensions/pl_platform_win32_ext.c" 
 
 :: run compiler (and linker)

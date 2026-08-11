@@ -117,7 +117,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_0.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -159,7 +159,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_1.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -201,7 +201,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_2.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -243,7 +243,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_3.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -285,7 +285,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_4.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -327,7 +327,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_5.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -369,7 +369,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_0.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -411,7 +411,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_1.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -453,7 +453,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_2.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -495,7 +495,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_3.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -537,7 +537,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_4.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -579,7 +579,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_5.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -621,7 +621,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_6.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -771,7 +771,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_0.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -813,7 +813,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_1.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -855,7 +855,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_2.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -897,7 +897,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_3.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -939,7 +939,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_4.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -981,7 +981,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_basic_5.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1023,7 +1023,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_0.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1065,7 +1065,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_1.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1107,7 +1107,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_2.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1149,7 +1149,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_3.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1191,7 +1191,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_4.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1233,7 +1233,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_5.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1275,7 +1275,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_graphics_ext -lpl_shader_ext "
 PL_SOURCES="example_gfx_6.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 

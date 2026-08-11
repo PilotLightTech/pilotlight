@@ -22,6 +22,7 @@ Index of this file:
 #include "pl_string.h"
 #include "pl_memory.h"
 #include "pl_graphics_internal.h"
+#include "pl_shader_interop_cpu.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -49,7 +50,7 @@ typedef struct _plCpuDynamicBuffer
 
 typedef struct _plCpuBuffer
 {
-    char*         pcData;
+    void* pData;
 } plCpuBuffer;
 
 typedef struct _plCpuTexture
@@ -85,14 +86,9 @@ typedef struct _plCpuBindGroup
 
 typedef struct _plCpuShader
 {
-    // VkPipelineLayout         tPipelineLayout;
-    // VkPipeline               tPipeline;
-    // VkSampleCountFlagBits    tMSAASampleCount;
-    // VkShaderModule           tPixelShaderModule;
-    // VkShaderModule           tVertexShaderModule;
-    // VkDescriptorSetLayout    atDescriptorSetLayouts[4];
-    // VkSpecializationMapEntry atSpecializationEntries[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
-    size_t                   szSpecializationSize;
+    plVertexShader tVertexShader;
+    plPixelShader  tPixelShader;
+    size_t         szSpecializationSize;
 } plCpuShader;
 
 typedef struct _plCpuComputeShader
@@ -198,6 +194,10 @@ typedef struct _plDevice
     plDeviceMemoryAllocation* sbtMemoryBlocks;
 
     plStackedBarrier* sbtBarrierStack;
+
+    plShaderHandle  tCurrentShader;
+    const void*     pVerticies;
+    const uint32_t* puIndexBufferData;
 } plDevice;
 
 typedef struct _plGraphics
@@ -240,6 +240,51 @@ typedef struct _plSwapchain
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
+
+static inline float
+pl__edge_function(plVec2 one, plVec2 two, plVec2 three)
+{
+    return(two.x - one.x) * (three.y - one.y) - (two.y - one.y) * (three.x - one.x);
+};
+
+// 2-value minimum 
+
+// 3-value minimum 
+static inline int pl_min3(int a, int b, int c) {
+    int temp = (a < b) ? a : b;
+    return (temp < c) ? temp : c; 
+}
+
+
+// 3-value maximum 
+static inline int pl_max3(int a, int b, int c) {
+    int temp = (a > b) ? a : b;
+    return (temp > c) ? temp : c;
+}
+
+// static void
+// pl_set_pixel(plWindowBlit* ptData, plVec2 input, plVec4 tColor)
+// {
+//     if(input.x < 0)
+//         return;
+//     if(input.y < 0)
+//         return;
+//     if(input.x >= ptData->uWidth)
+//         return;
+//     if(input.y >= ptData->uHeight)
+//         return;
+
+//     int iRowOffset = ptData->uWidth * 4 * (int)input.y;
+//     int iPixelStart = iRowOffset + (int)input.x * 4;
+
+//     uint8_t* puData = (uint8_t*)ptData->puData;
+
+//     puData[iPixelStart + 0] = (unsigned char)tColor.r;
+//     puData[iPixelStart + 1] = (unsigned char)tColor.g;
+//     puData[iPixelStart + 2] = (unsigned char)tColor.b;
+//     puData[iPixelStart + 3] = (unsigned char)tColor.a;
+
+// };
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -307,12 +352,8 @@ pl_graphics_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, co
 {   
     plBuffer* ptBuffer = &ptDevice->sbtBuffersCold[tHandle.uIndex];
     ptBuffer->tMemoryAllocation = *ptAllocation;
-    plCpuBuffer* ptCPUBuffer = &ptDevice->sbtBuffersHot[tHandle.uIndex];
-
-    ptDevice->sbtBuffersHot[tHandle.uIndex].pcData = PL_ALLOC(sizeof(ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryRequirements.ulSize));
-    memset(ptDevice->sbtBuffersHot[tHandle.uIndex].pcData, 0, sizeof(ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryRequirements.ulSize));
-
-    ptCPUBuffer->pcData = ptAllocation->pHostMapped;
+    plCpuBuffer* ptCpuBuffer = &ptDevice->sbtBuffersHot[tHandle.uIndex];
+    ptCpuBuffer->pData = ptAllocation->pHostMapped;
 
 }
 
@@ -401,6 +442,63 @@ plShaderHandle
 pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 {
     plShaderHandle tHandle = pl__get_new_shader_handle(ptDevice);
+    plShader* ptShader = pl_graphics_get_shader(ptDevice, tHandle);
+    ptShader->tDesc = *ptDescription;
+
+    plCpuShader* ptCpuShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
+    ptCpuShader->tVertexShader = (plVertexShader)ptDescription->tVertexShader.puCode;
+    ptCpuShader->tPixelShader = (plPixelShader)ptDescription->tFragmentShader.puCode;
+
+    uint32_t uVertexBufferCount = 0;
+    uint32_t uCurrentAttributeCount = 0;
+
+    bool abExplicitAttributePosition[2] = {0};
+    bool abExplicitOffset[2] = {0};
+    bool abExplicitStride[2] = {0};
+    size_t auCalculatedStrides[2] = {0};
+
+    for(uint32_t uVtxBufferIdx = 0; uVtxBufferIdx < 2; uVtxBufferIdx++)
+    {
+        if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[0].eFormat == PL_VERTEX_FORMAT_UNKNOWN)
+            break;
+
+        if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].uByteStride != 0)
+            abExplicitStride[uVtxBufferIdx] = true;
+
+        uVertexBufferCount++;
+        uint32_t uByteStride = 0;
+        for (uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
+        {
+            if (ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].eFormat == PL_VERTEX_FORMAT_UNKNOWN)
+                break;
+
+            auCalculatedStrides[uVtxBufferIdx] += pl__get_vertex_attribute_size(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].eFormat);
+            if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uLocation != 0)
+            {
+                abExplicitAttributePosition[uVtxBufferIdx] = true;
+            }
+
+            if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uByteOffset != 0)
+            {
+                abExplicitOffset[uVtxBufferIdx] = true;
+            }
+        }
+    }
+
+    for(uint32_t uVtxBufferIdx = 0; uVtxBufferIdx < uVertexBufferCount; uVtxBufferIdx++)
+    {
+        size_t uOffset = 0;
+        for (uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
+        {
+            if (ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].eFormat == PL_VERTEX_FORMAT_UNKNOWN)
+                break;
+            ptShader->tDesc.atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uLocation = abExplicitAttributePosition[uVtxBufferIdx] ? ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uLocation : uCurrentAttributeCount;
+            ptShader->tDesc.atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uByteOffset = abExplicitOffset[uVtxBufferIdx] ? ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uByteOffset : (uint32_t)uOffset;
+            uOffset += pl__get_vertex_attribute_size(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].eFormat);
+            uCurrentAttributeCount++;
+        }
+        ptShader->tDesc.atVertexBufferLayouts[uVtxBufferIdx].uByteStride = abExplicitStride[uVtxBufferIdx] ? ptDescription->atVertexBufferLayouts[uVtxBufferIdx].uByteStride : (uint32_t)auCalculatedStrides[uVtxBufferIdx];
+    }
     return tHandle;
 }
 
@@ -431,8 +529,10 @@ pl_graphics_bind_vertex_buffers(plCommandBuffer* ptEncoder, uint32_t uFirst, uin
 }
 
 void
-pl_graphics_bind_vertex_buffer(plCommandBuffer* ptEncoder, plBufferHandle tHandle)
+pl_graphics_bind_vertex_buffer(plCommandBuffer* ptCommandBuffer, plBufferHandle tHandle)
 {
+    plDevice* ptDevice = ptCommandBuffer->ptDevice;
+    ptDevice->pVerticies = ptDevice->sbtBuffersHot[tHandle.uIndex].pData;
 }
 
 void
@@ -441,13 +541,233 @@ pl_graphics_draw(plCommandBuffer* ptEncoder, uint32_t uCount, const plDraw *atDr
 }
 
 void
-pl_graphics_draw_indexed(plCommandBuffer* ptEncoder, uint32_t uCount, const plDrawIndex *atDraws)
+pl_graphics_draw_indexed(plCommandBuffer* ptCommandBuffer, uint32_t uCount, const plDrawIndex *atDraws)
 {
+    plDevice* ptDevice = ptCommandBuffer->ptDevice;
+    const plShader* ptShader = &ptDevice->sbtShadersCold[ptDevice->tCurrentShader.uIndex];
+    const plCpuShader* ptPipeline = &ptDevice->sbtShadersHot[ptDevice->tCurrentShader.uIndex];
+    // plWindowBlit* ptBlit = ptCommandBuffer->ptPool->ptBlit;
+
+    // calculate frame buffer size
+    // const int fbWidth = ptBlit->uWidth;
+    // const int fbHeight = ptBlit->uHeight;
+    const int fbWidth = 0;
+    const int fbHeight = 0;
+
+    for(uint32_t uDrawIndex = 0; uDrawIndex < uCount; uDrawIndex++)
+    {
+
+        ptDevice->puIndexBufferData = ptDevice->sbtBuffersHot[atDraws[uDrawIndex].tIndexBuffer.uIndex].pData; 
+    
+        plVec2 vertexP = {
+            .x = 0,
+            .y = 0
+        };  
+
+        for(uint32_t i = 0; i < atDraws[uDrawIndex].uIndexCount; i += 3)
+        {
+            const uint32_t uIndex0 = ptDevice->puIndexBufferData[atDraws[uDrawIndex].uIndexStart + i];
+            const uint32_t uIndex1 = ptDevice->puIndexBufferData[atDraws[uDrawIndex].uIndexStart + i + 1];
+            const uint32_t uIndex2 = ptDevice->puIndexBufferData[atDraws[uDrawIndex].uIndexStart + i + 2];
+
+            // type casting void buffer
+            const char* pcVtxBuffer = (char*)ptDevice->pVerticies;
+
+            // vertex shader stage
+            // setting vertex ID
+            plVertexShaderBuiltIns tVSBuiltIns0 = {
+                .uVertexID = uIndex0,
+                .atLayouts = ptShader->tDesc.atVertexBufferLayouts
+            };
+            plVertexShaderBuiltIns tVSBuiltIns1 = {
+                .uVertexID = uIndex1,
+                .atLayouts = ptShader->tDesc.atVertexBufferLayouts
+            };
+            plVertexShaderBuiltIns tVSBuiltIns2 = {
+                .uVertexID = uIndex2,
+                .atLayouts = ptShader->tDesc.atVertexBufferLayouts
+            };
+
+            // defining varying data
+            plVaryingData tVaryingData0 = {0};
+            plVaryingData tVaryingData1 = {0};
+            plVaryingData tVaryingData2 = {0};
+
+            // function pointer returning plVec2 containing vertex data
+            // Returns vec2        // function ptr                   // built-ins    //VertexDataIn                                                                           // VaryingDataOut
+            // plVec2 tOriginalVertex0 = gtData.ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * gtData.ptPipeline->tLayout.szVertexStride], &gtData.tDescriptor, &tVaryingData0);
+            // plVec2 tOriginalVertex1 = gtData.ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * gtData.ptPipeline->tLayout.szVertexStride], &gtData.tDescriptor, &tVaryingData1);
+            // plVec2 tOriginalVertex2 = gtData.ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * gtData.ptPipeline->tLayout.szVertexStride], &gtData.tDescriptor, &tVaryingData2);
+
+            plVec2 tOriginalVertex0 = ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptShader->tDesc.atVertexBufferLayouts[0].uByteStride], &tVaryingData0);
+            plVec2 tOriginalVertex1 = ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptShader->tDesc.atVertexBufferLayouts[0].uByteStride], &tVaryingData1);
+            plVec2 tOriginalVertex2 = ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptShader->tDesc.atVertexBufferLayouts[0].uByteStride], &tVaryingData2);
+
+
+            // frame buffer space
+            plVec2 tVertex0 = tOriginalVertex0;
+            plVec2 tVertex1 = tOriginalVertex1;
+            plVec2 tVertex2 = tOriginalVertex2;
+
+            tVertex0.x = fbWidth * (0.5f + 0.5f * tVertex0.x);
+            tVertex1.x = fbWidth * (0.5f + 0.5f * tVertex1.x);
+            tVertex2.x = fbWidth * (0.5f + 0.5f * tVertex2.x);
+
+            tVertex0.y = fbHeight * (0.5f + 0.5f * tVertex0.y);
+            tVertex1.y = fbHeight * (0.5f + 0.5f * tVertex1.y);
+            tVertex2.y = fbHeight * (0.5f + 0.5f * tVertex2.y);
+
+            // edge function for entire triangle 
+            float ABC = (float)pl__edge_function(tVertex0, tVertex1, tVertex2);
+
+            // Bounding box with clamping
+            const int minX = pl_max(0, pl_min3((int)tVertex0.x, (int)tVertex1.x, (int)tVertex2.x) - 1);
+            const int minY = pl_max(0, pl_min3((int)tVertex0.y, (int)tVertex1.y, (int)tVertex2.y) - 1);
+            const int maxX = pl_min(fbWidth-1, pl_max3((int)tVertex0.x, (int)tVertex1.x, (int)tVertex2.x) + 1);
+            const int maxY = pl_min(fbHeight-1, pl_max3((int)tVertex0.y, (int)tVertex1.y, (int)tVertex2.y) + 1);
+
+            // Precompute edge function deltas
+            const float ABa = tVertex0.y - tVertex1.y;
+            const float ABb = tVertex1.x - tVertex0.x;
+            const float ABc = tVertex0.x * tVertex1.y - tVertex1.x * tVertex0.y;
+
+            const float BCa = tVertex1.y - tVertex2.y;
+            const float BCb = tVertex2.x - tVertex1.x;
+            const float BCc = tVertex1.x * tVertex2.y - tVertex2.x * tVertex1.y;
+
+            const float CAa = tVertex2.y - tVertex0.y;
+            const float CAb = tVertex0.x - tVertex2.x;
+            const float CAc = tVertex2.x * tVertex0.y - tVertex0.x * tVertex2.y;
+
+            // Initialize at start of row
+            float ABP = ABa * minX + ABb * minY + ABc;
+            float BCP = BCa * minX + BCb * minY + BCc;
+            float CAP = CAa * minX + CAb * minY + CAc;
+
+            const float invABC = 1.0f / ABC;
+
+            for(vertexP.y = (float)minY; vertexP.y <= (float)maxY; vertexP.y++)
+            {
+                float rowABP = ABP;
+                float rowBCP = BCP;
+                float rowCAP = CAP;
+            
+                for(vertexP.x = (float)minX; vertexP.x <= (float)maxX; vertexP.x++)
+                {
+                    if(rowABP <= 0 && rowBCP <= 0 && rowCAP <= 0)
+                    {
+                        const float weightA = rowBCP * invABC;
+                        const float weightB = rowCAP * invABC;
+                        const float weightC = rowABP * invABC;
+                        
+                        plPixelShaderBuiltIns tBuiltIns = {
+                            .gl_FragCoord.xy = vertexP
+                        };
+
+                        // Varying system
+                        int varyDataOffset = 0;
+                        plVaryingData blendedVaryingData = {0};
+
+                        for(uint32_t j = 0; j < 16; j++)
+                            blendedVaryingData._auOffset[j] = tVaryingData0._auOffset[j];
+
+                        int iVaryingCount = 0;
+                        for(int varyIndex = 0; varyIndex < 16; varyIndex++)
+                        {
+                            if(tVaryingData0.atTypes[varyIndex] == PL_VARYING_TYPE_NONE)
+                                break;
+                            iVaryingCount++;
+                        }
+
+                        for(int varyIndex = 0; varyIndex < iVaryingCount; varyIndex++)
+                        {
+                            if(tVaryingData0.atTypes[varyIndex] == PL_VARYING_TYPE_VEC2)
+                            {
+                                // 1st input 
+                                // Vec2 blending
+                                const plVec2 twoFloats0 = *(plVec2*)&tVaryingData0.acVaryingData[varyDataOffset];
+                                const plVec2 twoFloats1 = *(plVec2*)&tVaryingData1.acVaryingData[varyDataOffset];
+                                const plVec2 twoFloats2 = *(plVec2*)&tVaryingData2.acVaryingData[varyDataOffset];
+
+                                plVec2 blendedVec2 = {
+                                    .x = ((float)(twoFloats0.x * weightA) + (float)(twoFloats1.x * weightB) + (float)(twoFloats2.x * weightC)),
+                                    .y = ((float)(twoFloats0.y * weightA) + (float)(twoFloats1.y * weightB) + (float)(twoFloats2.y * weightC)),
+                                };
+                                memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &blendedVec2, sizeof(plVec2));
+                                varyDataOffset += sizeof(plVec2);
+                            }
+                            if(tVaryingData0.atTypes[varyIndex] == PL_VARYING_TYPE_VEC3)
+                            {
+                                // 2nd input 
+                                // Vec3 blending 
+                                const plVec3* ptVecThree0 = (plVec3*)&tVaryingData0.acVaryingData[varyDataOffset];
+                                const plVec3* ptVecThree1 = (plVec3*)&tVaryingData1.acVaryingData[varyDataOffset];
+                                const plVec3* ptVecThree2 = (plVec3*)&tVaryingData2.acVaryingData[varyDataOffset];
+
+                                plVec4 tBlendedVecThree = {
+                                    .x = ((float)(ptVecThree0->x * weightA) + (float)(ptVecThree1->x * weightB) + (float)(ptVecThree2->x * weightC)),
+                                    .y = ((float)(ptVecThree0->y * weightA) + (float)(ptVecThree1->y * weightB) + (float)(ptVecThree2->y * weightC)),
+                                    .z = ((float)(ptVecThree0->z * weightA) + (float)(ptVecThree1->z * weightB) + (float)(ptVecThree2->z * weightC))
+                                };
+                                memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &tBlendedVecThree, sizeof(plVec3));
+                                varyDataOffset += sizeof(plVec3);
+                            }
+                            if(tVaryingData0.atTypes[varyIndex] == PL_VARYING_TYPE_VEC4)
+                            {
+                                // 3rd input
+                                // Vec4 blending 
+                                const plVec4* ptColor0 = (plVec4*)&tVaryingData0.acVaryingData[varyDataOffset];
+                                const plVec4* ptColor1 = (plVec4*)&tVaryingData1.acVaryingData[varyDataOffset];
+                                const plVec4* ptColor2 = (plVec4*)&tVaryingData2.acVaryingData[varyDataOffset];
+
+                                plVec4 tBlendedColor = {
+                                    .x = ((float)(ptColor0->x * weightA) + (float)(ptColor1->x * weightB) + (float)(ptColor2->x * weightC)),
+                                    .y = ((float)(ptColor0->y * weightA) + (float)(ptColor1->y * weightB) + (float)(ptColor2->y * weightC)),
+                                    .z = ((float)(ptColor0->z * weightA) + (float)(ptColor1->z * weightB) + (float)(ptColor2->z * weightC)),
+                                    .w = ((float)(ptColor0->w * weightA) + (float)(ptColor1->w * weightB) + (float)(ptColor2->w * weightC))
+                                };
+                                memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &tBlendedColor, sizeof(plVec4));
+                                varyDataOffset += sizeof(plVec4);
+                            }
+                            if(tVaryingData0.atTypes[varyIndex] == PL_VARYING_TYPE_FLOAT)
+                            {
+                                // 4th input 
+                                // float blending 
+                                const float tData0 = *(float*)&tVaryingData0.acVaryingData[varyDataOffset];
+                                const float tData1 = *(float*)&tVaryingData1.acVaryingData[varyDataOffset];
+                                const float tData2 = *(float*)&tVaryingData2.acVaryingData[varyDataOffset];
+
+                                float fBlendedData2 = ((float)(tData0 * weightA) + (float)(tData1 * weightB) + (float)(tData2 * weightC));
+
+                                memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &fBlendedData2, sizeof(float));
+                                varyDataOffset += sizeof(float);
+                            }
+                        }
+
+                        // run pixel shader
+                        // plVec4 tFinalColor = gtData.ptPipeline->tPixelShader(tBuiltIns, &gtData.tDescriptor, &blendedVaryingData);
+                        // plVec4 tFinalColor = ptPipeline->tPixelShader(tBuiltIns, &blendedVaryingData);
+                        // pl_set_pixel(ptBlit, vertexP, tFinalColor);
+                    }
+                    // Incrementally update edge functions for next pixel in row
+                    rowABP += ABa;
+                    rowBCP += BCa;
+                    rowCAP += CAa;
+                }
+                // Incrementally update edge functions for next row
+                ABP += ABb;
+                BCP += BCb;
+                CAP += CAb;
+            }
+        }
+    }
 }
 
 void
-pl_graphics_bind_shader(plCommandBuffer* ptEncoder, plShaderHandle tHandle)
+pl_graphics_bind_shader(plCommandBuffer* ptCommandBuffer, plShaderHandle tHandle)
 {
+    plDevice* ptDevice = ptCommandBuffer->ptDevice;
+    ptDevice->tCurrentShader = tHandle;
 }
 
 void
@@ -479,13 +799,18 @@ pl_graphics_set_scissor_region(plCommandBuffer* ptEncoder, const plScissor* ptSc
 plDeviceMemoryAllocation
 pl_graphics_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMemoryFlags, uint32_t uTypeFilter, const char* pcName)
 {
-    plDeviceMemoryAllocation tBlock = {0};
-    return tBlock;
+    plDeviceMemoryAllocation tAllocation = {0};
+    tAllocation.ulSize = szSize;
+    tAllocation.pHostMapped = malloc(szSize);
+    memset(tAllocation.pHostMapped, 0, szSize);
+    return tAllocation;
 }
 
 void
 pl_graphics_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
+    free(ptBlock->pHostMapped);
+    ptBlock->pHostMapped = NULL;
 }
 
 bool
@@ -509,7 +834,7 @@ pl_graphics_get_backend(void)
 const char*
 pl_graphics_get_backend_string(void)
 {
-    return "CPU Rasterizer";
+    return "Archery Rasterizer (CPU)";
 }
 
 bool
@@ -676,6 +1001,7 @@ pl_graphics_cleanup_swapchain(plSwapchain* ptSwap)
 void
 pl_graphics_cleanup_device(plDevice* ptDevice)
 {
+    pl_sb_reset(ptDevice->sbtShadersHot);
     pl__cleanup_common_device(ptDevice);
 }
 
@@ -744,6 +1070,8 @@ pl_graphics_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptD
 {
     plCommandPool* ptPool = PL_ALLOC(sizeof(plCommandPool));
     memset(ptPool, 0, sizeof(plCommandPool));
+    ptPool->ptDevice = ptDevice;
+    // ptPool->ptBlit = (plWindowBlit*)ptDesc;
     return ptPool;
 }
 
@@ -776,6 +1104,8 @@ pl_graphics_request_command_buffer(plCommandPool* ptPool, const char* pcDebugNam
         ptCommandBuffer = PL_ALLOC(sizeof(plCommandBuffer));
         memset(ptCommandBuffer, 0, sizeof(plCommandBuffer));
     }
+    ptCommandBuffer->ptPool = ptPool;
+    ptCommandBuffer->ptDevice = ptPool->ptDevice;
     return ptCommandBuffer;
 }
 
@@ -796,7 +1126,7 @@ pl_graphics_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
     ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
     pl_sb_push(ptDevice->sbtBufferFreeIndices, tHandle.uIndex);
 
-    PL_FREE(ptDevice->sbtBuffersHot[tHandle.uIndex].pcData);
+    PL_FREE(ptDevice->sbtBuffersHot[tHandle.uIndex].pData);
 }
 
 void

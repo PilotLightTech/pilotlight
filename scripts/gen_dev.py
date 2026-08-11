@@ -7,6 +7,7 @@
 # [SECTION] extensions
 # [SECTION] ecs scripts
 # [SECTION] platform extension
+# [SECTION] graphics extension
 # [SECTION] app
 # [SECTION] pilot_light
 # [SECTION] imgui & implot
@@ -93,14 +94,6 @@ with pl.project("pilotlight"):
                     configuration_filter=["debug", "moltenvk"],
                     compiler_flags=["--debug", "-g"])
 
-    # graphics backends
-    pl.add_profile(configuration_filter=["debug", "release"],
-                   compiler_filter=["gcc", "msvc"],
-                    definitions=["PL_VULKAN_BACKEND"])
-    pl.add_profile(configuration_filter=["debug", "release"], platform_filter=["Darwin"],
-                    definitions=["PL_METAL_BACKEND"])
-    pl.add_profile(configuration_filter=["moltenvk"],
-                    definitions=["PL_VULKAN_BACKEND"])
     pl.add_profile(configuration_filter=["debug", "release"],
                     definitions=["PL_UNITY_BUILD"])
     
@@ -123,7 +116,63 @@ with pl.project("pilotlight"):
             with pl.platform("Windows"):
 
                 with pl.compiler("msvc"):
-                    pl.add_static_link_libraries("vulkan-1")
+                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
+                    pl.add_compiler_flags("-std:c11")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_linker_flags("-lstdc++")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
+        
+        with pl.configuration("release"):
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    pl.add_compiler_flags("-std:c11")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_linker_flags("-lstdc++")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
+
+        # vulkan on macos
+        with pl.configuration("moltenvk"):
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_linker_flags("-lstdc++")
+                    pl.add_dynamic_link_libraries("pthread")
+
+    #-----------------------------------------------------------------------------
+    # [SECTION] shader extension
+    #-----------------------------------------------------------------------------
+
+    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+
+        pl.add_source_files("../extensions/pl_shader_ext.c")
+        pl.set_output_binary("pl_shader_ext")
+
+        with pl.configuration("debug"):
+
+            # win32
+            with pl.platform("Windows"):
+                pl.add_definitions("PL_VULKAN_BACKEND")
+                with pl.compiler("msvc"):
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
                     pl.add_include_directories("%VULKAN_SDK%\\Include")
@@ -133,10 +182,10 @@ with pl.project("pilotlight"):
 
             # linux
             with pl.platform("Linux"):
+                pl.add_definitions("PL_VULKAN_BACKEND")
                 with pl.compiler("gcc"):
                     pl.add_dynamic_link_libraries( "xcb", "X11", "X11-xcb",
-                                                    "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread",
-                                                    "vulkan")
+                                                    "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
@@ -145,6 +194,7 @@ with pl.project("pilotlight"):
 
             # macos
             with pl.platform("Darwin"):
+                pl.add_definitions("PL_METAL_BACKEND")
                 with pl.compiler("clang"):
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
@@ -157,7 +207,156 @@ with pl.project("pilotlight"):
 
             # win32
             with pl.platform("Windows"):
+                pl.add_definitions("PL_VULKAN_BACKEND")
+                with pl.compiler("msvc"):
+                    pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
+                        "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
+                    pl.add_include_directories("%VULKAN_SDK%\\Include")
+                    pl.add_link_directories('%VULKAN_SDK%\\Lib')
+                    pl.add_compiler_flags("-std:c11")
 
+            # linux
+            with pl.platform("Linux"):
+                pl.add_definitions("PL_VULKAN_BACKEND")
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb",
+                                                    "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
+                    pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
+                        "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
+                    pl.add_linker_flags("-lstdc++")
+
+            # macos
+            with pl.platform("Darwin"):
+                pl.add_definitions("PL_METAL_BACKEND")
+                with pl.compiler("clang"):
+                    pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
+                        "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
+
+        # vulkan on macos
+        with pl.configuration("moltenvk"):
+            pl.add_definitions("PL_VULKAN_BACKEND")
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_linker_flags("-lstdc++")
+                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
+                        "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
+
+    #-----------------------------------------------------------------------------
+    # [SECTION] cpu shader extension
+    #-----------------------------------------------------------------------------
+
+    with pl.target("pl_shader_cpu_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+
+        pl.add_source_files("../extensions/pl_shader_ext.c")
+        pl.set_output_binary("pl_shader_cpu_ext")
+        pl.add_definitions("PL_CPU_BACKEND", "PL_OFFLINE_SHADERS_ONLY")
+
+        with pl.configuration("debug"):
+
+            # win32
+            with pl.platform("Windows"):
+                with pl.compiler("msvc"):
+                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
+                    pl.add_compiler_flags("-std:c11")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_linker_flags("-lstdc++")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
+        
+        with pl.configuration("release"):
+
+            # win32
+            with pl.platform("Windows"):
+                
+                with pl.compiler("msvc"):
+                    pl.add_compiler_flags("-std:c11")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_linker_flags("-lstdc++")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
+
+        # vulkan on macos
+        with pl.configuration("moltenvk"):
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_linker_flags("-lstdc++")
+                    pl.add_dynamic_link_libraries("pthread")
+
+    #-----------------------------------------------------------------------------
+    # [SECTION] graphics extension
+    #-----------------------------------------------------------------------------
+
+    with pl.target("pl_graphics_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+
+        pl.add_source_files("../extensions/pl_graphics_ext.c")
+        pl.set_output_binary("pl_graphics_ext")
+
+        with pl.configuration("debug"):
+
+            # win32
+            with pl.platform("Windows"):
+                pl.add_definitions("PL_VULKAN_BACKEND")
+                with pl.compiler("msvc"):
+                    pl.add_static_link_libraries("vulkan-1")
+                    pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
+                        "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
+                    pl.add_include_directories("%VULKAN_SDK%\\Include")
+                    pl.add_link_directories('%VULKAN_SDK%\\Lib')
+                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
+                    pl.add_compiler_flags("-std:c11")
+
+            # linux
+            with pl.platform("Linux"):
+                pl.add_definitions("PL_VULKAN_BACKEND")
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries( "xcb", "X11", "X11-xcb",
+                                                    "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread",
+                                                    "vulkan")
+                    pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
+                        "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
+                    pl.add_linker_flags("-lstdc++")
+
+            # macos
+            with pl.platform("Darwin"):
+                pl.add_definitions("PL_METAL_BACKEND")
+                with pl.compiler("clang"):
+                    pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
+                        "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
+        
+        with pl.configuration("release"):
+
+            # win32
+            with pl.platform("Windows"):
+                pl.add_definitions("PL_VULKAN_BACKEND")
                 with pl.compiler("msvc"):
                     pl.add_static_link_libraries("vulkan-1")
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
@@ -168,6 +367,7 @@ with pl.project("pilotlight"):
 
             # linux
             with pl.platform("Linux"):
+                pl.add_definitions("PL_VULKAN_BACKEND")
                 with pl.compiler("gcc"):
                     pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb",
                                                     "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread",
@@ -180,6 +380,7 @@ with pl.project("pilotlight"):
 
             # macos
             with pl.platform("Darwin"):
+                pl.add_definitions("PL_METAL_BACKEND")
                 with pl.compiler("clang"):
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
@@ -190,12 +391,73 @@ with pl.project("pilotlight"):
 
         # vulkan on macos
         with pl.configuration("moltenvk"):
+            pl.add_definitions("PL_VULKAN_BACKEND")
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_linker_flags("-lstdc++")
                     pl.add_dynamic_link_libraries("pthread", "vulkan")
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
+
+    #-----------------------------------------------------------------------------
+    # [SECTION] cpu graphics extension
+    #-----------------------------------------------------------------------------
+
+    with pl.target("pl_graphics_cpu_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+
+        pl.add_source_files("../extensions/pl_graphics_ext.c")
+        pl.set_output_binary("pl_graphics_cpu_ext")
+        pl.add_definitions("PL_CPU_BACKEND", "PL_OFFLINE_SHADERS_ONLY")
+
+        
+        with pl.configuration("debug"):
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
+                    pl.add_compiler_flags("-std:c11")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries( "xcb", "X11", "X11-xcb",
+                                                    "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
+                    pl.add_linker_flags("-lstdc++")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
+
+        with pl.configuration("release"):
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    pl.add_compiler_flags("-std:c11")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_linker_flags("-lstdc++")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
+
+        # vulkan on macos
+        with pl.configuration("moltenvk"):
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_linker_flags("-lstdc++")
+                    pl.add_dynamic_link_libraries("pthread")
                     
     #-----------------------------------------------------------------------------
     # [SECTION] ecs scripts
@@ -224,8 +486,8 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pass
 
-        with pl.configuration("debug"):   add_script_ext()
-        with pl.configuration("release"): add_script_ext()
+        with pl.configuration("debug"):     add_script_ext()
+        with pl.configuration("release"):   add_script_ext()
 
         # vulkan on macos
         with pl.configuration("moltenvk"):
@@ -249,7 +511,7 @@ with pl.project("pilotlight"):
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
                     pl.add_source_files("../extensions/pl_platform_win32_ext.c")
-                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32")
+                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32", "gdi32")
                     pl.add_compiler_flags("-std:c11")
                         
             # linux
@@ -272,7 +534,7 @@ with pl.project("pilotlight"):
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
                     pl.add_source_files("../extensions/pl_platform_win32_ext.c")
-                    pl.add_static_link_libraries("ucrt", "user32", "Ole32")
+                    pl.add_static_link_libraries("ucrt", "user32", "Ole32", "gdi32")
                     pl.add_compiler_flags("-std:c11")
 
             # linux
@@ -309,7 +571,7 @@ with pl.project("pilotlight"):
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
-                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32")
+                    pl.add_static_link_libraries("user32", "Ole32")
                     pl.add_source_files("pl_main_win32.c")
                     pl.add_compiler_flags("-std:c11")
                     
@@ -435,28 +697,20 @@ with pl.project("pilotlight"):
 
             # win32
             with pl.platform("Windows"):
-                pl.add_definitions("PL_VULKAN_BACKEND")
                 with pl.compiler("msvc"):
-                    pl.add_include_directories("%VULKAN_SDK%\\Include")
                     pl.add_linker_flags("-incremental:no", "-nologo", "-noexp")
-                    pl.add_link_directories('%VULKAN_SDK%\\Lib')
-                    pl.add_static_link_libraries("ucrtd", "vulkan-1")
+                    pl.add_static_link_libraries("ucrtd")
                     pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-Od", "-MDd", "-Zi", "-permissive")
 
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_definitions("PL_VULKAN_BACKEND")
                     pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_link_directories('$VULKAN_SDK/lib')
-                    pl.add_dynamic_link_libraries("vulkan")
 
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
-                    pl.add_definitions("PL_METAL_BACKEND")
                     pl.add_compiler_flags("-fPIC", "-ObjC++", "-std=c++14", "--debug -g", "-Wno-nullability-completeness")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
 
@@ -466,30 +720,23 @@ with pl.project("pilotlight"):
 
             # win32
             with pl.platform("Windows"):
-                pl.add_definitions("PL_VULKAN_BACKEND")
                 with pl.compiler("msvc"):
-                    pl.add_include_directories("%VULKAN_SDK%\\Include")
                     pl.add_linker_flags("-incremental:no", "-nologo", "-noexp")
-                    pl.add_link_directories('%VULKAN_SDK%\\Lib')
-                    pl.add_static_link_libraries("ucrtd", "vulkan-1")
+                    pl.add_static_link_libraries("ucrt")
                     pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-O2", "-MD", "-permissive")
 
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_definitions("PL_VULKAN_BACKEND")
                     pl.add_compiler_flags("-fPIC", "-std=c++14")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_link_directories('$VULKAN_SDK/lib')
-                    pl.add_dynamic_link_libraries("vulkan")
 
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
-                    pl.add_definitions("PL_METAL_BACKEND")
                     pl.add_compiler_flags("-fPIC", "-ObjC++", "-std=c++14", "-Wno-nullability-completeness")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
+
 
     #-----------------------------------------------------------------------------
     # [SECTION] sandbox
@@ -560,6 +807,31 @@ with pl.project("pilotlight"):
                     pl.add_link_directories("/usr/local/lib")
                     pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
                     pl.add_compiler_flags("-fPIC", "-fmodules", "--debug", "-g", "-std=c++14")
+                    pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
+
+        with pl.configuration("debug_cpu"):
+
+            pl.add_static_link_libraries("dearimguid")
+
+            # win32
+            with pl.platform("Windows"):
+                with pl.compiler("msvc"):
+                    pl.add_linker_flags("-incremental:no", "-nologo", "-noimplib", "-noexp")
+                    pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-wd4201", "-wd4100",
+                                          "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
+                                          "-Od", "-MDd", "-Zi", "-permissive")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
+                    pl.add_linker_flags("-ldl", "-lm", "-lstdc++")
+                    
+            # apple
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
+                    pl.add_compiler_flags("-fPIC", "-ObjC++", "--debug", "-g", "-std=c++14")
                     pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
             
     pl.apply_profiles()

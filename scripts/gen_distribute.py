@@ -343,7 +343,7 @@ with pl.project("pilotlight deploy"):
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
                     pl.add_source_files("../extensions/pl_platform_win32_ext.c")
-                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32")
+                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32", "gdi32")
                        
             # linux
             with pl.platform("Linux"):
@@ -366,7 +366,7 @@ with pl.project("pilotlight deploy"):
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
                     pl.add_source_files("../extensions/pl_platform_win32_ext.c")
-                    pl.add_static_link_libraries("ucrt", "user32", "Ole32")
+                    pl.add_static_link_libraries("ucrt", "user32", "Ole32", "gdi32")
                     
 
             # linux

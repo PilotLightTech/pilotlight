@@ -32,26 +32,22 @@ Index of this file:
 #include "pl_vfs_ext.h"
 #include "pl_string_intern_ext.h"
 
-#ifdef PL_UNITY_BUILD
-    #include "pl_unity_ext.inc"
-#else
-    static const plMemoryI*  gptMemory = NULL;
-    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
-    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
-    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+static const plMemoryI*  gptMemory = NULL;
+#define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+#define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
-    #ifndef PL_DS_ALLOC
-        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
-        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
-        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
-    #endif
-
-    static const plLogI*          gptLog       = NULL;
-    static const plScreenLogI*    gptScreenLog = NULL;
-    static const plVfsI*          gptVfs       = NULL;
-    static const plStringInternI* gptString    = NULL;
-    static const plProfileI*      gptProfile    = NULL;
+#ifndef PL_DS_ALLOC
+    #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+    #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 #endif
+
+static const plLogI*          gptLog       = NULL;
+static const plScreenLogI*    gptScreenLog = NULL;
+static const plVfsI*          gptVfs       = NULL;
+static const plStringInternI* gptString    = NULL;
+static const plProfileI*      gptProfile    = NULL;
 
 #include "pl_ds.h"
 
@@ -878,6 +874,7 @@ pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptScreenLog = pl_get_api_latest(ptApiRegistry, plScreenLogI);
     gptVfs = pl_get_api_latest(ptApiRegistry, plVfsI);
     gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
+    gptString = pl_get_api_latest(ptApiRegistry, plStringInternI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
     if(bReload)
@@ -927,20 +924,16 @@ pl_unload_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptShaderCtx = NULL;
 }
 
-#ifndef PL_UNITY_BUILD
+#define PL_STRING_IMPLEMENTATION
+#include "pl_string.h"
+#undef PL_STRING_IMPLEMENTATION
 
-    #define PL_STRING_IMPLEMENTATION
-    #include "pl_string.h"
-    #undef PL_STRING_IMPLEMENTATION
+#define PL_MEMORY_IMPLEMENTATION
+#include "pl_memory.h"
+#undef PL_MEMORY_IMPLEMENTATION
 
-    #define PL_MEMORY_IMPLEMENTATION
-    #include "pl_memory.h"
-    #undef PL_MEMORY_IMPLEMENTATION
-
-    #ifdef PL_USE_STB_SPRINTF
-        #define STB_SPRINTF_IMPLEMENTATION
-        #include "stb_sprintf.h"
-        #undef STB_SPRINTF_IMPLEMENTATION
-    #endif
-
+#ifdef PL_USE_STB_SPRINTF
+    #define STB_SPRINTF_IMPLEMENTATION
+    #include "stb_sprintf.h"
+    #undef STB_SPRINTF_IMPLEMENTATION
 #endif

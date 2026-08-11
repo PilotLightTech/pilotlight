@@ -111,7 +111,7 @@
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_0.c" 
 
 :: run compiler (and linker)
@@ -144,7 +144,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_1.c" 
 
 :: run compiler (and linker)
@@ -177,7 +177,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_2.c" 
 
 :: run compiler (and linker)
@@ -210,7 +210,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_3.c" 
 
 :: run compiler (and linker)
@@ -243,7 +243,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_4.c" 
 
 :: run compiler (and linker)
@@ -276,7 +276,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_5.c" 
 
 :: run compiler (and linker)
@@ -309,7 +309,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_0.c" 
 
 :: run compiler (and linker)
@@ -342,7 +342,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_1.c" 
 
 :: run compiler (and linker)
@@ -375,7 +375,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_2.c" 
 
 :: run compiler (and linker)
@@ -408,7 +408,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_3.c" 
 
 :: run compiler (and linker)
@@ -441,7 +441,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_4.c" 
 
 :: run compiler (and linker)
@@ -474,7 +474,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_5.c" 
 
 :: run compiler (and linker)
@@ -507,7 +507,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_6.c" 
 
 :: run compiler (and linker)
@@ -646,7 +646,7 @@ goto ExitLabel
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_0.c" 
 
 :: run compiler (and linker)
@@ -679,7 +679,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_1.c" 
 
 :: run compiler (and linker)
@@ -712,7 +712,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_2.c" 
 
 :: run compiler (and linker)
@@ -745,7 +745,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_3.c" 
 
 :: run compiler (and linker)
@@ -778,7 +778,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_4.c" 
 
 :: run compiler (and linker)
@@ -811,7 +811,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_5.c" 
 
 :: run compiler (and linker)
@@ -844,7 +844,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_0.c" 
 
 :: run compiler (and linker)
@@ -877,7 +877,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_1.c" 
 
 :: run compiler (and linker)
@@ -910,7 +910,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_2.c" 
 
 :: run compiler (and linker)
@@ -943,7 +943,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_3.c" 
 
 :: run compiler (and linker)
@@ -976,7 +976,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_4.c" 
 
 :: run compiler (and linker)
@@ -1009,7 +1009,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_5.c" 
 
 :: run compiler (and linker)
@@ -1042,7 +1042,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
+@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_6.c" 
 
 :: run compiler (and linker)

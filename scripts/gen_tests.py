@@ -290,7 +290,7 @@ with pl.project("pilotlight_lib_tests"):
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
                     pl.add_source_files("../extensions/pl_platform_win32_ext.c")
-                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32")
+                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32", "gdi32")
                     pl.add_compiler_flags("-std:c11", "-Od", "-MDd", "-Zi", "-Zc:preprocessor", "-nologo", "-W4", "-WX", "-wd4201",
                                 "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115", "-permissive-")
                     pl.add_linker_flags("-incremental:no", "-noimplib", "-noexp")
@@ -317,7 +317,7 @@ with pl.project("pilotlight_lib_tests"):
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
                     pl.add_source_files("../extensions/pl_platform_win32_ext.c")
-                    pl.add_static_link_libraries("ucrt", "user32", "Ole32")
+                    pl.add_static_link_libraries("ucrt", "user32", "Ole32", "gdi32")
                     pl.add_compiler_flags("-std:c11", "-O2", "-MD", "-Zc:preprocessor", "-nologo", "-W4", "-WX", "-wd4201",
                                 "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115", "-permissive-")
                     pl.add_linker_flags("-incremental:no", "-noimplib", "-noexp")

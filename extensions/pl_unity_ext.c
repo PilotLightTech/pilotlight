@@ -18,8 +18,11 @@ Index of this file:
 #include "pl_unity_ext.h"
 #include "pl_unity_ext.inc"
 
+#include "pl_shader_ext.h"
+#include "pl_platform_ext.h"
+#include "pl_graphics_ext.h"
+
 #include "pl_stage_ext.c"
-#include "pl_shader_ext.c"
 #include "pl_image_ext.c"
 #include "pl_rect_pack_ext.c"
 #include "pl_stats_ext.c"
@@ -28,10 +31,8 @@ Index of this file:
 #include "pl_draw_ext.c"
 #include "pl_gpu_allocators_ext.c"
 #include "pl_ui_ext.c"
-#include "pl_graphics_ext.c"
 #include "pl_ecs_ext.c"
 #include "pl_camera_ext.c"
-#include "pl_platform_ext.h"
 #include "pl_resource_ext.c"
 #include "pl_model_loader_ext.c"
 #include "pl_renderer_ext.c"
@@ -274,6 +275,30 @@ pl_window_show(plWindow* ptWindow)
     gptWindow->show(ptWindow);
 }
 
+plWindowResult
+pl_window_create_surface(plWindow* ptWindow, const plWindowSurfaceDesc* ptDesc, plWindowSurface** ptSurfaceOut)
+{
+    return gptWindow->create_surface(ptWindow, ptDesc, ptSurfaceOut);
+}
+
+void
+pl_window_destroy_surface(plWindowSurface** ptSurfaceIn)
+{
+    gptWindow->destroy_surface(ptSurfaceIn);
+}
+
+bool
+pl_window_acquire_surface_image(plWindowSurface* ptSurface, plWindowSurfaceImage* ptImageOut)
+{
+    return gptWindow->acquire_surface_image(ptSurface, ptImageOut);
+}
+
+void
+pl_window_present_surface_image(plWindowSurface* ptSurface, uint32_t uImageIndex)
+{
+    gptWindow->present_surface_image(ptSurface, uImageIndex);
+}
+
 bool
 pl_window_set_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
 {
@@ -438,6 +463,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptRendererDebug     = pl_get_api_latest(ptApiRegistry, plRendererDebugI);
     gptRendererEditor    = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
     gptModelLoader       = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
+    gptShader            = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -446,14 +472,10 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_stats_ext(ptApiRegistry, bReload);
     pl_load_job_ext(ptApiRegistry, bReload);
     pl_load_string_intern_ext(ptApiRegistry, bReload);
-    pl_load_graphics_ext(ptApiRegistry, bReload);
     pl_load_gpu_allocators_ext(ptApiRegistry, bReload);
     pl_load_draw_ext(ptApiRegistry, bReload);
     pl_load_ui_ext(ptApiRegistry, bReload);
     pl_load_vfs_ext(ptApiRegistry, bReload);
-    pl_load_shader_ext(ptApiRegistry, bReload);
-    gptShader = pl_get_api_latest(ptApiRegistry, plShaderI);
-
     pl_load_ecs_ext(ptApiRegistry, bReload);
     pl_load_camera_ext(ptApiRegistry, bReload);
     pl_load_resource_ext(ptApiRegistry, bReload);
@@ -493,13 +515,11 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 void
 pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    pl_unload_shader_ext(ptApiRegistry, bReload);
     pl_unload_job_ext(ptApiRegistry, bReload);
     pl_unload_image_ext(ptApiRegistry, bReload);
     pl_unload_rect_pack_ext(ptApiRegistry, bReload);
     pl_unload_stats_ext(ptApiRegistry, bReload);
     pl_unload_string_intern_ext(ptApiRegistry, bReload);
-    pl_unload_graphics_ext(ptApiRegistry, bReload);
     pl_unload_gpu_allocators_ext(ptApiRegistry, bReload);
     pl_unload_draw_ext(ptApiRegistry, bReload);
     pl_unload_animation_ext(ptApiRegistry, bReload);
