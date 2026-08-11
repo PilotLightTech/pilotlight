@@ -50,6 +50,7 @@ Index of this file:
 #include <xcb/xcb_cursor.h> // apt install libxcb-cursor-dev, libxcb-cursor0
 #include <xcb/xcb_keysyms.h>
 #include <X11/XKBlib.h>
+#include <X11/Xutil.h> // XDestroyImage
 #include <poll.h>
 
 //-----------------------------------------------------------------------------
@@ -84,6 +85,7 @@ typedef struct _plPlatformExtData
     xcb_connection_t*     ptConnection;
     xcb_key_symbols_t*    ptKeySyms;
     xcb_screen_t*         ptScreen;
+    int                   screen;
     xcb_cursor_context_t* ptCursorContext;
     xcb_atom_t            tWmProtocols;
     xcb_atom_t            tWmDeleteWin;
@@ -102,6 +104,25 @@ typedef struct _plPlatformExtData
     double dFrequency;
     double dStartTime;
 } plPlatformExtData;
+
+typedef struct _plWindowSurfaceImageX11
+{
+    XImage* image;
+    uint32_t uWidth;
+    uint32_t uHeight;
+    void*    pPixels;
+    uint32_t uPixelCapacity;
+} plWindowSurfaceImageX11;
+
+typedef struct _plWindowSurface
+{
+    plWindow* ptWindow;
+    uint32_t  uCurrentImage;
+    uint32_t  uImageCount;
+    plWindowSurfaceImageX11* atImages;
+    Visual* visual;
+    int depth;
+} plWindowSurface;
 
 static plPlatformExtData* gptWindowCtx = NULL;
 
@@ -130,6 +151,7 @@ typedef struct _plWindowData
     uint32_t          header;
     xcb_connection_t* ptConnection;
     xcb_window_t      tWindow;
+    GC                gc;
 } plWindowData;
 
 void pl__linux_procedure(xcb_generic_event_t* event);
@@ -195,6 +217,7 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
     ptData->header = 0; //-V522
     ptData->tWindow = xcb_generate_id(gptWindowCtx->ptConnection); //-V522
     ptData->ptConnection = gptWindowCtx->ptConnection; //-V522
+    ptData->gc = XCreateGC(gptWindowCtx->ptDisplay, ptData->tWindow, 0, NULL);
 
     // register event types.
     // XCB_CW_BACK_PIXEL = filling then window bg with a single colour
@@ -302,6 +325,122 @@ void
 pl_show_window(plWindow* ptWindow)
 {
     
+}
+
+plWindowResult
+pl_window_create_surface(plWindow* ptWindow, const plWindowSurfaceDesc* ptDesc, plWindowSurface** ptSurfaceOut)
+{
+    plWindowSurface* ptSurface = PL_ALLOC(sizeof(plWindowSurface));
+    
+    ptSurface->ptWindow = ptWindow;
+    ptSurface->atImages = PL_ALLOC(sizeof(plWindowSurfaceImageX11) * ptDesc->uImageCount);
+    memset(ptSurface->atImages, 0, sizeof(plWindowSurfaceImageX11) * ptDesc->uImageCount);
+    ptSurface->uImageCount = ptDesc->uImageCount;
+    ptSurface->visual = DefaultVisual(gptWindowCtx->ptDisplay, gptWindowCtx->screen);
+    ptSurface->depth = DefaultDepth(gptWindowCtx->ptDisplay, gptWindowCtx->screen);
+
+    *ptSurfaceOut = ptSurface;
+    return PL_WINDOW_RESULT_SUCCESS;
+}
+
+void
+pl_window_destroy_surface(plWindowSurface** ptSurfaceIn)
+{
+    plWindowSurface* ptSurface = *ptSurfaceIn;
+    plWindow* ptWindow = ptSurface->ptWindow;
+    for(uint32_t i = 0; i < ptSurface->uImageCount; i++)
+    {
+        ptSurface->atImages[i].image->data = NULL;
+        XDestroyImage(ptSurface->atImages[i].image);
+        PL_FREE(ptSurface->atImages[i].pPixels);
+        
+    }
+    PL_FREE(ptSurface->atImages);
+    memset(ptSurface, 0, sizeof(plWindowSurface));
+    PL_FREE(*ptSurfaceIn);
+    *ptSurfaceIn = NULL;
+}
+
+bool
+pl_window_acquire_surface_image(plWindowSurface* ptSurface, plWindowSurfaceImage* ptImageOut)
+{
+    plWindow* ptWindow = ptSurface->ptWindow;
+    plWindowData* ptData = ptWindow->_pBackendData;
+
+    plWindowSurfaceImageX11* ptImageX11 = &ptSurface->atImages[ptSurface->uCurrentImage];
+
+    XWindowAttributes tAttributes = {0};
+
+    uint32_t uWidth  = 0;
+    uint32_t uHeight = 0;
+
+    if(XGetWindowAttributes(gptWindowCtx->ptDisplay, ptData->tWindow, &tAttributes))
+    {
+        uWidth  = (uint32_t)tAttributes.width;
+        uHeight = (uint32_t)tAttributes.height;
+    }
+
+    uint32_t uPixelsNeeded = uWidth * uHeight;
+    bool bResizeNeeded = uPixelsNeeded > ptImageX11->uPixelCapacity;
+
+    if(bResizeNeeded)
+    {
+        if(ptImageX11->pPixels)
+        {
+            ptImageX11->image->data = NULL;
+            XDestroyImage(ptImageX11->image);
+            PL_FREE(ptImageX11->pPixels);
+        }
+        ptImageX11->pPixels = PL_ALLOC(uPixelsNeeded * sizeof(uint32_t));
+        memset(ptImageX11->pPixels, 0, uPixelsNeeded * sizeof(uint32_t));
+        ptImageX11->uPixelCapacity = uPixelsNeeded;
+
+        ptImageX11->image = XCreateImage(
+            gptWindowCtx->ptDisplay,
+            ptSurface->visual,
+            (unsigned int)ptSurface->depth,
+            ZPixmap,
+            0,
+            (char*)ptImageX11->pPixels,
+            (unsigned int)uWidth,
+            (unsigned int)uHeight,
+            32,
+            uWidth * sizeof(uint32_t));
+    }
+
+    ptImageOut->pPixels = ptImageX11->pPixels;
+    ptImageOut->uWidth = uWidth;
+    ptImageOut->uHeight = uHeight;
+    ptImageOut->uRowPitch = ptImageOut->uWidth * sizeof(uint32_t);
+    ptImageOut->uImageIndex = ptSurface->uCurrentImage;
+    ptImageOut->tFormat = PL_WINDOW_SURFACE_FORMAT_B8G8R8A8_UNORM;
+
+    ptImageX11->uWidth = ptImageOut->uWidth;
+    ptImageX11->uHeight = ptImageOut->uHeight;
+
+    return true;
+}
+
+void
+pl_window_present_surface_image(plWindowSurface* ptSurface, uint32_t uImageIndex)
+{
+    plWindow* ptWindow = ptSurface->ptWindow;
+    plWindowData* ptData = ptWindow->_pBackendData;
+    plWindowSurfaceImageX11* ptImageX11 = &ptSurface->atImages[ptSurface->uCurrentImage];
+
+    XPutImage(
+        gptWindowCtx->ptDisplay,
+        ptData->tWindow,
+        ptData->gc,
+        ptImageX11->image,
+        0,
+        0,
+        0,
+        0,
+        (unsigned int)ptImageX11->uWidth,
+        (unsigned int)ptImageX11->uHeight);
+    ptSurface->uCurrentImage++;
+    ptSurface->uCurrentImage %= ptSurface->uImageCount;
 }
 
 bool 
@@ -2002,18 +2141,22 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
 
     const plWindowI tWindowApi = {
-        .create              = pl_create_window,
-        .destroy             = pl_destroy_window,
-        .show                = pl_show_window,
-        .set_callback        = pl_set_window_callback,
-        .get_callback        = pl_get_window_callback,
-        .set_attribute       = pl_set_window_attribute,
-        .get_attribute       = pl_get_window_attribute,
-        .set_cursor_mode     = pl_set_cursor_mode,
-        .get_cursor_mode     = pl_get_cursor_mode,
-        .set_raw_mouse_input = pl_set_raw_mouse_input,
-        .set_fullscreen      = pl_set_fullscreen,
-        .get_capabilities    = pl_get_window_capabilities
+        .create                = pl_create_window,
+        .destroy               = pl_destroy_window,
+        .show                  = pl_show_window,
+        .set_callback          = pl_set_window_callback,
+        .get_callback          = pl_get_window_callback,
+        .set_attribute         = pl_set_window_attribute,
+        .get_attribute         = pl_get_window_attribute,
+        .set_cursor_mode       = pl_set_cursor_mode,
+        .get_cursor_mode       = pl_get_cursor_mode,
+        .set_raw_mouse_input   = pl_set_raw_mouse_input,
+        .set_fullscreen        = pl_set_fullscreen,
+        .create_surface        = pl_window_create_surface,
+        .destroy_surface       = pl_window_destroy_surface,
+        .acquire_surface_image = pl_window_acquire_surface_image,
+        .present_surface_image = pl_window_present_surface_image,
+        .get_capabilities      = pl_get_window_capabilities
     };
 
     const plFileI tFileApi = {
@@ -2153,8 +2296,7 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         // turn off auto repeat (we handle this internally)
         XkbSetDetectableAutoRepeat(stWindowCtx.ptDisplay, false, NULL);
 
-        int screen_p = 0;
-        stWindowCtx.ptConnection = xcb_connect(NULL, &screen_p);
+        stWindowCtx.ptConnection = xcb_connect(NULL, &stWindowCtx.screen);
         if(xcb_connection_has_error(stWindowCtx.ptConnection))
         {
             PL_ASSERT(false && "Failed to connect to X server via XCB.");
@@ -2173,7 +2315,7 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         // loop through screens using iterator
         xcb_screen_iterator_t it = xcb_setup_roots_iterator(setup);
         
-        for (int s = screen_p; s > 0; s--) 
+        for (int s = stWindowCtx.screen; s > 0; s--) 
         {
             xcb_screen_next(&it);
         }

@@ -33,6 +33,7 @@ Index of this file:
 #define PL_VK_KEYPAD_ENTER (VK_RETURN + 256)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <wingdi.h>
 #include <sysinfoapi.h> // page size
 #include <winsock2.h> // sockets
 #include <ws2tcpip.h>
@@ -72,6 +73,23 @@ typedef struct _plPlatformExtData
     INT64 ilTime;
     INT64 ilTicksPerSecond;
 } plPlatformExtData;
+
+typedef struct _plWindowSurfaceImageWin32
+{
+    HDC      tDc;
+    uint32_t uWidth;
+    uint32_t uHeight;
+    void*    pPixels;
+    uint32_t uPixelCapacity;
+} plWindowSurfaceImageWin32;
+
+typedef struct _plWindowSurface
+{
+    plWindow* ptWindow;
+    uint32_t  uCurrentImage;
+    uint32_t  uImageCount;
+    plWindowSurfaceImageWin32* atImages;
+} plWindowSurface;
 
 static plPlatformExtData* gptWindowCtx = NULL;
 
@@ -117,6 +135,23 @@ pl_platform_cleanup(plPlatformExtData* ptPlatformData)
     pl_sb_free(ptPlatformData->sbtWindows);
     gptWindowCtx = NULL;
 }
+
+typedef struct plCpuFramebuffer
+{
+    uint32_t* pixels; // BGRA8
+    int width;
+    int height;
+} plCpuFramebuffer;
+static bool bFirstRun = true;
+static plCpuFramebuffer tFrameBuffer = {0};
+
+static void
+pl_present_cpu_framebuffer(HWND tHwnd, const plCpuFramebuffer* framebuffer)
+{
+    
+
+}
+
 
 LRESULT CALLBACK 
 pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
@@ -211,13 +246,18 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             }
             break;
 
+        case WM_ERASEBKGND:
+            return 1;
+
         case WM_PAINT:
         {
             gptIO->pl_app_update(gptIO->pAppUserData);
 
+            
+
             // must be called for the OS to do its thing
             PAINTSTRUCT tPaint;
-            HDC tDeviceContext = BeginPaint(tHwnd, &tPaint);  
+            HDC tDeviceContext = BeginPaint(tHwnd, &tPaint);
             EndPaint(tHwnd, &tPaint); 
             break;
         }
@@ -564,6 +604,118 @@ void
 pl_show_window(plWindow* ptWindow)
 {
     ShowWindow(ptWindow->_pBackendData, SW_SHOWDEFAULT);
+}
+
+plWindowResult
+pl_window_create_surface(plWindow* ptWindow, const plWindowSurfaceDesc* ptDesc, plWindowSurface** ptSurfaceOut)
+{
+    plWindowSurface* ptSurface = PL_ALLOC(sizeof(plWindowSurface));
+    
+    ptSurface->ptWindow = ptWindow;
+    ptSurface->atImages = PL_ALLOC(sizeof(plWindowSurfaceImageWin32) * ptDesc->uImageCount);
+    memset(ptSurface->atImages, 0, sizeof(plWindowSurfaceImageWin32) * ptDesc->uImageCount);
+    ptSurface->uImageCount = ptDesc->uImageCount;
+
+    *ptSurfaceOut = ptSurface;
+    return PL_WINDOW_RESULT_SUCCESS;
+}
+
+void
+pl_window_destroy_surface(plWindowSurface** ptSurfaceIn)
+{
+    plWindowSurface* ptSurface = *ptSurfaceIn;
+    plWindow* ptWindow = ptSurface->ptWindow;
+    for(uint32_t i = 0; i < ptSurface->uImageCount; i++)
+    {
+        PL_FREE(ptSurface->atImages[i].pPixels);
+    }
+    PL_FREE(ptSurface->atImages);
+    memset(ptSurface, 0, sizeof(plWindowSurface));
+    PL_FREE(*ptSurfaceIn);
+    *ptSurfaceIn = NULL;
+}
+
+bool
+pl_window_acquire_surface_image(plWindowSurface* ptSurface, plWindowSurfaceImage* ptImageOut)
+{
+    plWindow* ptWindow = ptSurface->ptWindow;
+
+    HWND tHandle = ptWindow->_pBackendData;
+    plWindowSurfaceImageWin32* ptImageWin32 = &ptSurface->atImages[ptSurface->uCurrentImage];
+    ptImageWin32->tDc = GetDC(tHandle);
+    PL_ASSERT(ptImageWin32->tDc != NULL);
+
+    RECT tRect;
+    GetClientRect(tHandle, &tRect);
+
+    int iClientWidth  = tRect.right - tRect.left;
+    int iClientHeight = tRect.bottom - tRect.top;
+
+    uint32_t uPixelsNeeded = (uint32_t)iClientWidth * (uint32_t)iClientHeight;
+    bool bResizeNeeded = uPixelsNeeded > ptImageWin32->uPixelCapacity;
+
+    if(bResizeNeeded)
+    {
+        if(ptImageWin32->pPixels)
+        {
+            PL_FREE(ptImageWin32->pPixels);
+            ptImageWin32->pPixels = NULL;
+        }
+        ptImageWin32->pPixels = PL_ALLOC(uPixelsNeeded * sizeof(uint32_t));
+        memset(ptImageWin32->pPixels, 0, uPixelsNeeded * sizeof(uint32_t));
+        ptImageWin32->uPixelCapacity = uPixelsNeeded;
+    }
+
+    ptImageOut->pPixels = ptImageWin32->pPixels;
+    ptImageOut->uWidth = (uint32_t)iClientWidth;
+    ptImageOut->uHeight = (uint32_t)iClientHeight;
+    ptImageOut->uRowPitch = ptImageOut->uWidth * sizeof(uint32_t);
+    ptImageOut->uImageIndex = ptSurface->uCurrentImage;
+    ptImageOut->tFormat = PL_WINDOW_SURFACE_FORMAT_B8G8R8A8_UNORM;
+
+    ptImageWin32->uWidth = ptImageOut->uWidth;
+    ptImageWin32->uHeight = ptImageOut->uHeight;
+
+    return true;
+}
+
+void
+pl_window_present_surface_image(plWindowSurface* ptSurface, uint32_t uImageIndex)
+{
+    plWindow* ptWindow = ptSurface->ptWindow;
+    HWND tHandle = ptWindow->_pBackendData;
+    plWindowSurfaceImageWin32* ptImageWin32 = &ptSurface->atImages[uImageIndex];
+
+    // PL_FORMAT_B8G8R8A8_UNORM
+    BITMAPINFO bitmapInfo = {0};
+    bitmapInfo.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+    bitmapInfo.bmiHeader.biWidth       = (LONG)ptImageWin32->uWidth;
+    bitmapInfo.bmiHeader.biHeight      = -(LONG)ptImageWin32->uHeight;
+    bitmapInfo.bmiHeader.biPlanes      = 1;
+    bitmapInfo.bmiHeader.biBitCount    = 32; // valid 32, 24, 16
+    bitmapInfo.bmiHeader.biCompression = BI_RGB; // also valid BI_BITFIELDS
+    bitmapInfo.bmiHeader.biSizeImage   = ptImageWin32->uWidth * ptImageWin32->uHeight * sizeof(uint32_t);
+
+    int iResult = StretchDIBits(
+        ptImageWin32->tDc,                      // device context
+        0,  // x-dest
+        0,  // y-dest
+        ptImageWin32->uWidth,         // width-dest
+        ptImageWin32->uHeight,        // height-dest
+        0,                        // x-source
+        0,                        // y-source
+        ptImageWin32->uWidth,         // width-source
+        ptImageWin32->uHeight,        // height-source
+        ptImageWin32->pPixels,         // memory-source
+        &bitmapInfo,              // bitmap info
+        DIB_RGB_COLORS,           // array actually contains rgb values (instead of indices into palette)
+        SRCCOPY);                 // copies the source rectangle directly to the destination rectangle
+
+    PL_ASSERT(iResult != GDI_ERROR);
+
+    ReleaseDC(tHandle, ptImageWin32->tDc);
+    ptSurface->uCurrentImage++;
+    ptSurface->uCurrentImage %= ptSurface->uImageCount;
 }
 
 bool 
@@ -1700,18 +1852,22 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
 
     const plWindowI tWindowApi = {
-        .create              = pl_create_window,
-        .destroy             = pl_destroy_window,
-        .show                = pl_show_window,
-        .set_callback        = pl_set_window_callback,
-        .get_callback        = pl_get_window_callback,
-        .set_attribute       = pl_set_window_attribute,
-        .get_attribute       = pl_get_window_attribute,
-        .set_cursor_mode     = pl_set_cursor_mode,
-        .get_cursor_mode     = pl_get_cursor_mode,
-        .set_raw_mouse_input = pl_set_raw_mouse_input,
-        .set_fullscreen      = pl_set_fullscreen,
-        .get_capabilities    = pl_get_window_capabilities
+        .create                = pl_create_window,
+        .destroy               = pl_destroy_window,
+        .show                  = pl_show_window,
+        .set_callback          = pl_set_window_callback,
+        .get_callback          = pl_get_window_callback,
+        .set_attribute         = pl_set_window_attribute,
+        .get_attribute         = pl_get_window_attribute,
+        .set_cursor_mode       = pl_set_cursor_mode,
+        .get_cursor_mode       = pl_get_cursor_mode,
+        .set_raw_mouse_input   = pl_set_raw_mouse_input,
+        .set_fullscreen        = pl_set_fullscreen,
+        .create_surface        = pl_window_create_surface,
+        .destroy_surface       = pl_window_destroy_surface,
+        .acquire_surface_image = pl_window_acquire_surface_image,
+        .present_surface_image = pl_window_present_surface_image,
+        .get_capabilities      = pl_get_window_capabilities
     };
 
     const plFileI tFileApi = {

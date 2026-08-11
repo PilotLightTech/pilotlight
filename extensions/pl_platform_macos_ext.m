@@ -70,6 +70,25 @@ typedef struct _plPlatformExtData
     double dInitialTime;
 } plPlatformExtData;
 
+typedef struct _plWindowSurfaceImageCocoa
+{
+    CGColorSpaceRef colorSpace;
+    CGDataProviderRef provider;
+    CGImageRef image;
+    uint32_t uWidth;
+    uint32_t uHeight;
+    void*    pPixels;
+    uint32_t uPixelCapacity;
+} plWindowSurfaceImageCocoa;
+
+typedef struct _plWindowSurface
+{
+    plWindow* ptWindow;
+    uint32_t  uCurrentImage;
+    uint32_t  uImageCount;
+    plWindowSurfaceImageCocoa* atImages;
+} plWindowSurface;
+
 static plPlatformExtData* gptWindowCtx = NULL;
 
 //-----------------------------------------------------------------------------
@@ -88,6 +107,7 @@ pl_timer_get_time(void)
 //-----------------------------------------------------------------------------
 
 @class plNSView;
+@class plNSCpuView;
 @class plNSViewController;
 @class plKeyEventResponder;
 
@@ -130,6 +150,7 @@ struct _plWindowData
     NSWindow*             ptNativeWindow;
     plNSViewController*   ptViewController;
     plNSView*             ptView;
+    plNSCpuView*          ptCpuView;
     CAMetalLayer*         ptLayer;
     id<MTLDevice>         tDevice;
     plKeyEventResponder*  ptKeyResponder;
@@ -152,6 +173,13 @@ struct _plWindowData
 - (void)initCommon;
 - (void)markDrawableResize;
 - (CGSize)backingDrawableSize;
+@end
+
+@interface plNSCpuView : NSView
+{
+@public
+    plWindowSurface*  ptSurface;
+}
 @end
 
 @interface plKeyEventResponder : NSView <NSTextInputClient>
@@ -199,6 +227,32 @@ static plMacWindowEvent*      gsbtWindowEvents = NULL;
 
     if(ptData->ptPublicWindow == gptMainWindow)
         gptIOCtx->bRunning = false;
+}
+
+@end
+
+@implementation plNSCpuView
+
+- (BOOL)isOpaque
+{
+    return YES;
+}
+
+- (BOOL)isFlipped
+{
+    return YES;
+}
+
+- (void)drawRect:(NSRect)dirtyRect
+{
+    (void)dirtyRect;
+    // if(ptSurface->atImages[ptSurface->uCurrentImage].)
+    //     return;
+
+    CGContextRef context = [[NSGraphicsContext currentContext] CGContext];
+    CGContextSetInterpolationQuality(context, kCGInterpolationNone);
+    CGContextDrawImage(context, NSRectToCGRect(self.bounds), ptSurface->atImages[ptSurface->uCurrentImage].image);
+
 }
 
 @end
@@ -749,20 +803,29 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
     ptData->ptInputContext = [[NSTextInputContext alloc] initWithClient:ptData->ptKeyResponder];
 
     const NSRect tFrame = NSMakeRect(0, 0, tDesc.uWidth, tDesc.uHeight);
-    plNSView* ptView = [[plNSView alloc] initWithFrame:tFrame];
-    ptView.windowData = ptData;
-    ptData->ptViewController.view = ptView;
-    ptData->ptView = ptView;
-    [ptView release]; // retained by the view controller
+    if(tDesc.tMode == PL_WINDOW_PRESENTATION_MODE_GRAPHICS_API)
+    {
+        plNSView* ptView = [[plNSView alloc] initWithFrame:tFrame];
+        ptView.windowData = ptData;
+        ptData->ptViewController.view = ptView;
+        ptData->ptView = ptView;
+        [ptView release]; // retained by the view controller
 
-    [ptData->ptView addSubview:ptData->ptKeyResponder];
+        [ptData->ptView addSubview:ptData->ptKeyResponder];
 
-    ptData->ptLayer = ptData->ptView.metalLayer;
-    // ptData->ptLayer.device = ptData->tDevice;
-    ptData->ptLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+        ptData->ptLayer = ptData->ptView.metalLayer;
+        ptData->ptLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+    }
+    else if(tDesc.tMode == PL_WINDOW_PRESENTATION_MODE_SOFTWARE)
+    {
+        plNSCpuView* view = [[plNSCpuView alloc] initWithFrame:tFrame];
+        view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        ptData->ptCpuView = view;
+        ptData->ptViewController.view = view;
+        [view release]; // retained by the view controller
 
-    // Preserve the old bootstrapping contract: app load sees the Metal device.
-    // gptIOCtx->pBackendPlatformData = ptData->tDevice;
+        [ptData->ptCpuView addSubview:ptData->ptKeyResponder];
+    }
 
     ptData->ptNativeWindow = [[NSWindow windowWithContentViewController:ptData->ptViewController] retain];
     if(!ptData->ptNativeWindow)
@@ -857,6 +920,119 @@ pl_show_window(plWindow* ptWindow)
         return;
     plWindowData* ptData = (plWindowData*)ptWindow->_pBackendData;
     [ptData->ptNativeWindow orderFront:nil];
+}
+
+plWindowResult
+pl_window_create_surface(plWindow* ptWindow, const plWindowSurfaceDesc* ptDesc, plWindowSurface** ptSurfaceOut)
+{
+    plWindowSurface* ptSurface = PL_ALLOC(sizeof(plWindowSurface));
+    
+    ptSurface->ptWindow = ptWindow;
+    ptSurface->atImages = PL_ALLOC(sizeof(plWindowSurfaceImageCocoa) * ptDesc->uImageCount);
+    memset(ptSurface->atImages, 0, sizeof(plWindowSurfaceImageCocoa) * ptDesc->uImageCount);
+    ptSurface->uImageCount = ptDesc->uImageCount;
+
+    *ptSurfaceOut = ptSurface;
+    plWindowData* ptData = ptWindow->_pBackendData;
+    ptData->ptCpuView->ptSurface = ptSurface;
+    return PL_WINDOW_RESULT_SUCCESS;
+}
+
+void
+pl_window_destroy_surface(plWindowSurface** ptSurfaceIn)
+{
+    plWindowSurface* ptSurface = *ptSurfaceIn;
+    plWindow* ptWindow = ptSurface->ptWindow;
+    for(uint32_t i = 0; i < ptSurface->uImageCount; i++)
+    {
+        // ptSurface->atImages[i].image->data = NULL;
+        // XDestroyImage(ptSurface->atImages[i].image);
+        PL_FREE(ptSurface->atImages[i].pPixels);
+        
+    }
+    PL_FREE(ptSurface->atImages);
+    memset(ptSurface, 0, sizeof(plWindowSurface));
+    PL_FREE(*ptSurfaceIn);
+    *ptSurfaceIn = NULL;
+}
+
+bool
+pl_window_acquire_surface_image(plWindowSurface* ptSurface, plWindowSurfaceImage* ptImageOut)
+{
+    plWindow* ptWindow = ptSurface->ptWindow;
+    plWindowData* ptData = ptWindow->_pBackendData;
+
+    plWindowSurfaceImageCocoa* ptImageCocoa = &ptSurface->atImages[ptSurface->uCurrentImage];
+
+
+    NSRect tBackingBounds = [ptData->ptCpuView convertRectToBacking:[ptData->ptCpuView bounds]];
+
+    uint32_t uWidth  = (uint32_t)tBackingBounds.size.width;
+    uint32_t uHeight = (uint32_t)tBackingBounds.size.height;
+
+    // if(XGetWindowAttributes(gptWindowCtx->ptDisplay, ptData->tWindow, &tAttributes))
+    // {
+    //     uWidth  = (uint32_t)tAttributes.width;
+    //     uHeight = (uint32_t)tAttributes.height;
+    // }
+
+    uint32_t uPixelsNeeded = uWidth * uHeight;
+    bool bResizeNeeded = uPixelsNeeded > ptImageCocoa->uPixelCapacity;
+
+    if(bResizeNeeded)
+    {
+        if(ptImageCocoa->pPixels)
+        {
+            // ptImageCocoa->image->data = NULL;
+            // XDestroyImage(ptImageCocoa->image);
+            PL_FREE(ptImageCocoa->pPixels);
+            CGImageRelease(ptImageCocoa->image);
+            CGDataProviderRelease(ptImageCocoa->provider);
+            CGColorSpaceRelease(ptImageCocoa->colorSpace);
+        }
+        ptImageCocoa->pPixels = PL_ALLOC(uPixelsNeeded * sizeof(uint32_t));
+        memset(ptImageCocoa->pPixels, 0, uPixelsNeeded * sizeof(uint32_t));
+        ptImageCocoa->uPixelCapacity = uPixelsNeeded;
+
+        ptImageCocoa->colorSpace = CGColorSpaceCreateDeviceRGB();
+        ptImageCocoa->provider = CGDataProviderCreateWithData(NULL, ptImageCocoa->pPixels, uHeight * uWidth * sizeof(uint32_t), NULL);
+
+        ptImageCocoa->image = CGImageCreate(
+                (size_t)uWidth,
+                (size_t)uHeight,
+                8,
+                32,
+                (size_t)uWidth * sizeof(uint32_t),
+                ptImageCocoa->colorSpace,
+                kCGBitmapByteOrder32Little | kCGImageAlphaNoneSkipFirst,
+                ptImageCocoa->provider,
+                NULL,
+                false,
+                kCGRenderingIntentDefault);
+    }
+
+    ptImageOut->pPixels = ptImageCocoa->pPixels;
+    ptImageOut->uWidth = uWidth;
+    ptImageOut->uHeight = uHeight;
+    ptImageOut->uRowPitch = ptImageOut->uWidth * sizeof(uint32_t);
+    ptImageOut->uImageIndex = ptSurface->uCurrentImage;
+    ptImageOut->tFormat = PL_WINDOW_SURFACE_FORMAT_B8G8R8A8_UNORM;
+
+    ptImageCocoa->uWidth = ptImageOut->uWidth;
+    ptImageCocoa->uHeight = ptImageOut->uHeight;
+
+    return true;
+}
+
+void
+pl_window_present_surface_image(plWindowSurface* ptSurface, uint32_t uImageIndex)
+{
+    plWindow* ptWindow = ptSurface->ptWindow;
+    plWindowData* ptData = ptWindow->_pBackendData;
+    [ptData->ptCpuView setNeedsDisplay:YES];
+
+    ptSurface->uCurrentImage++;
+    ptSurface->uCurrentImage %= ptSurface->uImageCount;
 }
 
 bool
@@ -2099,18 +2275,22 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
 
     const plWindowI tWindowApi = {
-        .create              = pl_create_window,
-        .destroy             = pl_destroy_window,
-        .show                = pl_show_window,
-        .set_callback        = pl_set_window_callback,
-        .get_callback        = pl_get_window_callback,
-        .set_attribute       = pl_set_window_attribute,
-        .get_attribute       = pl_get_window_attribute,
-        .set_cursor_mode     = pl_set_cursor_mode,
-        .get_cursor_mode     = pl_get_cursor_mode,
-        .set_raw_mouse_input = pl_set_raw_mouse_input,
-        .set_fullscreen      = pl_set_fullscreen,
-        .get_capabilities    = pl_get_window_capabilities
+        .create                = pl_create_window,
+        .destroy               = pl_destroy_window,
+        .show                  = pl_show_window,
+        .set_callback          = pl_set_window_callback,
+        .get_callback          = pl_get_window_callback,
+        .set_attribute         = pl_set_window_attribute,
+        .get_attribute         = pl_get_window_attribute,
+        .set_cursor_mode       = pl_set_cursor_mode,
+        .get_cursor_mode       = pl_get_cursor_mode,
+        .set_raw_mouse_input   = pl_set_raw_mouse_input,
+        .set_fullscreen        = pl_set_fullscreen,
+        .create_surface        = pl_window_create_surface,
+        .destroy_surface       = pl_window_destroy_surface,
+        .acquire_surface_image = pl_window_acquire_surface_image,
+        .present_surface_image = pl_window_present_surface_image,
+        .get_capabilities      = pl_get_window_capabilities
     };
 
     const plFileI tFileApi = {

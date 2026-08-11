@@ -45,7 +45,7 @@ extern "C" {
 #define plNetworkI_version       {1, 0, 0}
 #define plThreadsI_version       {1, 0, 1}
 #define plVirtualMemoryI_version {1, 0, 0}
-#define plWindowI_version        {2, 0, 0}
+#define plWindowI_version        {2, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -66,6 +66,9 @@ typedef struct _plWindowEvent          plWindowEvent;          // future window 
 typedef struct _plFullScreenDesc       plFullScreenDesc;       // full screen options
 typedef struct _plWindowCapabilities   plWindowCapabilities;   // window capabilities for various settings
 typedef union _plWindowAttributeValue  plWindowAttributeValue; // catch all for windows attributes (basically a variant)
+typedef struct _plWindowSurfaceImage   plWindowSurfaceImage;   // represents a drawable surface for the window
+typedef struct _plWindowSurfaceDesc    plWindowSurfaceDesc;    // description for creating a window surface
+typedef struct _plWindowSurface        plWindowSurface;        // opaque
 
 // basic types (atomics)
 typedef struct _plAtomicCounter plAtomicCounter; // opaque type
@@ -91,14 +94,16 @@ typedef struct _plThreadKey         plThreadKey;         // opaque type (used by
 typedef void* (*plThreadProcedure)(void*); // thread procedure signature
 
 // enums (windows)
-typedef int plWindowEventType;       // -> enum _plWindowEventType       // Enum: A window event type (PL_WINDOW_EVENT_TYPE_XXX)
-typedef int plWindowAttribute;       // -> enum _plWindowAttribute       // Enum: window attribute (PL_WINDOW_ATTRIBUTE_XXX)
-typedef int plCursorMode;            // -> enum _plCursorMode            // Enum: window cursor mode (PL_CURSOR_MODE__XXX)
-typedef int plFullScreenMode;        // -> enum _plFullScreenMode        // Enum: window full screen mode (PL_FULLSCREEN_MODE_XXX)
-typedef int plWindowCapabilityFlags; // -> enum _plWindowCapabilityFlags // Flag: window capability flags (PL_WINDOW_CAPABILITY_FLAGS_XXX)
-typedef int plWindowResult;        // -> enum _plWindowResult        // Enum: Result returned from window API (PL_WINDOW_RESULT_XXXX)
-typedef int plWindowFlags;         // -> enum _plWindowFlags         // Flag: Flags for window creation (PL_WINDOW_FLAG_XXXX)
-typedef int plWindowInternalFlags; // -> enum _plWindowInternalFlags // Flag: Flags for internal window management
+typedef int plWindowEventType;        // -> enum _plWindowEventType        // Enum: A window event type (PL_WINDOW_EVENT_TYPE_XXX)
+typedef int plWindowAttribute;        // -> enum _plWindowAttribute        // Enum: window attribute (PL_WINDOW_ATTRIBUTE_XXX)
+typedef int plCursorMode;             // -> enum _plCursorMode             // Enum: window cursor mode (PL_CURSOR_MODE__XXX)
+typedef int plFullScreenMode;         // -> enum _plFullScreenMode         // Enum: window full screen mode (PL_FULLSCREEN_MODE_XXX)
+typedef int plWindowCapabilityFlags;  // -> enum _plWindowCapabilityFlags  // Flag: window capability flags (PL_WINDOW_CAPABILITY_FLAGS_XXX)
+typedef int plWindowResult;           // -> enum _plWindowResult           // Enum: Result returned from window API (PL_WINDOW_RESULT_XXXX)
+typedef int plWindowFlags;            // -> enum _plWindowFlags            // Flag: Flags for window creation (PL_WINDOW_FLAG_XXXX)
+typedef int plWindowInternalFlags;    // -> enum _plWindowInternalFlags    // Flag: Flags for internal window management
+typedef int plWindowSurfaceFormat;    // -> enum _plWindowSurfaceFormat    // Enum: Windows backing surface format (PL_WINDOW_SURFACE_FORMAT_XXXX)
+typedef int plWindowPresentationMode; // -> enum _plWindowPresentationMode // Enum: Windows presentation mode (PL_WINDOW_PRESENTATION_MODE_XXXX)
 
 // enums (atomics)
 typedef int plAtomicsResult; // -> enum _plAtomicsResult // Enum:
@@ -152,6 +157,12 @@ PL_API bool pl_window_set_fullscreen(plWindow*, const plFullScreenDesc*);
 // future callback system
 PL_API void                  pl_window_set_callback(plWindow*, plWindowEventCallback, void* userData);
 PL_API plWindowEventCallback pl_window_get_callback(plWindow*);
+
+// cpu rendering (make sure you create the window with tMode == PL_WINDOW_PRESENTATION_MODE_SOFTWARE)
+PL_API plWindowResult pl_window_create_surface       (plWindow*, const plWindowSurfaceDesc*, plWindowSurface**);
+PL_API void           pl_window_destroy_surface      (plWindowSurface**);
+PL_API bool           pl_window_acquire_surface_image(plWindowSurface*, plWindowSurfaceImage* imageOut);
+PL_API void           pl_window_present_surface_image(plWindowSurface*, uint32_t imageIndex);
 
 //-----------------------------atomics api-------------------------------------
 
@@ -304,6 +315,12 @@ typedef struct _plWindowI
 
     // full screen modes
     bool (*set_fullscreen)(plWindow*, const plFullScreenDesc*);
+
+    // cpu rendering (make sure you create the window with tMode == PL_WINDOW_PRESENTATION_MODE_SOFTWARE)
+    plWindowResult (*create_surface)       (plWindow*, const plWindowSurfaceDesc*, plWindowSurface**);
+    void           (*destroy_surface)      (plWindowSurface**);
+    bool           (*acquire_surface_image)(plWindowSurface*, plWindowSurfaceImage* imageOut);
+    void           (*present_surface_image)(plWindowSurface*, uint32_t imageIndex);
 
     // future callback system
     void                  (*set_callback)(plWindow*, plWindowEventCallback, void* userData);
@@ -459,6 +476,17 @@ enum _plWindowResult
     PL_WINDOW_RESULT_SUCCESS = 1
 };
 
+enum _plWindowSurfaceFormat
+{
+    PL_WINDOW_SURFACE_FORMAT_B8G8R8A8_UNORM
+};
+
+enum _plWindowPresentationMode
+{
+    PL_WINDOW_PRESENTATION_MODE_GRAPHICS_API = 0,
+    PL_WINDOW_PRESENTATION_MODE_SOFTWARE
+};
+
 enum _plWindowFlags
 {
     PL_WINDOW_FLAG_NONE = 0,
@@ -586,13 +614,14 @@ enum _plThreadResult
 
 typedef struct _plWindowDesc
 {
-    plWindowFlags tFlags;
-    const char*   pcTitle;
-    uint32_t      uWidth;
-    uint32_t      uHeight;
-    int           iXPos;
-    int           iYPos;
-    const void*   pNext;
+    plWindowPresentationMode tMode;
+    plWindowFlags            tFlags;
+    const char*              pcTitle;
+    uint32_t                 uWidth;
+    uint32_t                 uHeight;
+    int                      iXPos;
+    int                      iYPos;
+    const void*              pNext;
 } plWindowDesc;
 
 typedef struct _plWindow
@@ -601,7 +630,6 @@ typedef struct _plWindow
 
     // [INTERNAL]
     void*                 _pBackendData;
-    void*                 _pBackendData2;
     plWindowInternalFlags _tInternalFlags;
     uint32_t              _uRequestedWidth;
     uint32_t              _uRequestedHeight;
@@ -641,6 +669,22 @@ typedef struct _plWindowCapabilities
     const plWindowAttribute* atWindowAttributes;
     uint32_t                 uAttributeCount;
 } plWindowCapabilities;
+
+typedef struct _plWindowSurfaceImage
+{
+    uint32_t              uWidth;
+    uint32_t              uHeight;
+    uint32_t              uRowPitch;
+    plWindowSurfaceFormat tFormat;
+    void*                 pPixels;
+    uint32_t              uImageIndex;
+} plWindowSurfaceImage;
+
+typedef struct _plWindowSurfaceDesc
+{
+    uint32_t              uImageCount; // request 2, platform may choose
+    plWindowSurfaceFormat tFormat;
+} plWindowSurfaceDesc;
 
 typedef struct _plSocketReceiverInfo
 {

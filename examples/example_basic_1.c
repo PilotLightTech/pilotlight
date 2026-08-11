@@ -58,7 +58,8 @@ Index of this file:
 
 typedef struct _plAppData
 {
-    plWindow* ptWindow;
+    plWindow*        ptWindow;
+    plWindowSurface* ptSurface;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -87,7 +88,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //   * second & third argument is the load/unload functions names (use NULL for the default of "pl_load_ext" &
     //     "pl_unload_ext")
     //   * fourth argument indicates if the extension is reloadable (should the runtime check for changes and reload if changed)
-    ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false); // provides the file API used by the drawing ext
+    ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false);
     
 
     // load required apis (stored as globals for convience)
@@ -116,9 +117,16 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .iYPos   = 200,
         .uWidth  = 600,
         .uHeight = 600,
+        .tMode   = PL_WINDOW_PRESENTATION_MODE_SOFTWARE
     };
     gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
     gptWindows->show(ptAppData->ptWindow);
+
+    plWindowSurfaceDesc tSurfaceDesc = {
+        .tFormat     = PL_WINDOW_SURFACE_FORMAT_B8G8R8A8_UNORM,
+        .uImageCount = 2
+    };
+    gptWindows->create_surface(ptAppData->ptWindow, &tSurfaceDesc, &ptAppData->ptSurface);
 
     // return app memory, which will be returned to us as an argument in the other functions
     return ptAppData;
@@ -164,6 +172,22 @@ pl_app_update(plAppData* ptAppData)
     if(gptIO->is_key_pressed(PL_KEY_P, true))
     {
         printf("P key pressed!\n");
+    }
+
+    plWindowSurfaceImage tSurfaceImage = {0};
+    if(gptWindows->acquire_surface_image(ptAppData->ptSurface, &tSurfaceImage))
+    {
+        uint32_t uPixelCount = tSurfaceImage.uWidth * tSurfaceImage.uHeight;
+        uint32_t* puData = (uint32_t*)tSurfaceImage.pPixels;
+        if(gptIO->is_key_down(PL_KEY_Y))
+        {
+            for(uint32_t i = 0; i < uPixelCount; i++)
+                puData[i] = 0xFF0000FF; // blue
+        }
+        else
+            memset(puData, 0xFF, uPixelCount * sizeof(uint32_t)); // white
+
+        gptWindows->present_surface_image(ptAppData->ptSurface, tSurfaceImage.uImageIndex);
     }
 
 }

@@ -14,8 +14,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_MATH_VERSION    "1.2.2"
-#define PL_MATH_VERSION_NUM 10202
+#define PL_MATH_VERSION    "1.3.0"
+#define PL_MATH_VERSION_NUM 10300
 
 /*
 Index of this file:
@@ -773,6 +773,7 @@ static inline plVec3 pl_aabb_center    (const plAABB*);
 #define PL_COLOR_32_VEC4(X)          ((uint32_t)(255.0f * (X).r + 0.5f) | (uint32_t) (255.0f * (X).g + 0.5f) << 8 | (uint32_t) (255.0f * (X).b + 0.5f) << 16 | (uint32_t) (255.0f * (X).a + 0.5f) << 24)
 #define PL_COLOR_32_RGB(R, G, B)     ((uint32_t)(255.0f * (R) + 0.5f) | (uint32_t) (255.0f * (G) + 0.5f) << 8 | (uint32_t) (255.0f * (B) + 0.5f) << 16 | (uint32_t) (255.5f) << 24)
 #define PL_COLOR_32_VEC3(X)          ((uint32_t)(255.0f * (X).r + 0.5f) | (uint32_t) (255.0f * (X).g + 0.5f) << 8 | (uint32_t) (255.0f * (X).b + 0.5f) << 16 | (uint32_t) (255.5f) << 24)
+#define PL_COLOR_32_BGRA(B, G, R, A) PL_COLOR_32_RGBA((B), (G), (R), (A))
 #define PL_COLOR_32_WHITE            UINT32_MAX
 #define PL_COLOR_32_BLACK            0xFF000000
 #define PL_COLOR_32_RED              0xFF0000FF
