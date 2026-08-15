@@ -5,6 +5,7 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
+- v0.12.0 (2026-xx-xx)
 - v0.11.0 (2026-07-14)(camera    v1.0.3)  -fix camera projection calculation issues
                       (graphics  v2.1.1)  -add 3D textures support
                                           -remove "bNonUniformIndexing" from plTextureBinding

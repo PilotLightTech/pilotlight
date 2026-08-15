@@ -77,7 +77,7 @@ Custom gpu allocators:
     * host cached dedicated allocator
     * host uncached dedicated allocator
 
-Reference Renderer:
+Renderer:
     * Physics based rendering
         - Metallic workflow
         - Clear coat
@@ -111,6 +111,7 @@ Reference Renderer:
     * grid renderer
     * bloom
     * linear & exponential fog
+    * physically based realistic sky & atmosphere rendering
 
 Wishlist:
     * Morph target animation (with sparse accessor)

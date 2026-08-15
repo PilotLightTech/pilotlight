@@ -27,6 +27,7 @@ sandbox/*.pdb
 src/*.pdb
 examples/*.pdb
 tests/*.pdb
+shaders/*.pdb
 
 # build scripts
 src/build.bat
