@@ -22,6 +22,8 @@ Index of this file:
 #include "pl_platform_ext.h"
 #include "pl_graphics_ext.h"
 
+#define PL_UNITY_BUILD
+
 #include "pl_stage_ext.c"
 #include "pl_image_ext.c"
 #include "pl_rect_pack_ext.c"
@@ -249,102 +251,6 @@ void*
 pl_data_registry_get_data(const char* pcName)
 {
     return gptDataRegistry->get_data(pcName);
-}
-
-const plWindowCapabilities*
-pl_window_get_capabilities(void)
-{
-    return gptWindow->get_capabilities();
-}
-
-plWindowResult
-pl_window_create(plWindowDesc tDesc, plWindow** windowPtrOut)
-{
-    return gptWindow->create(tDesc, windowPtrOut);
-}
-
-void
-pl_window_destroy(plWindow* ptWindow)
-{
-    gptWindow->destroy(ptWindow);
-}
-
-void
-pl_window_show(plWindow* ptWindow)
-{
-    gptWindow->show(ptWindow);
-}
-
-plWindowResult
-pl_window_create_surface(plWindow* ptWindow, const plWindowSurfaceDesc* ptDesc, plWindowSurface** ptSurfaceOut)
-{
-    return gptWindow->create_surface(ptWindow, ptDesc, ptSurfaceOut);
-}
-
-void
-pl_window_destroy_surface(plWindowSurface** ptSurfaceIn)
-{
-    gptWindow->destroy_surface(ptSurfaceIn);
-}
-
-bool
-pl_window_acquire_surface_image(plWindowSurface* ptSurface, plWindowSurfaceImage* ptImageOut)
-{
-    return gptWindow->acquire_surface_image(ptSurface, ptImageOut);
-}
-
-void
-pl_window_present_surface_image(plWindowSurface* ptSurface, uint32_t uImageIndex)
-{
-    gptWindow->present_surface_image(ptSurface, uImageIndex);
-}
-
-bool
-pl_window_set_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
-{
-    return gptWindow->set_attribute(ptWindow, tAttribute, ptValue);
-}
-
-bool
-pl_window_get_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
-{
-    return gptWindow->get_attribute(ptWindow, tAttribute, ptValue);
-}
-
-bool
-pl_window_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
-{
-    return gptWindow->set_cursor_mode(ptWindow, tMode);
-}
-
-plCursorMode
-pl_window_get_cursor_mode(plWindow* ptWindow)
-{
-    return gptWindow->get_cursor_mode(ptWindow);
-}
-
-bool
-pl_window_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
-{
-    return gptWindow->set_raw_mouse_input(ptWindow, bValue);
-}
-
-bool
-pl_window_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* ptDesc)
-{
-    return gptWindow->set_fullscreen(ptWindow, ptDesc);
-}
-
-void
-pl_window_set_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* userData)
-{
-    gptWindow->set_callback(ptWindow, tCallback, userData);
-}
-
-plWindowEventCallback
-pl_window_get_callback(plWindow* ptWindow)
-{
-    return gptWindow->get_callback(ptWindow);
 }
 
 plLibraryResult

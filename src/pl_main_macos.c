@@ -1,6 +1,6 @@
 /*
-   pl_main_null.c
-     * null platform backend (for testing, not complete)
+   pl_main_macos.c
+     * null platform backend (for testing on macos, not complete)
 */
 
 /*
@@ -24,48 +24,19 @@ Index of this file:
 #include "pl_ds.h"    // hashmap & stretchy buffer
 #include "pl_string.h"
 
-#ifdef _WIN32
-    #define WIN32_LEAN_AND_MEAN
-    #include <windows.h>
-#elif defined(__APPLE__)
-    #include <time.h> // clock_gettime_nsec_np
-    #include <sys/stat.h> // timespec
-    #include <copyfile.h> // copyfile
-    #include <dlfcn.h>    // dlopen, dlsym, dlclose
-    #include <unistd.h> // close
-    #include <fcntl.h> // O_RDONLY, O_WRONLY ,O_CREAT
-#else // linux
-    #include <sys/sendfile.h> // sendfile
-    #include <sys/stat.h> // stat, timespec
-    #include <dlfcn.h> // dlopen, dlsym, dlclose
-    #include <fcntl.h> // O_RDONLY, O_WRONLY ,O_CREAT
-    #include <time.h> // clock_gettime, clock_getres
-#endif
+#include <time.h> // clock_gettime_nsec_np
+#include <sys/stat.h> // timespec
+#include <copyfile.h> // copyfile
+#include <dlfcn.h>    // dlopen, dlsym, dlclose
+#include <unistd.h> // close
+#include <fcntl.h> // O_RDONLY, O_WRONLY ,O_CREAT
+#include <pthread.h>
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-#ifdef _WIN32
-typedef struct _plSharedLibrary
-{
-    bool          bValid;
-    uint32_t      uTempIndex;
-    char          acFileExtension[16];                   // default: "dll"
-    char          acName[PL_MAX_NAME_LENGTH];            // i.e. "app"
-    char          acPath[PL_MAX_PATH_LENGTH];            // i.e. "app.dll" or "../out/app.dll"
-    char          acDirectory[PL_MAX_PATH_LENGTH];       // i.e. "./" or "../out/"
-    char          acTransitionalPath[PL_MAX_PATH_LENGTH];
-    char          acLockFile[PL_MAX_PATH_LENGTH];
-    plLibraryDesc tDesc;
-    HMODULE       tHandle;
-    FILETIME      tLastWriteTime;
-} plSharedLibrary;
-
-const char* gpcLibraryExtension = "dll";
-const char* gpcLibraryPrefix    = "";
-
-#elif defined(__APPLE__)
 
 typedef struct _plSharedLibrary
 {
@@ -84,28 +55,6 @@ typedef struct _plSharedLibrary
 
 const char* gpcLibraryExtension = "dylib";
 const char* gpcLibraryPrefix    = "lib";
-
-#else // linux
-
-typedef struct _plSharedLibrary
-{
-    bool          bValid;
-    uint32_t      uTempIndex;
-    char          acFileExtension[16];                   // default: "so"
-    char          acName[PL_MAX_NAME_LENGTH];            // i.e. "app"
-    char          acPath[PL_MAX_PATH_LENGTH];            // i.e. "app.so" or "../out/app.so"
-    char          acDirectory[PL_MAX_PATH_LENGTH];       // i.e. "./" or "../out/"
-    char          acTransitionalPath[PL_MAX_PATH_LENGTH];
-    char          acLockFile[PL_MAX_PATH_LENGTH];
-    plLibraryDesc tDesc;
-    void*         handle;
-    time_t        tLastWriteTime;
-} plSharedLibrary;
-
-const char* gpcLibraryExtension = "so";
-const char* gpcLibraryPrefix    = "lib";
-
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -204,20 +153,12 @@ int main(int argc, char *argv[])
     };
     if(ptLibraryApi->load(tLibraryDesc, &gptAppLibrary))
     {
-        #ifdef _WIN32
-            pl_app_load     = (void* (__cdecl  *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__cdecl  *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__cdecl  *)(void*, void*))                 ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__cdecl  *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
-            pl_app_info     = (bool  (__cdecl  *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
+        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(()) *)(void*, void*))                 ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+        pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
 
-        #else
-            pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__attribute__(()) *)(void*, void*))                 ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
-            pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
-        #endif
 
         gptIOCtx->pl_app_resize = pl_app_resize;
         gptIOCtx->pl_app_update = pl_app_update;
@@ -323,43 +264,15 @@ pl_file_binary_read(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 void
 pl_file_copy(const char* source, const char* destination)
 {
-    #ifdef _WIN32
-        BOOL bResult = CopyFile(source, destination, FALSE);
-    #elif defined(__APPLE__)
     copyfile_state_t tS = copyfile_state_alloc();
     copyfile(source, destination, tS, COPYFILE_XATTR | COPYFILE_DATA);
     copyfile_state_free(tS);
-    #else
-        size_t bufferSize = 0u;
-        pl_file_binary_read(source, &bufferSize, NULL);
-
-        struct stat stat_buf;
-        int fromfd = open(source, O_RDONLY);
-        fstat(fromfd, &stat_buf);
-        int tofd = open(destination, O_WRONLY | O_CREAT, stat_buf.st_mode);
-        int n = 1;
-        while (n > 0)
-            n = sendfile(tofd, fromfd, 0, bufferSize * 2);
-    #endif
 }
 
 //-----------------------------------------------------------------------------
 // [SECTION] library ext
 //-----------------------------------------------------------------------------
 
-#ifdef _WIN32
-static inline FILETIME
-pl__get_last_write_time(const char* pcFilename)
-{
-    FILETIME tLastWriteTime = {0};
-    
-    WIN32_FILE_ATTRIBUTE_DATA tData = {0};
-    if(GetFileAttributesExA(pcFilename, GetFileExInfoStandard, &tData))
-        tLastWriteTime = tData.ftLastWriteTime;
-    
-    return tLastWriteTime;
-}
-#elif defined(__APPLE__)
 struct timespec
 pl__get_last_write_time(const char* filename)
 {
@@ -367,15 +280,6 @@ pl__get_last_write_time(const char* filename)
     stat(filename, &attr);
     return attr.st_mtimespec;
 }
-#else
-static inline time_t
-pl__get_last_write_time(const char* filename)
-{
-    struct stat attr;
-    stat(filename, &attr);
-    return attr.st_mtime;
-}
-#endif
 
 bool
 pl_has_library_changed(plSharedLibrary* ptLibrary)
@@ -383,135 +287,12 @@ pl_has_library_changed(plSharedLibrary* ptLibrary)
     PL_ASSERT(ptLibrary);
     if(ptLibrary)
     {
-        #ifdef _WIN32
-        FILETIME newWriteTime = pl__get_last_write_time(ptLibrary->acPath);
-        return CompareFileTime(&newWriteTime, &ptLibrary->tLastWriteTime) != 0;
-        #elif defined(__APPLE__)
         struct timespec newWriteTime = pl__get_last_write_time(ptLibrary->acPath);
         return newWriteTime.tv_sec != ptLibrary->tLastWriteTime.tv_sec;
-        #else
-        time_t newWriteTime = pl__get_last_write_time(ptLibrary->acPath);
-        return newWriteTime != ptLibrary->tLastWriteTime;
-        #endif
     }
     return false;
 }
 
-
-#ifdef _WIN32
-plLibraryResult
-pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
-{
-
-    plSharedLibrary* ptLibrary = NULL;
-
-    const char* pcLockFile = "lock.tmp";
-    const char* pcCacheDirectory = "../out-temp";
-
-    if(*pptLibraryOut == NULL)
-    {
-
-        if(gbHotReloadActive)
-        {
-            DWORD dwAttrib = GetFileAttributes(pcCacheDirectory);
-
-            if(dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY))
-            {
-                // do nothing
-            }
-            else
-            {
-                CreateDirectoryA(pcCacheDirectory, NULL);
-            }
-        }
-
-        *pptLibraryOut = PL_ALLOC(sizeof(plSharedLibrary));
-        memset((*pptLibraryOut), 0, sizeof(plSharedLibrary));
-        ptLibrary = *pptLibraryOut;
-
-        ptLibrary->bValid = false;
-        ptLibrary->tDesc = tDesc;
-        pl_str_get_file_name_only(tDesc.pcName, ptLibrary->acName, PL_MAX_NAME_LENGTH);
-        pl_str_get_directory(tDesc.pcName, ptLibrary->acDirectory, PL_MAX_PATH_LENGTH);
-
-        if(pl_str_get_file_extension(tDesc.pcName, ptLibrary->acFileExtension, 16) == NULL)
-            strncpy(ptLibrary->acFileExtension, "dll", 16);
-
-        pl_sprintf(ptLibrary->acPath, "%s%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
-        
-        if(gbHotReloadActive)
-        {
-            pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
-            pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
-        }
-
-        if(!gbHotReloadActive || !(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
-        {
-
-            char acTemporaryName[PL_MAX_PATH_LENGTH] = {0};
-            ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
-            
-            pl_sprintf(acTemporaryName, "%s.%s", ptLibrary->acName, ptLibrary->acFileExtension);
-
-            SetDllDirectoryA(ptLibrary->acDirectory);
-            ptLibrary->tHandle = NULL;
-            ptLibrary->tHandle = LoadLibraryA(acTemporaryName);
-            if(ptLibrary->tHandle)
-                ptLibrary->bValid = true;
-            else
-            {
-                DWORD iLastError = GetLastError();
-                printf("LoadLibaryA() failed with error code : %d\n", iLastError);
-            }
-            SetDllDirectoryA(NULL);
-    }
-        
-    }
-    else
-        ptLibrary = *pptLibraryOut;
-
-
-    if(gbHotReloadActive && tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
-    {
-
-        ptLibrary->bValid = false;
-
-        WIN32_FILE_ATTRIBUTE_DATA tIgnored;
-        if(!GetFileAttributesExA(ptLibrary->acLockFile, GetFileExInfoStandard, &tIgnored))  // lock file gone
-        {
-            char acTemporaryPath[PL_MAX_PATH_LENGTH] = {0};
-            char acTemporaryName[PL_MAX_NAME_LENGTH] = {0};
-            ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
-            
-            pl_sprintf(acTemporaryPath, "%s%u.%s", ptLibrary->acTransitionalPath, ptLibrary->uTempIndex, ptLibrary->acFileExtension);
-            pl_sprintf(acTemporaryName, "%s_%u.%s", ptLibrary->acName, ptLibrary->uTempIndex, ptLibrary->acFileExtension);
-            if(++ptLibrary->uTempIndex >= 1024)
-            {
-                ptLibrary->uTempIndex = 0;
-            }
-            CopyFile(ptLibrary->acPath, acTemporaryPath, FALSE);
-
-
-            SetDllDirectoryA(pcCacheDirectory);
-
-            ptLibrary->tHandle = NULL;
-            ptLibrary->tHandle = LoadLibraryA(acTemporaryName);
-            if(ptLibrary->tHandle)
-                ptLibrary->bValid = true;
-            else
-            {
-                DWORD iLastError = GetLastError();
-                printf("LoadLibaryA() failed with error code : %d\n", iLastError);
-            }
-            SetDllDirectoryA(NULL);
-        }
-    }
-
-    if(ptLibrary->bValid)
-        return PL_LIBRARY_RESULT_SUCCESS;
-    return PL_LIBRARY_RESULT_FAIL;
-}
-#elif defined(__APPLE__)
 plLibraryResult
 pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
 {
@@ -599,95 +380,6 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
         return PL_LIBRARY_RESULT_SUCCESS;
     return PL_LIBRARY_RESULT_FAIL;
 }
-#else
-plLibraryResult
-pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
-{
-    plSharedLibrary* ptLibrary = NULL;
-
-    const char* pcLockFile = "lock.tmp";
-    const char* pcCacheDirectory = "../out-temp";
-
-    if(*pptLibraryOut == NULL)
-    {
-
-        struct stat st = {0};
-
-        if (stat(pcCacheDirectory, &st) == -1)
-            mkdir(pcCacheDirectory, 0700);
-
-        *pptLibraryOut = PL_ALLOC(sizeof(plSharedLibrary));
-        memset((*pptLibraryOut), 0, sizeof(plSharedLibrary));
-
-        ptLibrary = *pptLibraryOut;
-
-        ptLibrary->bValid = false;
-        ptLibrary->tDesc = tDesc;
-        pl_str_get_file_name_only(tDesc.pcName, ptLibrary->acName, PL_MAX_NAME_LENGTH);
-        pl_str_get_directory(tDesc.pcName, ptLibrary->acDirectory, PL_MAX_PATH_LENGTH);
-
-        if(pl_str_get_file_extension(tDesc.pcName, ptLibrary->acFileExtension, 16) == NULL)
-            strncpy(ptLibrary->acFileExtension, gpcLibraryExtension, 16);
-
-        pl_sprintf(ptLibrary->acPath, "%slib%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
-        if(gbHotReloadActive)
-        {
-            pl_sprintf(ptLibrary->acLockFile, "%slib%s", ptLibrary->acDirectory, pcLockFile);
-            pl_sprintf(ptLibrary->acTransitionalPath, "%s/lib%s_", pcCacheDirectory, ptLibrary->acName);
-        }
-
-        if(!gbHotReloadActive || !(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
-        {
-            ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
-            ptLibrary->handle = NULL;
-            ptLibrary->handle = dlopen(ptLibrary->acPath, RTLD_NOW);
-            if(ptLibrary->handle)
-                ptLibrary->bValid = true;
-            else
-            {
-                printf("\n\n%s\n\n", dlerror());
-            }
-        }
-    }
-    else
-        ptLibrary = *pptLibraryOut;
-
-    if(gbHotReloadActive && tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
-    {
-        ptLibrary->bValid = false;
-
-        if(ptLibrary)
-        {
-            struct stat attr2;
-            if(stat(ptLibrary->acLockFile, &attr2) == -1)  // lock file gone
-            {
-                char acTemporaryPath[PL_MAX_PATH_LENGTH] = {0};
-                ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
-                
-                pl_sprintf(acTemporaryPath, "%s%u.%s", ptLibrary->acTransitionalPath, ptLibrary->uTempIndex, ptLibrary->acFileExtension);
-                if(++ptLibrary->uTempIndex >= 1024)
-                {
-                    ptLibrary->uTempIndex = 0;
-                }
-                pl_file_copy(ptLibrary->acPath, acTemporaryPath);
-
-                ptLibrary->handle = NULL;
-                ptLibrary->handle = dlopen(acTemporaryPath, RTLD_NOW);
-                if(ptLibrary->handle)
-                    ptLibrary->bValid = true;
-                else
-                {
-                    printf("\n\n%s\n\n", dlerror());
-                }
-
-            }
-        }
-    }
-    if(ptLibrary->bValid)
-        return PL_LIBRARY_RESULT_SUCCESS;
-    return PL_LIBRARY_RESULT_FAIL;
-}
-#endif
 
 void
 pl_reload_library(plSharedLibrary* ptLibrary)
@@ -699,10 +391,6 @@ pl_reload_library(plSharedLibrary* ptLibrary)
         {
             if(pl_load_library(ptLibrary->tDesc, &ptLibrary))
                 break;
-            // pl_sleep(100);
-            #ifdef _WIN32
-            Sleep((long)100);
-            #else
             struct timespec ts = {0};
             int res;
         
@@ -714,7 +402,6 @@ pl_reload_library(plSharedLibrary* ptLibrary)
                 res = nanosleep(&ts, &ts);
             } 
             while (res);
-            #endif
         }
     }
 }
@@ -726,11 +413,7 @@ pl_load_library_function(plSharedLibrary* ptLibrary, const char* name)
     void* pLoadedFunction = NULL;
     if(ptLibrary->bValid)
     {
-        #ifdef _WIN32
-        pLoadedFunction = (void*)GetProcAddress(ptLibrary->tHandle, name);
-        #else
         pLoadedFunction = dlsym(ptLibrary->handle, name);
-        #endif
     }
     return pLoadedFunction;
 }
@@ -740,24 +423,39 @@ pl_load_library_function(plSharedLibrary* ptLibrary, const char* name)
 // [SECTION] threads ext
 //-----------------------------------------------------------------------------
 
-void
-pl_create_mutex(plMutex** ppMutexOut)
+typedef struct _plMutex
 {
-}
+    pthread_mutex_t tHandle;
+} plMutex;
 
 void
-pl_destroy_mutex(plMutex** ptMutex)
+pl_create_mutex(plMutex** pptMutexOut)
 {
+    *pptMutexOut = malloc(sizeof(plMutex));
+    if(pthread_mutex_init(&(*pptMutexOut)->tHandle, NULL))
+    {
+        PL_ASSERT(false);
+    }
 }
 
 void
 pl_lock_mutex(plMutex* ptMutex)
 {
+    pthread_mutex_lock(&ptMutex->tHandle);
 }
 
 void
 pl_unlock_mutex(plMutex* ptMutex)
 {
+    pthread_mutex_unlock(&ptMutex->tHandle);
+}
+
+void
+pl_destroy_mutex(plMutex** pptMutex)
+{
+    pthread_mutex_destroy(&(*pptMutex)->tHandle);
+    free(*pptMutex);
+    *pptMutex = NULL;
 }
 
 //-----------------------------------------------------------------------------

@@ -124,7 +124,7 @@ typedef struct _plWindowSurface
     int depth;
 } plWindowSurface;
 
-static plPlatformExtData* gptWindowCtx = NULL;
+static plPlatformExtData* gptPlatformExtCtx = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] timer api
@@ -139,7 +139,7 @@ pl_timer_get_time(void)
         PL_ASSERT(false && "clock_gettime() failed");
     }
     uint64_t nsec_count = ts.tv_nsec + ts.tv_sec * 1e9;
-    return ((double)nsec_count / gptWindowCtx->dFrequency) - gptWindowCtx->dStartTime;
+    return ((double)nsec_count / gptPlatformExtCtx->dFrequency) - gptPlatformExtCtx->dStartTime;
 }
 
 //-----------------------------------------------------------------------------
@@ -169,10 +169,10 @@ pl_platform_new_frame(void* pPlatformData)
 {
     
     // Poll for events until null is returned.
-    if(gptWindowCtx->ptConnection)
+    if(gptPlatformExtCtx->ptConnection)
     {
         xcb_generic_event_t* event;
-        while (event = xcb_poll_for_event(gptWindowCtx->ptConnection)) 
+        while (event = xcb_poll_for_event(gptPlatformExtCtx->ptConnection)) 
             pl__linux_procedure(event);
 
         pl__update_mouse_cursor();
@@ -180,44 +180,46 @@ pl_platform_new_frame(void* pPlatformData)
 
     if(gptIO->bViewportSizeChanged && gptIO->pl_app_resize && gptIO->_bFirstLoadComplete)
     {
-        gptIO->pl_app_resize(gptWindowCtx->ptMainWindow, gptIO->pAppUserData);
+        gptIO->pl_app_resize(gptPlatformExtCtx->ptMainWindow, gptIO->pAppUserData);
     }
 }
 
 void
 pl_platform_cleanup(void* ptPlatformData)
 {
-    pl_sb_free(gptWindowCtx->sbtWindows);
-    pl_sb_free(gptWindowCtx->sbcOwnedClipboardData);
+    pl_sb_free(gptPlatformExtCtx->sbtWindows);
+    pl_sb_free(gptPlatformExtCtx->sbcOwnedClipboardData);
     pl_sb_free(gsbtThreads);
 
     // platform cleanup
-    xcb_cursor_context_free(gptWindowCtx->ptCursorContext);
-    xcb_key_symbols_free(gptWindowCtx->ptKeySyms);
+    if(gptPlatformExtCtx->ptCursorContext)
+        xcb_cursor_context_free(gptPlatformExtCtx->ptCursorContext);
+    if(gptPlatformExtCtx->ptKeySyms)
+        xcb_key_symbols_free(gptPlatformExtCtx->ptKeySyms);
 }
 
 void
-pl_set_window_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
+pl_window_set_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
 {
     // TODO: implement
 }
 
 plWindowEventCallback
-pl_get_window_callback(plWindow* ptWindow)
+pl_window_get_callback(plWindow* ptWindow)
 {
     plWindowEventCallback tCallback = PL_ZERO_INIT;
     return tCallback;
 }
 
 plWindowResult
-pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
+pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
 {
     plWindowData* ptData = PL_ALLOC(sizeof(plWindowData));
 
     ptData->header = 0; //-V522
-    ptData->tWindow = xcb_generate_id(gptWindowCtx->ptConnection); //-V522
-    ptData->ptConnection = gptWindowCtx->ptConnection; //-V522
-    ptData->gc = XCreateGC(gptWindowCtx->ptDisplay, ptData->tWindow, 0, NULL);
+    ptData->tWindow = xcb_generate_id(gptPlatformExtCtx->ptConnection); //-V522
+    ptData->ptConnection = gptPlatformExtCtx->ptConnection; //-V522
+    ptData->gc = XCreateGC(gptPlatformExtCtx->ptDisplay, ptData->tWindow, 0, NULL);
 
     // register event types.
     // XCB_CW_BACK_PIXEL = filling then window bg with a single colour
@@ -235,27 +237,27 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
         XCB_EVENT_MASK_STRUCTURE_NOTIFY;
 
     // values to be sent over XCB (bg colour, events)
-    unsigned int  value_list[] = {gptWindowCtx->ptScreen->black_pixel, event_values};
+    unsigned int  value_list[] = {gptPlatformExtCtx->ptScreen->black_pixel, event_values};
 
     // Create the window
     xcb_create_window(
-        gptWindowCtx->ptConnection,
+        gptPlatformExtCtx->ptConnection,
         XCB_COPY_FROM_PARENT,  // depth
         ptData->tWindow,
-        gptWindowCtx->ptScreen->root, // parent
+        gptPlatformExtCtx->ptScreen->root, // parent
         tDesc.iXPos,
         tDesc.iYPos,
         tDesc.uWidth,
         tDesc.uHeight,
         0, // No border
         XCB_WINDOW_CLASS_INPUT_OUTPUT, // class
-        gptWindowCtx->ptScreen->root_visual,
+        gptPlatformExtCtx->ptScreen->root_visual,
         event_mask,
         value_list);
 
     // Change the title
     xcb_change_property(
-        gptWindowCtx->ptConnection,
+        gptPlatformExtCtx->ptConnection,
         XCB_PROP_MODE_REPLACE,
         ptData->tWindow,
         XCB_ATOM_WM_NAME,
@@ -267,28 +269,28 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
     // Tell the server to notify when the window manager
     // attempts to destroy the window.
     xcb_intern_atom_cookie_t wm_delete_cookie = xcb_intern_atom(
-        gptWindowCtx->ptConnection,
+        gptPlatformExtCtx->ptConnection,
         0,
         strlen("WM_DELETE_WINDOW"),
         "WM_DELETE_WINDOW");
     xcb_intern_atom_cookie_t wm_protocols_cookie = xcb_intern_atom(
-        gptWindowCtx->ptConnection,
+        gptPlatformExtCtx->ptConnection,
         0,
         strlen("WM_PROTOCOLS"),
         "WM_PROTOCOLS");
     xcb_intern_atom_reply_t* wm_delete_reply = xcb_intern_atom_reply(
-        gptWindowCtx->ptConnection,
+        gptPlatformExtCtx->ptConnection,
         wm_delete_cookie,
         NULL);
     xcb_intern_atom_reply_t* wm_protocols_reply = xcb_intern_atom_reply(
-        gptWindowCtx->ptConnection,
+        gptPlatformExtCtx->ptConnection,
         wm_protocols_cookie,
         NULL);
-    gptWindowCtx->tWmDeleteWin = wm_delete_reply->atom;
-    gptWindowCtx->tWmProtocols = wm_protocols_reply->atom;
+    gptPlatformExtCtx->tWmDeleteWin = wm_delete_reply->atom;
+    gptPlatformExtCtx->tWmProtocols = wm_protocols_reply->atom;
 
     xcb_change_property(
-        gptWindowCtx->ptConnection,
+        gptPlatformExtCtx->ptConnection,
         XCB_PROP_MODE_REPLACE,
         ptData->tWindow,
         wm_protocols_reply->atom,
@@ -298,31 +300,31 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
         &wm_delete_reply->atom);
 
     // Map the window to the screen
-    xcb_map_window(gptWindowCtx->ptConnection, ptData->tWindow);
+    xcb_map_window(gptPlatformExtCtx->ptConnection, ptData->tWindow);
 
-    int stream_result = xcb_flush(gptWindowCtx->ptConnection);
+    int stream_result = xcb_flush(gptPlatformExtCtx->ptConnection);
 
     plWindow* ptWindow = PL_ALLOC(sizeof(plWindow));
     ptWindow->_pBackendData = ptData; //-V522
-    pl_sb_push(gptWindowCtx->sbtWindows, ptWindow);
+    pl_sb_push(gptPlatformExtCtx->sbtWindows, ptWindow);
     *pptWindowOut = ptWindow;
 
-    if(gptWindowCtx->ptMainWindow == NULL)
-        gptWindowCtx->ptMainWindow = ptWindow;
+    if(gptPlatformExtCtx->ptMainWindow == NULL)
+        gptPlatformExtCtx->ptMainWindow = ptWindow;
     return PL_WINDOW_RESULT_SUCCESS;
 }
 
 void
-pl_destroy_window(plWindow* ptWindow)
+pl_window_destroy(plWindow* ptWindow)
 {
     plWindowData* ptData = ptWindow->_pBackendData;
-    xcb_destroy_window(gptWindowCtx->ptConnection, ptData->tWindow);
+    xcb_destroy_window(gptPlatformExtCtx->ptConnection, ptData->tWindow);
     PL_FREE(ptData);
     PL_FREE(ptWindow);
 }
 
 void
-pl_show_window(plWindow* ptWindow)
+pl_window_show(plWindow* ptWindow)
 {
     
 }
@@ -336,8 +338,8 @@ pl_window_create_surface(plWindow* ptWindow, const plWindowSurfaceDesc* ptDesc, 
     ptSurface->atImages = PL_ALLOC(sizeof(plWindowSurfaceImageX11) * ptDesc->uImageCount);
     memset(ptSurface->atImages, 0, sizeof(plWindowSurfaceImageX11) * ptDesc->uImageCount);
     ptSurface->uImageCount = ptDesc->uImageCount;
-    ptSurface->visual = DefaultVisual(gptWindowCtx->ptDisplay, gptWindowCtx->screen);
-    ptSurface->depth = DefaultDepth(gptWindowCtx->ptDisplay, gptWindowCtx->screen);
+    ptSurface->visual = DefaultVisual(gptPlatformExtCtx->ptDisplay, gptPlatformExtCtx->screen);
+    ptSurface->depth = DefaultDepth(gptPlatformExtCtx->ptDisplay, gptPlatformExtCtx->screen);
 
     *ptSurfaceOut = ptSurface;
     return PL_WINDOW_RESULT_SUCCESS;
@@ -374,7 +376,7 @@ pl_window_acquire_surface_image(plWindowSurface* ptSurface, plWindowSurfaceImage
     uint32_t uWidth  = 0;
     uint32_t uHeight = 0;
 
-    if(XGetWindowAttributes(gptWindowCtx->ptDisplay, ptData->tWindow, &tAttributes))
+    if(XGetWindowAttributes(gptPlatformExtCtx->ptDisplay, ptData->tWindow, &tAttributes))
     {
         uWidth  = (uint32_t)tAttributes.width;
         uHeight = (uint32_t)tAttributes.height;
@@ -396,7 +398,7 @@ pl_window_acquire_surface_image(plWindowSurface* ptSurface, plWindowSurfaceImage
         ptImageX11->uPixelCapacity = uPixelsNeeded;
 
         ptImageX11->image = XCreateImage(
-            gptWindowCtx->ptDisplay,
+            gptPlatformExtCtx->ptDisplay,
             ptSurface->visual,
             (unsigned int)ptSurface->depth,
             ZPixmap,
@@ -429,7 +431,7 @@ pl_window_present_surface_image(plWindowSurface* ptSurface, uint32_t uImageIndex
     plWindowSurfaceImageX11* ptImageX11 = &ptSurface->atImages[ptSurface->uCurrentImage];
 
     XPutImage(
-        gptWindowCtx->ptDisplay,
+        gptPlatformExtCtx->ptDisplay,
         ptData->tWindow,
         ptData->gc,
         ptImageX11->image,
@@ -444,43 +446,43 @@ pl_window_present_surface_image(plWindowSurface* ptSurface, uint32_t uImageIndex
 }
 
 bool 
-pl_set_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
+pl_window_set_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
 {
     return false;
 }
 
 bool
-pl_get_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
+pl_window_get_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
 {
     return false;
 }
 
 bool
-pl_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
+pl_window_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
 {
     return tMode == PL_CURSOR_MODE_NORMAL;
 }
 
 plCursorMode
-pl_get_cursor_mode(plWindow* ptWindow)
+pl_window_get_cursor_mode(plWindow* ptWindow)
 {
     return PL_CURSOR_MODE_NORMAL;
 }
 
 bool
-pl_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
+pl_window_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
 {
     return !bValue;
 }
 
 bool
-pl_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* tDesc)
+pl_window_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* tDesc)
 {
     return tDesc->tMode == PL_FULLSCREEN_MODE_NONE;
 }
 
 const plWindowCapabilities*
-pl_get_window_capabilities(void)
+pl_window_get_capabilities(void)
 {
     static plWindowCapabilities tCapabilities = {};
 
@@ -532,26 +534,26 @@ pl__update_mouse_cursor(void)
             default:                          pcX11Cursor = "left_ptr";              break;
         }
 
-        xcb_cursor_t tCursor = xcb_cursor_load_cursor(gptWindowCtx->ptCursorContext, pcX11Cursor);
+        xcb_cursor_t tCursor = xcb_cursor_load_cursor(gptPlatformExtCtx->ptCursorContext, pcX11Cursor);
 
         if(tCursor != XCB_NONE)
         {
             const uint32_t uValue = tCursor;
 
             // Apply to every engine window, not only gsbtWindows[0].
-            const uint32_t uWindowCount = pl_sb_size(gptWindowCtx->sbtWindows);
+            const uint32_t uWindowCount = pl_sb_size(gptPlatformExtCtx->sbtWindows);
             for(uint32_t i = 0; i < uWindowCount; i++)
             {
-                plWindowData* ptData = gptWindowCtx->sbtWindows[i]->_pBackendData;
+                plWindowData* ptData = gptPlatformExtCtx->sbtWindows[i]->_pBackendData;
 
-                xcb_change_window_attributes(gptWindowCtx->ptConnection, ptData->tWindow, XCB_CW_CURSOR, &uValue);
+                xcb_change_window_attributes(gptPlatformExtCtx->ptConnection, ptData->tWindow, XCB_CW_CURSOR, &uValue);
             }
 
             gptIO->tCurrentCursor = tRequestedCursor;
 
             // Safe after the change-window-attributes requests have been queued.
-            xcb_free_cursor(gptWindowCtx->ptConnection, tCursor);
-            xcb_flush(gptWindowCtx->ptConnection);
+            xcb_free_cursor(gptPlatformExtCtx->ptConnection, tCursor);
+            xcb_flush(gptPlatformExtCtx->ptConnection);
         }
     }
 
@@ -747,7 +749,7 @@ pl__linux_procedure(xcb_generic_event_t* event)
             cm = (xcb_client_message_event_t*)event;
 
             // Window close
-            if (cm->data.data32[0] == gptWindowCtx->tWmDeleteWin) 
+            if (cm->data.data32[0] == gptPlatformExtCtx->tWmDeleteWin) 
             {
                 gptIO->bRunning  = false;
             }
@@ -800,11 +802,11 @@ pl__linux_procedure(xcb_generic_event_t* event)
             xcb_keycode_t code = keyEvent->detail;
             uint32_t uCol = gptIO->bKeyShift ? 1 : 0;
             KeySym key_sym = XkbKeycodeToKeysym(
-                gptWindowCtx->ptDisplay, 
+                gptPlatformExtCtx->ptDisplay, 
                 (KeyCode)code,  // event.xkey.keycode,
                 0,
                 uCol);
-            xcb_keysym_t k = xcb_key_press_lookup_keysym(gptWindowCtx->ptKeySyms, keyEvent, uCol);
+            xcb_keysym_t k = xcb_key_press_lookup_keysym(gptPlatformExtCtx->ptKeySyms, keyEvent, uCol);
             gptIOI->add_key_event(pl__xcb_key_to_pl_key(key_sym), true);
             if(k < 0xFF)
                 gptIOI->add_text_event(k);
@@ -817,7 +819,7 @@ pl__linux_procedure(xcb_generic_event_t* event)
             const xcb_key_release_event_t *keyEvent = (const xcb_key_release_event_t *)event;
             xcb_keycode_t code = keyEvent->detail;
             KeySym key_sym = XkbKeycodeToKeysym(
-                gptWindowCtx->ptDisplay, 
+                gptPlatformExtCtx->ptDisplay, 
                 (KeyCode)code,  // event.xkey.keycode,
                 0,
                 0 /*code & ShiftMask ? 1 : 0*/);
@@ -857,12 +859,12 @@ pl__intern_atom(const char* pcName)
 {
     const xcb_intern_atom_cookie_t tCookie =
         xcb_intern_atom(
-            gptWindowCtx->ptConnection,
+            gptPlatformExtCtx->ptConnection,
             false,
             (uint16_t)strlen(pcName),
             pcName);
 
-    xcb_intern_atom_reply_t* ptReply = xcb_intern_atom_reply(gptWindowCtx->ptConnection, tCookie, NULL);
+    xcb_intern_atom_reply_t* ptReply = xcb_intern_atom_reply(gptPlatformExtCtx->ptConnection, tCookie, NULL);
 
     if(ptReply == NULL)
         return XCB_NONE;
@@ -903,19 +905,19 @@ pl__linux_handle_selection_request(const xcb_selection_request_event_t* ptReques
         ptRequest->property :
         ptRequest->target;
 
-    if(ptRequest->selection == gptWindowCtx->tClipboard)
+    if(ptRequest->selection == gptPlatformExtCtx->tClipboard)
     {
-        if(ptRequest->target == gptWindowCtx->tTargets)
+        if(ptRequest->target == gptPlatformExtCtx->tTargets)
         {
             const xcb_atom_t atSupportedTargets[] = {
-                gptWindowCtx->tTargets,
-                gptWindowCtx->tUtf8String,
-                gptWindowCtx->tText,
+                gptPlatformExtCtx->tTargets,
+                gptPlatformExtCtx->tUtf8String,
+                gptPlatformExtCtx->tText,
                 XCB_ATOM_STRING
             };
 
             xcb_change_property(
-                gptWindowCtx->ptConnection,
+                gptPlatformExtCtx->ptConnection,
                 XCB_PROP_MODE_REPLACE,
                 ptRequest->requestor,
                 tProperty,
@@ -926,39 +928,39 @@ pl__linux_handle_selection_request(const xcb_selection_request_event_t* ptReques
 
             tNotify.property = tProperty;
         }
-        else if(ptRequest->target == gptWindowCtx->tUtf8String || ptRequest->target == gptWindowCtx->tText || ptRequest->target == XCB_ATOM_STRING)
+        else if(ptRequest->target == gptPlatformExtCtx->tUtf8String || ptRequest->target == gptPlatformExtCtx->tText || ptRequest->target == XCB_ATOM_STRING)
         {
-            const uint32_t uSize = gptWindowCtx->sbcOwnedClipboardData ? pl_sb_size(gptWindowCtx->sbcOwnedClipboardData) - 1u : 0u;
+            const uint32_t uSize = gptPlatformExtCtx->sbcOwnedClipboardData ? pl_sb_size(gptPlatformExtCtx->sbcOwnedClipboardData) - 1u : 0u;
 
             /*
                 UTF8_STRING and TEXT are returned as UTF-8. STRING is included
                 as a compatibility fallback, although strictly speaking it is
                 intended for ISO-8859-1 text.
             */
-            const xcb_atom_t tPropertyType = ptRequest->target == XCB_ATOM_STRING ? XCB_ATOM_STRING : gptWindowCtx->tUtf8String;
+            const xcb_atom_t tPropertyType = ptRequest->target == XCB_ATOM_STRING ? XCB_ATOM_STRING : gptPlatformExtCtx->tUtf8String;
 
             xcb_change_property(
-                gptWindowCtx->ptConnection,
+                gptPlatformExtCtx->ptConnection,
                 XCB_PROP_MODE_REPLACE,
                 ptRequest->requestor,
                 tProperty,
                 tPropertyType,
                 8,
                 uSize,
-                gptWindowCtx->sbcOwnedClipboardData);
+                gptPlatformExtCtx->sbcOwnedClipboardData);
 
             tNotify.property = tProperty;
         }
     }
 
     xcb_send_event(
-        gptWindowCtx->ptConnection,
+        gptPlatformExtCtx->ptConnection,
         false,
         ptRequest->requestor,
         XCB_EVENT_MASK_NO_EVENT,
         (const char*)&tNotify);
 
-    xcb_flush(gptWindowCtx->ptConnection);
+    xcb_flush(gptPlatformExtCtx->ptConnection);
 }
 
 static bool
@@ -968,15 +970,15 @@ pl__linux_read_clipboard_property(xcb_atom_t tProperty)
 
     const xcb_get_property_cookie_t tCookie =
         xcb_get_property(
-            gptWindowCtx->ptConnection,
+            gptPlatformExtCtx->ptConnection,
             true, /* delete property after reading */
-            ((plWindowData*)gptWindowCtx->ptMainWindow->_pBackendData)->tWindow,
+            ((plWindowData*)gptPlatformExtCtx->ptMainWindow->_pBackendData)->tWindow,
             tProperty,
             XCB_GET_PROPERTY_TYPE_ANY,
             0,
             UINT32_MAX);
 
-    xcb_get_property_reply_t* ptReply = xcb_get_property_reply(gptWindowCtx->ptConnection, tCookie, NULL);
+    xcb_get_property_reply_t* ptReply = xcb_get_property_reply(gptPlatformExtCtx->ptConnection, tCookie, NULL);
 
     if(ptReply == NULL)
         return false;
@@ -985,7 +987,7 @@ pl__linux_read_clipboard_property(xcb_atom_t tProperty)
         INCR is the X11 mechanism for transferring very large selections.
         This implementation intentionally handles normal, non-INCR text only.
     */
-    if(ptReply->type == gptWindowCtx->tIncr || ptReply->format != 8)
+    if(ptReply->type == gptPlatformExtCtx->tIncr || ptReply->format != 8)
     {
         free(ptReply);
         return false;
@@ -1008,26 +1010,26 @@ pl__linux_read_clipboard_property(xcb_atom_t tProperty)
 static bool
 pl__linux_request_clipboard_target(xcb_atom_t tTarget)
 {
-    if(gptWindowCtx->ptMainWindow == NULL)
+    if(gptPlatformExtCtx->ptMainWindow == NULL)
         return false;
 
-    plWindowData* ptWindowData = gptWindowCtx->ptMainWindow->_pBackendData;
+    plWindowData* ptWindowData = gptPlatformExtCtx->ptMainWindow->_pBackendData;
     const xcb_window_t tWindow = ptWindowData->tWindow;
 
     xcb_delete_property(
-        gptWindowCtx->ptConnection,
+        gptPlatformExtCtx->ptConnection,
         tWindow,
-        gptWindowCtx->tClipboardProperty);
+        gptPlatformExtCtx->tClipboardProperty);
 
     xcb_convert_selection(
-        gptWindowCtx->ptConnection,
+        gptPlatformExtCtx->ptConnection,
         tWindow,
-        gptWindowCtx->tClipboard,
+        gptPlatformExtCtx->tClipboard,
         tTarget,
-        gptWindowCtx->tClipboardProperty,
+        gptPlatformExtCtx->tClipboardProperty,
         XCB_CURRENT_TIME);
 
-    xcb_flush(gptWindowCtx->ptConnection);
+    xcb_flush(gptPlatformExtCtx->ptConnection);
 
     const uint64_t ulStartTime = pl__linux_get_time_milliseconds();
     const uint64_t ulTimeout   = 1000ull;
@@ -1036,7 +1038,7 @@ pl__linux_request_clipboard_target(xcb_atom_t tTarget)
     {
         xcb_generic_event_t* ptEvent = NULL;
 
-        while((ptEvent = xcb_poll_for_event(gptWindowCtx->ptConnection)) != NULL)
+        while((ptEvent = xcb_poll_for_event(gptPlatformExtCtx->ptConnection)) != NULL)
         {
             const uint8_t uEventType =
                 ptEvent->response_type & ~0x80;
@@ -1047,7 +1049,7 @@ pl__linux_request_clipboard_target(xcb_atom_t tTarget)
                     (const xcb_selection_notify_event_t*)ptEvent;
 
                 if(ptNotify->requestor == tWindow &&
-                   ptNotify->selection == gptWindowCtx->tClipboard &&
+                   ptNotify->selection == gptPlatformExtCtx->tClipboard &&
                    ptNotify->target == tTarget)
                 {
                     bool bResult = false;
@@ -1080,7 +1082,7 @@ pl__linux_request_clipboard_target(xcb_atom_t tTarget)
             (int)(ulTimeout - (ulCurrentTime - ulStartTime));
 
         struct pollfd tPollDescriptor = {
-            .fd      = xcb_get_file_descriptor(gptWindowCtx->ptConnection),
+            .fd      = xcb_get_file_descriptor(gptPlatformExtCtx->ptConnection),
             .events  = POLLIN,
             .revents = 0
         };
@@ -1101,17 +1103,17 @@ pl_get_clipboard_text(void* pUnused)
     plIO* ptIO = gptIOI->get_io();
     pl_sb_reset(ptIO->sbcClipboardData);
 
-    if(gptWindowCtx->ptMainWindow == NULL)
+    if(gptPlatformExtCtx->ptMainWindow == NULL)
         return NULL;
 
-    plWindowData* ptWindowData = gptWindowCtx->ptMainWindow->_pBackendData;
+    plWindowData* ptWindowData = gptPlatformExtCtx->ptMainWindow->_pBackendData;
 
     const xcb_get_selection_owner_cookie_t tOwnerCookie =
-        xcb_get_selection_owner(gptWindowCtx->ptConnection, gptWindowCtx->tClipboard);
+        xcb_get_selection_owner(gptPlatformExtCtx->ptConnection, gptPlatformExtCtx->tClipboard);
 
     xcb_get_selection_owner_reply_t* ptOwnerReply =
         xcb_get_selection_owner_reply(
-            gptWindowCtx->ptConnection,
+            gptPlatformExtCtx->ptConnection,
             tOwnerCookie,
             NULL);
 
@@ -1130,8 +1132,8 @@ pl_get_clipboard_text(void* pUnused)
     if(tOwner == ptWindowData->tWindow)
     {
         const uint32_t uSize =
-            gptWindowCtx->sbcOwnedClipboardData ?
-            pl_sb_size(gptWindowCtx->sbcOwnedClipboardData) :
+            gptPlatformExtCtx->sbcOwnedClipboardData ?
+            pl_sb_size(gptPlatformExtCtx->sbcOwnedClipboardData) :
             0u;
 
         if(uSize == 0)
@@ -1141,7 +1143,7 @@ pl_get_clipboard_text(void* pUnused)
 
         memcpy(
             ptIO->sbcClipboardData,
-            gptWindowCtx->sbcOwnedClipboardData,
+            gptPlatformExtCtx->sbcOwnedClipboardData,
             uSize);
 
         return ptIO->sbcClipboardData;
@@ -1150,7 +1152,7 @@ pl_get_clipboard_text(void* pUnused)
     /*
         Prefer UTF-8, then fall back to the legacy STRING target.
     */
-    if(pl__linux_request_clipboard_target(gptWindowCtx->tUtf8String))
+    if(pl__linux_request_clipboard_target(gptPlatformExtCtx->tUtf8String))
         return ptIO->sbcClipboardData;
 
     if(pl__linux_request_clipboard_target(XCB_ATOM_STRING))
@@ -1164,29 +1166,29 @@ pl_set_clipboard_text(void* pUnused, const char* pcText)
 {
     (void)pUnused;
 
-    if(gptWindowCtx->ptMainWindow == NULL || pcText == NULL)
+    if(gptPlatformExtCtx->ptMainWindow == NULL || pcText == NULL)
         return;
 
     const size_t szTextLength = strlen(pcText);
 
     pl_sb_resize(
-        gptWindowCtx->sbcOwnedClipboardData,
+        gptPlatformExtCtx->sbcOwnedClipboardData,
         (uint32_t)szTextLength + 1u);
 
     memcpy(
-        gptWindowCtx->sbcOwnedClipboardData,
+        gptPlatformExtCtx->sbcOwnedClipboardData,
         pcText,
         szTextLength + 1u);
 
-    plWindowData* ptWindowData = gptWindowCtx->ptMainWindow->_pBackendData;
+    plWindowData* ptWindowData = gptPlatformExtCtx->ptMainWindow->_pBackendData;
 
     xcb_set_selection_owner(
-        gptWindowCtx->ptConnection,
+        gptPlatformExtCtx->ptConnection,
         ptWindowData->tWindow,
-        gptWindowCtx->tClipboard,
+        gptPlatformExtCtx->tClipboard,
         XCB_CURRENT_TIME);
 
-    xcb_flush(gptWindowCtx->ptConnection);
+    xcb_flush(gptPlatformExtCtx->ptConnection);
 }
 
 //-----------------------------------------------------------------------------
@@ -1920,7 +1922,7 @@ pl_threads_create_critical_section(plCriticalSection** pptCriticalSectionOut)
 }
 
 void
-pl_destroy_create_critical_section(plCriticalSection** pptCriticalSection)
+pl_threads_destroy_critical_section(plCriticalSection** pptCriticalSection)
 {
     pthread_mutex_destroy(&(*pptCriticalSection)->tHandle);
     PL_FREE((*pptCriticalSection));
@@ -1928,7 +1930,7 @@ pl_destroy_create_critical_section(plCriticalSection** pptCriticalSection)
 }
 
 void
-pl_destroy_enter_critical_section(plCriticalSection* ptCriticalSection)
+pl_threads_enter_critical_section(plCriticalSection* ptCriticalSection)
 {
     pthread_mutex_lock(&ptCriticalSection->tHandle);
 }
@@ -2130,230 +2132,7 @@ pl_virtual_memory_uncommit(void* pAddress, size_t szSize)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] extension loading
+// [SECTION] unity build
 //-----------------------------------------------------------------------------
 
-void
-pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    const plTimerI tTimerI = {
-        .get_time = pl_timer_get_time
-    };
-
-    const plWindowI tWindowApi = {
-        .create                = pl_create_window,
-        .destroy               = pl_destroy_window,
-        .show                  = pl_show_window,
-        .set_callback          = pl_set_window_callback,
-        .get_callback          = pl_get_window_callback,
-        .set_attribute         = pl_set_window_attribute,
-        .get_attribute         = pl_get_window_attribute,
-        .set_cursor_mode       = pl_set_cursor_mode,
-        .get_cursor_mode       = pl_get_cursor_mode,
-        .set_raw_mouse_input   = pl_set_raw_mouse_input,
-        .set_fullscreen        = pl_set_fullscreen,
-        .create_surface        = pl_window_create_surface,
-        .destroy_surface       = pl_window_destroy_surface,
-        .acquire_surface_image = pl_window_acquire_surface_image,
-        .present_surface_image = pl_window_present_surface_image,
-        .get_capabilities      = pl_get_window_capabilities
-    };
-
-    const plFileI tFileApi = {
-        .copy                   = pl_file_copy,
-        .exists                 = pl_file_exists,
-        .remove                 = pl_file_remove,
-        .binary_read            = pl_file_binary_read,
-        .binary_write           = pl_file_binary_write,
-        .directory_exists       = pl_file_directory_exists,
-        .create_directory       = pl_file_create_directory,
-        .remove_directory       = pl_file_remove_directory,
-        .get_directory_info     = pl_file_get_directory_info,
-        .cleanup_directory_info = pl_file_cleanup_directory_info,
-    };
-
-    const plNetworkI tNetworkApi = {
-        .initialize           = pl_network_initialize,
-        .cleanup              = pl_network_cleanup,
-        .create_address       = pl_network_create_address,
-        .destroy_address      = pl_network_destroy_address,
-        .create_socket        = pl_network_create_socket,
-        .destroy_socket       = pl_network_destroy_socket,
-        .bind_socket          = pl_network_bind_socket,
-        .send_socket_data_to  = pl_network_send_socket_data_to,
-        .get_socket_data_from = pl_network_get_socket_data_from,
-        .connect_socket       = pl_network_connect_socket,
-        .get_socket_data      = pl_network_get_socket_data,
-        .listen_socket        = pl_network_listen_socket,
-        .select_sockets       = pl_network_select_sockets,
-        .accept_socket        = pl_network_accept_socket,
-        .send_socket_data     = pl_network_send_socket_data,
-    };
-
-    const plThreadsI tThreadApi = {
-        .get_hardware_thread_count   = pl_threads_get_hardware_thread_count,
-        .create_thread               = pl_threads_create_thread,
-        .destroy_thread              = pl_threads_destroy_thread,
-        .join_thread                 = pl_threads_join_thread,
-        .yield_thread                = pl_threads_yield_thread,
-        .sleep_thread                = pl_threads_sleep_thread,
-        .get_thread_id               = pl_threads_get_thread_id,
-        .get_current_thread_id       = pl_threads_get_current_thread_id,
-        .create_mutex                = pl_threads_create_mutex,
-        .destroy_mutex               = pl_threads_destroy_mutex,
-        .lock_mutex                  = pl_threads_lock_mutex,
-        .unlock_mutex                = pl_threads_unlock_mutex,
-        .create_semaphore            = pl_threads_create_semaphore,
-        .destroy_semaphore           = pl_threads_destroy_semaphore,
-        .wait_on_semaphore           = pl_threads_wait_on_semaphore,
-        .try_wait_on_semaphore       = pl_threads_try_wait_on_semaphore,
-        .release_semaphore           = pl_threads_release_semaphore,
-        .allocate_thread_local_key   = pl_threads_allocate_thread_local_key,
-        .allocate_thread_local_data  = pl_threads_allocate_thread_local_data,
-        .free_thread_local_key       = pl_threads_free_thread_local_key, 
-        .get_thread_local_data       = pl_threads_get_thread_local_data, 
-        .free_thread_local_data      = pl_threads_free_thread_local_data, 
-        .create_critical_section     = pl_threads_create_critical_section,
-        .destroy_critical_section    = pl_destroy_create_critical_section,
-        .enter_critical_section      = pl_destroy_enter_critical_section,
-        .leave_critical_section      = pl_threads_leave_critical_section,
-        .create_condition_variable   = pl_threads_create_condition_variable,
-        .destroy_condition_variable  = pl_threads_destroy_condition_variable,
-        .wake_condition_variable     = pl_threads_wake_condition_variable,
-        .wake_all_condition_variable = pl_threads_wake_all_condition_variable,
-        .sleep_condition_variable    = pl_threads_sleep_condition_variable,
-        .create_barrier              = pl_threads_create_barrier,
-        .destroy_barrier             = pl_threads_destroy_barrier,
-        .wait_on_barrier             = pl_threads_wait_on_barrier
-    };
-
-    const plAtomicsI tAtomicsApi = {
-        .create_counter   = pl_atomics_create_counter,
-        .destroy_counter  = pl_atomics_destroy_counter,
-        .store            = pl_atomics_store,
-        .load             = pl_atomics_load,
-        .compare_exchange = pl_atomics_compare_exchange,
-        .increment        = pl_atomics_increment,
-        .decrement        = pl_atomics_decrement
-    };
-
-    const plVirtualMemoryI tVirtualMemoryApi = {
-        .get_page_size = pl_virtual_memory_get_page_size,
-        .alloc         = pl_virtual_memory_alloc,
-        .reserve       = pl_virtual_memory_reserve,
-        .commit        = pl_virtual_memory_commit,
-        .uncommit      = pl_virtual_memory_uncommit,
-        .free          = pl_virtual_memory_free,
-    };
-
-    pl_set_api(ptApiRegistry, plWindowI, &tWindowApi);
-    pl_set_api(ptApiRegistry, plFileI, &tFileApi);
-    pl_set_api(ptApiRegistry, plVirtualMemoryI, &tVirtualMemoryApi);
-    pl_set_api(ptApiRegistry, plAtomicsI, &tAtomicsApi);
-    pl_set_api(ptApiRegistry, plThreadsI, &tThreadApi);
-    pl_set_api(ptApiRegistry, plNetworkI, &tNetworkApi);
-    pl_set_api(ptApiRegistry, plTimerI, &tTimerI);
-
-    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptIOI = pl_get_api_latest(ptApiRegistry, plIOI);
-    gptIO = gptIOI->get_io();
-
-    static plPlatformExtData stWindowCtx = {0};
-    gptWindowCtx = &stWindowCtx;
-
-    {
-        static struct timespec ts;
-        if (clock_getres(CLOCK_MONOTONIC, &ts) != 0) 
-        {
-            PL_ASSERT(false && "clock_getres() failed");
-        }
-        gptWindowCtx->dFrequency = 1e9/((double)ts.tv_nsec + (double)ts.tv_sec * (double)1e9);  
-    }
-
-    {
-        struct timespec ts;
-        if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) 
-        {
-            PL_ASSERT(false && "clock_gettime() failed");
-        }
-        uint64_t nsec_count = ts.tv_nsec + ts.tv_sec * 1e9;
-        gptWindowCtx->dStartTime = (double)nsec_count / gptWindowCtx->dFrequency; 
-    }
-
-    // register backend required functions
-    gptIO->set_clipboard_text_fn = pl_set_clipboard_text;
-    gptIO->get_clipboard_text_fn = pl_get_clipboard_text;
-    gptIO->platform_setup = pl_platform_setup;
-    gptIO->platform_new_frame = pl_platform_new_frame;
-    gptIO->platform_cleanup = pl_platform_cleanup;
-
-    // connect to x
-    stWindowCtx.ptDisplay = XOpenDisplay(NULL);
-
-    if(stWindowCtx.ptDisplay)
-    {
-
-        // turn off auto repeat (we handle this internally)
-        XkbSetDetectableAutoRepeat(stWindowCtx.ptDisplay, false, NULL);
-
-        stWindowCtx.ptConnection = xcb_connect(NULL, &stWindowCtx.screen);
-        if(xcb_connection_has_error(stWindowCtx.ptConnection))
-        {
-            PL_ASSERT(false && "Failed to connect to X server via XCB.");
-        }
-
-        stWindowCtx.tClipboard         = pl__intern_atom("CLIPBOARD");
-        stWindowCtx.tClipboardProperty = pl__intern_atom("PL_CLIPBOARD_PROPERTY");
-        stWindowCtx.tTargets           = pl__intern_atom("TARGETS");
-        stWindowCtx.tUtf8String        = pl__intern_atom("UTF8_STRING");
-        stWindowCtx.tText              = pl__intern_atom("TEXT");
-        stWindowCtx.tIncr              = pl__intern_atom("INCR");
-
-        // get data from x server
-        const xcb_setup_t* setup = xcb_get_setup(stWindowCtx.ptConnection);
-
-        // loop through screens using iterator
-        xcb_screen_iterator_t it = xcb_setup_roots_iterator(setup);
-        
-        for (int s = stWindowCtx.screen; s > 0; s--) 
-        {
-            xcb_screen_next(&it);
-        }
-
-        // after screens have been looped through, assign it.
-        stWindowCtx.ptScreen = it.data;
-
-        // Notify X for mouse cursor handling
-        xcb_discard_reply(stWindowCtx.ptConnection, xcb_xfixes_query_version(stWindowCtx.ptConnection, 4, 0).sequence);
-
-        // Cursor context for looking up cursors for the current X cursor theme
-        xcb_cursor_context_new(stWindowCtx.ptConnection, stWindowCtx.ptScreen, &stWindowCtx.ptCursorContext);
-
-        // get the current key map
-        stWindowCtx.ptKeySyms = xcb_key_symbols_alloc(stWindowCtx.ptConnection);
-    }
-}
-
-void
-pl_unload_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-
-    if(bReload)
-        return;
-
-    const plFileI*          ptApi0 = pl_get_api_latest(ptApiRegistry, plFileI);
-    const plVirtualMemoryI* ptApi1 = pl_get_api_latest(ptApiRegistry, plVirtualMemoryI);
-    const plAtomicsI*       ptApi2 = pl_get_api_latest(ptApiRegistry, plAtomicsI);
-    const plThreadsI*       ptApi3 = pl_get_api_latest(ptApiRegistry, plThreadsI);
-    const plNetworkI*       ptApi4 = pl_get_api_latest(ptApiRegistry, plNetworkI);
-    const plWindowI*        ptApi5 = pl_get_api_latest(ptApiRegistry, plWindowI);
-    const plTimerI*         ptApi6 = pl_get_api_latest(ptApiRegistry, plTimerI);
-
-    ptApiRegistry->remove_api(ptApi0);
-    ptApiRegistry->remove_api(ptApi1);
-    ptApiRegistry->remove_api(ptApi2);
-    ptApiRegistry->remove_api(ptApi3);
-    ptApiRegistry->remove_api(ptApi4);
-    ptApiRegistry->remove_api(ptApi5);
-    ptApiRegistry->remove_api(ptApi6);
-}
+#include "pl_platform_ext.c"

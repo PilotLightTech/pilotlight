@@ -477,7 +477,8 @@ pl__application_shutdown_once(void)
         pl_app_shutdown(gptIOCtx->pAppUserData);
     }
 
-    gptIOCtx->platform_cleanup(gptIOCtx->pBackendPlatformData);
+    if(gptIOCtx->platform_cleanup)
+        gptIOCtx->platform_cleanup(gptIOCtx->pBackendPlatformData);
     pl__unload_all_extensions();
 
     // gptAppLibrary was allocated through the core memory API, so release it

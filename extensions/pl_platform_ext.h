@@ -132,6 +132,7 @@ PL_API void pl_load_platform_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_platform_ext(plApiRegistryI*, bool reload);
 
 //--------------------------------timer api------------------------------------
+
 PL_API double pl_timer_get_time(void);
 
 //-------------------------------window api------------------------------------

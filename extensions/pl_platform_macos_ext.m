@@ -42,12 +42,12 @@ Index of this file:
 #include <fcntl.h> // O_RDONLY, O_WRONLY ,O_CREAT
 #include <sys/mman.h>
 
-plThread** gsbtThreads;
+plThread** gsbtThreads = NULL;
 
 static const plMemoryI*  gptMemory = NULL;
 static const plIOI*      gptIOI = NULL;
 
-static plIO* gptIOCtx = NULL;
+static plIO* gptIO = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -89,7 +89,7 @@ typedef struct _plWindowSurface
     plWindowSurfaceImageCocoa* atImages;
 } plWindowSurface;
 
-static plPlatformExtData* gptWindowCtx = NULL;
+static plPlatformExtData* gptPlatformExtCtx = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] timer api
@@ -99,7 +99,7 @@ double
 pl_timer_get_time(void)
 {
     double dNewTime = (CFTimeInterval)((double)clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9);
-    return dNewTime - gptWindowCtx->dInitialTime;
+    return dNewTime - gptPlatformExtCtx->dInitialTime;
 }
 
 //-----------------------------------------------------------------------------
@@ -214,7 +214,7 @@ static plMacWindowEvent*      gsbtWindowEvents = NULL;
 - (void)applicationWillTerminate:(NSNotification*)notification
 {
     (void)notification;
-    gptIOCtx->bRunning = false;
+    gptIO->bRunning = false;
 }
 
 - (void)windowWillClose:(NSNotification*)notification
@@ -226,7 +226,7 @@ static plMacWindowEvent*      gsbtWindowEvents = NULL;
     ptData->bClosePending = true;
 
     if(ptData->ptPublicWindow == gptMainWindow)
-        gptIOCtx->bRunning = false;
+        gptIO->bRunning = false;
 }
 
 @end
@@ -465,13 +465,10 @@ static plMacWindowEvent*      gsbtWindowEvents = NULL;
 
 @end
 
-void pl_destroy_window(plWindow* ptWindow);
-
-
 void*
 pl_platform_setup(void)
 {
-    return gptWindowCtx;
+    return gptPlatformExtCtx;
 }
 
 void
@@ -488,11 +485,11 @@ pl_platform_new_frame(void* pPlatformData)
         plWindowData* ptData = (plWindowData*)gptMainWindow->_pBackendData;
         if(ptData)
         {
-            gptWindowCtx->ptLayer = ptData->ptLayer;
+            gptPlatformExtCtx->ptLayer = ptData->ptLayer;
         }
         NSScreen* ptScreen = ptData && ptData->ptNativeWindow.screen ? ptData->ptNativeWindow.screen : NSScreen.mainScreen;
         NSNumber* ptScreenNumber = ptScreen.deviceDescription[@"NSScreenNumber"];
-        gptWindowCtx->tScreen = ptScreenNumber;
+        gptPlatformExtCtx->tScreen = ptScreenNumber;
 
     }
 
@@ -552,32 +549,32 @@ pl_platform_new_frame(void* pPlatformData)
             {
                 if(ptEvent->ptWindow == gptMainWindow)
                 {
-                    gptIOCtx->tMainFramebufferScale.x = ptEvent->fScale;
-                    gptIOCtx->tMainFramebufferScale.y = ptEvent->fScale;
-                    gptIOCtx->tMainViewportSize.x = ptEvent->fViewportWidth;
-                    gptIOCtx->tMainViewportSize.y = ptEvent->fViewportHeight;
-                    gptIOCtx->bViewportSizeChanged = true;
+                    gptIO->tMainFramebufferScale.x = ptEvent->fScale;
+                    gptIO->tMainFramebufferScale.y = ptEvent->fScale;
+                    gptIO->tMainViewportSize.x = ptEvent->fViewportWidth;
+                    gptIO->tMainViewportSize.y = ptEvent->fViewportHeight;
+                    gptIO->bViewportSizeChanged = true;
                 }
 
-                // if(gptIOCtx->pl_app_resize && gptIOCtx->_bFirstLoadComplete)
-                //    gptIOCtx->pl_app_resize(gptMainWindow, gptIOCtx->pAppUserData);
-                // gptIOCtx->bViewportSizeChanged = true;
+                // if(gptIO->pl_app_resize && gptIO->_bFirstLoadComplete)
+                //    gptIO->pl_app_resize(gptMainWindow, gptIO->pAppUserData);
+                // gptIO->bViewportSizeChanged = true;
                 break;
             }
 
             case PL_MAC_WINDOW_EVENT_CLOSE_REQUESTED:
             {
                 if(ptEvent->ptWindow == gptMainWindow)
-                    gptIOCtx->bRunning = false;
+                    gptIO->bRunning = false;
                 break;
             }
         }
     }
     pl_sb_reset(gsbtWindowEvents);
 
-    if(gptIOCtx->bViewportSizeChanged && gptIOCtx->pl_app_resize && gptIOCtx->_bFirstLoadComplete)
+    if(gptIO->bViewportSizeChanged && gptIO->pl_app_resize && gptIO->_bFirstLoadComplete)
     {
-        gptIOCtx->pl_app_resize(gptMainWindow, gptIOCtx->pAppUserData);
+        gptIO->pl_app_resize(gptMainWindow, gptIO->pAppUserData);
     }
 }
 
@@ -587,7 +584,7 @@ pl_platform_cleanup(void* ptPlatformData)
     pl__remove_osx_event_monitor();
 
     while(pl_sb_size(gsbtWindows) > 0)
-        pl_destroy_window(pl_sb_last(gsbtWindows));
+        pl_window_destroy(pl_sb_last(gsbtWindows));
 
     pl_sb_free(gsbtWindows);
     pl_sb_free(gsbtWindowEvents);
@@ -737,17 +734,17 @@ pl__remove_osx_event_monitor(void)
 static void
 pl__update_mouse_cursor(void)
 {
-    // if(gptIOCtx->tCurrentCursor == gptIOCtx->tNextCursor)
+    // if(gptIO->tCurrentCursor == gptIO->tNextCursor)
     //     return;
 
-    plMouseCursor tCursor = gptIOCtx->tNextCursor;
+    plMouseCursor tCursor = gptIO->tNextCursor;
     if(tCursor < 0 || tCursor >= PL_MOUSE_CURSOR_COUNT)
         tCursor = PL_MOUSE_CURSOR_ARROW;
 
-    gptIOCtx->tCurrentCursor = tCursor;
+    gptIO->tCurrentCursor = tCursor;
     NSCursor* ptCursor = aptMouseCursors[tCursor] ?: aptMouseCursors[PL_MOUSE_CURSOR_ARROW];
     [ptCursor set];
-    gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
+    gptIO->tNextCursor = PL_MOUSE_CURSOR_ARROW;
 }
 
 static plWindowData*
@@ -779,7 +776,7 @@ pl__mark_window_resize(plWindowData* ptData)
 }
 
 plWindowResult
-pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
+pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
 {
     if(!pptWindowOut)
         return PL_WINDOW_RESULT_FAIL;
@@ -839,7 +836,7 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
         return PL_WINDOW_RESULT_FAIL;
     }
 
-    ptData->ptNativeWindow.delegate = gptWindowCtx->gtAppDelegate;
+    ptData->ptNativeWindow.delegate = gptPlatformExtCtx->gtAppDelegate;
 
     NSString* ptWindowTitle = [NSString stringWithUTF8String:tDesc.pcTitle ? tDesc.pcTitle : "Pilot Light"];
     ptData->ptNativeWindow.title = ptWindowTitle;
@@ -861,8 +858,8 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
 
     if(ptWindow == gptMainWindow)
     {
-        gptIOCtx->tMainViewportSize.x = (float)ptData->ptView.bounds.size.width;
-        gptIOCtx->tMainViewportSize.y = (float)ptData->ptView.bounds.size.height;
+        gptIO->tMainViewportSize.x = (float)ptData->ptView.bounds.size.width;
+        gptIO->tMainViewportSize.y = (float)ptData->ptView.bounds.size.height;
     }
 
     pl__mark_window_resize(ptData);
@@ -870,7 +867,7 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
 }
 
 void
-pl_destroy_window(plWindow* ptWindow)
+pl_window_destroy(plWindow* ptWindow)
 {
     if(!ptWindow)
         return;
@@ -914,7 +911,7 @@ pl_destroy_window(plWindow* ptWindow)
 }
 
 void
-pl_show_window(plWindow* ptWindow)
+pl_window_show(plWindow* ptWindow)
 {
     if(!ptWindow)
         return;
@@ -970,12 +967,6 @@ pl_window_acquire_surface_image(plWindowSurface* ptSurface, plWindowSurfaceImage
     uint32_t uWidth  = (uint32_t)tBackingBounds.size.width;
     uint32_t uHeight = (uint32_t)tBackingBounds.size.height;
 
-    // if(XGetWindowAttributes(gptWindowCtx->ptDisplay, ptData->tWindow, &tAttributes))
-    // {
-    //     uWidth  = (uint32_t)tAttributes.width;
-    //     uHeight = (uint32_t)tAttributes.height;
-    // }
-
     uint32_t uPixelsNeeded = uWidth * uHeight;
     bool bResizeNeeded = uPixelsNeeded > ptImageCocoa->uPixelCapacity;
 
@@ -983,8 +974,6 @@ pl_window_acquire_surface_image(plWindowSurface* ptSurface, plWindowSurfaceImage
     {
         if(ptImageCocoa->pPixels)
         {
-            // ptImageCocoa->image->data = NULL;
-            // XDestroyImage(ptImageCocoa->image);
             PL_FREE(ptImageCocoa->pPixels);
             CGImageRelease(ptImageCocoa->image);
             CGDataProviderRelease(ptImageCocoa->provider);
@@ -1036,7 +1025,7 @@ pl_window_present_surface_image(plWindowSurface* ptSurface, uint32_t uImageIndex
 }
 
 bool
-pl_set_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
+pl_window_set_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
 {
     (void)ptWindow;
     (void)tAttribute;
@@ -1045,7 +1034,7 @@ pl_set_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const 
 }
 
 bool
-pl_get_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
+pl_window_get_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
 {
     (void)ptWindow;
     (void)tAttribute;
@@ -1054,35 +1043,35 @@ pl_get_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWind
 }
 
 bool
-pl_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
+pl_window_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
 {
     (void)ptWindow;
     return tMode == PL_CURSOR_MODE_NORMAL;
 }
 
 plCursorMode
-pl_get_cursor_mode(plWindow* ptWindow)
+pl_window_get_cursor_mode(plWindow* ptWindow)
 {
     (void)ptWindow;
     return PL_CURSOR_MODE_NORMAL;
 }
 
 bool
-pl_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
+pl_window_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
 {
     (void)ptWindow;
     return !bValue;
 }
 
 bool
-pl_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* ptDesc)
+pl_window_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* ptDesc)
 {
     (void)ptWindow;
     return ptDesc && ptDesc->tMode == PL_FULLSCREEN_MODE_NONE;
 }
 
 const plWindowCapabilities*
-pl_get_window_capabilities(void)
+pl_window_get_capabilities(void)
 {
     static plWindowCapabilities tCapabilities = {0};
 
@@ -1223,13 +1212,13 @@ pl__osx_key_to_pl_key(int iKey)
 }
 
 void
-pl_set_window_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
+pl_window_set_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
 {
     // TODO: implement
 }
 
 plWindowEventCallback
-pl_get_window_callback(plWindow* ptWindow)
+pl_window_get_callback(plWindow* ptWindow)
 {
     plWindowEventCallback tCallback = PL_ZERO_INIT;
     return tCallback;
@@ -1242,7 +1231,7 @@ pl_get_window_callback(plWindow* ptWindow)
 const char*
 pl_get_clipboard_text(void* user_data_ctx)
 {
-    pl_sb_reset(gptIOCtx->sbcClipboardData);
+    pl_sb_reset(gptIO->sbcClipboardData);
 
     NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
     NSString* available = [pasteboard availableTypeFromArray: [NSArray arrayWithObject:NSPasteboardTypeString]];
@@ -1255,9 +1244,9 @@ pl_get_clipboard_text(void* user_data_ctx)
 
     const char* string_c = (const char*)[string UTF8String];
     size_t string_len = strlen(string_c);
-    pl_sb_resize(gptIOCtx->sbcClipboardData, (int)string_len + 1);
-    strcpy(gptIOCtx->sbcClipboardData, string_c);
-    return gptIOCtx->sbcClipboardData;
+    pl_sb_resize(gptIO->sbcClipboardData, (int)string_len + 1);
+    strcpy(gptIO->sbcClipboardData, string_c);
+    return gptIO->sbcClipboardData;
 }
 
 void
@@ -2005,7 +1994,7 @@ pl_threads_create_critical_section(plCriticalSection** pptCriticalSectionOut)
 }
 
 void
-pl_destroy_create_critical_section(plCriticalSection** pptCriticalSection)
+pl_threads_destroy_critical_section(plCriticalSection** pptCriticalSection)
 {
     pthread_mutex_destroy(&(*pptCriticalSection)->tHandle);
     PL_FREE((*pptCriticalSection));
@@ -2013,7 +2002,7 @@ pl_destroy_create_critical_section(plCriticalSection** pptCriticalSection)
 }
 
 void
-pl_destroy_enter_critical_section(plCriticalSection* ptCriticalSection)
+pl_threads_enter_critical_section(plCriticalSection* ptCriticalSection)
 {
     pthread_mutex_lock(&ptCriticalSection->tHandle);
 }
@@ -2263,183 +2252,4 @@ pl_virtual_memory_uncommit(void* pAddress, size_t szSize)
     mprotect(pAddress, szSize, PROT_NONE);
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] extension loading
-//-----------------------------------------------------------------------------
-
-void
-pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    const plTimerI tTimerI = {
-        .get_time = pl_timer_get_time
-    };
-
-    const plWindowI tWindowApi = {
-        .create                = pl_create_window,
-        .destroy               = pl_destroy_window,
-        .show                  = pl_show_window,
-        .set_callback          = pl_set_window_callback,
-        .get_callback          = pl_get_window_callback,
-        .set_attribute         = pl_set_window_attribute,
-        .get_attribute         = pl_get_window_attribute,
-        .set_cursor_mode       = pl_set_cursor_mode,
-        .get_cursor_mode       = pl_get_cursor_mode,
-        .set_raw_mouse_input   = pl_set_raw_mouse_input,
-        .set_fullscreen        = pl_set_fullscreen,
-        .create_surface        = pl_window_create_surface,
-        .destroy_surface       = pl_window_destroy_surface,
-        .acquire_surface_image = pl_window_acquire_surface_image,
-        .present_surface_image = pl_window_present_surface_image,
-        .get_capabilities      = pl_get_window_capabilities
-    };
-
-    const plFileI tFileApi = {
-        .copy                   = pl_file_copy,
-        .exists                 = pl_file_exists,
-        .remove                 = pl_file_remove,
-        .binary_read            = pl_file_binary_read,
-        .binary_write           = pl_file_binary_write,
-        .directory_exists       = pl_file_directory_exists,
-        .create_directory       = pl_file_create_directory,
-        .remove_directory       = pl_file_remove_directory,
-        .get_directory_info     = pl_file_get_directory_info,
-        .cleanup_directory_info = pl_file_cleanup_directory_info,
-    };
-
-    const plNetworkI tNetworkApi = {
-        .initialize           = pl_network_initialize,
-        .cleanup              = pl_network_cleanup,
-        .create_address       = pl_network_create_address,
-        .destroy_address      = pl_network_destroy_address,
-        .create_socket        = pl_network_create_socket,
-        .destroy_socket       = pl_network_destroy_socket,
-        .bind_socket          = pl_network_bind_socket,
-        .send_socket_data_to  = pl_network_send_socket_data_to,
-        .get_socket_data_from = pl_network_get_socket_data_from,
-        .connect_socket       = pl_network_connect_socket,
-        .get_socket_data      = pl_network_get_socket_data,
-        .listen_socket        = pl_network_listen_socket,
-        .select_sockets       = pl_network_select_sockets,
-        .accept_socket        = pl_network_accept_socket,
-        .send_socket_data     = pl_network_send_socket_data,
-    };
-
-    const plThreadsI tThreadApi = {
-        .get_hardware_thread_count   = pl_threads_get_hardware_thread_count,
-        .create_thread               = pl_threads_create_thread,
-        .destroy_thread              = pl_threads_destroy_thread,
-        .join_thread                 = pl_threads_join_thread,
-        .yield_thread                = pl_threads_yield_thread,
-        .sleep_thread                = pl_threads_sleep_thread,
-        .get_thread_id               = pl_threads_get_thread_id,
-        .get_current_thread_id       = pl_threads_get_current_thread_id,
-        .create_mutex                = pl_threads_create_mutex,
-        .destroy_mutex               = pl_threads_destroy_mutex,
-        .lock_mutex                  = pl_threads_lock_mutex,
-        .unlock_mutex                = pl_threads_unlock_mutex,
-        .create_semaphore            = pl_threads_create_semaphore,
-        .destroy_semaphore           = pl_threads_destroy_semaphore,
-        .wait_on_semaphore           = pl_threads_wait_on_semaphore,
-        .try_wait_on_semaphore       = pl_threads_try_wait_on_semaphore,
-        .release_semaphore           = pl_threads_release_semaphore,
-        .allocate_thread_local_key   = pl_threads_allocate_thread_local_key,
-        .allocate_thread_local_data  = pl_threads_allocate_thread_local_data,
-        .free_thread_local_key       = pl_threads_free_thread_local_key, 
-        .get_thread_local_data       = pl_threads_get_thread_local_data, 
-        .free_thread_local_data      = pl_threads_free_thread_local_data, 
-        .create_critical_section     = pl_threads_create_critical_section,
-        .destroy_critical_section    = pl_destroy_create_critical_section,
-        .enter_critical_section      = pl_destroy_enter_critical_section,
-        .leave_critical_section      = pl_threads_leave_critical_section,
-        .create_condition_variable   = pl_threads_create_condition_variable,
-        .destroy_condition_variable  = pl_threads_destroy_condition_variable,
-        .wake_condition_variable     = pl_threads_wake_condition_variable,
-        .wake_all_condition_variable = pl_threads_wake_all_condition_variable,
-        .sleep_condition_variable    = pl_threads_sleep_condition_variable,
-        .create_barrier              = pl_threads_create_barrier,
-        .destroy_barrier             = pl_threads_destroy_barrier,
-        .wait_on_barrier             = pl_threads_wait_on_barrier
-    };
-
-    const plAtomicsI tAtomicsApi = {
-        .create_counter   = pl_atomics_create_counter,
-        .destroy_counter  = pl_atomics_destroy_counter,
-        .store            = pl_atomics_store,
-        .load             = pl_atomics_load,
-        .compare_exchange = pl_atomics_compare_exchange,
-        .increment        = pl_atomics_increment,
-        .decrement        = pl_atomics_decrement
-    };
-
-    const plVirtualMemoryI tVirtualMemoryApi = {
-        .get_page_size = pl_virtual_memory_get_page_size,
-        .alloc         = pl_virtual_memory_alloc,
-        .reserve       = pl_virtual_memory_reserve,
-        .commit        = pl_virtual_memory_commit,
-        .uncommit      = pl_virtual_memory_uncommit,
-        .free          = pl_virtual_memory_free,
-    };
-
-    pl_set_api(ptApiRegistry, plWindowI, &tWindowApi);
-    pl_set_api(ptApiRegistry, plFileI, &tFileApi);
-    pl_set_api(ptApiRegistry, plVirtualMemoryI, &tVirtualMemoryApi);
-    pl_set_api(ptApiRegistry, plAtomicsI, &tAtomicsApi);
-    pl_set_api(ptApiRegistry, plThreadsI, &tThreadApi);
-    pl_set_api(ptApiRegistry, plNetworkI, &tNetworkApi);
-    pl_set_api(ptApiRegistry, plTimerI, &tTimerI);
-
-    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptIOI = pl_get_api_latest(ptApiRegistry, plIOI);
-    gptIOCtx = gptIOI->get_io();
-
-    static plPlatformExtData stWindowCtx = {0};
-    gptWindowCtx = &stWindowCtx;
-    gptIOCtx->pBackendPlatformData = gptWindowCtx;
-
-    gptWindowCtx->dInitialTime = (CFTimeInterval)((double)clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9);
-
-    gptIOCtx->platform_setup = pl_platform_setup;
-    gptIOCtx->platform_new_frame = pl_platform_new_frame;
-    gptIOCtx->platform_cleanup = pl_platform_cleanup;
-    gptIOCtx->set_clipboard_text_fn = pl_set_clipboard_text;
-    gptIOCtx->get_clipboard_text_fn = pl_get_clipboard_text;
-
-    // Window-backend setup.
-    aptMouseCursors[PL_MOUSE_CURSOR_ARROW] = [NSCursor arrowCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_TEXT_INPUT] = [NSCursor IBeamCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_ALL] = [NSCursor closedHandCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_HAND] = [NSCursor pointingHandCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_NOT_ALLOWED] = [NSCursor operationNotAllowedCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NS] = [NSCursor respondsToSelector:@selector(_windowResizeNorthSouthCursor)] ? [NSCursor _windowResizeNorthSouthCursor] : [NSCursor resizeUpDownCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_EW] = [NSCursor respondsToSelector:@selector(_windowResizeEastWestCursor)] ? [NSCursor _windowResizeEastWestCursor] : [NSCursor resizeLeftRightCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NESW] = [NSCursor respondsToSelector:@selector(_windowResizeNorthEastSouthWestCursor)] ? [NSCursor _windowResizeNorthEastSouthWestCursor] : [NSCursor closedHandCursor];
-    aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NWSE] = [NSCursor respondsToSelector:@selector(_windowResizeNorthWestSouthEastCursor)] ? [NSCursor _windowResizeNorthWestSouthEastCursor] : [NSCursor closedHandCursor];
-    pl__install_osx_event_monitor();
-
-    gptWindowCtx->gtAppDelegate = [[plNSAppDelegate alloc] init];
-
-}
-
-void
-pl_unload_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-
-    if(bReload)
-        return;
-
-    const plFileI*          ptApi0 = pl_get_api_latest(ptApiRegistry, plFileI);
-    const plVirtualMemoryI* ptApi1 = pl_get_api_latest(ptApiRegistry, plVirtualMemoryI);
-    const plAtomicsI*       ptApi2 = pl_get_api_latest(ptApiRegistry, plAtomicsI);
-    const plThreadsI*       ptApi3 = pl_get_api_latest(ptApiRegistry, plThreadsI);
-    const plNetworkI*       ptApi4 = pl_get_api_latest(ptApiRegistry, plNetworkI);
-    const plWindowI*        ptApi5 = pl_get_api_latest(ptApiRegistry, plWindowI);
-    const plTimerI*         ptApi6 = pl_get_api_latest(ptApiRegistry, plTimerI);
-
-    ptApiRegistry->remove_api(ptApi0);
-    ptApiRegistry->remove_api(ptApi1);
-    ptApiRegistry->remove_api(ptApi2);
-    ptApiRegistry->remove_api(ptApi3);
-    ptApiRegistry->remove_api(ptApi4);
-    ptApiRegistry->remove_api(ptApi5);
-    ptApiRegistry->remove_api(ptApi6);
-}
+#include "pl_platform_ext.c"

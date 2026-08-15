@@ -194,6 +194,7 @@ int main(int argc, char *argv[])
     if (clock_getres(CLOCK_MONOTONIC, &ts) != 0) 
     {
         PL_ASSERT(false && "clock_getres() failed");
+        return 7;
     }
     gdFrequency = 1e9/((double)ts.tv_nsec + (double)ts.tv_sec * (double)1e9);
     gdTime = pl__get_linux_absolute_time();
@@ -240,7 +241,8 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        gptIOCtx->platform_new_frame(gptIOCtx->pBackendPlatformData);
+        if(gptIOCtx->platform_new_frame)
+            gptIOCtx->platform_new_frame(gptIOCtx->pBackendPlatformData);
 
         // reload library
         if(gbHotReloadActive && ptLibraryApi->has_changed(gptAppLibrary))

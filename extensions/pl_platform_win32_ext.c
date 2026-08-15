@@ -91,7 +91,7 @@ typedef struct _plWindowSurface
     plWindowSurfaceImageWin32* atImages;
 } plWindowSurface;
 
-static plPlatformExtData* gptWindowCtx = NULL;
+static plPlatformExtData* gptPlatformExtCtx = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] timer api
@@ -102,7 +102,7 @@ pl_timer_get_time(void)
 {
     INT64 ilCurrentTime = 0;
     QueryPerformanceCounter((LARGE_INTEGER*)&ilCurrentTime);
-    return (double)(ilCurrentTime - gptWindowCtx->ilTime) / (double)gptWindowCtx->ilTicksPerSecond;
+    return (double)(ilCurrentTime - gptPlatformExtCtx->ilTime) / (double)gptPlatformExtCtx->ilTicksPerSecond;
 }
 
 //-----------------------------------------------------------------------------
@@ -119,7 +119,7 @@ void pl__update_mouse_cursor(void);
 void*
 pl_platform_setup(void)
 {
-    return gptWindowCtx;
+    return gptPlatformExtCtx;
 }
 
 void
@@ -133,25 +133,8 @@ pl_platform_cleanup(plPlatformExtData* ptPlatformData)
 {
     UnregisterClassW(ptPlatformData->tWc.lpszClassName, GetModuleHandle(NULL));
     pl_sb_free(ptPlatformData->sbtWindows);
-    gptWindowCtx = NULL;
+    gptPlatformExtCtx = NULL;
 }
-
-typedef struct plCpuFramebuffer
-{
-    uint32_t* pixels; // BGRA8
-    int width;
-    int height;
-} plCpuFramebuffer;
-static bool bFirstRun = true;
-static plCpuFramebuffer tFrameBuffer = {0};
-
-static void
-pl_present_cpu_framebuffer(HWND tHwnd, const plCpuFramebuffer* framebuffer)
-{
-    
-
-}
-
 
 LRESULT CALLBACK 
 pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
@@ -159,12 +142,12 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 
     // find window
     plWindow* ptWindow = NULL;
-    for(uint32_t i = 0; i < pl_sb_size(gptWindowCtx->sbtWindows); i++)
+    for(uint32_t i = 0; i < pl_sb_size(gptPlatformExtCtx->sbtWindows); i++)
     {
-        HWND tHandle = gptWindowCtx->sbtWindows[i]->_pBackendData;
+        HWND tHandle = gptPlatformExtCtx->sbtWindows[i]->_pBackendData;
         if(tHandle == tHwnd)
         {
-            ptWindow = gptWindowCtx->sbtWindows[i];
+            ptWindow = gptPlatformExtCtx->sbtWindows[i];
             break;
         }
     }
@@ -213,7 +196,7 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 
                 if(gptIO->bViewportSizeChanged && !gptIO->bViewportMinimized && gptIO->_bFirstLoadComplete)
                 {
-                    gptIO->pl_app_resize(gptWindowCtx->ptMainWindow, gptIO->pAppUserData);
+                    gptIO->pl_app_resize(gptPlatformExtCtx->ptMainWindow, gptIO->pAppUserData);
                 }
                 // send paint message
                 InvalidateRect(tHwnd, NULL, TRUE);
@@ -264,12 +247,12 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 
         case WM_MOUSEMOVE:
         {
-            gptWindowCtx->tMouseHandle = tHwnd;
-            if(!gptWindowCtx->bMouseTracked)
+            gptPlatformExtCtx->tMouseHandle = tHwnd;
+            if(!gptPlatformExtCtx->bMouseTracked)
             {
                 TRACKMOUSEEVENT tTme = { sizeof(tTme), TME_LEAVE, tHwnd, 0 };
                 TrackMouseEvent(&tTme);
-                gptWindowCtx->bMouseTracked = true;        
+                gptPlatformExtCtx->bMouseTracked = true;        
             }
             POINT tMousePos = { (LONG)GET_X_LPARAM(tLParam), (LONG)GET_Y_LPARAM(tLParam) };
             gptIOI->add_mouse_pos_event((float)tMousePos.x, (float)tMousePos.y);
@@ -277,12 +260,12 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
         }
         case WM_MOUSELEAVE:
         {
-            if(tHwnd == gptWindowCtx->tMouseHandle)
+            if(tHwnd == gptPlatformExtCtx->tMouseHandle)
             {
-                gptWindowCtx->tMouseHandle = NULL;
+                gptPlatformExtCtx->tMouseHandle = NULL;
                 gptIOI->add_mouse_pos_event(-FLT_MAX, -FLT_MAX);
             }
-            gptWindowCtx->bMouseTracked = false;
+            gptPlatformExtCtx->bMouseTracked = false;
             break;
         }
 
@@ -551,7 +534,7 @@ pl__virtual_key_to_pl_key(WPARAM tWParam)
 }
 
 plWindowResult
-pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
+pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
 {
 
     // calculate window size based on desired client region size
@@ -571,7 +554,7 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
     // create window & get handle
     HWND tHandle = CreateWindowExW(
         0,
-        gptWindowCtx->tWc.lpszClassName,
+        gptPlatformExtCtx->tWc.lpszClassName,
         awWideTitle,
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME,
         tWr.left, tWr.top, tWr.right - tWr.left, tWr.bottom - tWr.top,
@@ -583,25 +566,25 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
 
     plWindow* ptWindow = PL_ALLOC(sizeof(plWindow));
     ptWindow->_pBackendData = tHandle;
-    pl_sb_push(gptWindowCtx->sbtWindows, ptWindow);
+    pl_sb_push(gptPlatformExtCtx->sbtWindows, ptWindow);
     *pptWindowOut = ptWindow;
 
-    if(gptWindowCtx->ptMainWindow == NULL)
-        gptWindowCtx->ptMainWindow = ptWindow;
+    if(gptPlatformExtCtx->ptMainWindow == NULL)
+        gptPlatformExtCtx->ptMainWindow = ptWindow;
 
     // show window
     return PL_WINDOW_RESULT_SUCCESS;
 }
 
 void
-pl_destroy_window(plWindow* ptWindow)
+pl_window_destroy(plWindow* ptWindow)
 {
     DestroyWindow(ptWindow->_pBackendData);
     PL_FREE(ptWindow);
 }
 
 void
-pl_show_window(plWindow* ptWindow)
+pl_window_show(plWindow* ptWindow)
 {
     ShowWindow(ptWindow->_pBackendData, SW_SHOWDEFAULT);
 }
@@ -679,6 +662,7 @@ pl_window_acquire_surface_image(plWindowSurface* ptSurface, plWindowSurfaceImage
     return true;
 }
 
+
 void
 pl_window_present_surface_image(plWindowSurface* ptSurface, uint32_t uImageIndex)
 {
@@ -716,46 +700,48 @@ pl_window_present_surface_image(plWindowSurface* ptSurface, uint32_t uImageIndex
     ReleaseDC(tHandle, ptImageWin32->tDc);
     ptSurface->uCurrentImage++;
     ptSurface->uCurrentImage %= ptSurface->uImageCount;
+
+    
 }
 
 bool 
-pl_set_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
+pl_window_set_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
 {
     return false;
 }
 
 bool
-pl_get_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
+pl_window_get_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
 {
     return false;
 }
 
 bool
-pl_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
+pl_window_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
 {
     return tMode == PL_CURSOR_MODE_NORMAL;
 }
 
 plCursorMode
-pl_get_cursor_mode(plWindow* ptWindow)
+pl_window_get_cursor_mode(plWindow* ptWindow)
 {
     return PL_CURSOR_MODE_NORMAL;
 }
 
 bool
-pl_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
+pl_window_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
 {
     return !bValue;
 }
 
 bool
-pl_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* tDesc)
+pl_window_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* tDesc)
 {
     return tDesc->tMode == PL_FULLSCREEN_MODE_NONE;
 }
 
 const plWindowCapabilities*
-pl_get_window_capabilities(void)
+pl_window_get_capabilities(void)
 {
     static plWindowCapabilities tCapabilities = {0};
 
@@ -785,13 +771,13 @@ pl_get_window_capabilities(void)
 }
 
 void
-pl_set_window_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
+pl_window_set_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
 {
     // TODO: implement
 }
 
 plWindowEventCallback
-pl_get_window_callback(plWindow* ptWindow)
+pl_window_get_callback(plWindow* ptWindow)
 {
     plWindowEventCallback tCallback = PL_ZERO_INIT;
     return tCallback;
@@ -1537,7 +1523,7 @@ pl_threads_create_critical_section(plCriticalSection** pptCriticalSectionOut)
 }
 
 void
-pl_destroy_create_critical_section(plCriticalSection** pptCriticalSection)
+pl_threads_destroy_critical_section(plCriticalSection** pptCriticalSection)
 {
     DeleteCriticalSection(&(*pptCriticalSection)->tHandle);
     PL_FREE((*pptCriticalSection));
@@ -1545,7 +1531,7 @@ pl_destroy_create_critical_section(plCriticalSection** pptCriticalSection)
 }
 
 void
-pl_destroy_enter_critical_section(plCriticalSection* ptCriticalSection)
+pl_threads_enter_critical_section(plCriticalSection* ptCriticalSection)
 {
     EnterCriticalSection(&ptCriticalSection->tHandle);
 }
@@ -1840,188 +1826,4 @@ pl_set_clipboard_text(void* pUnused, const char* text)
     CloseClipboard();
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] extension loading
-//-----------------------------------------------------------------------------
-
-void
-pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    const plTimerI tTimerI = {
-        .get_time = pl_timer_get_time
-    };
-
-    const plWindowI tWindowApi = {
-        .create                = pl_create_window,
-        .destroy               = pl_destroy_window,
-        .show                  = pl_show_window,
-        .set_callback          = pl_set_window_callback,
-        .get_callback          = pl_get_window_callback,
-        .set_attribute         = pl_set_window_attribute,
-        .get_attribute         = pl_get_window_attribute,
-        .set_cursor_mode       = pl_set_cursor_mode,
-        .get_cursor_mode       = pl_get_cursor_mode,
-        .set_raw_mouse_input   = pl_set_raw_mouse_input,
-        .set_fullscreen        = pl_set_fullscreen,
-        .create_surface        = pl_window_create_surface,
-        .destroy_surface       = pl_window_destroy_surface,
-        .acquire_surface_image = pl_window_acquire_surface_image,
-        .present_surface_image = pl_window_present_surface_image,
-        .get_capabilities      = pl_get_window_capabilities
-    };
-
-    const plFileI tFileApi = {
-        .copy                   = pl_file_copy,
-        .exists                 = pl_file_exists,
-        .remove                 = pl_file_remove,
-        .binary_read            = pl_file_binary_read,
-        .binary_write           = pl_file_binary_write,
-        .directory_exists       = pl_file_directory_exists,
-        .create_directory       = pl_file_create_directory,
-        .remove_directory       = pl_file_remove_directory,
-        .get_directory_info     = pl_file_get_directory_info,
-        .cleanup_directory_info = pl_file_cleanup_directory_info,
-    };
-
-    const plNetworkI tNetworkApi = {
-        .initialize           = pl_network_initialize,
-        .cleanup              = pl_network_cleanup,
-        .create_address       = pl_network_create_address,
-        .destroy_address      = pl_network_destroy_address,
-        .create_socket        = pl_network_create_socket,
-        .destroy_socket       = pl_network_destroy_socket,
-        .bind_socket          = pl_network_bind_socket,
-        .send_socket_data_to  = pl_network_send_socket_data_to,
-        .get_socket_data_from = pl_network_get_socket_data_from,
-        .connect_socket       = pl_network_connect_socket,
-        .get_socket_data      = pl_network_get_socket_data,
-        .listen_socket        = pl_network_listen_socket,
-        .select_sockets       = pl_network_select_sockets,
-        .accept_socket        = pl_network_accept_socket,
-        .send_socket_data     = pl_network_send_socket_data,
-    };
-
-    const plThreadsI tThreadApi = {
-        .get_hardware_thread_count   = pl_threads_get_hardware_thread_count,
-        .create_thread               = pl_threads_create_thread,
-        .destroy_thread              = pl_threads_destroy_thread,
-        .join_thread                 = pl_threads_join_thread,
-        .yield_thread                = pl_threads_yield_thread,
-        .sleep_thread                = pl_threads_sleep_thread,
-        .get_thread_id               = pl_threads_get_thread_id,
-        .get_current_thread_id       = pl_threads_get_current_thread_id,
-        .create_mutex                = pl_threads_create_mutex,
-        .destroy_mutex               = pl_threads_destroy_mutex,
-        .lock_mutex                  = pl_threads_lock_mutex,
-        .unlock_mutex                = pl_threads_unlock_mutex,
-        .create_semaphore            = pl_threads_create_semaphore,
-        .destroy_semaphore           = pl_threads_destroy_semaphore,
-        .wait_on_semaphore           = pl_threads_wait_on_semaphore,
-        .try_wait_on_semaphore       = pl_threads_try_wait_on_semaphore,
-        .release_semaphore           = pl_threads_release_semaphore,
-        .allocate_thread_local_key   = pl_threads_allocate_thread_local_key,
-        .allocate_thread_local_data  = pl_threads_allocate_thread_local_data,
-        .free_thread_local_key       = pl_threads_free_thread_local_key, 
-        .get_thread_local_data       = pl_threads_get_thread_local_data, 
-        .free_thread_local_data      = pl_threads_free_thread_local_data, 
-        .create_critical_section     = pl_threads_create_critical_section,
-        .destroy_critical_section    = pl_destroy_create_critical_section,
-        .enter_critical_section      = pl_destroy_enter_critical_section,
-        .leave_critical_section      = pl_threads_leave_critical_section,
-        .create_condition_variable   = pl_threads_create_condition_variable,
-        .destroy_condition_variable  = pl_threads_destroy_condition_variable,
-        .wake_condition_variable     = pl_threads_wake_condition_variable,
-        .wake_all_condition_variable = pl_threads_wake_all_condition_variable,
-        .sleep_condition_variable    = pl_threads_sleep_condition_variable,
-        .create_barrier              = pl_threads_create_barrier,
-        .destroy_barrier             = pl_threads_destroy_barrier,
-        .wait_on_barrier             = pl_threads_wait_on_barrier
-    };
-
-    const plAtomicsI tAtomicsApi = {
-        .create_counter   = pl_atomics_create_counter,
-        .destroy_counter  = pl_atomics_destroy_counter,
-        .store            = pl_atomics_store,
-        .load             = pl_atomics_load,
-        .compare_exchange = pl_atomics_compare_exchange,
-        .increment        = pl_atomics_increment,
-        .decrement        = pl_atomics_decrement
-    };
-
-    const plVirtualMemoryI tVirtualMemoryApi = {
-        .get_page_size = pl_virtual_memory_get_page_size,
-        .alloc         = pl_virtual_memory_alloc,
-        .reserve       = pl_virtual_memory_reserve,
-        .commit        = pl_virtual_memory_commit,
-        .uncommit      = pl_virtual_memory_uncommit,
-        .free          = pl_virtual_memory_free,
-    };
-
-    pl_set_api(ptApiRegistry, plWindowI, &tWindowApi);
-    pl_set_api(ptApiRegistry, plFileI, &tFileApi);
-    pl_set_api(ptApiRegistry, plVirtualMemoryI, &tVirtualMemoryApi);
-    pl_set_api(ptApiRegistry, plAtomicsI, &tAtomicsApi);
-    pl_set_api(ptApiRegistry, plThreadsI, &tThreadApi);
-    pl_set_api(ptApiRegistry, plNetworkI, &tNetworkApi);
-    pl_set_api(ptApiRegistry, plTimerI, &tTimerI);
-
-    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptIOI = pl_get_api_latest(ptApiRegistry, plIOI);
-    gptIO = gptIOI->get_io();
-
-    static plPlatformExtData stWindowCtx = {0};
-
-    stWindowCtx.bMouseTracked = true;
-    QueryPerformanceFrequency((LARGE_INTEGER*)&stWindowCtx.ilTicksPerSecond);
-    QueryPerformanceCounter((LARGE_INTEGER*)&stWindowCtx.ilTime);
-
-    // register win32 class
-    stWindowCtx.tWc.cbSize        = sizeof(WNDCLASSEX);
-    stWindowCtx.tWc.style         = CS_HREDRAW | CS_VREDRAW;
-    stWindowCtx.tWc.lpfnWndProc   = pl__windows_procedure;
-    stWindowCtx.tWc.cbClsExtra    = 0;
-    stWindowCtx.tWc.cbWndExtra    = 0;
-    stWindowCtx.tWc.hInstance     = GetModuleHandle(NULL);
-    stWindowCtx.tWc.hIcon         = NULL;
-    stWindowCtx.tWc.hCursor       = NULL;
-    stWindowCtx.tWc.hbrBackground = NULL;
-    stWindowCtx.tWc.lpszMenuName  = NULL;
-    stWindowCtx.tWc.lpszClassName = L"Pilot Light (win32)";
-    stWindowCtx.tWc.hIconSm       = NULL;
-    RegisterClassExW(&stWindowCtx.tWc);
-
-    gptIO->set_clipboard_text_fn = pl_set_clipboard_text;
-    gptIO->get_clipboard_text_fn = pl_get_clipboard_text;
-
-    gptWindowCtx = &stWindowCtx;
-
-    // register backend required functions
-    gptIO->platform_setup = pl_platform_setup;
-    gptIO->platform_new_frame = pl_platform_new_frame;
-    gptIO->platform_cleanup = pl_platform_cleanup;
-
-}
-
-void
-pl_unload_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-
-    if(bReload)
-        return;
-
-    const plFileI*          ptApi0 = pl_get_api_latest(ptApiRegistry, plFileI);
-    const plVirtualMemoryI* ptApi1 = pl_get_api_latest(ptApiRegistry, plVirtualMemoryI);
-    const plAtomicsI*       ptApi2 = pl_get_api_latest(ptApiRegistry, plAtomicsI);
-    const plThreadsI*       ptApi3 = pl_get_api_latest(ptApiRegistry, plThreadsI);
-    const plNetworkI*       ptApi4 = pl_get_api_latest(ptApiRegistry, plNetworkI);
-    const plWindowI*        ptApi5 = pl_get_api_latest(ptApiRegistry, plWindowI);
-    const plTimerI*         ptApi6 = pl_get_api_latest(ptApiRegistry, plTimerI);
-
-    ptApiRegistry->remove_api(ptApi0);
-    ptApiRegistry->remove_api(ptApi1);
-    ptApiRegistry->remove_api(ptApi2);
-    ptApiRegistry->remove_api(ptApi3);
-    ptApiRegistry->remove_api(ptApi4);
-    ptApiRegistry->remove_api(ptApi5);
-    ptApiRegistry->remove_api(ptApi6);
-}
+#include "pl_platform_ext.c"
