@@ -1050,6 +1050,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptLog          = pl_get_api_latest(ptApiRegistry, plLogI);
     gptMemory       = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptIOI          = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptWindows      = pl_get_api_latest(ptApiRegistry, plWindowI);
     gptIO           = gptIOI->get_io();
 
     if(bReload)

@@ -25,6 +25,7 @@ static const plThreadsI* gptThreads = NULL;
 static const plProfileI* gptProfile = NULL;
 static const plLogI* gptLog = NULL;
 static const plIOI* gptIOI = NULL;
+static const plWindowI* gptWindows = NULL;
 
 static plIO* gptIO = NULL;
 

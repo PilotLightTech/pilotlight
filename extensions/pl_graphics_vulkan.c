@@ -4730,6 +4730,16 @@ pl_graphics_bind_graphics_bind_groups(plCommandBuffer* ptCmdBuffer, plShaderHand
         ptDevice->tNullDecriptorSet,
         ptDevice->tNullDynamicDecriptorSet
     };
+
+    uint32_t uMainCount = 4;
+    uint32_t uDynamicCount = 1;
+
+    if(ptDevice->tNullDynamicDecriptorSet == VK_NULL_HANDLE)
+    {
+        uMainCount = 3;
+        uDynamicCount = 0;
+        puOffsets = NULL;
+    }
         
     for (uint32_t i = 0; i < uCount; i++)
     {
@@ -4751,7 +4761,7 @@ pl_graphics_bind_graphics_bind_groups(plCommandBuffer* ptCmdBuffer, plShaderHand
         vkCmdBindDescriptorSets(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->tPipelineLayout, 3, 1, &atDescriptorSets[3], 1, puOffsets);
     }
     else
-        vkCmdBindDescriptorSets(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->tPipelineLayout, uFirst, 4 - uFirst, &atDescriptorSets[uFirst], 1, puOffsets);
+        vkCmdBindDescriptorSets(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->tPipelineLayout, uFirst, uMainCount - uFirst, &atDescriptorSets[uFirst], uDynamicCount, puOffsets);
 }
 
 void
