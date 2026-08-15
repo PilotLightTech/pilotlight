@@ -14,7 +14,7 @@
 # [SECTION] version
 #-----------------------------------------------------------------------------
 
-__version__ = "1.5.1"
+__version__ = "2.0.0"
 
 #-----------------------------------------------------------------------------
 # [SECTION] imports
@@ -22,6 +22,7 @@ __version__ = "1.5.1"
 
 from enum import Enum
 from contextlib import contextmanager
+import warnings
 
 #-----------------------------------------------------------------------------
 # [SECTION] enums
@@ -69,7 +70,8 @@ class CompilerSettings:
         self.target_type = None
         self.lock_file = None
         self.reloadable = None
-        self.always_build = None
+        self.cache = None
+        self.max_cache_age_mins = None
 
 class ScriptData:
 
@@ -96,7 +98,8 @@ class BuildContext:
         self._target_type = None
         self._target_lock_file = None
         self._target_reloadable = False
-        self._target_always_build = True
+        self._target_cache = False
+        self._target_max_cache_age_mins = 60
 
         # current platform
         self._platform_name = None
@@ -278,20 +281,37 @@ def project(name: str):
         pass
 
 @contextmanager
-def target(name: str, target_type: TargetType = TargetType.EXECUTABLE, reloadable: bool = False, always_build: bool = True):
+def target(name: str, target_type: TargetType = TargetType.EXECUTABLE, **kwargs):
     try:
         _context._target_name = name
         _context._target_type = target_type
         _context._target_lock_file = "lock.tmp"
-        _context._target_reloadable = reloadable
-        _context._target_always_build = always_build
+        _context._target_max_cache_age_mins = 60
+        if "max_cache_age_mins" in kwargs:
+            _context._target_max_cache_age_mins = kwargs["max_cache_age_mins"]
+        else:
+            _context._target_max_cache_age_mins = 60
+        if "cache" in kwargs:
+            _context._target_cache = kwargs["cache"]
+        else:
+            _context._target_cache = False
+        if "reloadable" in kwargs:
+            _context._target_reloadable = kwargs["reloadable"]
+        else:
+            _context._target_reloadable = False
+
+        if _context._target_cache:
+            if _context._target_reloadable:
+                warnings.warn(name + " -> Targets can't be cached & reloadable!", UserWarning)
+            _context._target_reloadable = False
         yield None
     finally:
         _context._target_name = None
         _context._target_type = None
         _context._target_lock_file = None
         _context._target_reloadable = False
-        _context._target_always_build = True
+        _context._target_cache = False
+        _context._target_max_cache_age_mins = 60
         _context._target_output_directory = None
         _context._target_output_binary = None
         _context._target_definitions = []
@@ -365,7 +385,8 @@ def compiler(name: str):
         compiler.target_type = _context._target_type
         compiler.lock_file = _context._target_lock_file
         compiler.reloadable = _context._target_reloadable
-        compiler.always_build = _context._target_always_build
+        compiler.cache = _context._target_cache
+        compiler.max_cache_age_mins = _context._target_max_cache_age_mins
 
         # inherited from various scopes
         if _context._platform_output_directory is not None:

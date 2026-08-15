@@ -106,6 +106,11 @@ def generate_build(name, user_options = None):
     helper.add_line("NC=$'\\e[0m'")
     helper.add_spacing()
 
+    helper.print_space()
+    helper.print_line("Project: ${MAGENTA}" + data.project_name + "${NC}")
+    helper.print_line('pl-build version: ${CYAN}' + data.version + "${NC}")
+    helper.add_spacing()
+
     helper.add_comment('find directory of this script')
     helper.add_line("SOURCE=${BASH_SOURCE[0]}")
     helper.add_line('while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink')
@@ -217,7 +222,7 @@ def generate_build(name, user_options = None):
 
         # delete old binaries & files
         for settings in config_only_settings:
-            if settings.source_files and settings.always_build:
+            if settings.source_files and not settings.cache:
                 if settings.name == compiler:
                     if settings.target_type == pl.TargetType.DYNAMIC_LIBRARY:
                         helper.delete_file(settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension)
@@ -242,14 +247,27 @@ def generate_build(name, user_options = None):
                 helper.add_line('if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then')
                 helper.add_spacing()
 
-            if not settings.always_build:
+            if settings.cache:
                 helper.add_comment('only build once')
                 if settings.target_type != pl.TargetType.EXECUTABLE:
                     file_name = settings.output_directory + '/lib' + settings.output_binary + settings.output_binary_extension
                 else:
                     file_name = settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension
-                helper.add_line('if [ ! -f "' + file_name + '" ]; then')
+                helper.add_comment('only build once')
+                if settings.target_type != pl.TargetType.EXECUTABLE:
+                    file_name = settings.output_directory + '/lib' + settings.output_binary + settings.output_binary_extension
+                else:
+                    file_name = settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension
+                # helper.add_line('if [ ! -f "' + file_name + '" ]; then')
+                cache_seconds = str(settings.max_cache_age_mins * 60)
+                helper.add_line('if [ ! -e "' + file_name + '" ] || [ $(($(date +%s) - $(stat -f %m "' + file_name + '") )) -gt "' + cache_seconds + '" ]; then')
                 helper.add_spacing()
+                helper.add_line('if [ -e "' + file_name + '" ]; then')
+                helper.print_space()
+                helper.print_line('${YELLOW}Target: ' + settings.target_name +'${NC}')
+                helper.print_line('${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}')
+                helper.print_line('Cache: ${RED}Expired${NC}')
+                helper.add_line('fi')
 
             if settings.pre_build_step is not None:
                 helper.add_line(settings.pre_build_step)
@@ -313,7 +331,7 @@ def generate_build(name, user_options = None):
             if settings.target_type == pl.TargetType.STATIC_LIBRARY:
                 helper.add_comment('# run compiler only')
                 helper.print_space()
-                helper.print_line('${YELLOW}Step: ' + settings.target_name +'${NC}')
+                helper.print_line('${YELLOW}Target: ' + settings.target_name +'${NC}')
                 helper.print_line('${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}')
                 helper.print_line('${CYAN}Compiling...${NC}')
                 helper.add_spacing()
@@ -342,7 +360,7 @@ def generate_build(name, user_options = None):
             elif settings.target_type == pl.TargetType.DYNAMIC_LIBRARY:
                 helper.add_comment('run compiler (and linker)')
                 helper.print_space()
-                helper.print_line('${YELLOW}Step: ' + settings.target_name +'${NC}')
+                helper.print_line('${YELLOW}Target: ' + settings.target_name +'${NC}')
                 helper.print_line('${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}')
                 helper.print_line('${CYAN}Compiling and Linking...${NC}')
                 helper.add_line('clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./' + settings.output_directory + '/lib' + settings.output_binary + settings.output_binary_extension +'"')
@@ -363,7 +381,7 @@ def generate_build(name, user_options = None):
             elif settings.target_type == pl.TargetType.EXECUTABLE:
                 helper.add_comment('run compiler (and linker)')
                 helper.print_space()
-                helper.print_line('${YELLOW}Step: ' + settings.target_name +'${NC}')
+                helper.print_line('${YELLOW}Target: ' + settings.target_name +'${NC}')
                 helper.print_line('${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}')
                 helper.print_line('${CYAN}Compiling and Linking...${NC}')
                 helper.add_line('clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./' + settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension +'"')
@@ -401,8 +419,13 @@ def generate_build(name, user_options = None):
                 helper.add_line(settings.post_build_step)
                 helper.add_spacing()
 
-            if not settings.always_build:
+            if settings.cache:
                 helper.add_comment('only build once check')
+                helper.add_line('elif [ -e "' + file_name + '" ]; then')
+                helper.print_space()
+                helper.print_line('${YELLOW}Target: ' + settings.target_name +'${NC}')
+                helper.print_line('${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}')
+                helper.print_line('Cache: ${GREEN}Valid${NC}')
                 helper.add_line('fi')
 
             if not settings.reloadable and hot_reload:
