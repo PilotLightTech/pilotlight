@@ -31,6 +31,7 @@ Index of this file:
 #include "pl_screen_log_ext.h"
 #include "pl_vfs_ext.h"
 #include "pl_string_intern_ext.h"
+#include "pl_shader_interop_cpu.h"
 
 static const plMemoryI*  gptMemory = NULL;
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
@@ -48,6 +49,7 @@ static const plScreenLogI*    gptScreenLog = NULL;
 static const plVfsI*          gptVfs       = NULL;
 static const plStringInternI* gptString    = NULL;
 static const plProfileI*      gptProfile    = NULL;
+static const plLibraryI*      gptLibrary    = NULL;
 
 #include "pl_ds.h"
 
@@ -88,6 +90,18 @@ static plShaderContext* gptShaderCtx = NULL;
 //-----------------------------------------------------------------------------
 // [SECTION] implementation
 //-----------------------------------------------------------------------------
+
+plVec2
+template_vert(plVertexShaderBuiltIns tBuiltIns, plDescriptorSet* atDescriptorSets, const void* pVertexDataIn, plVaryingData* ptVaryingDataOut) 
+{
+    return (plVec2){0};
+}
+
+plVec4
+template_frag(plPixelShaderBuiltIns tBuiltIns, plDescriptorSet* atDescriptorSets, const plVaryingData* ptVaryingDataIn)
+{
+    return (plVec4){1.0f, 1.0f, 1.0f, 1.0f};
+}
 
 #ifndef PL_OFFLINE_SHADERS_ONLY
 
@@ -794,6 +808,50 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
     if(ptOptions == NULL)
         ptOptions = &gptShaderCtx->tDefaultShaderOptions;
 
+    plShaderModule tModule = {0};
+
+    // #define PL_CPU_BACKEND
+    #ifdef PL_CPU_BACKEND
+
+    char pcFileNameOnly[128] = {0};
+    pl_str_get_file_name_only(pcShader, pcFileNameOnly, 128);
+    size_t szLength = strlen(pcShader);
+
+    const char* pcLibraryName = NULL;
+    const char* pcFunctionName = NULL;
+    if(pcShader[szLength - 1] == 't')
+    {
+        pcLibraryName = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s_vert", pcFileNameOnly);
+        pcFunctionName = "main_vert";
+    }
+    else if(pcShader[szLength - 1] == 'g')
+    {
+        pcLibraryName = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s_frag", pcFileNameOnly);
+        pcFunctionName = "main_frag";
+    }
+    else if(pcShader[szLength - 1] == 'p')
+    {
+        pcLibraryName = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s_comp", pcFileNameOnly);
+        pcFunctionName = "main_comp";
+    }
+
+    plLibraryDesc tLibraryDesc = {
+        .pcName = pcLibraryName
+    };
+    plSharedLibrary* ptShaderLibrary = NULL;
+    plLibraryResult tLibraryResult = gptLibrary->load(tLibraryDesc, &ptShaderLibrary);
+
+    if(tLibraryResult == PL_LIBRARY_RESULT_SUCCESS)
+        tModule.puCode = (uint8_t*)gptLibrary->load_function(ptShaderLibrary, pcFunctionName);
+    else if(pcShader[szLength - 1] == 't')
+        tModule.puCode = (uint8_t*)template_vert;
+    else if(pcShader[szLength - 1] == 'g')
+        tModule.puCode = (uint8_t*)template_vert;
+    else if(pcShader[szLength - 1] == 'p')
+        tModule.puCode = (uint8_t*)template_vert;
+
+    #else
+    
     const char* pcCacheFile = pcFile;
     if(pcCacheFile == NULL)
     {
@@ -826,9 +884,7 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
                 pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.spv", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
         }
     }
-
-    plShaderModule tModule = {0};
-
+    
     // unless overriden, try to load precompiled shader
     if(!(ptOptions->eFlags & PL_SHADER_FLAGS_ALWAYS_COMPILE))
         tModule = pl_shader_read_from_disk(pcCacheFile, pcEntryFunc);
@@ -846,6 +902,7 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
         if(!(ptOptions->eFlags & PL_SHADER_FLAGS_NEVER_CACHE) && tModule.szCodeSize > 0)
             pl_shader_write_to_disk(pcCacheFile, &tModule);
     }
+    #endif
     pl_temp_allocator_reset(&gptShaderCtx->tTempAllocator2);
     return tModule;
 }
@@ -875,6 +932,7 @@ pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptVfs = pl_get_api_latest(ptApiRegistry, plVfsI);
     gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptString = pl_get_api_latest(ptApiRegistry, plStringInternI);
+    gptLibrary = pl_get_api_latest(ptApiRegistry, plLibraryI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
     if(bReload)

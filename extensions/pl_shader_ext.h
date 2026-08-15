@@ -68,7 +68,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plShaderI_version {2, 0, 0}
+#define plShaderI_version {2, 0, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
