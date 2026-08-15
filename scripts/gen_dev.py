@@ -50,11 +50,14 @@ with pl.project("pilotlight"):
     pl.add_link_directories(output_directory)
     pl.add_include_directories("../sandbox", "../src", "../shaders", "../libs", "../extensions", output_directory, "../thirdparty/stb",
                                "../thirdparty/cgltf", "../thirdparty/imgui")
-    pl.add_definitions("PL_UNITY_BUILD")
 
     #-----------------------------------------------------------------------------
     # [SECTION] profiles
     #-----------------------------------------------------------------------------
+
+    pl.add_profile(platform_filter=["Windows"], definitions=["PL_PLATFORM_WINDOWS"])
+    pl.add_profile(platform_filter=["Linux"], definitions=["PL_PLATFORM_LINUX"])
+    pl.add_profile(platform_filter=["Darwin"], definitions=["PL_PLATFORM_APPLE"])
 
     # win32 or msvc only
     pl.add_profile(platform_filter=["Windows"],
@@ -67,7 +70,7 @@ with pl.project("pilotlight"):
                     compiler_flags=["-Zc:preprocessor", "-nologo", "-W4", "-WX", "-wd4201",
                                 "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115", "-permissive-"])
     pl.add_profile(compiler_filter=["msvc"],
-                    configuration_filter=["debug"],
+                    configuration_filter=["debug", "test"],
                     compiler_flags=["-Od", "-MDd", "-Zi"])
     pl.add_profile(compiler_filter=["msvc"],
                     configuration_filter=["release"],
@@ -81,7 +84,7 @@ with pl.project("pilotlight"):
                     linker_flags=["-ldl", "-lm"],
                     compiler_flags=["-std=gnu11", "-fPIC"])
     pl.add_profile(compiler_filter=["gcc"],
-                    configuration_filter=["debug"],
+                    configuration_filter=["debug", "test"],
                     compiler_flags=["--debug", "-g"])
 
     # macos or clang only
@@ -91,26 +94,24 @@ with pl.project("pilotlight"):
                     link_directories=["/usr/local/lib"],
                     compiler_flags=["-std=c99", "-fmodules", "-ObjC", "-fPIC"])
     pl.add_profile(compiler_filter=["clang"],
-                    configuration_filter=["debug", "moltenvk"],
+                    configuration_filter=["debug", "moltenvk", "test"],
                     compiler_flags=["--debug", "-g"])
-
-    pl.add_profile(configuration_filter=["debug", "release"],
-                    definitions=["PL_UNITY_BUILD"])
     
     # configs
-    pl.add_profile(configuration_filter=["debug", "moltenvk"], definitions=["_DEBUG", "PL_CONFIG_DEBUG"])
+    pl.add_profile(configuration_filter=["test"], definitions=["PL_CONFIG_TEST"])
+    pl.add_profile(configuration_filter=["debug", "moltenvk", "test"], definitions=["_DEBUG", "PL_CONFIG_DEBUG"])
     pl.add_profile(configuration_filter=["release"], definitions=["NDEBUG", "PL_CONFIG_RELEASE"])
                     
     #-----------------------------------------------------------------------------
     # [SECTION] extensions
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_unity_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_unity_ext", pl.TargetType.DYNAMIC_LIBRARY, reloadable=True):
 
         pl.add_source_files("../extensions/pl_unity_ext.c")
         pl.set_output_binary("pl_unity_ext")
 
-        with pl.configuration("debug"):
+        def add_debug_config():
 
             # win32
             with pl.platform("Windows"):
@@ -130,6 +131,9 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
                     pl.add_linker_flags("-lstdc++")
+
+        with pl.configuration("debug"): add_debug_config()
+        with pl.configuration("test"):  add_debug_config()
         
         with pl.configuration("release"):
 
@@ -162,7 +166,7 @@ with pl.project("pilotlight"):
     # [SECTION] shader extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, reloadable=True):
 
         pl.add_source_files("../extensions/pl_shader_ext.c")
         pl.set_output_binary("pl_shader_ext")
@@ -248,17 +252,9 @@ with pl.project("pilotlight"):
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
 
-    #-----------------------------------------------------------------------------
-    # [SECTION] cpu shader extension
-    #-----------------------------------------------------------------------------
+        with pl.configuration("test"):
 
-    with pl.target("pl_shader_cpu_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
-
-        pl.add_source_files("../extensions/pl_shader_ext.c")
-        pl.set_output_binary("pl_shader_cpu_ext")
-        pl.add_definitions("PL_CPU_BACKEND", "PL_OFFLINE_SHADERS_ONLY")
-
-        with pl.configuration("debug"):
+            pl.add_definitions("PL_CPU_BACKEND", "PL_OFFLINE_SHADERS_ONLY")
 
             # win32
             with pl.platform("Windows"):
@@ -277,6 +273,39 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
                     pl.add_linker_flags("-lstdc++")
+
+    #-----------------------------------------------------------------------------
+    # [SECTION] cpu shader extension
+    #-----------------------------------------------------------------------------
+
+    with pl.target("pl_shader_cpu_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=10):
+
+        pl.add_source_files("../extensions/pl_shader_ext.c")
+        pl.set_output_binary("pl_shader_cpu_ext")
+        pl.add_definitions("PL_CPU_BACKEND", "PL_OFFLINE_SHADERS_ONLY")
+
+        def add_debug_config():
+
+            # win32
+            with pl.platform("Windows"):
+                with pl.compiler("msvc"):
+                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
+                    pl.add_compiler_flags("-std:c11")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_linker_flags("-lstdc++")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
+
+        with pl.configuration("debug"): add_debug_config()
+        with pl.configuration("test"):  add_debug_config()
         
         with pl.configuration("release"):
 
@@ -309,7 +338,7 @@ with pl.project("pilotlight"):
     # [SECTION] graphics extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_graphics_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_graphics_ext", pl.TargetType.DYNAMIC_LIBRARY, reloadable=True):
 
         pl.add_source_files("../extensions/pl_graphics_ext.c")
         pl.set_output_binary("pl_graphics_ext")
@@ -399,18 +428,9 @@ with pl.project("pilotlight"):
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
 
-    #-----------------------------------------------------------------------------
-    # [SECTION] cpu graphics extension
-    #-----------------------------------------------------------------------------
+        with pl.configuration("test"):
 
-    with pl.target("pl_graphics_cpu_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
-
-        pl.add_source_files("../extensions/pl_graphics_ext.c")
-        pl.set_output_binary("pl_graphics_cpu_ext")
-        pl.add_definitions("PL_CPU_BACKEND", "PL_OFFLINE_SHADERS_ONLY")
-
-        
-        with pl.configuration("debug"):
+            pl.add_definitions("PL_CPU_BACKEND", "PL_OFFLINE_SHADERS_ONLY")
 
             # win32
             with pl.platform("Windows"):
@@ -432,6 +452,41 @@ with pl.project("pilotlight"):
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
                     pl.add_linker_flags("-lstdc++")
 
+    #-----------------------------------------------------------------------------
+    # [SECTION] cpu graphics extension
+    #-----------------------------------------------------------------------------
+
+    with pl.target("pl_graphics_cpu_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=10):
+
+        pl.add_source_files("../extensions/pl_graphics_ext.c")
+        pl.set_output_binary("pl_graphics_cpu_ext")
+        pl.add_definitions("PL_CPU_BACKEND", "PL_OFFLINE_SHADERS_ONLY")
+
+        
+        def add_debug_config():
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
+                    pl.add_compiler_flags("-std:c11")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries( "xcb", "X11", "X11-xcb",
+                                                    "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
+                    pl.add_linker_flags("-lstdc++")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
+
+        with pl.configuration("debug"): add_debug_config()
+        with pl.configuration("test"):  add_debug_config()
         with pl.configuration("release"):
 
             # win32
@@ -463,7 +518,7 @@ with pl.project("pilotlight"):
     # [SECTION] ecs scripts
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, reloadable=True):
 
         pl.set_output_binary("pl_script_camera")
         pl.add_source_files("../extensions/pl_script_camera.c")
@@ -488,6 +543,7 @@ with pl.project("pilotlight"):
 
         with pl.configuration("debug"):     add_script_ext()
         with pl.configuration("release"):   add_script_ext()
+        with pl.configuration("test"):      add_script_ext()
 
         # vulkan on macos
         with pl.configuration("moltenvk"):
@@ -501,7 +557,7 @@ with pl.project("pilotlight"):
     # [SECTION] platform extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_platform_ext", pl.TargetType.DYNAMIC_LIBRARY, False):
+    with pl.target("pl_platform_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=10):
     
         pl.set_output_binary("pl_platform_ext")
 
@@ -511,7 +567,7 @@ with pl.project("pilotlight"):
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
                     pl.add_source_files("../extensions/pl_platform_win32_ext.c")
-                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32", "gdi32")
+                    pl.add_static_link_libraries("user32", "Ole32", "gdi32")
                     pl.add_compiler_flags("-std:c11")
                         
             # linux
@@ -557,17 +613,38 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.add_source_files("../extensions/pl_platform_macos_ext.m")
 
+        with pl.configuration("test"):
+
+            pl.add_source_files("../extensions/pl_platform_null_ext.c")
+
+            # win32
+            with pl.platform("Windows"):
+                with pl.compiler("msvc"):
+                    pl.add_static_link_libraries("user32", "Ole32", "gdi32")
+                    pl.add_compiler_flags("-std:c11")
+                        
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes",
+                                                  "xcb-keysyms", "pthread")
+                    pl.add_compiler_flags("-std=gnu11", "-fPIC", "--debug", "-g")
+                    pl.add_linker_flags("-ldl", "-lm")
+
+            # mac os
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pass
+
     #-----------------------------------------------------------------------------
     # [SECTION] pilot_light
     #-----------------------------------------------------------------------------
 
-    with pl.target("pilot_light", pl.TargetType.EXECUTABLE, False):
+    with pl.target("pilot_light", pl.TargetType.EXECUTABLE):
     
         pl.set_output_binary("pilot_light")
-    
-        # default config
+        
         with pl.configuration("debug"):
-
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
@@ -586,7 +663,26 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.add_source_files("pl_main_macos.m")
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
-        
+        with pl.configuration("test"):
+            # win32
+            with pl.platform("Windows"):
+                with pl.compiler("msvc"):
+                    pl.add_static_link_libraries("user32", "Ole32")
+                    pl.add_source_files("pl_main_win32.c")
+                    pl.add_compiler_flags("-std:c11")
+                    
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_source_files("pl_main_linux.c")
+                    pl.add_dynamic_link_libraries("pthread")
+
+            # mac os
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_source_files("pl_main_macos.c")
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+
         # release
         with pl.configuration("release"):
 
@@ -620,36 +716,101 @@ with pl.project("pilotlight"):
     pl.stash_profiles()
 
     #-----------------------------------------------------------------------------
+    # [SECTION] cpu shaders
+    #-----------------------------------------------------------------------------
+
+    shaders = [
+        'pl_draw_2d_frag',
+        'pl_draw_2d_sdf_frag',
+        'pl_draw_2d_vert'
+    ]
+
+    for shader in shaders:
+
+        with pl.target(shader, pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=10):
+
+            pl.add_source_files("../shaders/" + shader + ".cpp")
+            pl.set_output_binary(shader)
+            pl.add_definitions("_USE_MATH_DEFINES", "PL_CPU_BACKEND", "PL_SHADER_CODE")
+            pl.add_include_directories("../src", "../shaders", "../libs", "../extensions")
+
+            def add_debug_config():
+
+                with pl.platform("Windows"):
+                    with pl.compiler("msvc"):
+                        pl.add_linker_flags("-noimplib", "-noexp", "-incremental:no")
+                        pl.add_compiler_flags("-Zc:preprocessor", "-nologo", "-std:c++14", "-W4", "-WX", "-wd4201",
+                                                "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
+                                                "-permissive-", "-Od", "-MDd", "-Zi", "-TP")
+                        
+                with pl.platform("Linux"):
+                    with pl.compiler("gcc"):
+                        pl.add_compiler_flags("-std=c++14", "-fPIC", "--debug", "-g")
+                        pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
+                
+                with pl.platform("Darwin"):
+                    with pl.compiler("clang"):
+                        pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
+                        pl.add_compiler_flags("-std=c++14", "--debug", "-g", "-fmodules", "-fPIC")
+
+            with pl.configuration("debug"): add_debug_config()
+            with pl.configuration("test"):  add_debug_config()
+            with pl.configuration("release"):
+
+                with pl.platform("Windows"):
+                    with pl.compiler("msvc"):
+                        pl.add_linker_flags("-noimplib", "-noexp", "-incremental:no")
+                        pl.add_compiler_flags("-Zc:preprocessor", "-nologo", "-std:c++14", "-W4", "-WX", "-wd4201",
+                                                "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
+                                                "-permissive-", "-O2", "-MD", "-Zi", "-TP")
+                        
+                with pl.platform("Linux"):
+                    with pl.compiler("gcc"):
+                        pl.add_compiler_flags("-std=c++14", "-fPIC")
+                        pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
+                
+                with pl.platform("Darwin"):
+                    with pl.compiler("clang"):
+                        pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
+                        pl.add_compiler_flags("-std=c++14", "-fmodules", "-fPIC")
+
+    #-----------------------------------------------------------------------------
     # [SECTION] imgui & implot
     #-----------------------------------------------------------------------------
 
-    with pl.target("imgui", pl.TargetType.STATIC_LIBRARY, False, False):
+    with pl.target("imgui", pl.TargetType.STATIC_LIBRARY, cache=True, max_cache_age_mins=30):
 
         # imgui & imgui
         pl.add_source_files("../thirdparty/imgui/imgui_unity.cpp")
 
         # default config
-        with pl.configuration("debug"):
+        def add_debug_config():
 
             pl.set_output_binary("dearimguid")
 
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
+                    pl.add_definitions("PL_PLATFORM_WINDOWS")
                     pl.add_linker_flags("-incremental:no", "-nologo")
                     pl.add_compiler_flags("-nologo", "-std:c++14", "-WX", "-Od", "-MDd", "-Zi", "-permissive")
 
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
+                    pl.add_definitions("PL_PLATFORM_LINUX")
                     pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
 
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_definitions("PL_PLATFORM_APPLE")
                     pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
+
+        with pl.configuration("debug"): add_debug_config()
+        with pl.configuration("test"):  add_debug_config()
 
         with pl.configuration("release"):
 
@@ -658,18 +819,21 @@ with pl.project("pilotlight"):
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
+                    pl.add_definitions("PL_PLATFORM_WINDOWS")
                     pl.add_linker_flags("-incremental:no", "-nologo")
                     pl.add_compiler_flags("-nologo", "-std:c++14", "-WX", "-O2", "-MD", "-permissive")
 
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
+                    pl.add_definitions("PL_PLATFORM_LINUX")
                     pl.add_compiler_flags("-fPIC", "-std=c++14")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
 
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_definitions("PL_PLATFORM_APPLE")
                     pl.add_compiler_flags("-fPIC", "-std=c++14")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
 
@@ -678,6 +842,7 @@ with pl.project("pilotlight"):
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_definitions("PL_PLATFORM_APPLE")
                     pl.set_output_binary("dearimguid")
                     pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
@@ -686,18 +851,20 @@ with pl.project("pilotlight"):
     # [SECTION] pl_dear_imgui_ext
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_dear_imgui_ext", pl.TargetType.DYNAMIC_LIBRARY, False, True):
+    with pl.target("pl_dear_imgui_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=30):
 
         pl.add_source_files("../extensions/pl_dear_imgui_ext.cpp")
         pl.set_output_binary("pl_dear_imgui_ext")
 
-        with pl.configuration("debug"):
+        def add_debug_config():
 
+            pl.add_definitions("PL_CONFIG_DEBUG")
             pl.add_static_link_libraries("dearimguid")
 
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
+                    pl.add_definitions("PL_PLATFORM_WINDOWS")
                     pl.add_linker_flags("-incremental:no", "-nologo", "-noexp")
                     pl.add_static_link_libraries("ucrtd")
                     pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-Od", "-MDd", "-Zi", "-permissive")
@@ -705,22 +872,31 @@ with pl.project("pilotlight"):
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
+                    pl.add_definitions("PL_PLATFORM_LINUX")
                     pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
 
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_definitions("PL_PLATFORM_APPLE")
                     pl.add_compiler_flags("-fPIC", "-ObjC++", "-std=c++14", "--debug -g", "-Wno-nullability-completeness")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
 
+        with pl.configuration("debug"): add_debug_config()
+        with pl.configuration("test"):
+            pl.add_definitions("PL_CONFIG_TEST")
+            add_debug_config()
+
         with pl.configuration("release"):
 
+            pl.add_definitions("PL_CONFIG_RELEASE")
             pl.add_static_link_libraries("dearimgui")
 
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
+                    pl.add_definitions("PL_PLATFORM_WINDOWS")
                     pl.add_linker_flags("-incremental:no", "-nologo", "-noexp")
                     pl.add_static_link_libraries("ucrt")
                     pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-O2", "-MD", "-permissive")
@@ -728,33 +904,36 @@ with pl.project("pilotlight"):
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
+                    pl.add_definitions("PL_PLATFORM_LINUX")
                     pl.add_compiler_flags("-fPIC", "-std=c++14")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
 
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_definitions("PL_PLATFORM_APPLE")
                     pl.add_compiler_flags("-fPIC", "-ObjC++", "-std=c++14", "-Wno-nullability-completeness")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
-
 
     #-----------------------------------------------------------------------------
     # [SECTION] sandbox
     #-----------------------------------------------------------------------------
 
-    with pl.target("sandbox", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("sandbox", pl.TargetType.DYNAMIC_LIBRARY, reloadable=True):
 
         pl.add_source_files("../sandbox/app.cpp")
         pl.set_output_binary("app")
 
         # default config
-        with pl.configuration("debug"):
+        def add_debug_config():
 
+            pl.add_definitions("PL_CONFIG_DEBUG")
             pl.add_static_link_libraries("dearimguid")
 
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
+                    pl.add_definitions("PL_PLATFORM_WINDOWS")
                     pl.add_linker_flags("-incremental:no", "-nologo", "-noimplib", "-noexp")
                     pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-wd4201", "-wd4100",
                                           "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
@@ -763,23 +942,32 @@ with pl.project("pilotlight"):
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
+                    pl.add_definitions("PL_PLATFORM_LINUX")
                     pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
                     pl.add_linker_flags("-ldl", "-lm", "-lstdc++")
                     
             # apple
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_definitions("PL_PLATFORM_APPLE")
                     pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
                     pl.add_compiler_flags("-fPIC", "-ObjC++", "--debug", "-g", "-std=c++14")
                     pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
 
+        with pl.configuration("debug"): add_debug_config()
+        with pl.configuration("test"):
+            pl.add_definitions("PL_CONFIG_TEST")
+            add_debug_config()
+        
         with pl.configuration("release"):
 
+            pl.add_definitions("PL_CONFIG_RELEASE")
             pl.add_static_link_libraries("dearimgui")
 
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
+                    pl.add_definitions("PL_PLATFORM_WINDOWS")
                     pl.add_linker_flags("-incremental:no", "-nologo", "-noimplib", "-noexp")
                     pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-wd4201", "-wd4100",
                                           "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
@@ -788,12 +976,14 @@ with pl.project("pilotlight"):
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
+                    pl.add_definitions("PL_PLATFORM_LINUX")
                     pl.add_compiler_flags("-fPIC", "-std=c++14")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
                     
             # apple
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_definitions("PL_PLATFORM_APPLE")
                     pl.add_linker_flags("-ldl", "-lm", "-lstdc++")
                     pl.add_compiler_flags("-fPIC", "-ObjC++", "-std=c++14")
                     pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
@@ -803,37 +993,13 @@ with pl.project("pilotlight"):
             # apple
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_definitions("PL_PLATFORM_APPLE")
                     pl.add_static_link_libraries("dearimguid")
                     pl.add_link_directories("/usr/local/lib")
                     pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
                     pl.add_compiler_flags("-fPIC", "-fmodules", "--debug", "-g", "-std=c++14")
                     pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
 
-        with pl.configuration("debug_cpu"):
-
-            pl.add_static_link_libraries("dearimguid")
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pl.add_linker_flags("-incremental:no", "-nologo", "-noimplib", "-noexp")
-                    pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-wd4201", "-wd4100",
-                                          "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
-                                          "-Od", "-MDd", "-Zi", "-permissive")
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
-                    pl.add_linker_flags("-ldl", "-lm", "-lstdc++")
-                    
-            # apple
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
-                    pl.add_compiler_flags("-fPIC", "-ObjC++", "--debug", "-g", "-std=c++14")
-                    pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-            
     pl.apply_profiles()
          
 #-----------------------------------------------------------------------------

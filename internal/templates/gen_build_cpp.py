@@ -55,7 +55,6 @@ with pl.project("pilotlight"):
                                "../dependencies/pilotlight/include",
                                "../dependencies/stb", "../dependencies/pilotlight/src",
                                "../dependencies/cgltf", "../dependencies/imgui")
-    pl.add_definitions("PL_UNITY_BUILD")
 
     #-----------------------------------------------------------------------------
     # [SECTION] profiles
@@ -107,7 +106,7 @@ with pl.project("pilotlight"):
     # [SECTION] shader extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, False):
+    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
 
         pl.add_source_files("../dependencies/pilotlight/src/pl_shader_ext.c")
         pl.set_output_binary("pl_shader_ext")
@@ -187,7 +186,7 @@ with pl.project("pilotlight"):
     # [SECTION] graphics extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_graphics_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_graphics_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
 
         pl.add_source_files("../dependencies/pilotlight/src/pl_graphics_ext.c")
         pl.set_output_binary("pl_graphics_ext")
@@ -271,7 +270,7 @@ with pl.project("pilotlight"):
     # [SECTION] pilot_light
     #-----------------------------------------------------------------------------
 
-    with pl.target("pilot_light", pl.TargetType.EXECUTABLE, False, True):
+    with pl.target("pilot_light", pl.TargetType.EXECUTABLE, cache=True):
     
         pl.set_output_binary("pilot_light")
     
@@ -323,7 +322,7 @@ with pl.project("pilotlight"):
     # [SECTION] extensions
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_unity_ext", pl.TargetType.DYNAMIC_LIBRARY, False, False):
+    with pl.target("pl_unity_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
 
         pl.add_source_files("../dependencies/pilotlight/src/pl_unity_ext.c")
         pl.set_output_binary("pl_unity_ext")
@@ -377,7 +376,7 @@ with pl.project("pilotlight"):
     # [SECTION] ecs scripts
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, False, False):
+    with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
 
         pl.set_output_binary("pl_script_camera")
         pl.add_source_files("../dependencies/pilotlight/src/pl_script_camera.c")
@@ -407,7 +406,7 @@ with pl.project("pilotlight"):
     # [SECTION] platform extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_platform_ext", pl.TargetType.DYNAMIC_LIBRARY, False, False):
+    with pl.target("pl_platform_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
     
         pl.set_output_binary("pl_platform_ext")
 
@@ -460,7 +459,7 @@ with pl.project("pilotlight"):
     # [SECTION] imgui & implot
     #-----------------------------------------------------------------------------
 
-    with pl.target("imgui", pl.TargetType.STATIC_LIBRARY, False, False):
+    with pl.target("imgui", pl.TargetType.STATIC_LIBRARY, cache=True):
 
         # imgui & imgui
         pl.add_source_files("../dependencies/imgui/imgui_unity.cpp")
@@ -514,7 +513,7 @@ with pl.project("pilotlight"):
     # [SECTION] pl_dear_imgui_ext
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_dear_imgui_ext", pl.TargetType.DYNAMIC_LIBRARY, False, False):
+    with pl.target("pl_dear_imgui_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
 
         pl.add_source_files("../dependencies/pilotlight/src/pl_dear_imgui_ext.cpp")
         pl.set_output_binary("pl_dear_imgui_ext")
@@ -585,7 +584,7 @@ with pl.project("pilotlight"):
     # [SECTION] app
     #-----------------------------------------------------------------------------
 
-    with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, reloadable=True):
 
         pl.add_source_files("../src/app.cpp")
         pl.set_output_binary("app")

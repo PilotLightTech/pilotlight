@@ -39,7 +39,7 @@ with pl.project("pilotlight_examples"):
     pl.add_link_directories("../out")
     pl.add_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS", "PL_CONFIG_DEBUG")
     pl.add_include_directories("../examples", "../sandbox", "../src", "../shaders", "../libs", "../extensions", "../out",
-                               "../internal/demo", "../thirdparty/stb", "../thirdparty/imgui")
+                               "../thirdparty/stb", "../thirdparty/imgui")
         
     #-----------------------------------------------------------------------------
     # [SECTION] examples
@@ -58,7 +58,7 @@ with pl.project("pilotlight_examples"):
         'example_gfx_3',
         'example_gfx_4',
         'example_gfx_5',
-        'example_gfx_6',
+        'example_gfx_6'
     ]
 
     cpp_examples = [
@@ -67,7 +67,7 @@ with pl.project("pilotlight_examples"):
 
     for name in c_examples:
 
-        with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, True):
+        with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, reloadable=True):
 
             pl.add_source_files(name + ".c")
             pl.set_output_binary(name)
@@ -123,7 +123,7 @@ with pl.project("pilotlight_examples"):
 
     for name in cpp_examples:
 
-        with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, True):
+        with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, reloadable=True):
 
             pl.add_source_files(name + ".cpp")
             pl.set_output_binary(name)
@@ -145,7 +145,7 @@ with pl.project("pilotlight_examples"):
                     with pl.compiler("gcc"):
                         pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
                         pl.add_compiler_flags("-std=c++14", "-fPIC", "--debug", "-g")
-                        pl.add_linker_flags("-ldl", "-lm")
+                        pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
                 
                 # macos
                 with pl.platform("Darwin"):
@@ -172,7 +172,7 @@ with pl.project("pilotlight_examples"):
                     with pl.compiler("gcc"):
                         pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
                         pl.add_compiler_flags("-std=c++14", "-fPIC")
-                        pl.add_linker_flags("-ldl", "-lm")
+                        pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
                 
                 # macos
                 with pl.platform("Darwin"):

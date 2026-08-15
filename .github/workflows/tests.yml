@@ -32,14 +32,16 @@ jobs:
     - name: Prep 1
       shell: cmd
       run: |
-        cd $GITHUB_WORKSPACE
         cd scripts
         python gen_build.py
+        cd ..
 
     - name: Run Tests (DEBUG C)
       shell: cmd
       run: |
-        cd $GITHUB_WORKSPACE
+        cd src
+        call build.bat -c test
+        cd ..
         cd tests
         call build.bat -c debug
         cd ..
@@ -47,7 +49,7 @@ jobs:
         pilot_light_c.exe
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
-        pilot_light.exe -a tests_c
+        pilot_light.exe -a tests_c --disable_vt
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
         cd ..
@@ -60,6 +62,9 @@ jobs:
     - name: Run Tests (RELEASE C)
       shell: cmd
       run: |
+        cd src
+        call build.bat -c test
+        cd ..
         cd tests
         call build.bat -c release
         cd ..
@@ -67,9 +72,10 @@ jobs:
         pilot_light_c.exe
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
-        pilot_light.exe -a tests_c
+        pilot_light.exe -a tests_c --disable_vt
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
+        cd ..
 
     - name: Prep 3
       shell: cmd
@@ -79,7 +85,9 @@ jobs:
     - name: Run Tests (DEBUG C++)
       shell: cmd
       run: |
-        cd $GITHUB_WORKSPACE
+        cd src
+        call build.bat -c test
+        cd ..
         cd tests
         call build.bat -c debug
         cd ..
@@ -87,7 +95,7 @@ jobs:
         pilot_light_cpp.exe
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
-        pilot_light.exe -a tests_cpp
+        pilot_light.exe -a tests_cpp --disable_vt
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
         cd ..
@@ -100,6 +108,9 @@ jobs:
     - name: Run Tests (RELEASE C++)
       shell: cmd
       run: |
+        cd src
+        call build.bat -c test
+        cd ..
         cd tests
         call build.bat -c release
         cd ..
@@ -107,7 +118,7 @@ jobs:
         pilot_light_cpp.exe
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
-        pilot_light.exe -a tests_cpp
+        pilot_light.exe -a tests_cpp --disable_vt
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
 
@@ -132,6 +143,10 @@ jobs:
     - name: Run Tests (DEBUG C)
       run: |
         cd $GITHUB_WORKSPACE
+        cd src
+        chmod +x build.sh
+        ./build.sh -c test
+        cd ..
         cd tests
         chmod +x build.sh
         ./build.sh -c debug
@@ -150,6 +165,10 @@ jobs:
     - name: Run Tests (RELEASE C)
       run: |
         cd $GITHUB_WORKSPACE
+        cd src
+        chmod +x build.sh
+        ./build.sh -c test
+        cd ..
         cd tests
         chmod +x build.sh
         ./build.sh -c release
@@ -168,6 +187,10 @@ jobs:
     - name: Run Tests (DEBUG C++)
       run: |
         cd $GITHUB_WORKSPACE
+        cd src
+        chmod +x build.sh
+        ./build.sh -c test
+        cd ..
         cd tests
         chmod +x build.sh
         ./build.sh -c debug
@@ -186,6 +209,10 @@ jobs:
     - name: Run Tests (RELEASE C++)
       run: |
         cd $GITHUB_WORKSPACE
+        cd src
+        chmod +x build.sh
+        ./build.sh -c test
+        cd ..
         cd tests
         chmod +x build.sh
         ./build.sh -c release
@@ -233,6 +260,10 @@ jobs:
     - name: Run Tests (DEBUG C)
       run: |
         cd $GITHUB_WORKSPACE
+        cd src
+        chmod +x build.sh
+        ./build.sh -c test
+        cd ..
         cd tests
         chmod +x build.sh
         ./build.sh -c debug
@@ -255,6 +286,10 @@ jobs:
     - name: Run Tests (RELEASE C)
       run: |
         cd $GITHUB_WORKSPACE
+        cd src
+        chmod +x build.sh
+        ./build.sh -c test
+        cd ..
         cd tests
         chmod +x build.sh
         ./build.sh -c release
@@ -273,6 +308,10 @@ jobs:
     - name: Run Tests (DEBUG C++)
       run: |
         cd $GITHUB_WORKSPACE
+        cd src
+        chmod +x build.sh
+        ./build.sh -c test
+        cd ..
         cd tests
         chmod +x build.sh
         ./build.sh -c debug
@@ -291,6 +330,10 @@ jobs:
     - name: Run Tests (RELEASE C++)
       run: |
         cd $GITHUB_WORKSPACE
+        cd src
+        chmod +x build.sh
+        ./build.sh -c test
+        cd ..
         cd tests
         chmod +x build.sh
         ./build.sh -c release

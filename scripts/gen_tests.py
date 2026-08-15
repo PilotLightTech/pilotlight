@@ -36,7 +36,6 @@ with pl.project("pilotlight_lib_tests"):
     # project wide settings
     pl.set_output_directory("../out")
     pl.add_include_directories("../examples", "../src", "../shaders", "../libs", "../extensions", "../out", "../thirdparty/stb")
-    pl.add_definitions("PL_CPU_BACKEND")
 
     #-----------------------------------------------------------------------------
     # [SECTION] lib c test ext
@@ -153,196 +152,10 @@ with pl.project("pilotlight_lib_tests"):
                     pl.add_linker_flags("-ldl", "-lm", "-lstdc++")
 
     #-----------------------------------------------------------------------------
-    # [SECTION] pilot light null backend
-    #-----------------------------------------------------------------------------
-
-    with pl.target("pilot_light", pl.TargetType.EXECUTABLE):
-
-        pl.add_source_files("../src/pl_main_null.c")
-        pl.set_output_binary("pilot_light")
-
-        with pl.configuration("debug"):
-
-            pl.add_definitions("PL_CONFIG_DEBUG", "_DEBUG")
-
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32")
-                    pl.add_linker_flags("-incremental:no")
-                    pl.add_compiler_flags("-Od", "-MDd", "-Zi", "-Zc:preprocessor", "-nologo", "-std:c11", "-W4",
-                                          "-WX", "-wd4201", "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105",
-                                          "-wd4115", "-permissive-")
-
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("pthread")
-                    pl.add_linker_flags("-ldl", "-lm")
-                    pl.add_compiler_flags("-std=gnu11", "-fPIC", "--debug", "-g")
-                    pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
-
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_compiler_flags("--debug", "-g", "-Wno-deprecated-declarations", "-std=c99", "-fmodules", "-fPIC")
-                    pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-
-        with pl.configuration("release"):
-
-            pl.add_definitions("PL_CONFIG_RELEASE", "NDEBUG")
-
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pl.add_static_link_libraries("ucrt", "user32", "Ole32")
-                    pl.add_linker_flags("-incremental:no")
-                    pl.add_compiler_flags("-O2", "-MD", "-Zc:preprocessor", "-nologo", "-std:c11", "-W4", "-WX",
-                                          "-wd4201", "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
-                                          "-permissive-")
-
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("pthread")
-                    pl.add_linker_flags("-ldl", "-lm")
-                    pl.add_compiler_flags("-std=gnu11", "-fPIC")
-                    pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
-
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_compiler_flags("-Wno-deprecated-declarations", "-std=c99", "-fmodules", "-fPIC")
-                    pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-
-    #-----------------------------------------------------------------------------
-    # [SECTION] extensions
-    #-----------------------------------------------------------------------------
-
-    extensions = [
-        "pl_collision_ext",
-        "pl_graphics_ext",
-        "pl_datetime_ext",
-        "pl_compress_ext",
-        "pl_pak_ext",
-        "pl_vfs_ext",
-        "pl_string_intern_ext",
-    ]
-
-    for extension in extensions:
-
-        with pl.target(extension, pl.TargetType.DYNAMIC_LIBRARY, False):
-
-            pl.add_source_files("../extensions/" + extension + ".c")
-            pl.set_output_binary(extension)
-            
-            with pl.configuration("debug"):
-
-                pl.add_definitions("PL_CONFIG_DEBUG", "_DEBUG")
-
-                with pl.platform("Windows"):
-
-                    with pl.compiler("msvc"):
-                        pl.add_linker_flags("-incremental:no", "-noimplib", "-noexp")
-                        pl.add_compiler_flags("-Od", "-MDd", "-Zi", "-Zc:preprocessor", "-nologo", "-std:c11", "-W4",
-                                              "-WX", "-wd4201", "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105",
-                                              "-wd4115", "-permissive-")
-
-                with pl.platform("Linux"):
-                    with pl.compiler("gcc"):
-                        pl.add_linker_flags("-ldl", "-lm")
-                        pl.add_compiler_flags("-std=gnu11", "-fPIC", "--debug", "-g")
-                        pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
-
-                with pl.platform("Darwin"):
-                    with pl.compiler("clang"):
-                        pl.add_compiler_flags("--debug", "-g", "-std=c99", "-fmodules", "-fPIC")
-                        pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-
-            with pl.configuration("release"):
-
-                pl.add_definitions("PL_CONFIG_RELEASE", "NDEBUG")
-
-                with pl.platform("Windows"):
-
-                    with pl.compiler("msvc"):
-                        pl.add_linker_flags("-incremental:no", "-noimplib", "-noexp")
-                        pl.add_compiler_flags("-O2", "-MD", "-Zc:preprocessor", "-nologo", "-std:c11", "-W4", "-WX",
-                                              "-wd4201", "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105",
-                                              "-wd4115", "-permissive-")
-
-                with pl.platform("Linux"):
-                    with pl.compiler("gcc"):
-                        pl.add_linker_flags("-ldl", "-lm")
-                        pl.add_compiler_flags("-std=gnu11", "-fPIC")
-                        pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
-
-                with pl.platform("Darwin"):
-                    with pl.compiler("clang"):
-                        pl.add_compiler_flags("-std=c99", "-fmodules", "-fPIC")
-                        pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-
-    #-----------------------------------------------------------------------------
-    # [SECTION] platform extension
-    #-----------------------------------------------------------------------------
-
-    with pl.target("pl_platform_ext", pl.TargetType.DYNAMIC_LIBRARY, False):
-    
-        pl.set_output_binary("pl_platform_ext")
-
-        with pl.configuration("debug"):
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pl.add_source_files("../extensions/pl_platform_win32_ext.c")
-                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32", "gdi32")
-                    pl.add_compiler_flags("-std:c11", "-Od", "-MDd", "-Zi", "-Zc:preprocessor", "-nologo", "-W4", "-WX", "-wd4201",
-                                "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115", "-permissive-")
-                    pl.add_linker_flags("-incremental:no", "-noimplib", "-noexp")
-                        
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_source_files("../extensions/pl_platform_x11_ext.c")
-                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes",
-                                                  "xcb-keysyms", "pthread")
-                    pl.add_compiler_flags("-std=gnu11", "-fPIC", "--debug", "-g")
-                    pl.add_linker_flags("-ldl", "-lm")
-                    pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
-
-            # mac os
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_source_files("../extensions/pl_platform_macos_ext.m")
-                    pl.add_compiler_flags("-std=c99", "-fmodules", "-ObjC", "-fPIC", "--debug", "-g")
-
-        with pl.configuration("release"):
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pl.add_source_files("../extensions/pl_platform_win32_ext.c")
-                    pl.add_static_link_libraries("ucrt", "user32", "Ole32", "gdi32")
-                    pl.add_compiler_flags("-std:c11", "-O2", "-MD", "-Zc:preprocessor", "-nologo", "-W4", "-WX", "-wd4201",
-                                "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115", "-permissive-")
-                    pl.add_linker_flags("-incremental:no", "-noimplib", "-noexp")
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_source_files("../extensions/pl_platform_x11_ext.c")
-                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes",
-                                                  "xcb-keysyms", "pthread")
-                    pl.add_compiler_flags("-std=gnu11", "-fPIC")
-                    pl.add_linker_flags("-ldl", "-lm")
-                    pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
-
-            # mac os
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_source_files("../extensions/pl_platform_macos_ext.m")
-                    pl.add_compiler_flags("-std=c99", "-fmodules", "-ObjC", "-fPIC")
-
-    #-----------------------------------------------------------------------------
     # [SECTION] c app
     #-----------------------------------------------------------------------------
 
-    with pl.target("tests_c", pl.TargetType.DYNAMIC_LIBRARY, False):
+    with pl.target("tests_c", pl.TargetType.DYNAMIC_LIBRARY):
 
         pl.set_output_binary("tests_c")
         pl.add_source_files("app_tests.c")
@@ -404,7 +217,7 @@ with pl.project("pilotlight_lib_tests"):
     # [SECTION] c++ app
     #-----------------------------------------------------------------------------
 
-    with pl.target("tests_cpp", pl.TargetType.DYNAMIC_LIBRARY, False):
+    with pl.target("tests_cpp", pl.TargetType.DYNAMIC_LIBRARY):
 
         pl.set_output_binary("tests_cpp")
         pl.add_source_files("app_tests.cpp")

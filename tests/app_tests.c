@@ -166,13 +166,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
 
     // load extensions
-    ptExtensionRegistry->load("pl_collision_ext", "pl_load_collision_ext", "pl_unload_collision_ext", false);
-    ptExtensionRegistry->load("pl_datetime_ext", "pl_load_datetime_ext", "pl_unload_datetime_ext", false);
-    ptExtensionRegistry->load("pl_compress_ext", "pl_load_compress_ext", "pl_unload_compress_ext", false);
-    ptExtensionRegistry->load("pl_vfs_ext", "pl_load_vfs_ext", "pl_unload_vfs_ext", false);
-    ptExtensionRegistry->load("pl_pak_ext", "pl_load_pak_ext", "pl_unload_pak_ext", false);
-    ptExtensionRegistry->load("pl_string_intern_ext", "pl_load_string_intern_ext", "pl_unload_string_intern_ext", false);
-    ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false);
+    ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false); // provides the file API used by the drawing ext
+    ptExtensionRegistry->load("pl_dear_imgui_ext", "pl_load_dear_imgui_ext", "pl_unload_dear_imgui_ext", false); // provides the imgui backend stuff
+    ptExtensionRegistry->load("pl_shader_ext", "pl_load_shader_ext", "pl_unload_shader_ext", false);
+    ptExtensionRegistry->load("pl_graphics_ext", "pl_load_graphics_ext", "pl_unload_graphics_ext", false);
+    
 
     // retrieve the IO API required to use plIO for "talking" with runtime)
     gptIO        = pl_get_api_latest(ptApiRegistry, plIOI);

@@ -148,7 +148,7 @@ with pl.project("pilotlight deploy"):
 
     for extension in extensions:
 
-        with pl.target(extension, pl.TargetType.DYNAMIC_LIBRARY, False):
+        with pl.target(extension, pl.TargetType.DYNAMIC_LIBRARY):
 
             pl.add_source_files("../extensions/" + extension + ".c")
             
@@ -198,7 +198,7 @@ with pl.project("pilotlight deploy"):
     # [SECTION] extensions
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_graphics_ext", pl.TargetType.DYNAMIC_LIBRARY, False):
+    with pl.target("pl_graphics_ext", pl.TargetType.DYNAMIC_LIBRARY):
 
         pl.add_source_files("../extensions/pl_graphics_ext.c")
 
@@ -258,7 +258,7 @@ with pl.project("pilotlight deploy"):
     # [SECTION] extensions
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, reloadable=True):
 
         pl.add_source_files("../extensions/pl_shader_ext.c")
         
@@ -332,7 +332,7 @@ with pl.project("pilotlight deploy"):
     # [SECTION] platform extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_platform_ext", pl.TargetType.DYNAMIC_LIBRARY, False):
+    with pl.target("pl_platform_ext", pl.TargetType.DYNAMIC_LIBRARY):
     
         # default config
         with pl.configuration("debug"):
@@ -386,7 +386,7 @@ with pl.project("pilotlight deploy"):
     #-----------------------------------------------------------------------------
 
     # vulkan backend
-    with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, False):
+    with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY):
 
         pl.add_source_files("../extensions/pl_script_camera.c")
         

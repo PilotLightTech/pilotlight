@@ -56,7 +56,6 @@ with pl.project("pilotlight"):
                                "../dependencies/stb",
                                "../dependencies/pilotlight/src",
                                "../dependencies/cgltf")
-    pl.add_definitions("PL_UNITY_BUILD")
 
     #-----------------------------------------------------------------------------
     # [SECTION] profiles
@@ -108,7 +107,7 @@ with pl.project("pilotlight"):
     # [SECTION] pilot_light
     #-----------------------------------------------------------------------------
 
-    with pl.target("pilot_light", pl.TargetType.EXECUTABLE, False, True):
+    with pl.target("pilot_light", pl.TargetType.EXECUTABLE, cache=True):
     
         pl.set_output_binary("pilot_light")
     
@@ -160,7 +159,7 @@ with pl.project("pilotlight"):
     # [SECTION] extensions
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_unity_ext", pl.TargetType.DYNAMIC_LIBRARY, False, False):
+    with pl.target("pl_unity_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
 
         pl.add_source_files("../dependencies/pilotlight/src/pl_unity_ext.c")
         pl.set_output_binary("pl_unity_ext")
@@ -214,7 +213,7 @@ with pl.project("pilotlight"):
     # [SECTION] ecs scripts
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, False, False):
+    with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
 
         pl.set_output_binary("pl_script_camera")
         pl.add_source_files("../dependencies/pilotlight/src/pl_script_camera.c")
@@ -244,7 +243,7 @@ with pl.project("pilotlight"):
     # [SECTION] shader extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, False):
+    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
 
         pl.add_source_files("../dependencies/pilotlight/src/pl_shader_ext.c")
         pl.set_output_binary("pl_shader_ext")
@@ -324,7 +323,7 @@ with pl.project("pilotlight"):
     # [SECTION] graphics extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_graphics_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_graphics_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
 
         pl.add_source_files("../dependencies/pilotlight/src/pl_graphics_ext.c")
         pl.set_output_binary("pl_graphics_ext")
@@ -405,10 +404,63 @@ with pl.project("pilotlight"):
                     pl.add_link_directories('$VULKAN_SDK/lib')
 
     #-----------------------------------------------------------------------------
+    # [SECTION] cpu graphics extension
+    #-----------------------------------------------------------------------------
+
+    with pl.target("pl_graphics_cpu_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
+
+        pl.add_source_files("../dependencies/pilotlight/src/pl_graphics_ext.c")
+        pl.set_output_binary("pl_graphics_cpu_ext")
+        pl.add_definitions("PL_CPU_BACKEND", "PL_OFFLINE_SHADERS_ONLY")
+
+        
+        with pl.configuration("debug"):
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
+                    pl.add_compiler_flags("-std:c11")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries( "xcb", "X11", "X11-xcb",
+                                                    "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
+                    pl.add_linker_flags("-lstdc++")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
+
+        with pl.configuration("release"):
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    pl.add_compiler_flags("-std:c11")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_linker_flags("-lstdc++")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
+
+    #-----------------------------------------------------------------------------
     # [SECTION] platform extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_platform_ext", pl.TargetType.DYNAMIC_LIBRARY, False, False):
+    with pl.target("pl_platform_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
     
         pl.set_output_binary("pl_platform_ext")
 
@@ -458,7 +510,7 @@ with pl.project("pilotlight"):
     # [SECTION] app
     #-----------------------------------------------------------------------------
 
-    with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, reloadable=True):
 
         pl.add_source_files("../src/app.c")
         pl.set_output_binary("app")
