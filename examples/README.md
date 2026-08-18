@@ -130,3 +130,16 @@ Demonstrates:
 * compute shaders
 * image extension
 * drawing extension (2D)
+
+## Renderer Examples (Unstable)
+
+### Example 0 - Graphics Extension 0 With API Registry (example_renderer_0.cpp)
+Demonstrates:
+* loading the extensions required by the current renderer stack
+* preserving application state across hot reloads
+* initializing the starter, ECS, shader-variant, and renderer systems
+* creating a renderer scene and view
+* loading renderable ECS objects from glTF
+* creating a camera and environment probe
+* preparing and rendering a single view each frame
+* presenting the renderer's output through the starter extension

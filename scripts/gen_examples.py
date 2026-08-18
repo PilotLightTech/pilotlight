@@ -63,6 +63,7 @@ with pl.project("pilotlight_examples"):
 
     cpp_examples = [
         'example_basic_6',
+        'example_renderer_0',
     ]
 
     for name in c_examples:

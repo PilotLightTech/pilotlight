@@ -103,6 +103,8 @@
     @if exist "../out/example_gfx_6_*.pdb" del "..\out\example_gfx_6_*.pdb"
     @if exist "../out/example_basic_6.dll" del "..\out\example_basic_6.dll"
     @if exist "../out/example_basic_6_*.pdb" del "..\out\example_basic_6_*.pdb"
+    @if exist "../out/example_renderer_0.dll" del "..\out\example_renderer_0.dll"
+    @if exist "../out/example_renderer_0_*.pdb" del "..\out\example_renderer_0_*.pdb"
 
 )
 
@@ -582,6 +584,40 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
+::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_renderer_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Build_example_renderer_0
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
+@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
+@set PL_STATIC_LINK_LIBRARIES=dearimguid.lib 
+@set PL_SOURCES="example_renderer_0.cpp" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mTarget: example_renderer_0[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_renderer_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_renderer_0_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanupdebug
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+@del "..\out\*.obj"  > nul 2> nul
+
 :Cleanupdebug
 
 @echo [1m[36mCleaning...[0m
@@ -652,6 +688,8 @@ goto ExitLabel
     @if exist "../out/example_gfx_6_*.pdb" del "..\out\example_gfx_6_*.pdb"
     @if exist "../out/example_basic_6.dll" del "..\out\example_basic_6.dll"
     @if exist "../out/example_basic_6_*.pdb" del "..\out\example_basic_6_*.pdb"
+    @if exist "../out/example_renderer_0.dll" del "..\out\example_renderer_0.dll"
+    @if exist "../out/example_renderer_0_*.pdb" del "..\out\example_renderer_0_*.pdb"
 
 )
 
@@ -1114,6 +1152,40 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
 cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_6.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_6_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanuprelease
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+@del "..\out\*.obj"  > nul 2> nul
+
+::~~~~~~~~~~~~~~~~~~~~~~~~~ example_renderer_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Build_example_renderer_0
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
+@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
+@set PL_STATIC_LINK_LIBRARIES=dearimgui.lib 
+@set PL_SOURCES="example_renderer_0.cpp" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mTarget: example_renderer_0[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_renderer_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_renderer_0_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
