@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_JSON_VERSION    "1.0.4"
-#define PL_JSON_VERSION_NUM 10004
+#define PL_JSON_VERSION    "1.0.5"
+#define PL_JSON_VERSION_NUM 10005
 
 /*
 Index of this file:
@@ -1408,9 +1408,9 @@ pl_json_add_int_member(plJsonObject* ptJson, const char* pcName, int iValue)
     tNewJsonObject.sbcBuffer = NULL;
     tNewJsonObject.uValueOffset = pl_sb_json_size(ptJson->ptRootObject->sbcBuffer);
     tNewJsonObject.uValueLength = snprintf(NULL, 0, "%i", iValue);
-    pl_sb_json_resize(ptJson->ptRootObject->sbcBuffer, tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength);
+    pl_sb_json_resize(ptJson->ptRootObject->sbcBuffer, tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength + 1);
     snprintf(&ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset], tNewJsonObject.uValueLength + 1, "%i", iValue);
-
+    ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength] = ' ';
     pl_sb_json_push(ptJson->sbtChildren, tNewJsonObject);
 }
 
@@ -1428,9 +1428,9 @@ pl_json_add_uint_member(plJsonObject* ptJson, const char* pcName, uint32_t uValu
     tNewJsonObject.sbcBuffer = NULL;
     tNewJsonObject.uValueOffset = pl_sb_json_size(ptJson->ptRootObject->sbcBuffer);
     tNewJsonObject.uValueLength = snprintf(NULL, 0, "%u", uValue);
-    pl_sb_json_resize(ptJson->ptRootObject->sbcBuffer, tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength);
-    snprintf(&ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset], tNewJsonObject.uValueLength, "%u", uValue);
-
+    pl_sb_json_resize(ptJson->ptRootObject->sbcBuffer, tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength + 1);
+    snprintf(&ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset], tNewJsonObject.uValueLength + 1, "%u", uValue);
+    ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength] = ' ';
     pl_sb_json_push(ptJson->sbtChildren, tNewJsonObject);
 }
 
