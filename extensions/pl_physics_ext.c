@@ -63,6 +63,7 @@ Index of this file:
 #include "pl_profile_ext.h"
 #include "pl_log_ext.h"
 #include "pl_stats_ext.h"
+#include "pl_transform_ext.h"
 
 // unstable extensions
 #include "pl_ecs_ext.h"
@@ -93,6 +94,7 @@ Index of this file:
     static const plLogI*       gptLog       = NULL;
     static const plStatsI*     gptStats     = NULL;
     static const plCollisionI* gptCollision = NULL;
+    static const plTransformI* gptTransform = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -397,9 +399,9 @@ void
 pl_physics_create_rigid_body(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
     plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
-    plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_transform(), tEntity);
+    plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
 
-    plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, tEntity);
+    plMat4 tParentTransform = gptTransform->compute_parent_transform(ptLibrary, tEntity);
 
     plMat4 tAdditionalTransform = pl_mat4_translate_vec3(ptRigidBody->tLocalOffset);
 
@@ -612,7 +614,7 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
 
     // update transforms
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Update Transforms");
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
     const plEcsTypeKey tRigidBodyPhysicsComponentType = gptPhysicsCtx->tRigidBodyPhysicsComponentType;
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
     {
@@ -620,7 +622,7 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
         plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, tRigidBodyPhysicsComponentType, ptRigidBodyEntities[i]);
         plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[i];
 
-        plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, ptBody->tEntity);
+        plMat4 tParentTransform = gptTransform->compute_parent_transform(ptLibrary, ptBody->tEntity);
         plMat4 tInvParentTransform = pl_mat4_invert(&tParentTransform);
         plMat4 tTransform = pl_mul_mat4(&ptBody->tTransform, &ptBody->tInverseAdditionalTransform);
         tTransform = pl_mul_mat4(&tInvParentTransform, &tTransform);
@@ -645,7 +647,7 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Physics Draw");
 
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
 
     const plEntity* ptRigidBodyEntities = NULL;
     const uint32_t uRigidBodyCount = gptECS->get_components(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
@@ -656,7 +658,7 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
         plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
         plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, tTransformComponentType, tEntity);
 
-        plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, tEntity);
+        plMat4 tParentTransform = gptTransform->compute_parent_transform(ptLibrary, tEntity);
         plVec3 tWorldTranslation = pl_mul_mat4_vec3(&tParentTransform, ptTransform->tTranslation);
         
 
@@ -1019,7 +1021,7 @@ pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Update Force Fields");
 
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
 
     const plEntity* ptRigidBodyEntities = NULL;
     const uint32_t uRigidBodyCount = gptECS->get_components(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
@@ -1090,7 +1092,7 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Collision Detection");
 
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
     const plEcsTypeKey tRigidBodyPhysicsComponentType = gptPhysicsCtx->tRigidBodyPhysicsComponentType;
 
     const plEntity* ptRigidBodyEntities = NULL;
@@ -2102,6 +2104,7 @@ pl_load_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptStats     = pl_get_api_latest(ptApiRegistry, plStatsI);
         gptLog       = pl_get_api_latest(ptApiRegistry, plLogI);
         gptCollision = pl_get_api_latest(ptApiRegistry, plCollisionI);
+        gptTransform = pl_get_api_latest(ptApiRegistry, plTransformI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

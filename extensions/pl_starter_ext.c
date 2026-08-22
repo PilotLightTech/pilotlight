@@ -145,8 +145,9 @@ pl_starter_initialize(plStarterInit tInit)
 
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_SHADER_EXT)
     {
-        gptVfs->mount_directory("/shader-temp", "../shader-temp", PL_VFS_MOUNT_FLAGS_NONE);
-        gptFile->create_directory("../shader-temp");
+        gptVfs->mount_directory("/cache/shaders", "../cache/shaders", PL_VFS_MOUNT_FLAGS_NONE);
+        gptFile->create_directory("../cache");
+        gptFile->create_directory("../cache/shaders");
         static const plShaderOptions tDefaultShaderOptions = {
             .apcIncludeDirectories = {
                 "../shaders/",
@@ -156,7 +157,7 @@ pl_starter_initialize(plStarterInit tInit)
                 "../shaders/",
                 "../dependencies/pilotlight/shaders/"
             },
-            .pcCacheOutputDirectory = "/shader-temp/",
+            .pcCacheOutputDirectory = "/cache/shaders/",
             .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG
         };
         gptShader->initialize(&tDefaultShaderOptions);

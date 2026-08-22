@@ -5,7 +5,7 @@
 
 @echo.
 @echo Project: [35mpilotlight_lib_tests[0m
-@echo pl-build" version: [36m2.0.0[0m
+@echo pl-build version: [36m2.0.0[0m
 
 :: ################################################################################
 :: #                              Development Setup                               #

@@ -12,11 +12,18 @@ game/
 app/
 cache/
 
+#resources
+resources/development
+resources/gltf-samples
+resources/user
+resources/*.zip
+
 # assets
-assets/development
-assets/gltf-samples
-assets/user
-assets/*.zip
+# assets/materials
+# assets/textures
+# assets/skeletons
+assets/meshes
+assets/animations
 
 # python
 build/__pycache__/

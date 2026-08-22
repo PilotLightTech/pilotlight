@@ -1090,9 +1090,9 @@ pl__show_device_memory(bool* bValue)
 
                                     gptDraw->add_rect(ptFgLayer, tHitBox.tMin, tHitBox.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tWhiteColor), .fThickness = 1.0f});
                                     gptUI->begin_tooltip();
-                                    float fMaxWidth = gptDraw->calculate_text_size(ptRange->acName, (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x + 25.0f;
+                                    float fMaxWidth = gptDraw->calculate_text_size(ptRange->pcName, (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x + 25.0f;
                                     gptUI->layout_static(0.0f, pl_max(fMaxWidth, 300), 1);
-                                    gptUI->text(ptRange->acName);
+                                    gptUI->text(ptRange->pcName);
                                     gptUI->text("Offset:          %lu", ptRange->ulOffset);
                                     gptUI->text("Requested Size:  %s", pcTempBuffer0);
                                     gptUI->text("Allocated Size:  %s", pcTempBuffer1);

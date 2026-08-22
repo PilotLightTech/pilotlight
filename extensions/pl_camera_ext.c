@@ -20,24 +20,21 @@ Index of this file:
 #include <float.h> // FLT_MAX
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl.h"
-#include "pl_ecs_ext.h"
-#include "pl_animation_ext.h"
 #include "pl_camera_ext.h"
 #include "pl_math.h"
 
 // extensions
+#include "pl_ecs_ext.h"
 #include "pl_profile_ext.h"
-#include "pl_log_ext.h"
+#include "pl_transform_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
 #else
-    static const plProfileI* gptProfile = NULL;
-    static const plLogI*     gptLog     = NULL;
-    static const plEcsI*     gptECS     = NULL;
+    static const plProfileI*   gptProfile   = NULL;
+    static const plEcsI*       gptECS       = NULL;
+    static const plTransformI* gptTransform = NULL;
 #endif
-
-#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -333,7 +330,6 @@ plEntity
 pl_camera_ecs_create_perspective(plComponentLibrary* ptLibrary, const char* pcName, const plCameraPerspectiveDesc* ptDesc, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
-    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plCamera tCamera = {0};
@@ -354,7 +350,6 @@ plEntity
 pl_camera_ecs_create_orthographic(plComponentLibrary* ptLibrary, const char* pcName, const plCameraOrthographicDesc* ptDesc, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
-    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plCamera tCamera = {0};
@@ -380,7 +375,7 @@ pl_camera_ecs_run_ecs(plComponentLibrary* ptLibrary)
     const plEntity* ptEntities = NULL;
 
     const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptCameraCtx->uManagerIndex, (void**)&ptComponents, &ptEntities);
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
 
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
@@ -656,9 +651,11 @@ pl_load_camera_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plCameraEcsI, &tApi1);
 
-    gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
-    gptLog     = pl_get_api_latest(ptApiRegistry, plLogI);
-    gptECS     = pl_get_api_latest(ptApiRegistry, plEcsI);
+    #ifndef PL_UNITY_BUILD
+    gptProfile   = pl_get_api_latest(ptApiRegistry, plProfileI);
+    gptECS       = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptTransform = pl_get_api_latest(ptApiRegistry, plTransformI);
+    #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 

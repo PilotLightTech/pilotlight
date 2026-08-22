@@ -74,17 +74,18 @@ the API is complete. It just means we won't break what currently exists.
 * Shader              v2.0.1  (pl_shader_ext.h)
 * Starter             v2.2.2  (pl_starter_ext.h)
 * Stats               v1.1.0  (pl_stats_ext.h)
-* String Interning    v2.0.0  (pl_string_intern_ext.h)
+* String Interning    v2.1.0  (pl_string_intern_ext.h)
 * UI Tools            v1.1.0  (pl_tools_ext.h)
 * UI                  v1.2.0  (pl_ui_ext.h)
 * Pak Files           v1.2.0  (pl_pak_ext.h)
 * Date & Time         v2.0.0  (pl_datetime_ext.h)
 * Compression         v1.1.0  (pl_compress_ext.h)
 * Virtual File System v2.1.0  (pl_vfs_ext.h)
-* ECS                 v2.0.0  (pl_ecs_ext.h)
+* ECS                 v3.0.0  (pl_ecs_ext.h)
 * DDS                 v2.0.0  (pl_dds_ext.h)
 * Resource            v1.5.0  (pl_resource_ext.h)
 * Camera              v1.0.3  (pl_camera_ext.h)
+* Transform           v1.0.0  (pl_transform_ext.h)
 
 ## Nearly Stable APIs
 
@@ -113,6 +114,7 @@ the API is complete. It just means we won't break what currently exists.
 * Renderer Ecs        v0.1.0 (pl_renderer_ext.h)
 * Renderer Debug      v0.1.0 (pl_renderer_ext.h)
 * Renderer Editor     v0.1.0 (pl_renderer_ext.h)
+* Inverse Kinematics  v0.1.0 (pl_ik_ext.h)
 
 ## Placeholder APIs
 * Voxel Ops           v0.0.0 (pl_voxel_ext.h)

@@ -1,0 +1,83 @@
+{    
+    "format": "plmaterial", 
+    "version": [
+        1, 0
+    ], 
+    "model": "pbr_metallic_roughness", 
+    "base_color": [
+        1.0000000, 1.0000000, 1.0000000, 1.0000000
+    ], 
+    "metalness": 1.000000, 
+    "roughness": 1.000000, 
+    "ior": 1.500000, 
+    "normal_map_strength": 1.000000, 
+    "occlusion_strength": 1.000000, 
+    "double_sided": false, 
+    "alpha": {        
+        "mode": "opaque", 
+        "cutoff": 0.500000
+    }, 
+    "emissive": {        
+        "color": [
+            1.0000000, 1.0000000, 1.0000000
+        ], 
+        "strength": 1.000000
+    }, 
+    "textures": {        
+        "base_color": {            
+            "resource": "/assets/textures/DamagedHelmet_0.pltexture", 
+            "uv_set": 0, 
+            "scale": [
+                1.0000000, 1.0000000
+            ], 
+            "offset": [
+                0.0000000, 0.0000000
+            ], 
+            "rotation": 0.000000
+        }, 
+        "normal": {            
+            "resource": "/assets/textures/DamagedHelmet_4.pltexture", 
+            "uv_set": 0, 
+            "scale": [
+                1.0000000, 1.0000000
+            ], 
+            "offset": [
+                0.0000000, 0.0000000
+            ], 
+            "rotation": 0.000000
+        }, 
+        "emissive": {            
+            "resource": "/assets/textures/DamagedHelmet_2.pltexture", 
+            "uv_set": 0, 
+            "scale": [
+                1.0000000, 1.0000000
+            ], 
+            "offset": [
+                0.0000000, 0.0000000
+            ], 
+            "rotation": 0.000000
+        }, 
+        "occlusion": {            
+            "resource": "/assets/textures/DamagedHelmet_3.pltexture", 
+            "uv_set": 0, 
+            "scale": [
+                1.0000000, 1.0000000
+            ], 
+            "offset": [
+                0.0000000, 0.0000000
+            ], 
+            "rotation": 0.000000
+        }, 
+        "metal_roughness": {            
+            "resource": "/assets/textures/DamagedHelmet_1.pltexture", 
+            "uv_set": 0, 
+            "scale": [
+                1.0000000, 1.0000000
+            ], 
+            "offset": [
+                0.0000000, 0.0000000
+            ], 
+            "rotation": 0.000000
+        }
+    }
+}

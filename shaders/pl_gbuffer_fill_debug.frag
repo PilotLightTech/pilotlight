@@ -78,7 +78,7 @@ void main()
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
     vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.aiTextureUVSet[PL_TEXTURE_BASE_COLOR]);
 
-    if(material.tAlphaMode == PL_SHADER_ALPHA_MODE_OPAQUE)
+    if(material.eAlphaMode == PL_SHADER_ALPHA_MODE_OPAQUE)
     {
         tBaseColor.a = 1.0;
     }
@@ -87,7 +87,7 @@ void main()
     materialInfo.f0_dielectric = vec3(0.04);
     materialInfo.baseColor = tBaseColor.rgb;
     
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
+    // if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
     {
         materialInfo = getMetallicRoughnessInfo(materialInfo, material.fMetallicFactor, material.fRoughnessFactor);
     }

@@ -1,0 +1,12 @@
+{    
+    "format": "pltexture", 
+    "version": [
+        1, 0
+    ], 
+    "source": "/cache/imports/DamagedHelmet_4.jpeg", 
+    "type": "2d", 
+    "color_space": "linear", 
+    "format": "PL_FORMAT_BC3_UNORM", 
+    "generate_mips": true, 
+    "compress": true
+}

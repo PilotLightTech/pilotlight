@@ -19,6 +19,8 @@ Index of this file:
 #include "pl.h"
 #include "pl_ecs_tools_ext.h"
 #include "pl_ecs_ext.h"
+#include "pl_resource_ext.h"
+#include "pl_asset_ext.h"
 #include "pl_animation_ext.h"
 #include "pl_camera_ext.h"
 #include "pl_renderer_ext.h"
@@ -27,6 +29,8 @@ Index of this file:
 #include "pl_mesh_ext.h"
 #include "pl_material_ext.h"
 #include "pl_script_ext.h"
+#include "pl_transform_ext.h"
+#include "pl_ik_ext.h"
 #include "pl_shader_interop_renderer.h"
 
 #ifdef PL_UNITY_BUILD
@@ -45,6 +49,10 @@ static const plCameraEcsI*   gptCameraEcs = NULL;
 static const plMeshI*     gptMesh = NULL;
 static const plMaterialI* gptMaterial = NULL;
 static const plScriptI*   gptScript = NULL;
+static const plResourceI*   gptResource = NULL;
+static const plAssetI*   gptAsset = NULL;
+static const plTransformI* gptTransform = NULL;
+static const plIkI* gptIk = NULL;
 
 #ifndef PL_DS_ALLOC
     
@@ -94,7 +102,7 @@ static plEcsToolsContext* gptEcsToolsCtx = NULL;
 //-----------------------------------------------------------------------------
 
 bool
-pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, plScene* ptScene, bool* pbShowWindow)
+pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, plRendererScene* ptScene, bool* pbShowWindow)
 {
     bool bResult = false;
 
@@ -117,10 +125,8 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
         static const char* apcComponentNames[] = {
             "None",
             PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT " Transform",
-            PL_ICON_FA_CUBE " Mesh",
             PL_ICON_FA_GHOST " Object",
             PL_ICON_FA_SITEMAP " Hierarchy",
-            PL_ICON_FA_PALETTE " Material",
             PL_ICON_FA_MAP " Skin",
             PL_ICON_FA_CAMERA " Camera",
             PL_ICON_FA_PLAY " Animation",
@@ -135,15 +141,13 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
 
         // const plEcsTypeKey tTransformComponentType = gptAnimation->get_ecs_type_key_transform();
 
-        const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
-        const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
+        const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
         const plEcsTypeKey tObjectComponentType = gptRendererEcs->get_ecs_type_key_object();
-        const plEcsTypeKey tHierarchyComponentType = gptECS->get_ecs_type_key_hierarchy();
-        const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
+        const plEcsTypeKey tHierarchyComponentType = gptTransform->get_ecs_type_key_hierarchy();
         const plEcsTypeKey tSkinComponentType = gptRendererEcs->get_ecs_type_key_skin();
         const plEcsTypeKey tCameraComponentType = gptCameraEcs->get_ecs_type_key();
         const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
-        const plEcsTypeKey tInverseKinematicsComponentType = gptAnimation->get_ecs_type_key_inverse_kinematics();
+        const plEcsTypeKey tInverseKinematicsComponentType = gptIk->get_ecs_type_key();
         const plEcsTypeKey tLightComponentType = gptRendererEcs->get_ecs_type_key_light();
         const plEcsTypeKey tEnvironmentProbeComponentType = gptRendererEcs->get_ecs_type_key_environment_probe();
         const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
@@ -154,10 +158,8 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
         plEcsTypeKey atComponentTypes[] = {
             INT32_MAX,
             tTransformComponentType,
-            tMeshComponentType,
             tObjectComponentType,
             tHierarchyComponentType,
-            tMaterialComponentType,
             tSkinComponentType,
             tCameraComponentType,
             tAnimationComponentType,
@@ -170,11 +172,11 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
             tForceFieldComponentType
         };
 
-        bool abCombo[16] = {0};
+        bool abCombo[14] = {0};
         abCombo[uComponentFilter] = true;
         if(gptUI->begin_combo(PL_ICON_FA_FILTER, apcComponentNames[uComponentFilter], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
         {
-            for(uint32_t i = 0; i < 16; i++)
+            for(uint32_t i = 0; i < 14; i++)
             {
                 if(gptUI->selectable(apcComponentNames[i], &abCombo[i], 0))
                 {
@@ -200,16 +202,14 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
             {
                 for(uint32_t i = 0; i < uEntityCount; i++)
                 {
-                    if(gptUI->text_filter_pass(&gptEcsToolsCtx->tFilter, ptTags[i].acName, NULL))
+                    if(gptUI->text_filter_pass(&gptEcsToolsCtx->tFilter, ptTags[i].pcName, NULL))
                     {
                         bool bSelected = ptSelectedEntity->uData == ptEntities[i].uData;
 
                         plTagComponent*               ptTagComp           = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptEntities[i]);
                         plTransformComponent*         ptTransformComp     = gptECS->get_component(ptLibrary, tTransformComponentType, ptEntities[i]);
-                        plMeshComponent*              ptMeshComp          = gptECS->get_component(ptLibrary, tMeshComponentType, ptEntities[i]);
                         plObjectComponent*            ptObjectComp        = gptECS->get_component(ptLibrary, tObjectComponentType, ptEntities[i]);
                         plHierarchyComponent*         ptHierarchyComp     = gptECS->get_component(ptLibrary, tHierarchyComponentType, ptEntities[i]);
-                        plMaterialComponent*          ptMaterialComp      = gptECS->get_component(ptLibrary, tMaterialComponentType, ptEntities[i]);
                         plSkinComponent*              ptSkinComp          = gptECS->get_component(ptLibrary, tSkinComponentType, ptEntities[i]);
                         plCamera*            ptCameraComp        = gptECS->get_component(ptLibrary, tCameraComponentType, ptEntities[i]);
                         plAnimationComponent*         ptAnimationComp     = gptECS->get_component(ptLibrary, tAnimationComponentType, ptEntities[i]);
@@ -229,12 +229,10 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                         }
 
                         char atBuffer[1024] = {0};
-                        pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s %s, %u",
+                        pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s %s, %u",
                             ptHierarchyComp ? PL_ICON_FA_SITEMAP : "",
                             ptTransformComp ? PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT : "",
-                            ptMeshComp ? PL_ICON_FA_CUBE : "",
                             ptObjectComp ? PL_ICON_FA_GHOST : "",
-                            ptMaterialComp ? PL_ICON_FA_PALETTE : "",
                             ptSkinComp ? PL_ICON_FA_MAP : "",
                             ptCameraComp ? PL_ICON_FA_CAMERA : "",
                             ptAnimationComp ? PL_ICON_FA_PLAY : "",
@@ -245,7 +243,7 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                             ptScriptComp ? PL_ICON_FA_CODE : "",
                             ptRigidComp ? PL_ICON_FA_BOXES_STACKED : "",
                             ptForceField ? PL_ICON_FA_WIND : "",
-                            ptTags[i].acName,
+                            ptTags[i].pcName,
                             ptEntities[i].uIndex);
                         if(gptUI->selectable(atBuffer, &bSelected, 0))
                         {
@@ -276,10 +274,8 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
 
                         plTagComponent*               ptTagComp           = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptEntities[i]);
                         plTransformComponent*         ptTransformComp     = gptECS->get_component(ptLibrary, tTransformComponentType, ptEntities[i]);
-                        plMeshComponent*              ptMeshComp          = gptECS->get_component(ptLibrary, tMeshComponentType, ptEntities[i]);
                         plObjectComponent*            ptObjectComp        = gptECS->get_component(ptLibrary, tObjectComponentType, ptEntities[i]);
                         plHierarchyComponent*         ptHierarchyComp     = gptECS->get_component(ptLibrary, tHierarchyComponentType, ptEntities[i]);
-                        plMaterialComponent*          ptMaterialComp      = gptECS->get_component(ptLibrary, tMaterialComponentType, ptEntities[i]);
                         plSkinComponent*              ptSkinComp          = gptECS->get_component(ptLibrary, tSkinComponentType, ptEntities[i]);
                         plCamera*            ptCameraComp        = gptECS->get_component(ptLibrary, tCameraComponentType, ptEntities[i]);
                         plAnimationComponent*         ptAnimationComp     = gptECS->get_component(ptLibrary, tAnimationComponentType, ptEntities[i]);
@@ -292,12 +288,10 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                         plForceFieldComponent*        ptForceField        = gptECS->get_component(ptLibrary, tForceFieldComponentType, ptEntities[i]);
 
                         char atBuffer[1024] = {0};
-                        pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s %s, %u",
+                        pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s %s, %u",
                             ptHierarchyComp ? PL_ICON_FA_SITEMAP : "",
                             ptTransformComp ? PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT : "",
-                            ptMeshComp ? PL_ICON_FA_CUBE : "",
                             ptObjectComp ? PL_ICON_FA_GHOST : "",
-                            ptMaterialComp ? PL_ICON_FA_PALETTE : "",
                             ptSkinComp ? PL_ICON_FA_MAP : "",
                             ptCameraComp ? PL_ICON_FA_CAMERA : "",
                             ptAnimationComp ? PL_ICON_FA_PLAY : "",
@@ -308,7 +302,7 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                             ptScriptComp ? PL_ICON_FA_CODE : "",
                             ptRigidComp ? PL_ICON_FA_BOXES_STACKED : "",
                             ptForceField ? PL_ICON_FA_WIND : "",
-                            ptTags[i].acName,
+                            ptTags[i].pcName,
                             ptEntities[i].uIndex);
                         if(gptUI->selectable(atBuffer, &bSelected, 0))
                         {
@@ -343,10 +337,8 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
 
                 plTagComponent*               ptTagComp           = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), *ptSelectedEntity);
                 plTransformComponent*         ptTransformComp     = gptECS->get_component(ptLibrary, tTransformComponentType, *ptSelectedEntity);
-                plMeshComponent*              ptMeshComp          = gptECS->get_component(ptLibrary, tMeshComponentType, *ptSelectedEntity);
                 plObjectComponent*            ptObjectComp        = gptECS->get_component(ptLibrary, tObjectComponentType, *ptSelectedEntity);
                 plHierarchyComponent*         ptHierarchyComp     = gptECS->get_component(ptLibrary, tHierarchyComponentType, *ptSelectedEntity);
-                plMaterialComponent*          ptMaterialComp      = gptECS->get_component(ptLibrary, tMaterialComponentType, *ptSelectedEntity);
                 plSkinComponent*              ptSkinComp          = gptECS->get_component(ptLibrary, tSkinComponentType, *ptSelectedEntity);
                 plCamera*                     ptCameraComp        = gptECS->get_component(ptLibrary, tCameraComponentType, *ptSelectedEntity);
                 plAnimationComponent*         ptAnimationComp     = gptECS->get_component(ptLibrary, tAnimationComponentType, *ptSelectedEntity);
@@ -398,7 +390,7 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
 
                 if(ptTagComp && gptUI->begin_collapsing_header("Tag", 0))
                 {
-                    gptUI->text("Name: %s", ptTagComp->acName);
+                    gptUI->text("Name: %s", ptTagComp->pcName);
                     gptUI->end_collapsing_header();
                 }
 
@@ -574,38 +566,13 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                     gptUI->end_collapsing_header();
                 }
 
-                if(ptMeshComp && gptUI->begin_collapsing_header("Mesh", 0))
-                {
-
-                    plTagComponent* ptMaterialTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptMeshComp->tMaterial);
-                    plTagComponent* ptSkinTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptMeshComp->tSkinComponent);
-                    gptUI->text("Material: %s, %u", ptMaterialTagComp->acName, ptMeshComp->tMaterial.uIndex);
-                    gptUI->text("Skin:     %s, %u", ptSkinTagComp ? ptSkinTagComp->acName : " ", ptSkinTagComp ? ptMeshComp->tSkinComponent.uIndex : 0);
-
-                    gptUI->vertical_spacing();
-                    gptUI->text("Vertex Data (%u verts, %u idx)", (uint32_t)ptMeshComp->szVertexCount, (uint32_t)ptMeshComp->szIndexCount);
-                    gptUI->indent(15.0f);
-                    gptUI->text("%s Positions", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_POSITION ? "ACTIVE" : "     ");
-                    gptUI->text("%s Normals", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL ? "ACTIVE" : "     ");
-                    gptUI->text("%s Tangents", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TANGENT ? "ACTIVE" : "     ");
-                    gptUI->text("%s Texture Coordinates 0", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 ? "ACTIVE" : "     ");
-                    gptUI->text("%s Colors 0", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0 ? "ACTIVE" : "     ");
-                    gptUI->text("%s Colors 1", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_1 ? "ACTIVE" : "     ");
-                    gptUI->text("%s Joints 0", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0 ? "ACTIVE" : "     ");
-                    gptUI->text("%s Joints 1", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1 ? "ACTIVE" : "     ");
-                    gptUI->text("%s Weights 0", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0 ? "ACTIVE" : "     ");
-                    gptUI->text("%s Weights 1", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1 ? "ACTIVE" : "     ");
-                    gptUI->unindent(15.0f);
-                    gptUI->end_collapsing_header();
-                }
-
                 if(ptObjectComp && gptUI->begin_collapsing_header("Object", 0))
                 {
-                    plTagComponent* ptMeshTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptObjectComp->tMesh);
                     plTagComponent* ptTransformTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptObjectComp->tTransform);
 
-                    gptUI->text("Mesh Entity:      %s, %u", ptMeshTagComp->acName, ptObjectComp->tMesh.uIndex);
-                    gptUI->text("Transform Entity: %s, %u", ptTransformTagComp->acName, ptObjectComp->tTransform.uIndex);
+                    gptUI->text("Mesh Asset:       %s", gptAsset->get_name(ptObjectComp->tMesh));
+                    gptUI->text("Submeshes:       %u", gptAsset->get_mesh(ptObjectComp->tMesh)->uSubmeshCount);
+                    gptUI->text("Transform Entity: %s, %u", ptTransformTagComp->pcName, ptObjectComp->tTransform.uIndex);
 
                     bool bObjectRenderable = ptObjectComp->tFlags & PL_OBJECT_FLAGS_RENDERABLE;
                     bool bObjectCastShadow = ptObjectComp->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW;
@@ -632,7 +599,7 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                 if(ptHierarchyComp && gptUI->begin_collapsing_header("Hierarchy", 0))
                 {
                     plTagComponent* ptParentTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptHierarchyComp->tParent);
-                    gptUI->text("Parent Entity: %s , %u", ptParentTagComp->acName, ptHierarchyComp->tParent.uIndex);
+                    gptUI->text("Parent Entity: %s , %u", ptParentTagComp->pcName, ptHierarchyComp->tParent.uIndex);
                     gptUI->end_collapsing_header();
                 }
 
@@ -709,122 +676,14 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                     gptUI->end_collapsing_header();
                 }
 
-                if(ptMaterialComp && gptUI->begin_collapsing_header("Material", 0))
-                {
-                    bool bMaterialModified = false;
-                    bool bShadersModified = false;
-                    if(gptUI->input_float("Roughness", &ptMaterialComp->fRoughness, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Metalness", &ptMaterialComp->fMetalness, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Alpha Cutoff", &ptMaterialComp->fAlphaCutoff, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float4("Base Color", ptMaterialComp->tBaseColor.d, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float4("Emmissive Color", ptMaterialComp->tEmissiveColor.d, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Anisotropy Strength", &ptMaterialComp->fAnisotropyStrength, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Anisotropy Rotation", &ptMaterialComp->fAnisotropyRotation, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float3("Sheen Color", ptMaterialComp->tSheenColor.d, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Sheen Roughness", &ptMaterialComp->fSheenRoughness, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Clearcoat", &ptMaterialComp->fClearcoat, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Clearcoat Roughness", &ptMaterialComp->fClearcoatRoughness, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Iridescence Factor", &ptMaterialComp->fIridescenceFactor, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Iridescence IOR", &ptMaterialComp->fIridescenceIor, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Iridescence Thickness Max", &ptMaterialComp->fIridescenceThicknessMax, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Iridescence Thickness Min", &ptMaterialComp->fIridescenceThicknessMin, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Normal Strength", &ptMaterialComp->fNormalMapStrength, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Emissive Strength", &ptMaterialComp->fEmissiveStrength, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("IOR", &ptMaterialComp->fIor, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Dispersion", &ptMaterialComp->fDispersion, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Thickness", &ptMaterialComp->fThickness, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Attenuation Distance", &ptMaterialComp->fAttenuationDistance, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float3("Attenuation Color", ptMaterialComp->tAttenuationColor.d, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float3("Diffuse Transmission Color", ptMaterialComp->tDiffuseTransmissionColor.d, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Diffuse Transmission", &ptMaterialComp->fDiffuseTransmission, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Transmission", &ptMaterialComp->fTransmissionFactor, NULL, 0)) bMaterialModified = true;
-
-                    if(gptUI->checkbox_flags("Clearcoat##1", &ptMaterialComp->tFlags, PL_MATERIAL_FLAG_CLEARCOAT))
-                    {
-                        bShadersModified = true;
-                        bMaterialModified = true;
-                    }
-
-                    if(gptUI->checkbox_flags("Volume", &ptMaterialComp->tFlags, PL_MATERIAL_FLAG_VOLUME))
-                    {
-                        bShadersModified = true;
-                        bMaterialModified = true;
-                    }
-
-                    if(gptUI->checkbox_flags("Transmission##1", &ptMaterialComp->tFlags, PL_MATERIAL_FLAG_TRANSMISSION))
-                    {
-                        bShadersModified = true;
-                        bMaterialModified = true;
-                    }
-
-                    if(gptUI->checkbox_flags("Diffuse Transmission##1", &ptMaterialComp->tFlags, PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION))
-                    {
-                        bShadersModified = true;
-                        bMaterialModified = true;
-                    }
-
-                    if(gptUI->button("Update Material"))
-                        gptRendererEcs->update_scene_materials(ptScene, 1, ptSelectedEntity);
-
-                    if(bShadersModified)
-                        gptRendererEditor->reload_scene_shaders(ptScene);
-
-                    static const char* apcBlendModeNames[] = 
-                    {
-                        "PL_MATERIAL_ALPHA_MODE_OPAQUE",
-                        "PL_MATERIAL_ALPHA_MODE_MASK",
-                        "PL_MATERIAL_ALPHA_MODE_BLEND"
-                    };
-                    gptUI->labeled_text("Alpha Mode", "%s", apcBlendModeNames[ptMaterialComp->tAlphaMode]);
-
-                    static const char* apcShaderNames[] = 
-                    {
-                        "PL_SHADER_TYPE_PBR",
-                        "PL_SHADER_TYPE_PBR_ADVANCED",
-                    };
-                    gptUI->labeled_text("Shader Type", "%s", apcShaderNames[ptMaterialComp->tShaderType]);
-                    gptUI->labeled_text("Double Sided", "%s", ptMaterialComp->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED ? "true" : "false");
-  
-                    gptUI->vertical_spacing();
-                    gptUI->text("Texture Maps");
-                    gptUI->indent(15.0f);
-
-                    static const char* apcTextureSlotNames[PL_TEXTURE_SLOT_COUNT] = 
-                    {
-                        "PL_TEXTURE_SLOT_BASE_COLOR_MAP",
-                        "PL_TEXTURE_SLOT_NORMAL_MAP",
-                        "PL_TEXTURE_SLOT_EMISSIVE_MAP",
-                        "PL_TEXTURE_SLOT_OCCLUSION_MAP",
-                        "PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP",
-                        "PL_TEXTURE_SLOT_CLEARCOAT_MAP",
-                        "PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP",
-                        "PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP",
-                        "PL_TEXTURE_SLOT_SHEEN_COLOR_MAP",
-                        "PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP",
-                        "PL_TEXTURE_SLOT_IRIDESCENCE_MAP",
-                        "PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP"
-                        "PL_TEXTURE_SLOT_ANISOTROPY_MAP",
-                        "PL_TEXTURE_SLOT_TRANSMISSION_MAP",
-                        "PL_TEXTURE_SLOT_THICKNESS_MAP",
-                    };
-
-                    for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
-                    {
-                        if(ptMaterialComp->atTextureMaps[i].acName[0] != 0)
-                            gptUI->text("%s", apcTextureSlotNames[i]);
-                    }
-                    gptUI->unindent(15.0f);
-                    gptUI->end_collapsing_header();
-                }
-
                 if(ptSkinComp && gptUI->begin_collapsing_header("Skin", 0))
                 {
                     if(gptUI->tree_node("Joints", 0))
                     {
                         for(uint32_t i = 0; i < ptSkinComp->uJointCount; i++)
                         {
-                            plTagComponent* ptJointTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptSkinComp->atJoints[i]);
-                            gptUI->text("%s", ptJointTagComp->acName);  
+                            plTagComponent* ptJointTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptSkinComp->_atJoints[i]);
+                            gptUI->text("%s", ptJointTagComp->pcName);  
                         }
                         gptUI->tree_pop();
                     }
@@ -888,19 +747,20 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                 { 
                     gptUI->checkbox_flags("Playing", &ptAnimationComp->tFlags, PL_ANIMATION_FLAG_PLAYING);
                     gptUI->checkbox_flags("Looped", &ptAnimationComp->tFlags, PL_ANIMATION_FLAG_LOOPED);
-                    gptUI->labeled_text("Start", "%0.3f s", ptAnimationComp->fStart);
-                    gptUI->labeled_text("End", "%0.3f s", ptAnimationComp->fEnd);
+                    plAnimation* ptAnimation = gptAsset->get_animation(ptAnimationComp->tAnimation);
+                    gptUI->labeled_text("Start", "%0.3f s", ptAnimation->fStart);
+                    gptUI->labeled_text("End", "%0.3f s", ptAnimation->fEnd);
                     // gptUI->labeled_text("Speed", "%0.3f s", ptAnimationComp->fSpeed);
                     gptUI->slider_float("Speed", &ptAnimationComp->fSpeed, 0.0f, 2.0f, 0);
-                    gptUI->slider_float("Time", &ptAnimationComp->fTimer, ptAnimationComp->fStart, ptAnimationComp->fEnd, 0);
-                    gptUI->progress_bar(ptAnimationComp->fTimer / (ptAnimationComp->fEnd - ptAnimationComp->fStart), (plVec2){-1.0f, 0.0f}, NULL);
+                    gptUI->slider_float("Time", &ptAnimationComp->fTimer, ptAnimation->fStart, ptAnimation->fEnd, 0);
+                    gptUI->progress_bar(ptAnimationComp->fTimer / (ptAnimation->fEnd - ptAnimation->fStart), (plVec2){-1.0f, 0.0f}, NULL);
                     gptUI->end_collapsing_header();
                 }
 
                 if(ptIKComp && gptUI->begin_collapsing_header("Inverse Kinematics", 0))
                 { 
                     plTagComponent* ptTargetComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptIKComp->tTarget);
-                    gptUI->text("Target Entity: %s , %u", ptTargetComp->acName, ptIKComp->tTarget.uIndex);
+                    gptUI->text("Target Entity: %s , %u", ptTargetComp->pcName, ptIKComp->tTarget.uIndex);
                     gptUI->slider_uint("Chain Length", &ptIKComp->uChainLength, 1, 5, 0);
                     gptUI->text("Iterations: %u", ptIKComp->uIterationCount);
 
@@ -959,6 +819,10 @@ pl_load_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptMesh           = pl_get_api_latest(ptApiRegistry, plMeshI);
         gptMaterial       = pl_get_api_latest(ptApiRegistry, plMaterialI);
         gptScript         = pl_get_api_latest(ptApiRegistry, plScriptI);
+        gptResource       = pl_get_api_latest(ptApiRegistry, plResourceI);
+        gptAsset          = pl_get_api_latest(ptApiRegistry, plAssetI);
+        gptTransform      = pl_get_api_latest(ptApiRegistry, plTransformI);
+        gptIk             = pl_get_api_latest(ptApiRegistry, plIkI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

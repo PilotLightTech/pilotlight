@@ -20,18 +20,16 @@
 #define PL_ICON_FA_WIND "\xef\x9c\xae"	// U+f72e
 
 void
-pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEntity)
+pl__show_entity_components(plAppData* ptAppData, plRendererScene* ptScene, plEntity tEntity)
 {
     plComponentLibrary* ptLibrary = ptAppData->ptCompLibrary;
-    const plEcsTypeKey tTransformComponentType = gptEcs->get_ecs_type_key_transform();
-    const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
+    const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
     const plEcsTypeKey tObjectComponentType = gptRendererEcs->get_ecs_type_key_object();
-    const plEcsTypeKey tHierarchyComponentType = gptEcs->get_ecs_type_key_hierarchy();
-    const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
+    const plEcsTypeKey tHierarchyComponentType = gptTransform->get_ecs_type_key_hierarchy();
     const plEcsTypeKey tSkinComponentType = gptRendererEcs->get_ecs_type_key_skin();
     const plEcsTypeKey tCameraComponentType = gptCameraEcs->get_ecs_type_key();
     const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
-    const plEcsTypeKey tInverseKinematicsComponentType = gptAnimation->get_ecs_type_key_inverse_kinematics();
+    const plEcsTypeKey tInverseKinematicsComponentType = gptIk->get_ecs_type_key();
     const plEcsTypeKey tLightComponentType = gptRendererEcs->get_ecs_type_key_light();
     const plEcsTypeKey tEnvironmentProbeComponentType = gptRendererEcs->get_ecs_type_key_environment_probe();
     const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
@@ -45,12 +43,10 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
         {
             plTagComponent*               ptTagComp           = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), tEntity);
             plTransformComponent*         ptTransformComp     = (plTransformComponent*)gptEcs->get_component(ptLibrary, tTransformComponentType, tEntity);
-            plMeshComponent*              ptMeshComp          = (plMeshComponent*)gptEcs->get_component(ptLibrary, tMeshComponentType, tEntity);
             plObjectComponent*            ptObjectComp        = (plObjectComponent*)gptEcs->get_component(ptLibrary, tObjectComponentType, tEntity);
             plHierarchyComponent*         ptHierarchyComp     = (plHierarchyComponent*)gptEcs->get_component(ptLibrary, tHierarchyComponentType, tEntity);
-            plMaterialComponent*          ptMaterialComp      = (plMaterialComponent*)gptEcs->get_component(ptLibrary, tMaterialComponentType, tEntity);
             plSkinComponent*              ptSkinComp          = (plSkinComponent*)gptEcs->get_component(ptLibrary, tSkinComponentType, tEntity);
-            plCamera*            ptCameraComp        = (plCamera*)gptEcs->get_component(ptLibrary, tCameraComponentType, tEntity);
+            plCamera*                     ptCameraComp        = (plCamera*)gptEcs->get_component(ptLibrary, tCameraComponentType, tEntity);
             plAnimationComponent*         ptAnimationComp     = (plAnimationComponent*)gptEcs->get_component(ptLibrary, tAnimationComponentType, tEntity);
             plInverseKinematicsComponent* ptIKComp            = (plInverseKinematicsComponent*)gptEcs->get_component(ptLibrary, tInverseKinematicsComponentType, tEntity);
             plLightComponent*             ptLightComp         = (plLightComponent*)gptEcs->get_component(ptLibrary, tLightComponentType, tEntity);
@@ -62,7 +58,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
             
             if(ptTagComp && ImGui::CollapsingHeader("Tag"))
             {
-                ImGui::Text("Name: %s", ptTagComp->acName);
+                ImGui::Text("Name: %s", ptTagComp->pcName);
             }
 
             if(ptScriptComp && ImGui::CollapsingHeader(PL_ICON_FA_CODE " Script"))
@@ -282,37 +278,14 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                 ImGui::InputFloat("Range", &ptForceField->fRange);
             }
 
-            if(ptMeshComp && ImGui::CollapsingHeader(PL_ICON_FA_CUBE " Mesh"))
-            {
-
-                plTagComponent* ptMaterialTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptMeshComp->tMaterial);
-                plTagComponent* ptSkinTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptMeshComp->tSkinComponent);
-                ImGui::Text("Material: %s, %u", ptMaterialTagComp->acName, ptMeshComp->tMaterial.uIndex);
-                ImGui::Text("Skin:     %s, %u", ptSkinTagComp ? ptSkinTagComp->acName : " ", ptSkinTagComp ? ptMeshComp->tSkinComponent.uIndex : 0);
-
-                ImGui::Dummy({25.0f, 15.0f});
-                ImGui::Text("Vertex Data (%u verts, %u idx)", (uint32_t)ptMeshComp->szVertexCount, (uint32_t)ptMeshComp->szIndexCount);
-                ImGui::Indent();
-                ImGui::Text("%s Positions", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_POSITION ? "ACTIVE" : "     ");
-                ImGui::Text("%s Normals", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL ? "ACTIVE" : "     ");
-                ImGui::Text("%s Tangents", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TANGENT ? "ACTIVE" : "     ");
-                ImGui::Text("%s Texture Coordinates 0", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 ? "ACTIVE" : "     ");
-                ImGui::Text("%s Colors 0", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0 ? "ACTIVE" : "     ");
-                ImGui::Text("%s Colors 1", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_1 ? "ACTIVE" : "     ");
-                ImGui::Text("%s Joints 0", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0 ? "ACTIVE" : "     ");
-                ImGui::Text("%s Joints 1", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1 ? "ACTIVE" : "     ");
-                ImGui::Text("%s Weights 0", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0 ? "ACTIVE" : "     ");
-                ImGui::Text("%s Weights 1", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1 ? "ACTIVE" : "     ");
-                ImGui::Unindent();
-            }
-
             if(ptObjectComp && ImGui::CollapsingHeader(PL_ICON_FA_GHOST " Object"))
             {
-                plTagComponent* ptMeshTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptObjectComp->tMesh);
                 plTagComponent* ptTransformTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptObjectComp->tTransform);
+                plTagComponent* ptSkinTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptObjectComp->tSkinComponent);
 
-                ImGui::Text("Mesh Entity:      %s, %u", ptMeshTagComp->acName, ptObjectComp->tMesh.uIndex);
-                ImGui::Text("Transform Entity: %s, %u", ptTransformTagComp->acName, ptObjectComp->tTransform.uIndex);
+                ImGui::Text("Mesh Asset:       %s", gptAsset->get_name(ptObjectComp->tMesh));
+                ImGui::Text("Skin Entity:      %s, %u", ptSkinTagComp->pcName, ptObjectComp->tSkinComponent.uIndex);
+                ImGui::Text("Transform Entity: %s, %u", ptTransformTagComp->pcName, ptObjectComp->tTransform.uIndex);
 
                 bool bObjectRenderable = ptObjectComp->tFlags & PL_OBJECT_FLAGS_RENDERABLE;
                 bool bObjectCastShadow = ptObjectComp->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW;
@@ -360,7 +333,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
             if(ptHierarchyComp && ImGui::CollapsingHeader(PL_ICON_FA_SITEMAP " Hierarchy"))
             {
                 plTagComponent* ptParentTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptHierarchyComp->tParent);
-                ImGui::Text("Parent Entity: %s , %u", ptParentTagComp->acName, ptHierarchyComp->tParent.uIndex);
+                ImGui::Text("Parent Entity: %s , %u", ptParentTagComp->pcName, ptHierarchyComp->tParent.uIndex);
             }
 
             if(ptLightComp && ImGui::CollapsingHeader(PL_ICON_FA_LIGHTBULB " Light"))
@@ -445,95 +418,14 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                 }
             }
 
-            if(ptMaterialComp && ImGui::CollapsingHeader(PL_ICON_FA_PALETTE " Material"))
-            {
-                bool bMaterialModified = false;
-                if(ImGui::SliderFloat("Roughness", &ptMaterialComp->fRoughness, 0.0f, 1.0f)) bMaterialModified = true;
-                if(ImGui::SliderFloat("Metalness", &ptMaterialComp->fMetalness, 0.0f, 1.0f)) bMaterialModified = true;
-                if(ImGui::InputFloat("Alpha Cutoff", &ptMaterialComp->fAlphaCutoff)) bMaterialModified = true;
-                if(ImGui::ColorEdit4("Base Factor", ptMaterialComp->tBaseColor.d)) bMaterialModified = true;
-                if(ImGui::ColorEdit4("Emmissive Color", ptMaterialComp->tEmissiveColor.d)) bMaterialModified = true;
-                if(ImGui::SliderFloat("Anisotropy Strength", &ptMaterialComp->fAnisotropyStrength, 0.0f, 1.0f)) bMaterialModified = true;
-                if(ImGui::InputFloat("Anisotropy Rotation", &ptMaterialComp->fAnisotropyRotation)) bMaterialModified = true;
-                if(ImGui::ColorEdit3("Sheen Color", ptMaterialComp->tSheenColor.d)) bMaterialModified = true;
-                if(ImGui::InputFloat("Sheen Roughness", &ptMaterialComp->fSheenRoughness)) bMaterialModified = true;
-                if(ImGui::InputFloat("Clearcoat", &ptMaterialComp->fClearcoat)) bMaterialModified = true;
-                if(ImGui::InputFloat("Clearcoat Roughness", &ptMaterialComp->fClearcoatRoughness)) bMaterialModified = true;
-                if(ImGui::InputFloat("Iridescence Factor", &ptMaterialComp->fIridescenceFactor)) bMaterialModified = true;
-                if(ImGui::InputFloat("Iridescence IOR", &ptMaterialComp->fIridescenceIor)) bMaterialModified = true;
-                if(ImGui::InputFloat("Iridescence Thickness Max", &ptMaterialComp->fIridescenceThicknessMax)) bMaterialModified = true;
-                if(ImGui::InputFloat("Iridescence Thickness Min", &ptMaterialComp->fIridescenceThicknessMin)) bMaterialModified = true;
-                if(ImGui::InputFloat("Normal Strength", &ptMaterialComp->fNormalMapStrength)) bMaterialModified = true;
-                if(ImGui::InputFloat("Emissive Strength", &ptMaterialComp->fEmissiveStrength)) bMaterialModified = true;
-                if(ImGui::InputFloat("IOR", &ptMaterialComp->fIor)) bMaterialModified = true;
-                if(ImGui::InputFloat("Dispersion", &ptMaterialComp->fDispersion)) bMaterialModified = true;
-                if(ImGui::InputFloat("Thickness", &ptMaterialComp->fThickness)) bMaterialModified = true;
-                if(ImGui::SliderFloat("Transmission", &ptMaterialComp->fTransmissionFactor, 0.0f, 1.0f)) bMaterialModified = true;
-                if(ImGui::InputFloat("Attenuation Distance", &ptMaterialComp->fAttenuationDistance)) bMaterialModified = true;
-                if(ImGui::ColorEdit3("Attenuation Color", ptMaterialComp->tAttenuationColor.d)) bMaterialModified = true;
-
-
-                if(bMaterialModified)
-                    gptRendererEcs->update_scene_materials(ptScene, 1, &tEntity);
-
-                static const char* apcBlendModeNames[] = 
-                {
-                    "PL_MATERIAL_ALPHA_MODE_OPAQUE",
-                    "PL_MATERIAL_ALPHA_MODE_MASK",
-                    "PL_MATERIAL_ALPHA_MODE_BLEND",
-                    "PL_MATERIAL_BLEND_MODE_ADDITIVE",
-                    "PL_MATERIAL_BLEND_MODE_MULTIPLY",
-                    "PL_MATERIAL_BLEND_MODE_CLIP_MASK"
-                };
-                ImGui::LabelText("Alpha Mode", "%s", apcBlendModeNames[ptMaterialComp->tAlphaMode]);
-
-                static const char* apcShaderNames[] = 
-                {
-                    "PL_SHADER_TYPE_PBR",
-                    "PL_SHADER_TYPE_PBR_ADVANCED"
-                };
-                ImGui::LabelText("Shader Type", "%s", apcShaderNames[ptMaterialComp->tShaderType]);
-                ImGui::LabelText("Double Sided", "%s", ptMaterialComp->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED ? "true" : "false");
-
-                ImGui::Dummy({25.0f, 14.0f});
-                ImGui::Text("Texture Maps");
-                ImGui::Indent();
-
-                static const char* apcTextureSlotNames[PL_TEXTURE_SLOT_COUNT] = 
-                {
-                    "PL_TEXTURE_SLOT_BASE_COLOR_MAP",
-                    "PL_TEXTURE_SLOT_NORMAL_MAP",
-                    "PL_TEXTURE_SLOT_EMISSIVE_MAP",
-                    "PL_TEXTURE_SLOT_OCCLUSION_MAP",
-                    "PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP",
-                    "PL_TEXTURE_SLOT_CLEARCOAT_MAP",
-                    "PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP",
-                    "PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP",
-                    "PL_TEXTURE_SLOT_SHEEN_COLOR_MAP",
-                    "PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP",
-                    "PL_TEXTURE_SLOT_IRIDESCENCE_MAP",
-                    "PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP"
-                    "PL_TEXTURE_SLOT_ANISOTROPY_MAP",
-                    "PL_TEXTURE_SLOT_TRANSMISSION_MAP",
-                    "PL_TEXTURE_SLOT_THICKNESS_MAP",
-                };
-
-                for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
-                {
-                    if(ptMaterialComp->atTextureMaps[i].acName[0] != 0)
-                        ImGui::Text("%s", apcTextureSlotNames[i]);
-                }
-                ImGui::Unindent();
-            }
-
             if(ptSkinComp && ImGui::CollapsingHeader(PL_ICON_FA_MAP " Skin"))
             {
                 if(ImGui::TreeNode("Joints"))
                 {
                     for(uint32_t i = 0; i < ptSkinComp->uJointCount; i++)
                     {
-                        plTagComponent* ptJointTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptSkinComp->atJoints[i]);
-                        ImGui::Text("%s", ptJointTagComp->acName);  
+                        plTagComponent* ptJointTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptSkinComp->_atJoints[i]);
+                        ImGui::Text("%s", ptJointTagComp->pcName);  
                     }
                     ImGui::TreePop();
                 }
@@ -575,18 +467,19 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                     else
                         ptAnimationComp->tFlags &= ~PL_ANIMATION_FLAG_LOOPED;
                 }
-                ImGui::LabelText("Start", "%0.3f s", ptAnimationComp->fStart);
-                ImGui::LabelText("End", "%0.3f s", ptAnimationComp->fEnd);
+                plAnimation* ptAnimation = gptAsset->get_animation(ptAnimationComp->tAnimation);
+                ImGui::LabelText("Start", "%0.3f s", ptAnimation->fStart);
+                ImGui::LabelText("End", "%0.3f s", ptAnimation->fEnd);
                 // ImGui::LabelText("Speed", "%0.3f s", ptAnimationComp->fSpeed);
                 ImGui::SliderFloat("Speed", &ptAnimationComp->fSpeed, 0.0f, 2.0f);
-                ImGui::SliderFloat("Time", &ptAnimationComp->fTimer, ptAnimationComp->fStart, ptAnimationComp->fEnd);
-                ImGui::ProgressBar(ptAnimationComp->fTimer / (ptAnimationComp->fEnd - ptAnimationComp->fStart), {-1.0f, 0.0f});
+                ImGui::SliderFloat("Time", &ptAnimationComp->fTimer, ptAnimation->fStart, ptAnimation->fEnd);
+                ImGui::ProgressBar(ptAnimationComp->fTimer / (ptAnimation->fEnd - ptAnimation->fStart), {-1.0f, 0.0f});
             }
 
             if(ptIKComp && ImGui::CollapsingHeader(PL_ICON_FA_DRAW_POLYGON " Inverse Kinematics"))
             { 
                 plTagComponent* ptTargetComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptIKComp->tTarget);
-                ImGui::Text("Target Entity: %s , %u", ptTargetComp->acName, ptIKComp->tTarget.uIndex);
+                ImGui::Text("Target Entity: %s , %u", ptTargetComp->pcName, ptIKComp->tTarget.uIndex);
                 static const uint32_t uChainMin = 1;
                 static const uint32_t uChainMax = 5;
                 ImGui::SliderScalar("Chain Length", ImGuiDataType_U32, &ptIKComp->uChainLength, &uChainMin, &uChainMax);

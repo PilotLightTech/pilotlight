@@ -91,7 +91,7 @@ typedef int plResourceDataType;
 enum _plResourceDataType
 {
     PL_RESOURCE_DATA_TYPE_NONE = 0,
-    PL_RESOURCE_DATA_TYPE_IMAGE
+    PL_RESOURCE_DATA_TYPE_IMAGE,
 };
 
 //-----------------------------------------------------------------------------
@@ -108,6 +108,7 @@ typedef struct _plResource
     size_t              szFileDataSize;
     size_t              szContainerFileOffset;
     plTextureHandle     tTexture;
+    uint64_t            uMaterialIndex;
 } plResource;
 
 typedef struct _plResourceStagingBuffer
@@ -296,10 +297,10 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
 
     // figure out type of resource
     plResourceDataType tDataType = PL_RESOURCE_DATA_TYPE_NONE;
-    char acFileExtension[8] = {0};
-    pl_str_get_file_extension(pcName, acFileExtension, 8);
+    char acFileExtension[16] = {0};
+    pl_str_get_file_extension(pcName, acFileExtension, 16);
 
-    for(uint32_t i = 0; i < 8; i++)
+    for(uint32_t i = 0; i < 16; i++)
         acFileExtension[i] = pl_str_to_upper(acFileExtension[i]);
 
     const char* apcImageExtensions[] = { "PNG", "JPEG", "JPG", "PNG", "BMP", "TGA","HDR" };
@@ -327,8 +328,8 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
     }
     else
     {
-        char acParentFileExtension[8] = {0};
-        pl_str_get_file_extension(pcContainerFileName, acParentFileExtension, 8);
+        char acParentFileExtension[16] = {0};
+        pl_str_get_file_extension(pcContainerFileName, acParentFileExtension, 16);
         if(acParentFileExtension[0] == 'p' && acParentFileExtension[1] == 'a' && acParentFileExtension[2] == 'k')
         {
             bPakFileParent = true;
@@ -367,7 +368,8 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
         .tFlags                = tFlags,
         .szFileDataSize        = 0,
         .puFileData            = NULL,
-        .szContainerFileOffset = szFileBytesOffset
+        .szContainerFileOffset = szFileBytesOffset,
+        .uMaterialIndex        = UINT64_MAX
     };
 
     // if we are retaining file data, either copy the manually loaded data
@@ -406,7 +408,7 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
             char* sbtNameConcat = NULL;
             char acFileNameOnly[256] = {0};
             pl_str_get_file_name_only(pcName, acFileNameOnly, 256);
-            pl_sb_sprintf(sbtNameConcat, "/cache/%s.dds", acFileNameOnly);
+            pl_sb_sprintf(sbtNameConcat, "/cache/textures/%s.dds", acFileNameOnly);
 
             // prep texture for GPU if not done already
             if(tFlags & PL_RESOURCE_LOAD_FLAG_NO_CACHING)
@@ -419,6 +421,7 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
             }
 
             pl_sb_free(sbtNameConcat);
+            break;
         }
     }
     
@@ -457,7 +460,7 @@ pl_resource_load(const char* pcName, plResourceLoadFlags tFlags)
 }
 
 plTextureHandle
-pl_resource_get_texture_handle(plResourceHandle tHandle)
+pl_resource_get_texture(plResourceHandle tHandle)
 {
     if(tHandle.uGeneration != gptResourceManager->sbtResourceGenerations[tHandle.uIndex])
         return (plTextureHandle){0};
@@ -465,9 +468,19 @@ pl_resource_get_texture_handle(plResourceHandle tHandle)
     return gptResourceManager->sbtResources[tHandle.uIndex].tTexture;
 }
 
+const char*
+pl_resource_get_name(plResourceHandle tHandle)
+{
+    if(tHandle.uGeneration != gptResourceManager->sbtResourceGenerations[tHandle.uIndex])
+        return NULL;
+
+    return gptResourceManager->sbtResources[tHandle.uIndex].acName;
+}
+
 bool
 pl_resource_is_valid(plResourceHandle tHandle)
 {
+    PL_ASSERT(tHandle.uIndex < pl_sb_size(gptResourceManager->sbtResourceGenerations));
     return (tHandle.uGeneration == gptResourceManager->sbtResourceGenerations[tHandle.uIndex]);
 }
 
@@ -509,36 +522,43 @@ pl_resource_is_resident(plResourceHandle tHandle, plResourceEvictFlags tFlags)
 {
     if(!pl_resource_is_valid(tHandle))
         return false;
+
+    plResource* ptResource = &gptResourceManager->sbtResources[tHandle.uIndex];
+
+    if(ptResource->tType == PL_RESOURCE_DATA_TYPE_IMAGE)
+    {
     
-    if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_GPU)
-    {
-        plTextureHandle tTexture = pl_resource_get_texture_handle(tHandle);
-        if(!gptGfx->is_texture_valid(gptResourceManager->tDesc.ptDevice, tTexture))
-            return false;
-    }
-
-    if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_CACHE)
-    {
-        char acFinalFile[512] = {0};
-        char acFileNameOnly[256] = {0};
-        pl_str_get_file_name_only(gptResourceManager->sbtResources[tHandle.uIndex].acName, acFileNameOnly, 256);
-        pl_sprintf(acFinalFile, "/cache/%s.dds", acFileNameOnly);
-
-        // prep texture for GPU if not done already
-        if(!gptVfs->does_file_exist(acFinalFile))
-            return false;
-    }
-
-    if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_FILE_DATA)
-    {
-        if(gptResourceManager->sbtResources[tHandle.uIndex].tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_FILE_DATA)
+        if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_GPU)
         {
-            if(gptResourceManager->sbtResources[tHandle.uIndex].szFileDataSize == 0)
+            if(!gptGfx->is_texture_valid(gptResourceManager->tDesc.ptDevice, ptResource->tTexture))
                 return false;
-
         }
+
+        if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_CACHE)
+        {
+            char acFinalFile[512] = {0};
+            char acFileNameOnly[256] = {0};
+            pl_str_get_file_name_only(ptResource->acName, acFileNameOnly, 256);
+            pl_sprintf(acFinalFile, "/cache/textures/%s.dds", acFileNameOnly);
+
+            // prep texture for GPU if not done already
+            if(!gptVfs->does_file_exist(acFinalFile))
+                return false;
+        }
+
+        if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_FILE_DATA)
+        {
+            if(ptResource->tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_FILE_DATA)
+            {
+                if(ptResource->szFileDataSize == 0)
+                    return false;
+
+            }
+        }
+        return true;
     }
-    return true;
+
+    return false;
 }
 
 void
@@ -549,7 +569,7 @@ pl_resource_evict_ex(plResourceHandle tHandle, plResourceEvictFlags tFlags)
     
     if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_GPU)
     {
-        plTextureHandle tTexture = pl_resource_get_texture_handle(tHandle);
+        plTextureHandle tTexture = pl_resource_get_texture(tHandle);
         gptGfx->queue_texture_for_deletion(gptResourceManager->tDesc.ptDevice, tTexture);
     }
 
@@ -558,7 +578,7 @@ pl_resource_evict_ex(plResourceHandle tHandle, plResourceEvictFlags tFlags)
         char acFinalFile[512] = {0};
         char acFileNameOnly[256] = {0};
         pl_str_get_file_name_only(gptResourceManager->sbtResources[tHandle.uIndex].acName, acFileNameOnly, 256);
-        pl_sprintf(acFinalFile, "/cache/%s.dds", acFileNameOnly);
+        pl_sprintf(acFinalFile, "/cache/textures/%s.dds", acFileNameOnly);
 
         // prep texture for GPU if not done already
         if(gptVfs->does_file_exist(acFinalFile))
@@ -602,7 +622,7 @@ pl_resource_make_resident(plResourceHandle tHandle)
             char* sbtNameConcat = NULL;
             char acFileNameOnly[256] = {0};
             pl_str_get_file_name_only(ptResource->acName, acFileNameOnly, 256);
-            pl_sb_sprintf(sbtNameConcat, "/cache/%s.dds", acFileNameOnly);
+            pl_sb_sprintf(sbtNameConcat, "/cache/textures/%s.dds", acFileNameOnly);
 
             plDevice* ptDevice = gptResourceManager->tDesc.ptDevice;
             
@@ -1127,7 +1147,8 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .new_frame     = pl_resource_new_frame,
         .load          = pl_resource_load,
         .load_ex       = pl_resource_load_ex,
-        .get_texture   = pl_resource_get_texture_handle,
+        .get_texture   = pl_resource_get_texture,
+        .get_name      = pl_resource_get_name,
         .is_valid      = pl_resource_is_valid,
         .is_loaded     = pl_resource_is_loaded,
         .unload        = pl_resource_unload,

@@ -128,10 +128,11 @@ static void
 pl__renderer_cull_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
 {
     plCullData* ptCullData = pData;
-    plScene* ptScene = ptCullData->ptScene;
+    plRendererScene* ptScene = ptCullData->ptScene;
     plDrawable tDrawable = ptCullData->atDrawables[tInvoData.uGlobalIndex];
     plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
     ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = true;
+    plMesh* ptMesh = gptAsset->get_mesh(ptObject->tMesh);
 
     if(ptObject->tFlags & PL_OBJECT_FLAGS_RENDERABLE)
     {
@@ -153,10 +154,11 @@ static void
 pl__renderer_cull_point_light_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
 {
     plCullData* ptCullData = pData;
-    plScene* ptScene = ptCullData->ptScene;
+    plRendererScene* ptScene = ptCullData->ptScene;
     plDrawable tDrawable = ptCullData->atDrawables[tInvoData.uGlobalIndex];
     plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
     ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = true;
+    plMesh* ptMesh = gptAsset->get_mesh(ptObject->tMesh);
 
     if(ptObject->tFlags & PL_OBJECT_FLAGS_RENDERABLE)
     {
@@ -178,10 +180,11 @@ static void
 pl__renderer_cull_spot_light_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
 {
     plCullData* ptCullData = pData;
-    plScene* ptScene = ptCullData->ptScene;
+    plRendererScene* ptScene = ptCullData->ptScene;
     plDrawable tDrawable = ptCullData->atDrawables[tInvoData.uGlobalIndex];
     plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
     ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = true;
+    plMesh* ptMesh = gptAsset->get_mesh(ptObject->tMesh);
 
     if(ptObject->tFlags & PL_OBJECT_FLAGS_RENDERABLE)
     {
@@ -204,7 +207,7 @@ pl__renderer_cull_spot_light_job(plInvocationData tInvoData, void* pData, void* 
 //-----------------------------------------------------------------------------
 
 static void
-pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene)
+pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plRendererScene* ptScene)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
@@ -225,7 +228,7 @@ pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene
 
         gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
         gptGfx->push_debug_group(ptCommandBuffer, "Skinning Compute", (plVec4){1.0f, 0.0f, 1.0f, 1.0f});
-        const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+        const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
         for(uint32_t i = 0; i < uSkinCount; i++)
         {
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynSkinData));
@@ -263,7 +266,7 @@ pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene
 }
 
 static bool
-pl__renderer_pack_shadow_atlas(plScene* ptScene)
+pl__renderer_pack_shadow_atlas(plRendererScene* ptScene)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     
@@ -348,7 +351,7 @@ pl__renderer_pack_shadow_atlas(plScene* ptScene)
 }
 
 static bool
-pl__renderer_pack_view_shadow_atlas(plScene* ptScene)
+pl__renderer_pack_view_shadow_atlas(plRendererScene* ptScene)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     
@@ -406,7 +409,7 @@ pl__renderer_pack_view_shadow_atlas(plScene* ptScene)
 }
 
 static void
-pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptScene, const plCamera** atCameras, uint32_t uCameraCount)
+pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plRendererScene* ptScene, const plCamera** atCameras, uint32_t uCameraCount)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -506,7 +509,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
         }    
     }
 
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
 
     // uint32_t uCameraBufferIndex = 0;
@@ -1069,7 +1072,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
 }
 
 static void
-pl__renderer_generate_direction_view_map(plCommandBuffer* ptCommandBuffer, plScene* ptScene, const plCamera* ptSceneCamera, plCSMInfo tInfo)
+pl__renderer_generate_direction_view_map(plCommandBuffer* ptCommandBuffer, plRendererScene* ptScene, const plCamera* ptSceneCamera, plCSMInfo tInfo)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -1339,7 +1342,7 @@ pl__renderer_generate_direction_view_map(plCommandBuffer* ptCommandBuffer, plSce
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
 
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
 
     for(uint32_t uRectIndex = 1; uRectIndex < uAtlasRectCount; uRectIndex++)
     {
@@ -1515,7 +1518,7 @@ pl__renderer_generate_direction_view_map(plCommandBuffer* ptCommandBuffer, plSce
 }
 
 static void
-pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* ptScene, plGpuViewData* ptViewData, plBufferHandle tViewBuffer, plBufferHandle tSunCameraBuffer, const plCamera* ptSceneCamera, plBindGroupHandle tBindGroup, bool bProbe)
+pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plRendererScene* ptScene, plGpuViewData* ptViewData, plBufferHandle tViewBuffer, plBufferHandle tSunCameraBuffer, const plCamera* ptSceneCamera, plBindGroupHandle tBindGroup, bool bProbe)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -1821,7 +1824,7 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
 
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
 
     {
 
@@ -2158,7 +2161,7 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
 //-----------------------------------------------------------------------------
 
 static uint32_t
-pl__renderer_probe_data_pack_index(plScene* ptScene, uint32_t uResolution)
+pl__renderer_probe_data_pack_index(plRendererScene* ptScene, uint32_t uResolution)
 {
     for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtProbeDataPacks); i++)
     {
@@ -2315,11 +2318,9 @@ pl__renderer_probe_data_pack_index(plScene* ptScene, uint32_t uResolution)
 }
 
 static uint64_t
-pl__renderer_add_material_to_scene(plScene* ptScene, plEntity tMaterial)
+pl__renderer_add_material_to_scene(plRendererScene* ptScene, plAssetHandle tMaterial)
 {
-    const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
-
-    plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, tMaterialComponentType, tMaterial);
+    plMaterial* ptMaterial = gptAsset->get_material(tMaterial);
 
     // see if material already exists
     if(!pl_hm_has_key(&ptScene->tMaterialHashmap, tMaterial.uData))
@@ -2337,40 +2338,62 @@ pl__renderer_add_material_to_scene(plScene* ptScene, plEntity tMaterial)
         tGPUMaterial.fMetallicFactor           = ptMaterial->fMetalness;
         tGPUMaterial.fRoughnessFactor          = ptMaterial->fRoughness;
         tGPUMaterial.tBaseColorFactor          = ptMaterial->tBaseColor;
-        tGPUMaterial.tEmissiveFactor           = ptMaterial->tEmissiveColor.rgb;
+        tGPUMaterial.tEmissiveFactor           = ptMaterial->tEmissiveColor;
         tGPUMaterial.fAlphaCutoff              = ptMaterial->fAlphaCutoff;
-        tGPUMaterial.fClearcoatFactor          = ptMaterial->fClearcoat;
-        tGPUMaterial.fClearcoatRoughnessFactor = ptMaterial->fClearcoatRoughness;
-        tGPUMaterial.fSheenRoughnessFactor     = ptMaterial->fSheenRoughness;
+        tGPUMaterial.fClearcoatFactor          = ptMaterial->tClearcoat.fFactor;
+        tGPUMaterial.fClearcoatRoughnessFactor = ptMaterial->tClearcoat.fRoughness;
+        tGPUMaterial.fSheenRoughnessFactor     = ptMaterial->tSheen.fRoughness;
         tGPUMaterial.fNormalMapStrength        = ptMaterial->fNormalMapStrength;
         tGPUMaterial.fEmissiveStrength         = ptMaterial->fEmissiveStrength;
-        tGPUMaterial.tSheenColorFactor         = ptMaterial->tSheenColor;
-        tGPUMaterial.fIridescenceFactor        = ptMaterial->fIridescenceFactor;
-        tGPUMaterial.fIridescenceIor           = ptMaterial->fIridescenceIor;
-        tGPUMaterial.fIridescenceThicknessMin  = ptMaterial->fIridescenceThicknessMin;
-        tGPUMaterial.fIridescenceThicknessMax  = ptMaterial->fIridescenceThicknessMax;
-        tGPUMaterial.tAnisotropy.x             = cosf(ptMaterial->fAnisotropyRotation);
-        tGPUMaterial.tAnisotropy.y             = sinf(ptMaterial->fAnisotropyRotation);
-        tGPUMaterial.tAnisotropy.z             = ptMaterial->fAnisotropyStrength;
+        tGPUMaterial.tSheenColorFactor         = ptMaterial->tSheen.tColor;
+        tGPUMaterial.fIridescenceFactor        = ptMaterial->tIridescence.fFactor;
+        tGPUMaterial.fIridescenceIor           = ptMaterial->tIridescence.fIor;
+        tGPUMaterial.fIridescenceThicknessMin  = ptMaterial->tIridescence.fThicknessMin;
+        tGPUMaterial.fIridescenceThicknessMax  = ptMaterial->tIridescence.fThicknessMax;
+        tGPUMaterial.tAnisotropy.x             = cosf(ptMaterial->tAnisotropy.fRotation);
+        tGPUMaterial.tAnisotropy.y             = sinf(ptMaterial->tAnisotropy.fRotation);
+        tGPUMaterial.tAnisotropy.z             = ptMaterial->tAnisotropy.fStrength;
         tGPUMaterial.fOcclusionStrength        = ptMaterial->fOcclusionStrength;
-        tGPUMaterial.tAlphaMode                = ptMaterial->tAlphaMode;
-        tGPUMaterial.fTransmissionFactor       = ptMaterial->fTransmissionFactor;
-        tGPUMaterial.fThickness                = ptMaterial->fThickness;
-        tGPUMaterial.fAttenuationDistance      = ptMaterial->fAttenuationDistance;
-        tGPUMaterial.tAttenuationColor         = ptMaterial->tAttenuationColor;
-        tGPUMaterial.fDispersion               = ptMaterial->fDispersion;
+        tGPUMaterial.eAlphaMode                = ptMaterial->eAlphaMode;
+        tGPUMaterial.fTransmissionFactor       = ptMaterial->tTransmission.fFactor;
+        tGPUMaterial.fThickness                = ptMaterial->tVolume.fThickness;
+        tGPUMaterial.fAttenuationDistance      = ptMaterial->tVolume.fAttenuationDistance;
+        tGPUMaterial.tAttenuationColor         = ptMaterial->tVolume.tAttenuationColor;
+        tGPUMaterial.fDispersion               = ptMaterial->tDispersion.fDispersion;
         tGPUMaterial.fIor                      = ptMaterial->fIor;
-        tGPUMaterial.fDiffuseTransmission      = ptMaterial->fDiffuseTransmission;
-        tGPUMaterial.tDiffuseTransmissionColor = ptMaterial->tDiffuseTransmissionColor;
+        tGPUMaterial.fDiffuseTransmission      = ptMaterial->tDiffuseTransmission.fFactor;
+        tGPUMaterial.tDiffuseTransmissionColor = ptMaterial->tDiffuseTransmission.tColor;
 
         const int iDummyIndex = (int)pl__renderer_get_bindless_texture_index(ptScene, gptData->tDummyTexture);
         for(uint32_t uTextureIndex = 0; uTextureIndex < PL_TEXTURE_SLOT_COUNT; uTextureIndex++)
         {
-            tGPUMaterial.aiTextureUVSet[uTextureIndex] = (int)ptMaterial->atTextureMaps[uTextureIndex].uUVSet;
-            tGPUMaterial.atTextureTransforms[uTextureIndex] = ptMaterial->atTextureMaps[uTextureIndex].tTransform;
-            if(gptResource->is_valid(ptMaterial->atTextureMaps[uTextureIndex].tResource))
+            tGPUMaterial.aiTextureUVSet[uTextureIndex] = (int)ptMaterial->atTextures[uTextureIndex].uUVSet;
+
+            const float fSin = sinf(ptMaterial->atTextures[uTextureIndex].fRotation);
+            const float fCos = cosf(ptMaterial->atTextures[uTextureIndex].fRotation);
+            plMat3 tRotation = pl_create_mat3_diag(fCos, fCos, 1.0f);
+            tRotation.x12 = fSin;
+            tRotation.x21 = -fSin;
+
+            const plMat3 tScale = pl_create_mat3_diag(ptMaterial->atTextures[uTextureIndex].tScale.x, ptMaterial->atTextures[uTextureIndex].tScale.y, 1.0f);
+
+            plMat3 tTranslation = pl_create_mat3_diag(1.0f, 1.0f, 1.0f);
+            tTranslation.x13 = ptMaterial->atTextures[uTextureIndex].tOffset.x;
+            tTranslation.x23 = ptMaterial->atTextures[uTextureIndex].tOffset.y;
+
+            plMat3 tTransform = pl_mul_mat3(&tRotation, &tScale);
+            tTransform = pl_mul_mat3(&tTranslation, &tTransform);
+            plMat4 tFinalTransform = pl_identity_mat4();
+            memcpy(&tFinalTransform.col[0], &tTransform.col[0], sizeof(plVec3));
+            memcpy(&tFinalTransform.col[1], &tTransform.col[1], sizeof(plVec3));
+            memcpy(&tFinalTransform.col[2], &tTransform.col[2], sizeof(plVec3));
+
+            tGPUMaterial.atTextureTransforms[uTextureIndex] = tFinalTransform;
+            if(gptAsset->is_valid(ptMaterial->atTextures[uTextureIndex].tTexture))
             {
-                plTextureHandle tValidTexture = gptResource->get_texture(ptMaterial->atTextureMaps[uTextureIndex].tResource);
+                const char* pcSourceFile = gptAsset->get_source_file(ptMaterial->atTextures[uTextureIndex].tTexture);
+                plResourceHandle tTextureResource = gptResource->load(pcSourceFile, PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED);
+                plTextureHandle tValidTexture = gptResource->get_texture(tTextureResource);
                 tGPUMaterial.aiTextureIndices[uTextureIndex] = (int)pl__renderer_get_bindless_texture_index(ptScene, tValidTexture);
             }
             else
@@ -2383,10 +2406,10 @@ pl__renderer_add_material_to_scene(plScene* ptScene, plEntity tMaterial)
             &tGPUMaterial,
             sizeof(plGpuMaterial));
 
-        if(ptMaterial->tFlags & PL_MATERIAL_FLAG_SHEEN)
+        if(ptMaterial->eFlags & PL_MATERIAL_FLAG_SHEEN)
             ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED;
 
-        if(ptMaterial->tFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->tFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->tFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
+        if(ptMaterial->eFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->eFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->eFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
             ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED;
         pl_hm_insert(&ptScene->tMaterialHashmap, tMaterial.uData, uMaterialIndex);
 
@@ -2394,17 +2417,15 @@ pl__renderer_add_material_to_scene(plScene* ptScene, plEntity tMaterial)
 
         if(ptScene->uMaterialDirtyValue > 0)
         {
-            const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
-
             const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
             for(uint32_t i = 0; i < uDrawableCount; i++)
             {
                 plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtDrawables[i].tEntity);
-                plMeshComponent* ptMesh = gptECS->get_component(ptScene->ptComponentLibrary, tMeshComponentType, ptObject->tMesh);
+                plMesh* ptMesh = gptAsset->get_mesh(ptObject->tMesh);
 
-                if(pl_hm_has_key(&ptScene->tMaterialHashmap, ptMesh->tMaterial.uData))
+                if(pl_hm_has_key(&ptScene->tMaterialHashmap, ptMesh->atSubmeshes[ptScene->sbtDrawables[i].uSubmeshIndex].tMaterial.uData))
                 {
-                    uint32_t uMaterialIndex2 = (uint32_t)pl_hm_lookup(&ptScene->tMaterialHashmap, ptMesh->tMaterial.uData);
+                    uint32_t uMaterialIndex2 = (uint32_t)pl_hm_lookup(&ptScene->tMaterialHashmap, ptMesh->atSubmeshes[ptScene->sbtDrawables[i].uSubmeshIndex].tMaterial.uData);
                     ptScene->sbtDrawables[i].uMaterialIndex = (uint32_t)ptScene->sbtMaterialNodes[uMaterialIndex2]->uOffset / sizeof(plGpuMaterial);
                 }
             }
@@ -2419,7 +2440,7 @@ pl__renderer_add_material_to_scene(plScene* ptScene, plEntity tMaterial)
 }
 
 static bool
-pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDrawableIndex)
+pl__renderer_add_drawable_data_to_global_buffer(plRendererScene* ptScene, uint32_t uDrawableIndex, uint32_t uSubmeshIndex)
 {
 
     pl_sb_reset(ptScene->sbuIndexBuffer);
@@ -2431,7 +2452,8 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
 
     // get actual components
     plObjectComponent* ptObject   = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tEntity);
-    plMeshComponent*   ptMesh     = gptECS->get_component(ptScene->ptComponentLibrary, gptMesh->get_ecs_type_key_mesh(), ptObject->tMesh);
+    plMesh* ptMainMesh = gptAsset->get_mesh(ptObject->tMesh);
+    plSubmesh* ptMesh = &ptMainMesh->atSubmeshes[uSubmeshIndex];
 
     const uint32_t uIndexCount = (uint32_t)ptMesh->szIndexCount;
     const uint32_t uVertexCount = (uint32_t)ptMesh->szVertexCount;
@@ -2447,22 +2469,22 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
     if(ptMesh->ptVertexColors[1])             { uStride += 1; }
     if(ptMesh->ptVertexTextureCoordinates[0]) { uStride += 1; }
 
-    uint64_t ulVertexStreamMask = 0;
+    uint64_t uVertexStreamMask = 0;
 
     // calculate vertex stream mask based on provided data
-    if(ptMesh->ptVertexPositions)  { uSkinStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_POSITION; }
-    if(ptMesh->ptVertexNormals)    { uSkinStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL; }
-    if(ptMesh->ptVertexTangents)   { uSkinStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT; }
-    if(ptMesh->ptVertexWeights[0]) { uSkinStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0; }
-    if(ptMesh->ptVertexWeights[1]) { uSkinStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1; }
-    if(ptMesh->ptVertexJoints[0])  { uSkinStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_0; }
-    if(ptMesh->ptVertexJoints[1])  { uSkinStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_1; }
+    if(ptMesh->ptVertexPositions)  { uSkinStride += 1; uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_POSITION; }
+    if(ptMesh->ptVertexNormals)    { uSkinStride += 1; uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL; }
+    if(ptMesh->ptVertexTangents)   { uSkinStride += 1; uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT; }
+    if(ptMesh->ptVertexWeights[0]) { uSkinStride += 1; uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0; }
+    if(ptMesh->ptVertexWeights[1]) { uSkinStride += 1; uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1; }
+    if(ptMesh->ptVertexJoints[0])  { uSkinStride += 1; uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_0; }
+    if(ptMesh->ptVertexJoints[1])  { uSkinStride += 1; uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_1; }
 
     plFreeListNode* ptIndexBufferNode = gptFreeList->get_node(&ptScene->tIndexBufferFreeList, uIndexCount * sizeof(uint32_t));
     plFreeListNode* ptVertexBufferNode = gptFreeList->get_node(&ptScene->tVertexBufferFreeList, uVertexCount * sizeof(plVec3));
     plFreeListNode* ptVertexDataBufferNode = gptFreeList->get_node(&ptScene->tStorageBufferFreeList, uStride * uVertexCount * sizeof(plVec4));
     plFreeListNode* ptSkinVertexDataBufferNode = NULL;
-    if(ptMesh->tSkinComponent.uIndex != UINT32_MAX)
+    if(ptObject->tSkinComponent.uIndex != UINT32_MAX)
         ptSkinVertexDataBufferNode = gptFreeList->get_node(&ptScene->tStorageBufferFreeList, uSkinStride * uVertexCount * sizeof(plVec4));
 
     bool bResizeNeeded = false;
@@ -2478,7 +2500,7 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
     {
         bResizeNeeded = true;
     }
-    if(ptSkinVertexDataBufferNode == NULL && ptMesh->tSkinComponent.uIndex != UINT32_MAX)
+    if(ptSkinVertexDataBufferNode == NULL && ptObject->tSkinComponent.uIndex != UINT32_MAX)
     {
         bResizeNeeded = true;
     }
@@ -2493,14 +2515,14 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
     }
 
 
-    ptMesh->ulVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_JOINTS_0;
-    ptMesh->ulVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_JOINTS_1;
-    ptMesh->ulVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0;
-    ptMesh->ulVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1;
+    ptMesh->uVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_JOINTS_0;
+    ptMesh->uVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_JOINTS_1;
+    ptMesh->uVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0;
+    ptMesh->uVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1;
 
     pl_sb_add_n(ptScene->sbtVertexDataBuffer, uStride * uVertexCount);
 
-    // current attribute offset
+    // current attribute offsetM
     uint32_t uOffset = 0;
 
     // normals
@@ -2612,7 +2634,7 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
     ptScene->sbtDrawables[uDrawableIndex].uVertexOffset = (uint32_t)(ptVertexBufferNode->uOffset / sizeof(plVec3));
     ptScene->sbtDrawables[uDrawableIndex].uDataOffset   = (uint32_t)(ptVertexDataBufferNode->uOffset / sizeof(plVec4));
 
-    if(ptMesh->tSkinComponent.uIndex != UINT32_MAX)
+    if(gptECS->is_entity_valid(ptScene->ptComponentLibrary, ptObject->tSkinComponent))
     {
 
         // current attribute offset
@@ -2708,14 +2730,14 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
         gptStage->stage_buffer_upload(ptScene->tStorageBuffer, ptSkinVertexDataBufferNode->uOffset, ptScene->sbtSkinVertexDataBuffer, sizeof(plVec4) * uVertexCount * uSkinStride);
 
         plSkinData tSkinData = {
-            .tEntity           = ptMesh->tSkinComponent,
+            .tEntity           = ptObject->tSkinComponent,
             .uVertexCount      = uVertexCount,
             .iSourceDataOffset = (int)(ptSkinVertexDataBufferNode->uOffset / sizeof(plVec4)),
             .iDestDataOffset   = ptScene->sbtDrawables[uDrawableIndex].uDataOffset,
             .iDestVertexOffset = ptScene->sbtDrawables[uDrawableIndex].uVertexOffset
         };
 
-        plSkinComponent* ptSkinComponent = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tSkinComponentType, ptMesh->tSkinComponent);
+        plSkinComponent* ptSkinComponent = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tSkinComponentType, ptObject->tSkinComponent);
         if(ptSkinComponent->_atTextureData)
         {
             PL_FREE(ptSkinComponent->_atTextureData);
@@ -2725,7 +2747,7 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
         memset(ptSkinComponent->_atTextureData, 0, ptSkinComponent->uJointCount * 8 * sizeof(plMat4));
         tSkinData.ptFreeListNode = gptFreeList->get_node(&ptScene->tSkinBufferFreeList, ptSkinComponent->uJointCount * 8 * sizeof(plMat4));
 
-        int aiSpecializationData[] = {(int)ulVertexStreamMask, (int)uSkinStride, (int)ptMesh->ulVertexStreamMask, (int)uDestStride};
+        int aiSpecializationData[] = {(int)uVertexStreamMask, (int)uSkinStride, (int)ptMesh->uVertexStreamMask, (int)uDestStride};
         tSkinData.tShader = gptShaderVariant->get_compute_shader("skinning", aiSpecializationData);
 
         tSkinData.tObjectEntity = tEntity;
@@ -2756,7 +2778,7 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
 }
 
 static uint32_t
-pl__renderer_get_bindless_texture_index(plScene* ptScene, plTextureHandle tTexture)
+pl__renderer_get_bindless_texture_index(plRendererScene* ptScene, plTextureHandle tTexture)
 {
 
     uint64_t uIndex = 0;
@@ -2791,7 +2813,7 @@ pl__renderer_get_bindless_texture_index(plScene* ptScene, plTextureHandle tTextu
 }
 
 static uint32_t
-pl__renderer_get_bindless_cube_texture_index(plScene* ptScene, plTextureHandle tTexture)
+pl__renderer_get_bindless_cube_texture_index(plRendererScene* ptScene, plTextureHandle tTexture)
 {
     uint64_t uIndex = 0;
     if(pl_hm_has_key_ex(&ptScene->tCubeTextureIndexHashmap, tTexture.uData, &uIndex))
@@ -2824,7 +2846,7 @@ pl__renderer_get_bindless_cube_texture_index(plScene* ptScene, plTextureHandle t
 }
 
 static void
-pl__renderer_return_bindless_texture_index(plScene* ptScene, plTextureHandle tTexture)
+pl__renderer_return_bindless_texture_index(plRendererScene* ptScene, plTextureHandle tTexture)
 {
     uint64_t uIndex = 0;
     if(pl_hm_has_key_ex(&ptScene->tTextureIndexHashmap, tTexture.uData, &uIndex))
@@ -2834,7 +2856,7 @@ pl__renderer_return_bindless_texture_index(plScene* ptScene, plTextureHandle tTe
 }
 
 static void
-pl__renderer_return_bindless_cube_texture_index(plScene* ptScene, plTextureHandle tTexture)
+pl__renderer_return_bindless_cube_texture_index(plRendererScene* ptScene, plTextureHandle tTexture)
 {
     uint64_t uIndex = 0;
     if(pl_hm_has_key_ex(&ptScene->tCubeTextureIndexHashmap, tTexture.uData, &uIndex))
@@ -2844,7 +2866,7 @@ pl__renderer_return_bindless_cube_texture_index(plScene* ptScene, plTextureHandl
 }
 
 static void
-pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeData* ptProbe)
+pl__renderer_probe_create_environment_map(plRendererScene* ptScene, plEnvironmentProbeData* ptProbe)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
@@ -3333,14 +3355,14 @@ typedef struct _plGbufferFillPassInfo
 } plGbufferFillPassInfo;
 
 static void
-pl__render_view_gbuffer_fill_pass(plScene* ptScene, plCommandBuffer* ptCommandBuffer, plGbufferFillPassInfo* ptInfo)
+pl__render_view_gbuffer_fill_pass(plRendererScene* ptScene, plCommandBuffer* ptCommandBuffer, plGbufferFillPassInfo* ptInfo)
 {
     // for convience
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
 
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
 
     gptGfx->push_debug_group(ptCommandBuffer, "G-Buffer Fill", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
     gptGfx->set_depth_bias(ptCommandBuffer, 0.0f, 0.0f, 0.0f);
@@ -3402,7 +3424,7 @@ typedef struct _plDeferredLightingPassInfo
 } plDeferredLightingPassInfo;
 
 static void
-pl__render_view_deferred_lighting_pass(plScene* ptScene, plCommandBuffer* ptCommandBuffer, plBindGroupHandle tViewBG, plDeferredLightingPassInfo* ptInfo)
+pl__render_view_deferred_lighting_pass(plRendererScene* ptScene, plCommandBuffer* ptCommandBuffer, plBindGroupHandle tViewBG, plDeferredLightingPassInfo* ptInfo)
 {
     gptGfx->push_debug_group(ptCommandBuffer, "Deferred Lighting", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
 
@@ -3593,7 +3615,7 @@ pl__render_view_deferred_lighting_debug_pass(plView* ptView, plCommandBuffer* pt
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
-    plScene*       ptScene   = ptView->ptParentScene;
+    plRendererScene*       ptScene   = ptView->ptParentScene;
 
     const plVec2 tDimensions = ptView->tTargetSize;
 
@@ -3645,7 +3667,7 @@ pl__render_view_deferred_lighting_debug_pass(plView* ptView, plCommandBuffer* pt
 }
 
 static void
-pl__render_view_skybox_pass(plScene* ptScene, plCommandBuffer* ptCommandBuffer, plBindGroupHandle tViewBG, plMat4* ptTransform, plDrawArea* ptArea, uint32_t uFace)
+pl__render_view_skybox_pass(plRendererScene* ptScene, plCommandBuffer* ptCommandBuffer, plBindGroupHandle tViewBG, plMat4* ptTransform, plDrawArea* ptArea, uint32_t uFace)
 {
     gptGfx->push_debug_group(ptCommandBuffer, "Skybox", (plVec4){0.33f, 0.02f, 0.80f, 1.0f});
 
@@ -3693,13 +3715,13 @@ typedef struct _plForwardPassInfo
 } plForwardPassInfo;
 
 static void
-pl__render_view_forward_pass(plScene* ptScene, plCommandBuffer* ptCommandBuffer, plBindGroupHandle tViewBG, plForwardPassInfo* ptInfo)
+pl__render_view_forward_pass(plRendererScene* ptScene, plCommandBuffer* ptCommandBuffer, plBindGroupHandle tViewBG, plForwardPassInfo* ptInfo)
 {
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
 
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
 
     const uint32_t uVisibleForwardDrawCount = pl_sb_size(ptInfo->sbuVisibleEntities);
     gptGfx->reset_draw_stream(ptStream, uVisibleForwardDrawCount);
@@ -3785,10 +3807,10 @@ pl__render_view_transmission_pass(plView* ptView, plCommandBuffer* ptCommandBuff
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
-    plScene*       ptScene   = ptView->ptParentScene;
+    plRendererScene*       ptScene   = ptView->ptParentScene;
 
     const plVec2 tDimensions = ptView->tTargetSize;
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
 
     plDrawArea tArea = {
         .ptDrawStream = ptStream,
@@ -3923,7 +3945,7 @@ static void
 pl__render_view_debug_pass(plView* ptView, const plCamera* ptCamera, const plCamera* ptCullCamera)
 {
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
-    plScene* ptScene = ptView->ptParentScene;
+    plRendererScene* ptScene = ptView->ptParentScene;
     const plVec2 tDimensions = ptView->tTargetSize;
 
     // bounding boxes
@@ -4059,11 +4081,11 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Picking Submission");
 
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
-    plScene*       ptScene   = ptView->ptParentScene;
+    plRendererScene*       ptScene   = ptView->ptParentScene;
 
     const plVec2 tDimensions = ptView->tTargetSize;
 
@@ -4278,7 +4300,7 @@ pl__render_view_jfa_pass(plView* ptView)
     // for convience
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice* ptDevice  = gptData->ptDevice;
-    plScene* ptScene   = ptView->ptParentScene;
+    plRendererScene* ptScene   = ptView->ptParentScene;
     const plVec2 tDimensions = ptView->tTargetSize;
 
     // find next power of 2
@@ -4387,7 +4409,7 @@ pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
     // for convience
     plDevice*     ptDevice   = gptData->ptDevice;
     plDrawStream* ptStream   = &gptData->tDrawStream;
-    plScene*      ptScene    = ptView->ptParentScene;
+    plRendererScene*      ptScene    = ptView->ptParentScene;
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
     const plVec2 tDimensions = ptView->tTargetSize;
@@ -4489,7 +4511,7 @@ pl__render_view_bloom_pass(plView* ptView)
     // const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
-    plScene*       ptScene   = ptView->ptParentScene;
+    plRendererScene*       ptScene   = ptView->ptParentScene;
 
     for(uint32_t i = 0; i < ptView->tBloomOptions.uChainLength - 1; i++)
     {
@@ -4760,7 +4782,7 @@ pl__render_view_aerial_pass(plView* ptView)
 {
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
-    plScene*       ptScene   = ptView->ptParentScene;
+    plRendererScene*       ptScene   = ptView->ptParentScene;
 
     plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "tonemap");
     gptGfx->begin_command_recording(ptPostCmdBuffer);
@@ -4823,7 +4845,7 @@ pl__render_view_tonemap_pass(plView* ptView)
 {
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
-    plScene*       ptScene   = ptView->ptParentScene;
+    plRendererScene*       ptScene   = ptView->ptParentScene;
 
     plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "tonemap");
     gptGfx->begin_command_recording(ptPostCmdBuffer);
@@ -4885,10 +4907,10 @@ pl__render_view_tonemap_pass(plView* ptView)
 }
 
 static void
-pl__renderer_probe_update_all(plScene* ptScene)
+pl__renderer_probe_update_all(plRendererScene* ptScene)
 {
 
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
 
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
@@ -5427,7 +5449,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
 }
 
 static void
-pl__renderer_scene_create_bindgroups(plScene* ptScene)
+pl__renderer_scene_create_bindgroups(plRendererScene* ptScene)
 {
     plBindGroupLayoutHandle tGlobalSceneBindGroupLayout = gptShaderVariant->get_bind_group_layout("scene");
     plBindGroupLayoutHandle tSunTransmissionBindGroupLayout1 = gptShaderVariant->get_compute_bind_group_layout("sky_transmission_lut", 1);
@@ -5495,7 +5517,7 @@ pl__renderer_scene_create_bindgroups(plScene* ptScene)
 }
 
 static void
-pl__renderer_scene_update_sky_luts_bindgroups(plScene* ptScene)
+pl__renderer_scene_update_sky_luts_bindgroups(plRendererScene* ptScene)
 {
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -5534,7 +5556,7 @@ pl__renderer_scene_update_sky_luts_bindgroups(plScene* ptScene)
 }
 
 static void
-pl__renderer_scene_update_bindgroups(plScene* ptScene)
+pl__renderer_scene_update_bindgroups(plRendererScene* ptScene)
 {
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -5596,7 +5618,7 @@ pl__renderer_scene_update_bindgroups(plScene* ptScene)
 }
 
 static void
-pl__renderer_scene_create_sky_luts_textures(plScene* ptScene)
+pl__renderer_scene_create_sky_luts_textures(plRendererScene* ptScene)
 {
     plDevice* ptDevice = gptData->ptDevice;
     if(gptGfx->is_texture_valid(ptDevice, ptScene->atSunTransmissionLut[0]))
@@ -5648,7 +5670,7 @@ pl__renderer_scene_create_sky_luts_textures(plScene* ptScene)
 }
 
 static void
-pl__renderer_scene_create_textures(plScene* ptScene)
+pl__renderer_scene_create_textures(plRendererScene* ptScene)
 {
     // shadow atlas
     const plTextureDesc tShadowDepthTextureDesc = {
@@ -5690,7 +5712,7 @@ pl__renderer_scene_create_textures(plScene* ptScene)
 }
 
 static void
-pl__renderer_scene_create_buffers(plScene* ptScene)
+pl__renderer_scene_create_buffers(plRendererScene* ptScene)
 {
     const plBufferDesc tIndexBufferDesc = {
         .eUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER,
@@ -5753,7 +5775,7 @@ pl__renderer_scene_create_buffers(plScene* ptScene)
 }
 
 static void
-pl__renderer_scene_create_brdf_lut(plScene* ptScene)
+pl__renderer_scene_create_brdf_lut(plRendererScene* ptScene)
 {
     const plBindGroupDesc tBrdfBGSet1Desc = {
         .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
@@ -6050,7 +6072,7 @@ pl__renderer_view_create_buffers(plView* ptView)
 static void
 pl__renderer_view_create_bindgroups(plView* ptView)
 {
-    plScene* ptScene = ptView->ptParentScene;
+    plRendererScene* ptScene = ptView->ptParentScene;
 
     ptView->tFinalTextureHandle = gptDraw->create_bind_group_for_texture(ptView->tFinalTexture);
 
@@ -6151,7 +6173,7 @@ pl__renderer_view_create_bindgroups(plView* ptView)
 static void
 pl__renderer_view_update_sky_luts_bindgroups(plView* ptView)
 {
-    plScene* ptScene = ptView->ptParentScene;
+    plRendererScene* ptScene = ptView->ptParentScene;
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -6195,7 +6217,7 @@ pl__renderer_view_update_sky_luts_bindgroups(plView* ptView)
 static void
 pl__renderer_view_update_bindgroups(plView* ptView)
 {
-    plScene* ptScene = ptView->ptParentScene;
+    plRendererScene* ptScene = ptView->ptParentScene;
 
     const plBindGroupUpdateData tJFABGData0 = {
         .atTextureBindings = {
@@ -6383,7 +6405,7 @@ pl__renderer_view_update_bindgroups(plView* ptView)
 }
 
 static void
-pl__renderer_probe_create_textures(plScene* ptScene, plEnvironmentProbeData* ptProbeData)
+pl__renderer_probe_create_textures(plRendererScene* ptScene, plEnvironmentProbeData* ptProbeData)
 {
     plEnvironmentProbeComponent* ptProbe = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbeData->tEntity);
 
@@ -6440,7 +6462,7 @@ pl__renderer_probe_create_textures(plScene* ptScene, plEnvironmentProbeData* ptP
 }
 
 static void
-pl__renderer_probe_create_buffers(plScene* ptScene, plEnvironmentProbeData* ptProbeData)
+pl__renderer_probe_create_buffers(plRendererScene* ptScene, plEnvironmentProbeData* ptProbeData)
 {
     gptStarter->get_staging_buffer(4096, &ptProbeData->tDShadowCameraBuffers, "directional shadow camera buffer");
     gptStarter->get_staging_buffer(4096, &ptProbeData->tSunCameraBuffers, "directional shadow camera buffer");
@@ -6449,7 +6471,7 @@ pl__renderer_probe_create_buffers(plScene* ptScene, plEnvironmentProbeData* ptPr
 }
 
 static void
-pl__renderer_probe_create_bindgroups(plScene* ptScene, plEnvironmentProbeData* ptProbeData)
+pl__renderer_probe_create_bindgroups(plRendererScene* ptScene, plEnvironmentProbeData* ptProbeData)
 {
     const plBindGroupDesc tGlobalBGDesc = {
         .ptPool      = gptData->ptBindGroupPool,
@@ -6475,7 +6497,7 @@ pl__renderer_probe_create_bindgroups(plScene* ptScene, plEnvironmentProbeData* p
 }
 
 static void
-pl__renderer_probe_update_bindgroups(plScene* ptScene, plEnvironmentProbeData* ptProbeData)
+pl__renderer_probe_update_bindgroups(plRendererScene* ptScene, plEnvironmentProbeData* ptProbeData)
 {
     const plBindGroupUpdateData tDShadowBGData = {
         .atBufferBindings = {
@@ -6537,7 +6559,7 @@ pl__renderer_probe_update_bindgroups(plScene* ptScene, plEnvironmentProbeData* p
 }
 
 void
-pl__renderer_scene_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int iResolution)
+pl__renderer_scene_load_skybox_from_panorama(plRendererScene* ptScene, const char* pcPath, int iResolution)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     const int iSamples = 512;

@@ -28,7 +28,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plStringInternI_version {2, 0, 0}
+#define plStringInternI_version {2, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

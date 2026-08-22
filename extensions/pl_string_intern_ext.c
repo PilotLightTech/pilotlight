@@ -41,12 +41,14 @@ Index of this file:
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
+#define PL_STRING_INTERN_BLOCK_SIZE 8096
+
 typedef struct _plStringInternBlock plStringInternBlock;
 typedef struct _plStringInternEntry plStringInternEntry;
 
 typedef struct _plStringInternBlock
 {
-    char                 acBuffer[4096];
+    char                 acBuffer[PL_STRING_INTERN_BLOCK_SIZE];
     plStringInternBlock* ptNextBlock;
     plStringInternEntry* sbtHoles;
 } plStringInternBlock;
@@ -56,7 +58,7 @@ typedef struct _plStringInternEntry
     plStringInternBlock* ptBlock;
     uint16_t             uOffset;
     uint16_t             uSize;
-    uint16_t             uRefCount;
+    uint32_t             uRefCount;
 } plStringInternEntry;
 
 typedef struct _plStringRepository
@@ -65,6 +67,17 @@ typedef struct _plStringRepository
     plHashMap64          tEntryLookup;
     plStringInternEntry* sbtEntries;
 } plStringRepository;
+
+typedef struct _plStringInternContext
+{
+    plStringRepository tDefaultRepo;
+} plStringInternContext;
+
+//-----------------------------------------------------------------------------
+// [SECTION] global data
+//-----------------------------------------------------------------------------
+
+static plStringInternContext* gptStringInternCtx = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
@@ -100,6 +113,12 @@ const char*
 pl_string_intern_intern(plStringRepository* ptRepo, const char* pcString)
 {
 
+    if(pcString == NULL)
+        return NULL;
+
+    if(ptRepo == NULL)
+        ptRepo = &gptStringInternCtx->tDefaultRepo;
+
     // do hash once
     uint64_t uHash = pl_hm_hash_str(pcString, 0);
     uint64_t uKey = pl_hm_lookup(&ptRepo->tEntryLookup, uHash);
@@ -122,43 +141,45 @@ pl_string_intern_intern(plStringRepository* ptRepo, const char* pcString)
 
         const uint16_t uStringLength = (uint16_t)(strlen(pcString) + 1);
 
+        PL_ASSERT(uStringLength < PL_STRING_INTERN_BLOCK_SIZE && "string too long for internment");
+
         // check if any holes are available
         bool bFoundHole = false;
 
         plStringInternBlock* ptCurrentBlock = ptRepo->ptHeadBlock;
-        while(ptCurrentBlock)
+        while(ptCurrentBlock && !bFoundHole)
         {
             const uint32_t uHoleCount = pl_sb_size(ptCurrentBlock->sbtHoles);
+
             for(uint32_t i = 0; i < uHoleCount; i++)
             {
+                plStringInternEntry* ptHole = &ptCurrentBlock->sbtHoles[i];
 
-                plStringInternEntry* ptCurrentHole = &ptCurrentBlock->sbtHoles[i];
-
-                if(ptCurrentHole->uSize > uStringLength) // leave hole
+                if(ptHole->uSize >= uStringLength)
                 {
-                    ptRepo->sbtEntries[uKey].ptBlock   = ptCurrentHole->ptBlock;
-                    ptRepo->sbtEntries[uKey].uOffset   = ptCurrentHole->uOffset;
-                    ptRepo->sbtEntries[uKey].uSize     = uStringLength;
-                    ptRepo->sbtEntries[uKey].uRefCount = 0;
-                    ptCurrentHole->uSize -= uStringLength;
-                    ptCurrentHole->uOffset += uStringLength;
-                    bFoundHole = true;
-                }
-                else if(ptCurrentHole->uSize == uStringLength) // exact size, remove hole
-                {                
-                    ptRepo->sbtEntries[uKey].ptBlock   = ptCurrentHole->ptBlock;
-                    ptRepo->sbtEntries[uKey].uOffset   = ptCurrentHole->uOffset;
-                    ptRepo->sbtEntries[uKey].uSize     = uStringLength;
-                    ptRepo->sbtEntries[uKey].uRefCount = 0;
+                    plStringInternEntry* ptEntry = &ptRepo->sbtEntries[uKey];
 
-                    pl_sb_del(ptCurrentBlock->sbtHoles, i);
+                    ptEntry->ptBlock   = ptCurrentBlock;
+                    ptEntry->uOffset   = ptHole->uOffset;
+                    ptEntry->uSize     = uStringLength;
+                    ptEntry->uRefCount = 0;
+
+                    if(ptHole->uSize == uStringLength)
+                    {
+                        pl_sb_del(ptCurrentBlock->sbtHoles, i);
+                    }
+                    else
+                    {
+                        ptHole->uOffset += uStringLength;
+                        ptHole->uSize   -= uStringLength;
+                    }
+
                     bFoundHole = true;
                     break;
                 }
-
-                // try next block
-                ptCurrentBlock = ptCurrentBlock->ptNextBlock;
             }
+
+            ptCurrentBlock = ptCurrentBlock->ptNextBlock;
         }
 
         // add new block
@@ -173,7 +194,7 @@ pl_string_intern_intern(plStringRepository* ptRepo, const char* pcString)
             // add hole
             plStringInternEntry tHole = {
                 .ptBlock = ptNewBlock,
-                .uSize   = 4096 - uStringLength,
+                .uSize   = PL_STRING_INTERN_BLOCK_SIZE - uStringLength,
                 .uOffset = uStringLength
             };
             pl_sb_push(ptNewBlock->sbtHoles, tHole);
@@ -205,6 +226,9 @@ pl_string_intern_remove(plStringRepository* ptRepo, const char* pcString)
     if(pcString == NULL)
         return;
 
+    if(ptRepo == NULL)
+        ptRepo = &gptStringInternCtx->tDefaultRepo;
+
     // do hash once
     uint64_t uHash = pl_hm_hash_str(pcString, 0);
     uint64_t uKey = pl_hm_lookup(&ptRepo->tEntryLookup, uHash);
@@ -232,7 +256,7 @@ pl_string_intern_remove(plStringRepository* ptRepo, const char* pcString)
 
             plStringInternBlock* ptCurrentBlock = ptRepo->sbtEntries[uKey].ptBlock;
 
-            const uint32_t uHoleCount = pl_sb_size(ptCurrentBlock->sbtHoles);
+            uint32_t uHoleCount = pl_sb_size(ptCurrentBlock->sbtHoles);
             
             bool bFoundGreaterHoleOffset = false;
 
@@ -266,7 +290,7 @@ pl_string_intern_remove(plStringRepository* ptRepo, const char* pcString)
                             pl_sb_del(ptCurrentBlock->sbtHoles, i);
                         }
                     }
-                    else
+                    else if(!bMergeForward)
                     {
                         pl_sb_insert(ptCurrentBlock->sbtHoles, i, tHole);
                     }
@@ -277,6 +301,19 @@ pl_string_intern_remove(plStringRepository* ptRepo, const char* pcString)
 
             if(!bFoundGreaterHoleOffset)
             {
+                uHoleCount = pl_sb_size(ptCurrentBlock->sbtHoles);
+
+                if(uHoleCount > 0)
+                {
+                    plStringInternEntry* ptLast = &ptCurrentBlock->sbtHoles[uHoleCount - 1];
+
+                    if(ptLast->uOffset + ptLast->uSize == tHole.uOffset)
+                    {
+                        ptLast->uSize += tHole.uSize;
+                        return;
+                    }
+                }
+
                 pl_sb_push(ptCurrentBlock->sbtHoles, tHole);
             }
         }
@@ -299,6 +336,19 @@ pl_load_string_intern_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plStringInternI, &tApi);
 
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
+
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+
+    if(bReload)
+    {
+        gptStringInternCtx = ptDataRegistry->get_data("plStringInternContext");
+    }
+    else // first load
+    {
+        static plStringInternContext tCtx = {0};
+        gptStringInternCtx = &tCtx;
+        ptDataRegistry->set_data("plStringInternContext", gptStringInternCtx);
+    }
 }
 
 void
@@ -307,6 +357,18 @@ pl_unload_string_intern_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     if(bReload)
         return;
+
+    plStringInternBlock* ptCurrentBlock = gptStringInternCtx->tDefaultRepo.ptHeadBlock;
+    while(ptCurrentBlock)
+    {
+        pl_sb_free(ptCurrentBlock->sbtHoles);
+        plStringInternBlock* ptNextBlock = ptCurrentBlock->ptNextBlock;
+        PL_FREE(ptCurrentBlock);
+        ptCurrentBlock = ptNextBlock;
+    }
+
+    pl_sb_free(gptStringInternCtx->tDefaultRepo.sbtEntries);
+    pl_hm_free(&gptStringInternCtx->tDefaultRepo.tEntryLookup);
 
     const plStringInternI* ptApi = pl_get_api_latest(ptApiRegistry, plStringInternI);
     ptApiRegistry->remove_api(ptApi);

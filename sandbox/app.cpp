@@ -83,14 +83,27 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData = (plAppData*)PL_ALLOC(sizeof(plAppData));
     memset((void*)ptAppData, 0, sizeof(plAppData));
 
-    gptVfs->mount_directory("/gltf-samples", "../assets/gltf-samples/Models", PL_VFS_MOUNT_FLAGS_NONE);
-    gptVfs->mount_directory("/environments", "../assets/development/environments", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/gltf-samples", "../resources/gltf-samples/Models", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/environments", "../resources/development/environments", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/shaders", "../shaders", PL_VFS_MOUNT_FLAGS_NONE);
-    gptVfs->mount_directory("/shader-temp", "../shader-temp", PL_VFS_MOUNT_FLAGS_NONE);
-    gptVfs->mount_directory("/assets", "../assets", PL_VFS_MOUNT_FLAGS_NONE);
+
+    gptVfs->mount_directory("/resources", "../resources", PL_VFS_MOUNT_FLAGS_NONE);
+
     gptVfs->mount_directory("/cache", "../cache", PL_VFS_MOUNT_FLAGS_NONE);
-    gptFile->create_directory("../shader-temp");
-    gptFile->create_directory("../shader-temp");
+    gptFile->create_directory("../cache/shaders");
+    gptFile->create_directory("../cache/imports");
+    gptFile->create_directory("../cache/textures");
+    gptFile->create_directory("../cache/terrain");
+
+    
+    gptVfs->mount_directory("/assets", "../assets", PL_VFS_MOUNT_FLAGS_NONE);
+    gptFile->create_directory("../assets/materials");
+    gptFile->create_directory("../assets/textures");
+    gptFile->create_directory("../assets/meshes");
+    gptFile->create_directory("../assets/animations");
+    gptFile->create_directory("../assets/skeletons");
+
+    gptAsset->initialize();
 
     // defaults
     ptAppData->tSelectedEntity.uData = UINT64_MAX;
@@ -171,13 +184,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // initialize ecs component library
     gptEcs->initialize({});
+    gptIk->register_ecs_system();
+    gptTransform->register_ecs_system();
     gptRendererEcs->register_system();
     gptScript->register_ecs_system();
     gptAnimation->register_ecs_system();
     gptCameraEcs->register_ecs_system();
-    gptMesh->register_ecs_system();
     gptPhysics->register_ecs_system();
-    gptMaterial->register_ecs_system();
     gptEcs->finalize();
     ptAppData->ptCompLibrary = gptEcs->get_default_library();
 
@@ -229,7 +242,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tFontConfig0.uVOverSampling = 1;
     tFontConfig0.ptRanges = &tFontRange;
     tFontConfig0.uRangeCount = 1;
-    ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig0, "/assets/core/fonts/Cousine-Regular.ttf");
+    ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig0, "/resources/core/fonts/Cousine-Regular.ttf");
 
     plFontRange tIconRange = PL_ZERO_INIT;
     tIconRange.iFirstCodePoint = ICON_MIN_FA;
@@ -243,7 +256,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tFontConfig1.ptMergeFont    = ptAppData->tDefaultFont;
     tFontConfig1.ptRanges       = &tIconRange;
     tFontConfig1.uRangeCount    = 1;
-    gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig1, "/assets/core/fonts/fa-solid-900.otf");
+    gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig1, "/resources/core/fonts/fa-solid-900.otf");
     gptStarter->set_default_font(ptAppData->tDefaultFont);
     gptUI->set_default_font(ptAppData->tDefaultFont);
 
@@ -272,11 +285,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ImGuiIO& tImGuiIO = ImGui::GetIO();
     tImGuiIO.IniFilename = nullptr;
     ImGui::LoadIniSettingsFromDisk("../sandbox/pl_imgui.ini");
-    tImGuiIO.Fonts->AddFontFromFileTTF("../assets/core/fonts/Cousine-Regular.ttf", 16.0f);
+    tImGuiIO.Fonts->AddFontFromFileTTF("../resources/core/fonts/Cousine-Regular.ttf", 16.0f);
     auto tImGuiFontConfig = ImFontConfig();
     tImGuiFontConfig.MergeMode = true;
     static ImWchar atFontRanges[] = {ICON_MIN_FA, ICON_MAX_16_FA};
-    tImGuiIO.FontDefault = tImGuiIO.Fonts->AddFontFromFileTTF("../assets/core/fonts/fa-solid-900.otf", 16.0f, &tImGuiFontConfig, atFontRanges);
+    tImGuiIO.FontDefault = tImGuiIO.Fonts->AddFontFromFileTTF("../resources/core/fonts/fa-solid-900.otf", 16.0f, &tImGuiFontConfig, atFontRanges);
 
     return ptAppData;
 }
@@ -297,6 +310,8 @@ pl_app_shutdown(plAppData* ptAppData)
 
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
+
+    gptAsset->cleanup();
 
     gptDearImGui->cleanup();
 
@@ -446,11 +461,11 @@ pl_app_update(plAppData* ptAppData)
         gptScript->run_update_system(ptAppData->ptCompLibrary);
         gptAnimation->run_animation_update_system(ptAppData->ptCompLibrary, ptIO->fDeltaTime);
         gptPhysics->update(ptIO->fDeltaTime, ptAppData->ptCompLibrary);
-        gptEcs->run_transform_update_system(ptAppData->ptCompLibrary);
-        gptEcs->run_hierarchy_update_system(ptAppData->ptCompLibrary);
+        gptTransform->run_transform_update_system(ptAppData->ptCompLibrary);
+        gptTransform->run_hierarchy_update_system(ptAppData->ptCompLibrary);
         gptRendererEcs->run_light_update_system(ptAppData->ptCompLibrary);
         gptCameraEcs->run_ecs(ptAppData->ptCompLibrary);
-        gptAnimation->run_inverse_kinematics_update_system(ptAppData->ptCompLibrary);
+        gptIk->run_ecs_update_system(ptAppData->ptCompLibrary);
         gptRendererEcs->run_skin_update_system(ptAppData->ptCompLibrary);
         gptRendererEcs->run_object_update_system(ptAppData->ptCompLibrary);
         gptRendererEcs->run_environment_probe_update_system(ptAppData->ptCompLibrary); // run after object update
@@ -500,12 +515,12 @@ pl_app_update(plAppData* ptAppData)
             {
                 plDrawList3D* ptGizmoDrawlist =  gptRendererEditor->get_gizmo_drawlist(ptAppData->tTestWorld.ptView);
                 plObjectComponent* ptSelectedObject = (plObjectComponent*)gptEcs->get_component(ptAppData->ptCompLibrary, gptRendererEcs->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
-                plTransformComponent* ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptCompLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSelectedEntity);
+                plTransformComponent* ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptCompLibrary, gptTransform->get_ecs_type_key_transform(), ptAppData->tSelectedEntity);
                 plTransformComponent* ptParentTransform = nullptr;
-                plHierarchyComponent* ptHierarchyComp = (plHierarchyComponent*)gptEcs->get_component(ptAppData->ptCompLibrary, gptEcs->get_ecs_type_key_hierarchy(), ptAppData->tSelectedEntity);
+                plHierarchyComponent* ptHierarchyComp = (plHierarchyComponent*)gptEcs->get_component(ptAppData->ptCompLibrary, gptTransform->get_ecs_type_key_hierarchy(), ptAppData->tSelectedEntity);
                 if(ptHierarchyComp)
                 {
-                    ptParentTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptCompLibrary, gptEcs->get_ecs_type_key_transform(), ptHierarchyComp->tParent);
+                    ptParentTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptCompLibrary, gptTransform->get_ecs_type_key_transform(), ptHierarchyComp->tParent);
                 }
                 if(ptSelectedTransform)
                 {
@@ -513,7 +528,7 @@ pl_app_update(plAppData* ptAppData)
                 }
                 else if(ptSelectedObject)
                 {
-                    ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptCompLibrary, gptEcs->get_ecs_type_key_transform(), ptSelectedObject->tTransform);
+                    ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptCompLibrary, gptTransform->get_ecs_type_key_transform(), ptSelectedObject->tTransform);
                     gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, ptAppData->tView0Offset, ptAppData->tView0Scale);
                 }
             }
@@ -1373,7 +1388,7 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptCameraEcs        = pl_get_api_latest(ptApiRegistry, plCameraEcsI);
     gptRenderer         = pl_get_api_latest(ptApiRegistry, plRendererI);
     gptJobs             = pl_get_api_latest(ptApiRegistry, plJobI);
-    gptModelLoader      = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
+    gptGltf      = pl_get_api_latest(ptApiRegistry, plGltfI);
     gptDraw             = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptUI               = pl_get_api_latest(ptApiRegistry, plUiI);
     gptIO               = pl_get_api_latest(ptApiRegistry, plIOI);
@@ -1407,6 +1422,9 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptRendererEcs      = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
     gptRendererEditor   = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
     gptRendererTerrain  = pl_get_api_latest(ptApiRegistry, plRendererTerrainI);
+    gptAsset            = pl_get_api_latest(ptApiRegistry, plAssetI);
+    gptTransform        = pl_get_api_latest(ptApiRegistry, plTransformI);
+    gptIk               = pl_get_api_latest(ptApiRegistry, plIkI);
 }
 
 void
@@ -1423,7 +1441,7 @@ pl__refresh_files(plAppData* ptAppData)
     // local
     {
         plDirectoryInfo tDirectoryInfo = {0};
-        gptFile->get_directory_info("../assets/core/scenes/", &tDirectoryInfo);
+        gptFile->get_directory_info("../resources/core/scenes/", &tDirectoryInfo);
         pl_sb_reserve(ptAppData->sbtSceneFilesCore, tDirectoryInfo.uFileCount);
         for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
         {
@@ -1437,8 +1455,8 @@ pl__refresh_files(plAppData* ptAppData)
                     pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
                     char acCurrentScene[PL_MAX_PATH_LENGTH] = {0};
                     char acFullPath[PL_MAX_PATH_LENGTH] = {0};
-                    pl_sprintf(acCurrentScene, "../assets/core/scenes/%s.json", acFileNameOnly);
-                    pl_sprintf(acFullPath, "../assets/core/scenes/%s.json", acFileNameOnly);
+                    pl_sprintf(acCurrentScene, "../resources/core/scenes/%s.json", acFileNameOnly);
+                    pl_sprintf(acFullPath, "../resources/core/scenes/%s.json", acFileNameOnly);
                     if(pl__verify_scene(ptAppData, acCurrentScene))
                     {
                         pl_sb_add(ptAppData->sbtSceneFilesCore);
@@ -1453,7 +1471,7 @@ pl__refresh_files(plAppData* ptAppData)
 
     {
         plDirectoryInfo tDirectoryInfo = {0};
-        gptFile->get_directory_info("../assets/core/environments/", &tDirectoryInfo);
+        gptFile->get_directory_info("../resources/core/environments/", &tDirectoryInfo);
         for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
         {
             if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
@@ -1465,7 +1483,7 @@ pl__refresh_files(plAppData* ptAppData)
                 {
                     pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
                     char acFullPath[PL_MAX_PATH_LENGTH] = {0};
-                    pl_sprintf(acFullPath, "../assets/core/environments/%s.hdr", acFileNameOnly);
+                    pl_sprintf(acFullPath, "../resources/core/environments/%s.hdr", acFileNameOnly);
                     pl_sb_add(ptAppData->sbtSceneEnvironments);
                     strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acName, acFileNameOnly, PL_MAX_PATH_LENGTH);
                     strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acPath, acFullPath, PL_MAX_PATH_LENGTH);
@@ -1478,7 +1496,7 @@ pl__refresh_files(plAppData* ptAppData)
     // development
     {
         plDirectoryInfo tDirectoryInfo = {0};
-        gptFile->get_directory_info("../assets/development/scenes/", &tDirectoryInfo);
+        gptFile->get_directory_info("../resources/development/scenes/", &tDirectoryInfo);
         pl_sb_reserve(ptAppData->sbtSceneFilesDev, tDirectoryInfo.uFileCount);
         for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
         {
@@ -1492,8 +1510,8 @@ pl__refresh_files(plAppData* ptAppData)
                     pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
                     char acCurrentScene[PL_MAX_PATH_LENGTH] = {0};
                     char acFullPath[PL_MAX_PATH_LENGTH] = {0};
-                    pl_sprintf(acCurrentScene, "../assets/development/scenes/%s.json", acFileNameOnly);
-                    pl_sprintf(acFullPath, "../assets/development/scenes/%s.json", acFileNameOnly);
+                    pl_sprintf(acCurrentScene, "../resources/development/scenes/%s.json", acFileNameOnly);
+                    pl_sprintf(acFullPath, "../resources/development/scenes/%s.json", acFileNameOnly);
                     if(pl__verify_scene(ptAppData, acCurrentScene))
                     {
                         pl_sb_add(ptAppData->sbtSceneFilesDev);
@@ -1507,7 +1525,7 @@ pl__refresh_files(plAppData* ptAppData)
     }
     {
         plDirectoryInfo tDirectoryInfo = {0};
-        gptFile->get_directory_info("../assets/development/environments", &tDirectoryInfo);
+        gptFile->get_directory_info("../resources/development/environments", &tDirectoryInfo);
         for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
         {
             if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
@@ -1519,7 +1537,7 @@ pl__refresh_files(plAppData* ptAppData)
                 {
                     pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
                     char acFullPath[PL_MAX_PATH_LENGTH] = {0};
-                    pl_sprintf(acFullPath, "../assets/development/environments/%s.hdr", acFileNameOnly);
+                    pl_sprintf(acFullPath, "../resources/development/environments/%s.hdr", acFileNameOnly);
                     pl_sb_add(ptAppData->sbtSceneEnvironments);
                     strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acName, acFileNameOnly, PL_MAX_PATH_LENGTH);
                     strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acPath, acFullPath, PL_MAX_PATH_LENGTH);
@@ -1532,7 +1550,7 @@ pl__refresh_files(plAppData* ptAppData)
     // user
     {
         plDirectoryInfo tDirectoryInfo = {0};
-        gptFile->get_directory_info("../assets/user/scenes/", &tDirectoryInfo);
+        gptFile->get_directory_info("../resources/user/scenes/", &tDirectoryInfo);
         pl_sb_reserve(ptAppData->sbtSceneFilesUser, tDirectoryInfo.uFileCount);
         for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
         {
@@ -1546,8 +1564,8 @@ pl__refresh_files(plAppData* ptAppData)
                     pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
                     char acCurrentScene[PL_MAX_PATH_LENGTH] = {0};
                     char acFullPath[PL_MAX_PATH_LENGTH] = {0};
-                    pl_sprintf(acCurrentScene, "../assets/user/scenes/%s.json", acFileNameOnly);
-                    pl_sprintf(acFullPath, "../assets/user/scenes/%s.json", acFileNameOnly);
+                    pl_sprintf(acCurrentScene, "../resources/user/scenes/%s.json", acFileNameOnly);
+                    pl_sprintf(acFullPath, "../resources/user/scenes/%s.json", acFileNameOnly);
                     if(pl__verify_scene(ptAppData, acCurrentScene))
                     {
                         pl_sb_add(ptAppData->sbtSceneFilesUser);
@@ -1561,7 +1579,7 @@ pl__refresh_files(plAppData* ptAppData)
     }
     {
         plDirectoryInfo tDirectoryInfo = {0};
-        gptFile->get_directory_info("../assets/user/environments/", &tDirectoryInfo);
+        gptFile->get_directory_info("../resources/user/environments/", &tDirectoryInfo);
         for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
         {
             if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
@@ -1573,7 +1591,7 @@ pl__refresh_files(plAppData* ptAppData)
                 {
                     pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
                     char acFullPath[PL_MAX_PATH_LENGTH] = {0};
-                    pl_sprintf(acFullPath, "../assets/user/environments/%s.hdr", acFileNameOnly);
+                    pl_sprintf(acFullPath, "../resources/user/environments/%s.hdr", acFileNameOnly);
                     pl_sb_add(ptAppData->sbtSceneEnvironments);
                     strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acName, &acFileNameOnly[6], PL_MAX_PATH_LENGTH);
                     strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acPath, acFullPath, PL_MAX_PATH_LENGTH);

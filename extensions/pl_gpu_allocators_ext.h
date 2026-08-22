@@ -116,13 +116,13 @@ typedef struct _plGPUAllocatorsI
 
 typedef struct _plDeviceAllocationRange
 {
-    char     acName[PL_MAX_NAME_LENGTH];
-    uint64_t ulOffset;
-    uint64_t ulUsedSize;
-    uint64_t ulTotalSize;
-    uint64_t ulBlockIndex;
-    uint32_t uNodeIndex;
-    uint32_t uNextNode;
+    const char* pcName;
+    uint64_t    ulOffset;
+    uint64_t    ulUsedSize;
+    uint64_t    ulTotalSize;
+    uint64_t    ulBlockIndex;
+    uint32_t    uNodeIndex;
+    uint32_t    uNextNode;
 } plDeviceAllocationRange;
 
 #ifdef __cplusplus

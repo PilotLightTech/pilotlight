@@ -43,7 +43,7 @@ extension_headers = [
     "pl_image_ext.h",
     "pl_job_ext.h",
     "pl_log_ext.h",
-    "pl_model_loader_ext.h",
+    "pl_gltf_ext.h",
     "pl_profile_ext.h",
     "pl_rect_pack_ext.h",
     "pl_renderer_ext.h",

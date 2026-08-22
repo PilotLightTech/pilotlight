@@ -157,7 +157,7 @@ getBaseColor(vec4 u_ColorFactor, int iUVSet)
     //     baseColor = u_DiffuseFactor;
     // }
     // else if(bool(MATERIAL_METALLICROUGHNESS))
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
+    // if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
     {
         // baseColor = u_BaseColorFactor;
         baseColor = u_ColorFactor;
@@ -169,7 +169,8 @@ getBaseColor(vec4 u_ColorFactor, int iUVSet)
     //     baseColor *= texture(u_DiffuseSampler, tShaderIn.tUV);
     // }
     // else if(bool(MATERIAL_METALLICROUGHNESS) && bool(HAS_BASE_COLOR_MAP))
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
+    // if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
+    if(bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
         baseColor *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_BASE_COLOR])], tSamplerLinearRepeat), UV));
     }

@@ -519,6 +519,7 @@ PL_API void pl_graphics_insert_debug_label(plCommandBuffer*, const char*, plVec4
 PL_API size_t       pl_graphics_get_data_type_size (plDataType);
 PL_API plBlendState pl_graphics_get_blend_state    (plBlendMode);
 PL_API uint32_t     pl_graphics_calculate_mip_count(uint32_t width, uint32_t height);
+PL_API const char*  pl_graphics_get_format_as_string(plFormat);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -714,6 +715,7 @@ typedef struct _plGraphicsI
     size_t       (*get_data_type_size)(plDataType);
     plBlendState (*get_blend_state)   (plBlendMode);
     uint32_t     (*calculate_mip_count)(uint32_t width, uint32_t height);
+    const char*  (*get_format_as_string)(plFormat);
 
 } plGraphicsI;
 

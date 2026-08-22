@@ -27,6 +27,7 @@ Index of this file:
 #include "pl_script_ext.h"
 #include "pl_profile_ext.h"
 #include "pl_log_ext.h"
+#include "pl_string_intern_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -42,8 +43,9 @@ Index of this file:
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
-    static const plProfileI* gptProfile = NULL;
-    static const plLogI*     gptLog     = NULL;
+    static const plProfileI*      gptProfile = NULL;
+    static const plLogI*          gptLog     = NULL;
+    static const plStringInternI* gptString  = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -79,8 +81,6 @@ typedef struct _plEcsContext
     plComponentDesc*    sbtComponentDescriptions;
     plEcsTypeKey        tTagComponentType;
     plEcsTypeKey        tLayerComponentType;
-    plEcsTypeKey        tTransformComponentType;
-    plEcsTypeKey        tHierarchyComponentType;
     plComponentLibrary* ptDefaultLibrary;
 } plEcsContext;
 
@@ -136,26 +136,6 @@ pl_ecs_initialize(plEcsInit tInit)
         .pcName = "Layer",
         .szSize = sizeof(plLayerComponent)
     }, &tLayerComponentDefault);
-
-    const plComponentDesc tTransformDesc = {
-        .pcName = "Transform",
-        .szSize = sizeof(plTransformComponent)
-    };
-
-    static plTransformComponent tTransformComponentDefault = {
-        
-        .tScale    = {1.0f, 1.0f, 1.0f},
-        .tRotation = {0.0f, 0.0f, 0.0f, 1.0f},
-        .eFlags    = PL_TRANSFORM_FLAGS_DIRTY
-    };
-    tTransformComponentDefault.tWorld = pl_identity_mat4();
-    gptEcsCtx->tTransformComponentType = pl_ecs_register_type(tTransformDesc, &tTransformComponentDefault);
-
-    const plComponentDesc tHierarchyDesc = {
-        .pcName = "Hierarchy",
-        .szSize = sizeof(plHierarchyComponent)
-    };
-    gptEcsCtx->tHierarchyComponentType = pl_ecs_register_type(tHierarchyDesc, NULL);
 }
 
 plEcsTypeKey
@@ -168,18 +148,6 @@ plEcsTypeKey
 pl_ecs_get_ecs_type_key_layer(void)
 {
     return gptEcsCtx->tLayerComponentType;
-}
-
-plEcsTypeKey
-pl_ecs_get_ecs_type_key_transform(void)
-{
-    return gptEcsCtx->tTransformComponentType;
-}
-
-plEcsTypeKey
-pl_ecs_get_ecs_type_key_hierarchy(void)
-{
-    return gptEcsCtx->tHierarchyComponentType;
 }
 
 plComponentLibrary*
@@ -398,7 +366,8 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
     plTagComponent* ptTag = pl_ecs_get_component(ptLibrary, gptEcsCtx->tTagComponentType, tEntity);
     if(ptTag)
     {
-        pl_hm_remove_str(&ptLibrary->_atHashmaps[uComponentTypeCount], ptTag->acName);
+        pl_hm_remove_str(&ptLibrary->_atHashmaps[uComponentTypeCount], ptTag->pcName);
+        gptString->remove(NULL, ptTag->pcName);
     }
 
     ptLibrary->_sbtEntityGenerations[tEntity.uIndex]++;
@@ -534,142 +503,16 @@ pl_ecs_create_entity(plComponentLibrary* ptLibrary, const char* pcName)
 
     plTagComponent* ptTag = pl_ecs_add_component(ptLibrary, gptEcsCtx->tTagComponentType, tNewEntity);
     if(pcName)
-        strncpy(ptTag->acName, pcName, 128);
+        ptTag->pcName = gptString->intern(NULL, pcName);
     else
-        strncpy(ptTag->acName, "unnamed", 128);
+        ptTag->pcName = gptString->intern(NULL, "unnamed");
 
     if(pcName)
         pl_hm_insert_str(&ptLibrary->_atHashmaps[uComponentTypeCount], pcName, tNewEntity.uIndex);
 
+    PL_LOG_DEBUG_API_F(gptLog, gptEcsCtx->uLogChannel, "created entity: %s", pcName);
+
     return tNewEntity;
-}
-
-plMat4
-pl_ecs_compute_parent_transform(plComponentLibrary* ptLibrary, plEntity tChildEntity)
-{
-    plMat4 tResult = pl_identity_mat4();
-
-    plHierarchyComponent* ptHierarchyComponent = pl_ecs_get_component(ptLibrary, gptEcsCtx->tHierarchyComponentType, tChildEntity);
-    if(ptHierarchyComponent)
-    {
-        plEntity tParentEntity = ptHierarchyComponent->tParent;
-        while(tParentEntity.uIndex != 0)
-        {
-            plTransformComponent* ptParentTransform = pl_ecs_get_component(ptLibrary, gptEcsCtx->tTransformComponentType, tParentEntity);
-            if(ptParentTransform)
-            {
-                plMat4 tParentTransform = pl_rotation_translation_scale(ptParentTransform->tRotation, ptParentTransform->tTranslation, ptParentTransform->tScale);
-                tResult = pl_mul_mat4(&tParentTransform, &tResult);
-            }
-
-            ptHierarchyComponent = pl_ecs_get_component(ptLibrary, gptEcsCtx->tHierarchyComponentType, tParentEntity);
-            if(ptHierarchyComponent)
-            {
-                tParentEntity = ptHierarchyComponent->tParent;
-            }
-            else
-            {
-                break;
-            }
-        }
-    }
-
-    return tResult;
-}
-
-plEntity
-pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName, plTransformComponent** pptCompOut)
-{
-    pcName = pcName ? pcName : "unnamed transform";
-    PL_LOG_DEBUG_API_F(gptLog, gptEcsCtx->uLogChannel, "created transform: '%s'", pcName);
-    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary, pcName);
-
-    plTransformComponent* ptTransform = pl_ecs_add_component(ptLibrary, gptEcsCtx->tTransformComponentType, tNewEntity);
-
-    if(pptCompOut)
-        *pptCompOut = ptTransform;
-
-    return tNewEntity;  
-}
-
-void
-pl_ecs_attach_component(plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent)
-{
-    plHierarchyComponent* ptHierarchyComponent = NULL;
-
-    // check if entity already has a hierarchy component
-    if(pl_ecs_has_component(ptLibrary, gptEcsCtx->tHierarchyComponentType, tEntity))
-    {
-        ptHierarchyComponent = pl_ecs_get_component(ptLibrary, gptEcsCtx->tHierarchyComponentType, tEntity);
-    }
-    else
-    {
-        ptHierarchyComponent = pl_ecs_add_component(ptLibrary, gptEcsCtx->tHierarchyComponentType, tEntity);
-    }
-    ptHierarchyComponent->tParent = tParent;
-}
-
-void
-pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity)
-{
-    plHierarchyComponent* ptHierarchyComponent = NULL;
-
-    // check if entity already has a hierarchy component
-    if(pl_ecs_has_component(ptLibrary, gptEcsCtx->tHierarchyComponentType, tEntity))
-    {
-        ptHierarchyComponent = pl_ecs_get_component(ptLibrary, gptEcsCtx->tHierarchyComponentType, tEntity);
-    }
-    else
-    {
-        ptHierarchyComponent = pl_ecs_add_component(ptLibrary, gptEcsCtx->tHierarchyComponentType, tEntity);
-    }
-    ptHierarchyComponent->tParent.uIndex = UINT32_MAX;
-}
-
-void
-pl_ecs_run_transform_update_system(plComponentLibrary* ptLibrary)
-{
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
-
-    plTransformComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = pl_ecs_get_components(ptLibrary, gptEcsCtx->tTransformComponentType, (void**)&ptComponents, NULL);
-
-    for(uint32_t i = 0; i < uComponentCount; i++)
-    {
-        plTransformComponent* ptTransform = &ptComponents[i];
-        if(ptTransform->eFlags & PL_TRANSFORM_FLAGS_DIRTY)
-        {
-            ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
-            ptTransform->eFlags &= ~PL_TRANSFORM_FLAGS_DIRTY;
-        }
-    }
-
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-}
-
-void
-pl_ecs_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
-{
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
-
-    plHierarchyComponent* ptComponents = NULL;
-    const plEntity* ptEntities = NULL;
-    const uint32_t uComponentCount = pl_ecs_get_components(ptLibrary, gptEcsCtx->tHierarchyComponentType, (void**)&ptComponents, &ptEntities);
-
-    for(uint32_t i = 0; i < uComponentCount; i++)
-    {
-        const plEntity tChildEntity = ptEntities[i];
-        plHierarchyComponent* ptHierarchyComponent = pl_ecs_get_component(ptLibrary, gptEcsCtx->tHierarchyComponentType, tChildEntity);
-        plTransformComponent* ptParentTransform = pl_ecs_get_component(ptLibrary, gptEcsCtx->tTransformComponentType, ptHierarchyComponent->tParent);
-        plTransformComponent* ptChildTransform = pl_ecs_get_component(ptLibrary, gptEcsCtx->tTransformComponentType, tChildEntity);
-        if(ptParentTransform && ptChildTransform)
-        {
-            ptChildTransform->tWorld = pl_mul_mat4(&ptParentTransform->tWorld, &ptChildTransform->tWorld);
-            ptChildTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
-        }
-    }
-
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 uint64_t
@@ -708,21 +551,14 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_library_type_data       = pl_ecs_get_library_type_data,
         .create_entity               = pl_ecs_create_entity,
         .get_ecs_type_key_tag        = pl_ecs_get_ecs_type_key_tag,
-        .get_ecs_type_key_layer      = pl_ecs_get_ecs_type_key_layer,
-        .create_transform            = pl_ecs_create_transform,
-        .attach_component            = pl_ecs_attach_component,
-        .deattach_component          = pl_ecs_deattach_component,
-        .compute_parent_transform    = pl_ecs_compute_parent_transform,
-        .run_transform_update_system = pl_ecs_run_transform_update_system,
-        .run_hierarchy_update_system = pl_ecs_run_hierarchy_update_system,
-        .get_ecs_type_key_transform  = pl_ecs_get_ecs_type_key_transform,
-        .get_ecs_type_key_hierarchy  = pl_ecs_get_ecs_type_key_hierarchy
+        .get_ecs_type_key_layer      = pl_ecs_get_ecs_type_key_layer
     };
     pl_set_api(ptApiRegistry, plEcsI, &tApi);
 
     gptMemory  = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptLog     = pl_get_api_latest(ptApiRegistry, plLogI);
+    gptString  = pl_get_api_latest(ptApiRegistry, plStringInternI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 

@@ -29,7 +29,7 @@ def download_zip(url, filename, description):
     print("Download finished")
     print("Extracting")
     zip = ZipFile(filename, 'r')
-    zip.extractall("../assets/")
+    zip.extractall("../resources/")
     zip.close()
     os.remove(filename)
 
@@ -48,9 +48,9 @@ if len(sys.argv) > 1:
             target_directory = sys.argv[i]
 
 if development_assets:
-    download_zip('https://github.com/PilotLightTech/pilotlight-assets/archive/refs/heads/master.zip', '../assets/pilotlight-assets.zip', "test assets")
-    os.rename('../assets/pilotlight-assets-master', '../assets/development')
+    download_zip('https://github.com/PilotLightTech/pilotlight-assets/archive/refs/heads/master.zip', '../resources/pilotlight-assets.zip', "test assets")
+    os.rename('../resources/pilotlight-assets-master', '../resources/development')
 
 if gltf_assets:
-    download_zip('https://github.com/KhronosGroup/glTF-Sample-Assets/archive/refs/heads/main.zip', '../assets/gltf-sample-assets.zip', "sample gltf assets")
-    os.rename('../assets/glTF-Sample-Assets-main', '../assets/gltf-samples')
+    download_zip('https://github.com/KhronosGroup/glTF-Sample-Assets/archive/refs/heads/main.zip', '../resources/gltf-sample-assets.zip', "sample gltf assets")
+    os.rename('../resources/glTF-Sample-Assets-main', '../resources/gltf-samples')

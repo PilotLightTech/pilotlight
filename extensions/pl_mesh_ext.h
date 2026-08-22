@@ -52,6 +52,8 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 #include "pl.inc"
+#include "pl_resource_ext.inl" // plResourceHandle
+#include "pl_asset_ext.inl" // plAssetHandle
 #include "pl_ecs_ext.inl" // plEntity
 #include "pl_math.h"     // plVec3, plMat4
 
@@ -64,7 +66,9 @@ typedef struct _plMeshBuilder        plMeshBuilder; // opaque
 typedef struct _plMeshBuilderOptions plMeshBuilderOptions;
 
 // ecs components
-typedef struct _plMeshComponent plMeshComponent;
+typedef struct _plMesh plMesh;
+typedef struct _plSubmeshAllocationDesc plSubmeshAllocationDesc;
+typedef struct _plSubmesh plSubmesh;
 
 // enums & flags
 typedef int plMeshBuilderFlags;
@@ -80,24 +84,22 @@ typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 PL_API void pl_load_mesh_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_mesh_ext(plApiRegistryI*, bool reload);
 
+// new
+PL_API void pl_mesh_serialize(const char* name, const plMesh*);
+PL_API void pl_mesh_deserialize(const char* name, plMesh*);
+
 // operations
-PL_API void pl_mesh_allocate_vertex_data(plMeshComponent*, size_t vertexCount, uint64_t vertexStreamMask, size_t indexCount);
-PL_API void pl_mesh_calculate_normals   (plMeshComponent*, uint32_t meshCount);
-PL_API void pl_mesh_calculate_tangents  (plMeshComponent*, uint32_t meshCount);
+PL_API void pl_mesh_allocate            (plMesh*, const plSubmeshAllocationDesc*, uint32_t count);
+PL_API void pl_mesh_calculate_normals   (plMesh*, uint32_t meshCount);
+PL_API void pl_mesh_calculate_tangents  (plMesh*, uint32_t meshCount);
 
 //----------------------------ECS INTEGRATION----------------------------------
 
 // entity helpers
-PL_API plEntity pl_mesh_create         (plComponentLibrary*, const char* name, plMeshComponent**);
-PL_API plEntity pl_mesh_create_sphere  (plComponentLibrary*, const char* name, float radius, uint32_t latitudeBands, uint32_t longitudeBands, plMeshComponent**);
-PL_API plEntity pl_mesh_create_cube    (plComponentLibrary*, const char* name, plMeshComponent**);
-PL_API plEntity pl_mesh_create_plane   (plComponentLibrary*, const char* name, plMeshComponent**);
-
-// system setup/shutdown/etc
-PL_API void pl_mesh_register_ecs_system(void);
-
-// ecs types
-PL_API plEcsTypeKey pl_mesh_get_ecs_type_key_mesh(void);
+PL_API void pl_mesh_create         (const char* name, plMesh*);
+PL_API void pl_mesh_create_sphere  (const char* name, float radius, uint32_t latitudeBands, uint32_t longitudeBands, plMesh*);
+PL_API void pl_mesh_create_cube    (const char* name, plMesh*);
+PL_API void pl_mesh_create_plane   (const char* name, plMesh*);
 
 //------------------------------mesh builder-----------------------------------
 
@@ -120,24 +122,22 @@ PL_API void pl_mesh_builder_commit_double(plMeshBuilder*, uint32_t* indexBuffer,
 
 typedef struct _plMeshI
 {
+
+    void (*serialize)(const char* name, const plMesh*);
+    void (*deserialize)(const char* name, plMesh*);
+
     // operations
-    void (*allocate_vertex_data)(plMeshComponent*, size_t vertexCount, uint64_t vertexStreamMask, size_t indexCount);
-    void (*calculate_normals)   (plMeshComponent*, uint32_t meshCount);
-    void (*calculate_tangents)  (plMeshComponent*, uint32_t meshCount);
+    void (*allocate)            (plMesh*, const plSubmeshAllocationDesc*, uint32_t count);
+    void (*calculate_normals)   (plMesh*, uint32_t meshCount);
+    void (*calculate_tangents)  (plMesh*, uint32_t meshCount);
 
     //----------------------------ECS INTEGRATION----------------------------------
 
     // entity helpers
-    plEntity (*create)         (plComponentLibrary*, const char* name, plMeshComponent**);
-    plEntity (*create_sphere)  (plComponentLibrary*, const char* name, float radius, uint32_t latitudeBands, uint32_t longitudeBands, plMeshComponent**);
-    plEntity (*create_cube)    (plComponentLibrary*, const char* name, plMeshComponent**);
-    plEntity (*create_plane)   (plComponentLibrary*, const char* name, plMeshComponent**);
+    void (*create_sphere) (const char* name, float radius, uint32_t latitudeBands, uint32_t longitudeBands, plMesh*);
+    void (*create_cube)   (const char* name, plMesh*);
+    void (*create_plane)  (const char* name, plMesh*);
 
-    // system setup/shutdown/etc
-    void (*register_ecs_system)(void);
-
-    // ecs types
-    plEcsTypeKey (*get_ecs_type_key_mesh)(void);
 } plMeshI;
 
 typedef struct _plMeshBuilderI
@@ -166,24 +166,38 @@ typedef struct _plMeshBuilderOptions
     float              fWeldRadius;
 } plMeshBuilderOptions;
 
-typedef struct _plMeshComponent
+typedef struct _plSubmeshAllocationDesc
 {
-    uint64_t  ulVertexStreamMask;
-    size_t    szVertexCount;
-    size_t    szIndexCount;
-    uint8_t*  puRawData;
-    plEntity  tMaterial;
-    plEntity  tSkinComponent;
-    plVec3*   ptVertexPositions;
-    plVec3*   ptVertexNormals;
-    plVec4*   ptVertexTangents;
-    plVec4*   ptVertexColors[2];
-    plVec4*   ptVertexWeights[2];
-    plVec4*   ptVertexJoints[2];
-    plVec2*   ptVertexTextureCoordinates[2];
-    uint32_t* puIndices;
-    plAABB    tAABB;
-} plMeshComponent;
+    uint64_t uVertexStreamMask;
+    size_t   szVertexCount;
+    size_t   szIndexCount;
+} plSubmeshAllocationDesc;
+
+typedef struct _plSubmesh
+{
+    uint64_t      uVertexStreamMask;
+    size_t        szVertexCount;
+    size_t        szIndexCount;
+    plVec3*       ptVertexPositions;
+    plVec3*       ptVertexNormals;
+    plVec4*       ptVertexTangents;
+    plVec4*       ptVertexColors[2];
+    plVec4*       ptVertexWeights[2];
+    plVec4*       ptVertexJoints[2];
+    plVec2*       ptVertexTextureCoordinates[2];
+    uint32_t*     puIndices;
+    plAssetHandle tMaterial;
+    plAABB        tAABB;
+} plSubmesh;
+
+typedef struct _plMesh
+{
+    uint8_t*   puRawData;
+    size_t     szRawDataSize;
+    plAABB     tAABB;
+    uint32_t   uSubmeshCount;
+    plSubmesh* atSubmeshes;
+} plMesh;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums

@@ -56,6 +56,7 @@ Index of this file:
 #include "pl_pak_ext.h"
 #include "pl_datetime_ext.h"
 #include "pl_ecs_ext.h"
+#include "pl_transform_ext.h"
 
 // unstable extensions
 #include "pl_mesh_ext.h"
@@ -63,7 +64,7 @@ Index of this file:
 #include "pl_camera_ext.h"
 #include "pl_config_ext.h"
 #include "pl_resource_ext.h"
-#include "pl_model_loader_ext.h"
+#include "pl_gltf_ext.h"
 #include "pl_renderer_ext.h"
 #include "pl_ecs_tools_ext.h"
 #include "pl_gizmo_ext.h"
@@ -73,6 +74,8 @@ Index of this file:
 #include "pl_shader_variant_ext.h"
 #include "pl_material_ext.h"
 #include "pl_script_ext.h"
+#include "pl_asset_ext.h"
+#include "pl_ik_ext.h"
 
 // shaders
 #include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
@@ -94,7 +97,7 @@ const plEcsI*               gptEcs              = nullptr;
 const plCameraI*            gptCamera           = nullptr;
 const plCameraEcsI*         gptCameraEcs        = nullptr;
 const plRendererI*          gptRenderer         = nullptr;
-const plModelLoaderI*       gptModelLoader      = nullptr;
+const plGltfI*       gptGltf      = nullptr;
 const plJobI*               gptJobs             = nullptr;
 const plDrawI*              gptDraw             = nullptr;
 const plUiI*                gptUI               = nullptr;
@@ -129,6 +132,9 @@ const plRendererTerrainI*   gptRendererTerrain  = nullptr;
 const plRendererEcsI*       gptRendererEcs      = nullptr;
 const plRendererDebugI*     gptRendererDebug    = nullptr;
 const plRendererEditorI*    gptRendererEditor   = nullptr;
+const plAssetI*             gptAsset            = nullptr;
+const plTransformI*         gptTransform        = nullptr;
+const plIkI*                gptIk               = nullptr;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(nullptr, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -208,7 +214,7 @@ typedef struct _plAppData
 
     // scenes/views
     plComponentLibrary* ptCompLibrary;
-    // plScene* ptScene;
+    // plRendererScene* ptScene;
     // plView*  ptView;
     // plView*  ptSecondaryView;
     plVec2 tView0Offset;
@@ -254,7 +260,7 @@ typedef struct _plAppData
 
 void pl__show_editor_window(plAppData*);
 void pl__show_ui_demo_window(plAppData* ptAppData);
-void pl__show_entity_components(plAppData*, plScene*, plEntity);
+void pl__show_entity_components(plAppData*, plRendererScene*, plEntity);
 
 void pl__load_apis(plApiRegistryI*);
 void pl__refresh_files(plAppData*);

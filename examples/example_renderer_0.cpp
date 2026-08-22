@@ -65,7 +65,7 @@ Index of this file:
 // unstable extensions used by the current renderer stack
 #include "pl_mesh_ext.h"
 #include "pl_animation_ext.h"
-#include "pl_model_loader_ext.h"
+#include "pl_gltf_ext.h"
 #include "pl_renderer_ext.h"
 #include "pl_physics_ext.h"
 #include "pl_shader_variant_ext.h"
@@ -83,7 +83,7 @@ typedef struct _plAppData
 
     // The renderer scene references ECS-backed objects stored in this library.
     plComponentLibrary* ptComponentLibrary;
-    plScene* ptScene;
+    plRendererScene* ptScene;
     plView* ptView;
 
     // Keep entity handles instead of raw component pointers so they remain valid
@@ -107,7 +107,7 @@ const plCameraI*        gptCamera        = nullptr;
 const plCameraEcsI*     gptCameraEcs     = nullptr;
 const plRendererI*      gptRenderer      = nullptr;
 const plRendererEcsI*   gptRendererEcs   = nullptr;
-const plModelLoaderI*   gptModelLoader   = nullptr;
+const plGltfI*   gptGltf   = nullptr;
 const plJobI*           gptJobs          = nullptr;
 const plDrawI*          gptDraw          = nullptr;
 const plIOI*            gptIO            = nullptr;
@@ -270,30 +270,30 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         plMat4 tHelmetTransform = pl_mat4_translate_xyz(0.0f, 2.0f, 0.0f);
         // The model loader creates/populates ECS objects. The renderer scene still
         // needs to be told which of those objects should participate in rendering.
-        plModelInstanceHandle tHandle = gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/assets/core/models/gltf/DamagedHelmet.glb", &tHelmetTransform);
+        plModelInstanceHandle tHandle = gptGltf->load_gltf(ptAppData->ptComponentLibrary, "/assets/core/models/gltf/DamagedHelmet.glb", &tHelmetTransform);
 
-        const plModelLoaderData* ptLoaderData = gptModelLoader->get_objects(tHandle);
+        const plModelLoaderData* ptLoaderData = gptGltf->get_objects(tHandle);
         gptRendererEcs->add_drawable_objects_to_scene(ptAppData->ptScene, ptLoaderData->uObjectCount, ptLoaderData->atObjects);
 
-        gptModelLoader->get_node_by_path(tHandle, "/load transform/node_damagedHelmet_-6514", &ptAppData->tHelmet);
+        gptGltf->get_node_by_path(tHandle, "/load transform/node_damagedHelmet_-6514", &ptAppData->tHelmet);
 
         // The ECS objects are now owned by the component library/scene relationship;
         // the model loader's temporary result data is no longer needed.
-        gptModelLoader->free_data(tHandle);
+        gptGltf->free_data(tHandle);
     }
 
     // floor model
     {
         // The model loader creates/populates ECS objects. The renderer scene still
         // needs to be told which of those objects should participate in rendering.
-        plModelInstanceHandle tHandle = gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/assets/core/models/gltf/floor.gltf", nullptr);
+        plModelInstanceHandle tHandle = gptGltf->load_gltf(ptAppData->ptComponentLibrary, "/assets/core/models/gltf/floor.gltf", nullptr);
 
-        const plModelLoaderData* ptLoaderData = gptModelLoader->get_objects(tHandle);
+        const plModelLoaderData* ptLoaderData = gptGltf->get_objects(tHandle);
         gptRendererEcs->add_drawable_objects_to_scene(ptAppData->ptScene, ptLoaderData->uObjectCount, ptLoaderData->atObjects);
 
         // The ECS objects are now owned by the component library/scene relationship;
         // the model loader's temporary result data is no longer needed.
-        gptModelLoader->free_data(tHandle);
+        gptGltf->free_data(tHandle);
     }
 
     // Environment probes are also ECS objects. This one captures the sky and is
@@ -480,7 +480,7 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptCameraEcs     = pl_get_api_latest(ptApiRegistry, plCameraEcsI);
     gptRenderer      = pl_get_api_latest(ptApiRegistry, plRendererI);
     gptRendererEcs   = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
-    gptModelLoader   = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
+    gptGltf   = pl_get_api_latest(ptApiRegistry, plGltfI);
     gptJobs          = pl_get_api_latest(ptApiRegistry, plJobI);
     gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptIO            = pl_get_api_latest(ptApiRegistry, plIOI);

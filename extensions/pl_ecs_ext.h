@@ -7,12 +7,12 @@ Index of this file:
 // [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] apis
+// [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] components
 // [SECTION] structs
-// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------
@@ -44,7 +44,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plEcsI_version {2, 0, 0}
+#define plEcsI_version {3, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -64,13 +64,8 @@ typedef struct _plComponentDesc    plComponentDesc;    // describes a component
 typedef struct _plComponentLibrary plComponentLibrary; // opaque
 
 // ecs components
-typedef struct _plTagComponent       plTagComponent;
-typedef struct _plLayerComponent     plLayerComponent;
-typedef struct _plTransformComponent plTransformComponent;
-typedef struct _plHierarchyComponent plHierarchyComponent;
-
-// flags
-typedef int plTransformFlags;
+typedef struct _plTagComponent   plTagComponent;
+typedef struct _plLayerComponent plLayerComponent;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -114,23 +109,8 @@ PL_API uint32_t pl_ecs_get_components(plComponentLibrary*, plEcsTypeKey, void**,
 //----------------------------CORE COMPONENTS----------------------------------
 
 // component types (can store)
-PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_tag      (void);
-PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_layer    (void);
-PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_transform(void);
-PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_hierarchy(void);
-
-// transforms
-//   - do NOT store out parameter; use it immediately
-PL_API plEntity pl_ecs_create_transform(plComponentLibrary*, const char* name, plTransformComponent**);
-
-// hierarchy
-PL_API void   pl_ecs_attach_component        (plComponentLibrary*, plEntity, plEntity tParent);
-PL_API void   pl_ecs_deattach_component      (plComponentLibrary*, plEntity);
-PL_API plMat4 pl_ecs_compute_parent_transform(plComponentLibrary*, plEntity);
-
-// systems
-PL_API void pl_ecs_run_transform_update_system(plComponentLibrary*);
-PL_API void pl_ecs_run_hierarchy_update_system(plComponentLibrary*);
+PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_tag  (void);
+PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_layer(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -175,21 +155,6 @@ typedef struct _plEcsI
     // component types (can store)
     plEcsTypeKey (*get_ecs_type_key_tag)      (void);
     plEcsTypeKey (*get_ecs_type_key_layer)    (void);
-    plEcsTypeKey (*get_ecs_type_key_transform)(void);
-    plEcsTypeKey (*get_ecs_type_key_hierarchy)(void);
-
-    // transforms
-    //   - do NOT store out parameter; use it immediately
-    plEntity (*create_transform)(plComponentLibrary*, const char* name, plTransformComponent**);
-
-    // hierarchy
-    void   (*attach_component)        (plComponentLibrary*, plEntity, plEntity tParent);
-    void   (*deattach_component)      (plComponentLibrary*, plEntity);
-    plMat4 (*compute_parent_transform)(plComponentLibrary*, plEntity);
-
-    // systems
-    void (*run_transform_update_system)(plComponentLibrary*);
-    void (*run_hierarchy_update_system)(plComponentLibrary*);
 
 } plEcsI;
 
@@ -199,7 +164,7 @@ typedef struct _plEcsI
 
 typedef struct _plTagComponent
 {
-    char acName[128];
+    const char* pcName;
 } plTagComponent;
 
 typedef struct _plLayerComponent
@@ -209,20 +174,6 @@ typedef struct _plLayerComponent
     // [INTERNAL]
     uint32_t _uPropagationMask;
 } plLayerComponent;
-
-typedef struct _plHierarchyComponent
-{
-    plEntity tParent;
-} plHierarchyComponent;
-
-typedef struct _plTransformComponent
-{
-    plVec3           tScale;
-    plVec4           tRotation;
-    plVec3           tTranslation;
-    plMat4           tWorld;
-    plTransformFlags eFlags;
-} plTransformComponent;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -247,16 +198,6 @@ typedef struct _plComponentDesc
     // [INTERNAL]
     const void*  _pTemplate;
 } plComponentDesc;
-
-//-----------------------------------------------------------------------------
-// [SECTION] enums
-//-----------------------------------------------------------------------------
-
-enum _plTransformFlags
-{
-    PL_TRANSFORM_FLAGS_NONE  = 0,
-    PL_TRANSFORM_FLAGS_DIRTY = 1 << 0,
-};
 
 #ifdef __cplusplus
 }

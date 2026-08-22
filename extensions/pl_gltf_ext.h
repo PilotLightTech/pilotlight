@@ -35,8 +35,8 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_MODEL_LOADER_EXT_H
-#define PL_MODEL_LOADER_EXT_H
+#ifndef PL_GLTF_EXT_H
+#define PL_GLTF_EXT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,20 +50,26 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include "pl_math.h"
+#include "pl_asset_ext.inl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plModelLoaderI_version {0, 3, 0}
+#define plGltfI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
 // basic types
+typedef struct _plGltfImportOptions plGltfImportOptions;
+typedef struct _plGltfImportResult  plGltfImportResult;
 typedef struct _plModelLoaderData plModelLoaderData;
 typedef union _plModelInstanceHandle plModelInstanceHandle;
+
+// enums/flags
+typedef int plGltfImportFlags;
 
 // external 
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
@@ -89,40 +95,70 @@ typedef union _plModelInstanceHandle
 //-----------------------------------------------------------------------------
 
 // extension loading
-PL_API void pl_load_model_loader_ext  (plApiRegistryI*, bool reload);
-PL_API void pl_unload_model_loader_ext(plApiRegistryI*, bool reload);
+PL_API void pl_load_gltf_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_gltf_ext(plApiRegistryI*, bool reload);
 
-PL_API    plModelInstanceHandle pl_model_loader_load_stl   (plComponentLibrary*, const char* pcPath, plVec4 tColor, const plMat4* ptTransform);
-PL_API    plModelInstanceHandle pl_model_loader_load_gltf  (plComponentLibrary*, const char* pcPath, const plMat4* ptTransform);
-PL_API const plModelLoaderData* pl_model_loader_get_objects(plModelInstanceHandle);
-PL_API void                     pl_model_loader_free_data  (plModelInstanceHandle);
+// import
+PL_API bool pl_gltf_import(const char* path, const plGltfImportOptions*, plGltfImportResult*);
+
+PL_API    plModelInstanceHandle pl_gltf_load       (plComponentLibrary*, const char* pcPath, const plMat4* ptTransform);
+PL_API const plModelLoaderData* pl_gltf_get_objects(plModelInstanceHandle);
+PL_API void                     pl_gltf_free_data  (plModelInstanceHandle);
 
 // just use with GLTF models for now
-PL_API bool pl_model_loader_get_node_by_path     (plModelInstanceHandle, const char* path, plEntity* entityOut);
-PL_API bool pl_model_loader_get_animation_by_name(plModelInstanceHandle, const char* name, plEntity* entityOut);
-PL_API bool pl_model_loader_get_material_by_name (plModelInstanceHandle, const char* name, plEntity* entityOut);
+PL_API bool pl_gltf_get_animation_by_name(plModelInstanceHandle, const char* name, plEntity* entityOut);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
-typedef struct _plModelLoaderI
+typedef struct _plGltfI
 {
-    plModelInstanceHandle    (*load_stl)   (plComponentLibrary*, const char* pcPath, plVec4 tColor, const plMat4* ptTransform);
-    plModelInstanceHandle    (*load_gltf)  (plComponentLibrary*, const char* pcPath, const plMat4* ptTransform);
+    bool (*import)(const char* path, const plGltfImportOptions*, plGltfImportResult*);
+
+    plModelInstanceHandle    (*load)       (plComponentLibrary*, const char* pcPath, const plMat4* ptTransform);
     const plModelLoaderData* (*get_objects)(plModelInstanceHandle);
     void                     (*free_data)  (plModelInstanceHandle);
 
     // just use with GLTF models for now
-    bool (*get_material_by_name) (plModelInstanceHandle, const char* name, plEntity* entityOut);
     bool (*get_animation_by_name)(plModelInstanceHandle, const char* name, plEntity* entityOut);
-    bool (*get_node_by_path)     (plModelInstanceHandle, const char* path, plEntity* entityOut);
 
-} plModelLoaderI;
+} plGltfI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs #1
 //-----------------------------------------------------------------------------
+
+typedef struct _plGltfImportOptions
+{
+    plGltfImportFlags eFlags;
+} plGltfImportOptions;
+
+typedef struct _plGltfImportResult
+{
+    plAssetHandle* atTextures;
+    uint32_t       uTextureCount;
+
+    plAssetHandle* atMaterials;
+    uint32_t       uMaterialCount;
+
+    plAssetHandle* atMeshes;
+    uint32_t       uMeshCount;
+    
+    plAssetHandle* atAnimations;
+    uint32_t       uAnimationCount;
+
+    plAssetHandle* atSkeletons;
+    uint32_t       uSkeletonCount;
+
+    // optional imported scene
+    // plEntity*      atRootEntities;
+    // uint32_t       uRootEntityCount;
+
+    // [INTERNAL]
+    uint8_t* _puData;
+    size_t   _szDataSize;
+} plGltfImportResult;
 
 typedef struct _plModelLoaderData
 {
@@ -130,8 +166,25 @@ typedef struct _plModelLoaderData
     plEntity* atObjects;
 } plModelLoaderData;
 
+enum _plGltfImportFlags
+{
+    PL_GLTF_IMPORT_FLAGS_NONE                  = 0,
+    PL_GLTF_IMPORT_FLAGS_IMPORT_MESHES         = 1 << 0,
+    PL_GLTF_IMPORT_FLAGS_IMPORT_MATERIALS      = 1 << 1,
+    PL_GLTF_IMPORT_FLAGS_IMPORT_TEXTURES       = 1 << 2,
+    PL_GLTF_IMPORT_FLAGS_IMPORT_ANIMATIONS     = 1 << 3,
+    PL_GLTF_IMPORT_FLAGS_IMPORT_SKELETONS      = 1 << 4,
+    // PL_GLTF_IMPORT_FLAGS_IMPORT_SCENES         = 1 << 5,
+
+    PL_GLTF_IMPORT_FLAGS_IMPORT_ALL_ASSETS     = PL_GLTF_IMPORT_FLAGS_IMPORT_MESHES | PL_GLTF_IMPORT_FLAGS_IMPORT_MATERIALS | PL_GLTF_IMPORT_FLAGS_IMPORT_TEXTURES | PL_GLTF_IMPORT_FLAGS_IMPORT_ANIMATIONS | PL_GLTF_IMPORT_FLAGS_IMPORT_SKELETONS,
+
+    // misc
+    // PL_GLTF_IMPORT_FLAGS_SPLIT_MESH_PRIMITIVES = 1 << 10,
+    // PL_GLTF_IMPORT_FLAGS_GENERATE_TANGENTS     = 1 << 11,
+};
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif // PL_MODEL_LOADER_EXT_H
+#endif // PL_GLTF_EXT_H

@@ -92,7 +92,7 @@ def generate_build(name, user_options = None):
 
     helper.print_space()
     helper.print_line("Project: [35m" + data.project_name + "[0m")
-    helper.print_line('pl-build" version: [36m' + data.version + "[0m")
+    helper.print_line('pl-build version: [36m' + data.version + "[0m")
     helper.add_spacing()
 
     helper.add_title("Development Setup")

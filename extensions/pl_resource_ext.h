@@ -117,7 +117,8 @@ PL_API void pl_resource_evict_ex     (plResourceHandle, plResourceEvictFlags);
 PL_API bool pl_resource_is_resident  (plResourceHandle, plResourceEvictFlags);
 
 // resource retrieval
-PL_API plTextureHandle pl_resource_get_texture(plResourceHandle);
+PL_API plTextureHandle pl_resource_get_texture (plResourceHandle);
+PL_API const char*     pl_resource_get_name    (plResourceHandle);
 
 // misc
 PL_API const uint8_t* pl_resource_get_file_data(plResourceHandle, size_t* fileByteSizeOut);
@@ -142,6 +143,7 @@ typedef struct _plResourceI
     void             (*evict_ex)     (plResourceHandle, plResourceEvictFlags);
     bool             (*is_resident)  (plResourceHandle, plResourceEvictFlags);
     plTextureHandle  (*get_texture)  (plResourceHandle);
+    const char*      (*get_name)      (plResourceHandle);
     const uint8_t*   (*get_file_data)(plResourceHandle, size_t* fileByteSizeOut);
 } plResourceI;
 

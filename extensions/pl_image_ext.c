@@ -67,6 +67,10 @@ bool
 pl_image_write(char const *pcFileName, const void *pData, const plImageWriteInfo* ptInfo)
 {
     const char* pcExt = pl_str_get_file_extension(pcFileName, NULL, 0);
+
+    size_t szImageFileSize = gptVfs->get_file_size_str(pcFileName);
+    plVfsFileHandle tFile = gptVfs->register_file(pcFileName, false);
+    pcFileName = gptVfs->get_real_path(tFile);
     
     if(pcExt == NULL)
         return false;

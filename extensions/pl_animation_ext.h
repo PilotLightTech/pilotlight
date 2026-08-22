@@ -65,6 +65,7 @@ extern "C" {
 #include <stddef.h>       // size_t
 #include <stdbool.h>      // bool
 #include "pl_ecs_ext.inl" // plEntity
+#include "pl_asset_ext.inl" // plAssetHandle
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -73,12 +74,12 @@ extern "C" {
 // basic types
 typedef struct _plAnimationChannel plAnimationChannel;
 typedef struct _plAnimationSampler plAnimationSampler;
+typedef struct _plAnimationData    plAnimationData;
+typedef struct _plAnimation        plAnimation;
 
 // ecs components
-typedef struct _plAnimationComponent         plAnimationComponent;
-typedef struct _plAnimationDataComponent     plAnimationDataComponent;
-typedef struct _plInverseKinematicsComponent plInverseKinematicsComponent;
-typedef struct _plHumanoidComponent          plHumanoidComponent;
+typedef struct _plAnimationComponent plAnimationComponent;
+typedef struct _plHumanoidComponent  plHumanoidComponent;
 
 // enums & flags
 typedef int plAnimationMode;
@@ -87,7 +88,6 @@ typedef int plAnimationFlags;
 typedef int plHumanoidBone;
 
 // external
-typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 
 //-----------------------------------------------------------------------------
@@ -98,23 +98,24 @@ typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 PL_API void pl_load_animation_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_animation_ext(plApiRegistryI*, bool reload);
 
+// new
+PL_API void pl_animation_serialize(const char* name, const plAnimation*);
+PL_API void pl_animation_deserialize(const char* name, plAnimation*);
+PL_API void pl_animation_destroy(plAnimation*);
+
 // system setup/shutdown/etc
-PL_API void         pl_animation_register_ecs_system(void);
+PL_API void pl_animation_register_ecs_system(void);
 
 // entity helpers (creates entity and necessary components)
 //   - do NOT store out parameter; use it immediately
-PL_API plEntity     pl_animation_create     (plComponentLibrary*, const char* name, uint32_t channelCount, plAnimationComponent**);
-PL_API plEntity     pl_animation_create_data(plComponentLibrary*, const char* name, uint32_t keyFrameCount, size_t dataSize, plAnimationDataComponent**);
+PL_API plEntity pl_animation_create(plComponentLibrary*, const char* name, uint32_t channelCount, plAnimationComponent**);
 
 // systems
-PL_API void         pl_animation_run_animation_update_system         (plComponentLibrary*, float deltaTime);
-PL_API void         pl_animation_run_inverse_kinematics_update_system(plComponentLibrary*);
+PL_API void pl_animation_run_animation_update_system         (plComponentLibrary*, float deltaTime);
 
 // ecs types
-PL_API plEcsTypeKey pl_animation_get_ecs_type_key_animation         (void);
-PL_API plEcsTypeKey pl_animation_get_ecs_type_key_animation_data    (void);
-PL_API plEcsTypeKey pl_animation_get_ecs_type_key_inverse_kinematics(void);
-PL_API plEcsTypeKey pl_animation_get_ecs_type_key_humanoid          (void);
+PL_API plEcsTypeKey pl_animation_get_ecs_type_key_animation(void);
+PL_API plEcsTypeKey pl_animation_get_ecs_type_key_humanoid (void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -123,22 +124,22 @@ PL_API plEcsTypeKey pl_animation_get_ecs_type_key_humanoid          (void);
 typedef struct _plAnimationI
 {
 
+    void (*serialize)  (const char* name, const plAnimation*);
+    void (*deserialize)(const char* name, plAnimation*);
+    void (*destroy)(plAnimation*);
+
     // system setup/shutdown/etc
     void (*register_ecs_system)(void);
 
     // entity helpers (creates entity and necessary components)
     //   - do NOT store out parameter; use it immediately
-    plEntity (*create)     (plComponentLibrary*, const char* name, uint32_t channelCount, plAnimationComponent**);
-    plEntity (*create_data)(plComponentLibrary*, const char* name, uint32_t keyFrameCount, size_t dataSize, plAnimationDataComponent**);
+    plEntity (*create)(plComponentLibrary*, const char* name, uint32_t channelCount, plAnimationComponent**);
 
     // systems
-    void (*run_animation_update_system)         (plComponentLibrary*, float fDeltaTime);
-    void (*run_inverse_kinematics_update_system)(plComponentLibrary*);
+    void (*run_animation_update_system)(plComponentLibrary*, float fDeltaTime);
 
     // ecs types
     plEcsTypeKey (*get_ecs_type_key_animation)(void);
-    plEcsTypeKey (*get_ecs_type_key_animation_data)(void);
-    plEcsTypeKey (*get_ecs_type_key_inverse_kinematics)(void);
     plEcsTypeKey (*get_ecs_type_key_humanoid)(void);
     
 } plAnimationI;
@@ -248,13 +249,13 @@ enum _plHumanoidBone
 typedef struct _plAnimationSampler
 {
     plAnimationMode tMode;
-    plEntity        tData;
+    uint32_t        uDataIndex;
 } plAnimationSampler;
 
 typedef struct _plAnimationChannel
 {
     plAnimationPath tPath;
-    plEntity        tTarget;
+    uint32_t        uTargetIndex;
     uint32_t        uSamplerIndex;
 } plAnimationChannel;
 
@@ -267,34 +268,36 @@ typedef struct _plHumanoidComponent
     plEntity atBones[PL_HUMANOID_BONE_COUNT];
 } plHumanoidComponent;
 
-typedef struct _plAnimationDataComponent
+typedef struct _plAnimationData
 {
     uint32_t uKeyFrameCount;
     size_t   szDataSize;
     float*   afKeyFrameTimes;
     void*    pKeyFrameData;
-} plAnimationDataComponent;
+} plAnimationData;
+
+typedef struct _plAnimation
+{
+    float               fStart;
+    float               fEnd;
+
+    uint32_t            uChannelCount;
+    plAnimationChannel* atChannels;
+    plAnimationSampler* atSamplers;
+    plAnimationData*    atData;
+    uint8_t*            puRawData;
+} plAnimation;
 
 typedef struct _plAnimationComponent
 {
     plAnimationFlags    tFlags;
-    float               fStart;
-    float               fEnd;
     float               fTimer;
     float               fSpeed;
     float               fBlendAmount;
-    uint32_t            uChannelCount;
-    plAnimationChannel* atChannels;
-    plAnimationSampler* atSamplers;
+    uint32_t            uTargetCount;
+    plEntity*           atTargets;
+    plAssetHandle       tAnimation;
 } plAnimationComponent;
-
-typedef struct _plInverseKinematicsComponent
-{
-    bool     bEnabled;
-    plEntity tTarget;
-    uint32_t uChainLength;
-    uint32_t uIterationCount;
-} plInverseKinematicsComponent;
 
 #ifdef __cplusplus
 }

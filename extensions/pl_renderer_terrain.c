@@ -78,10 +78,10 @@ static void pl__make_unresident  (plTerrain*, plTerrainChunk*);
 static bool pl__terrain_load(plTerrain* ptTerrain, plTerrainProcessInfo* ptInfo);
 void pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk);
 
-static void pl__render_chunk(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t);
+static void pl__render_chunk(plRendererScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t);
 static void
 pl__render_chunk_shadow(
-    plScene* ptScene,
+    plRendererScene* ptScene,
     plTerrain* ptTerrain,
     const plCamera* ptCamera,
     plCommandBuffer* ptCmdBuffer,
@@ -600,7 +600,7 @@ pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 }
 
 static void
-pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex)
+pl__render_chunk(plRendererScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -717,7 +717,7 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
 
 static void
 pl__render_chunk_shadow(
-    plScene* ptScene,
+    plRendererScene* ptScene,
     plTerrain* ptTerrain,
     const plCamera* ptCamera,
     plCommandBuffer* ptCmdBuffer,

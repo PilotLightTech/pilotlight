@@ -39,6 +39,7 @@ static const struct _plPakI*               gptPak               = 0;
 static const struct _plDateTimeI*          gptDateTime          = 0;
 static const struct _plWindowI*            gptWindow            = 0;
 static const struct _plLibraryI*           gptLibrary           = 0;
+static const struct _plTransformI*         gptTransform         = 0;
 
 // experimental
 static const struct _plConfigI*            gptConfig           = 0;
@@ -74,7 +75,11 @@ static const struct _plRendererTerrainI*   gptRendererTerrain  = 0;
 static const struct _plRendererEcsI*       gptRendererEcs      = 0;
 static const struct _plRendererDebugI*     gptRendererDebug    = 0;
 static const struct _plRendererEditorI*    gptRendererEditor   = 0;
-static const struct _plModelLoaderI*       gptModelLoader      = 0;
+static const struct _plGltfI*       gptGltf      = 0;
+static const struct _plAssetI*             gptAsset            = 0;
+static const struct _plIkI*                gptIk               = 0;
+static const struct _plStlI*               gptStl              = 0;
+static const struct _plSkeletonI*               gptSkeleton              = 0;
 
 // context
 static struct _plIO* gptIO = 0;
