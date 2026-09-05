@@ -24,9 +24,6 @@ Index of this file:
     Implementation:
         The provided implementation of this extension depends on the following
         APIs being available:
-
-        * plEcsI (v1.x) (only if using ECS integration)
-        * plLogI (v1.x) (only if using ECS integration)
 */
 
 //-----------------------------------------------------------------------------
@@ -44,33 +41,31 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plMeshI_version {0, 1, 0}
+#define plMeshI_version {0, 3, 0}
 #define plMeshBuilderI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <stdbool.h> // bool
 #include "pl.inc"
-#include "pl_ecs_ext.inl" // plEntity
-#include "pl_math.h"     // plVec3, plMat4
+#include "pl_asset_ext.inl" // plAssetHandle
+#include "pl_math.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plMeshBuilder        plMeshBuilder; // opaque
-typedef struct _plMeshBuilderOptions plMeshBuilderOptions;
-
-// ecs components
-typedef struct _plMeshComponent plMeshComponent;
+typedef struct _plMeshBuilder           plMeshBuilder; // opaque
+typedef struct _plMeshBuilderOptions    plMeshBuilderOptions;
+typedef struct _plMesh                  plMesh;
+typedef struct _plSubmeshAllocationDesc plSubmeshAllocationDesc;
+typedef struct _plSubmesh               plSubmesh;
 
 // enums & flags
 typedef int plMeshBuilderFlags;
-
-// external
-typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public apis
@@ -80,24 +75,20 @@ typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 PL_API void pl_load_mesh_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_mesh_ext(plApiRegistryI*, bool reload);
 
+PL_API void           pl_mesh_register_asset_types(void);
+PL_API plAssetTypeKey pl_mesh_get_asset_type_key  (void);
+
 // operations
-PL_API void pl_mesh_allocate_vertex_data(plMeshComponent*, size_t vertexCount, uint64_t vertexStreamMask, size_t indexCount);
-PL_API void pl_mesh_calculate_normals   (plMeshComponent*, uint32_t meshCount);
-PL_API void pl_mesh_calculate_tangents  (plMeshComponent*, uint32_t meshCount);
+PL_API void pl_mesh_allocate            (plMesh*, const plSubmeshAllocationDesc*, uint32_t count);
+PL_API void pl_mesh_cleanup             (plMesh*);
+PL_API void pl_mesh_calculate_normals   (plMesh*);
+PL_API void pl_mesh_calculate_tangents  (plMesh*);
+PL_API void pl_mesh_calculate_bounds    (plMesh*);
 
-//----------------------------ECS INTEGRATION----------------------------------
-
-// entity helpers
-PL_API plEntity pl_mesh_create         (plComponentLibrary*, const char* name, plMeshComponent**);
-PL_API plEntity pl_mesh_create_sphere  (plComponentLibrary*, const char* name, float radius, uint32_t latitudeBands, uint32_t longitudeBands, plMeshComponent**);
-PL_API plEntity pl_mesh_create_cube    (plComponentLibrary*, const char* name, plMeshComponent**);
-PL_API plEntity pl_mesh_create_plane   (plComponentLibrary*, const char* name, plMeshComponent**);
-
-// system setup/shutdown/etc
-PL_API void pl_mesh_register_ecs_system(void);
-
-// ecs types
-PL_API plEcsTypeKey pl_mesh_get_ecs_type_key_mesh(void);
+// helpers
+PL_API void pl_mesh_create_sphere(float radius, uint32_t latitudeBands, uint32_t longitudeBands, plMesh*);
+PL_API void pl_mesh_create_cube  (plMesh*);
+PL_API void pl_mesh_create_plane (plMesh*);
 
 //------------------------------mesh builder-----------------------------------
 
@@ -120,24 +111,23 @@ PL_API void pl_mesh_builder_commit_double(plMeshBuilder*, uint32_t* indexBuffer,
 
 typedef struct _plMeshI
 {
+
+    // assets
+    void           (*register_asset_types)(void);
+    plAssetTypeKey (*get_asset_type_key)  (void);
+
     // operations
-    void (*allocate_vertex_data)(plMeshComponent*, size_t vertexCount, uint64_t vertexStreamMask, size_t indexCount);
-    void (*calculate_normals)   (plMeshComponent*, uint32_t meshCount);
-    void (*calculate_tangents)  (plMeshComponent*, uint32_t meshCount);
+    void (*allocate)            (plMesh*, const plSubmeshAllocationDesc*, uint32_t count);
+    void (*cleanup)             (plMesh*);
+    void (*calculate_normals)   (plMesh*);
+    void (*calculate_tangents)  (plMesh*);
+    void (*calculate_bounds)    (plMesh*);
 
-    //----------------------------ECS INTEGRATION----------------------------------
+    // helpers
+    void (*create_sphere) (float radius, uint32_t latitudeBands, uint32_t longitudeBands, plMesh*);
+    void (*create_cube)   (plMesh*);
+    void (*create_plane)  (plMesh*);
 
-    // entity helpers
-    plEntity (*create)         (plComponentLibrary*, const char* name, plMeshComponent**);
-    plEntity (*create_sphere)  (plComponentLibrary*, const char* name, float radius, uint32_t latitudeBands, uint32_t longitudeBands, plMeshComponent**);
-    plEntity (*create_cube)    (plComponentLibrary*, const char* name, plMeshComponent**);
-    plEntity (*create_plane)   (plComponentLibrary*, const char* name, plMeshComponent**);
-
-    // system setup/shutdown/etc
-    void (*register_ecs_system)(void);
-
-    // ecs types
-    plEcsTypeKey (*get_ecs_type_key_mesh)(void);
 } plMeshI;
 
 typedef struct _plMeshBuilderI
@@ -166,24 +156,38 @@ typedef struct _plMeshBuilderOptions
     float              fWeldRadius;
 } plMeshBuilderOptions;
 
-typedef struct _plMeshComponent
+typedef struct _plSubmeshAllocationDesc
 {
-    uint64_t  ulVertexStreamMask;
-    size_t    szVertexCount;
-    size_t    szIndexCount;
-    uint8_t*  puRawData;
-    plEntity  tMaterial;
-    plEntity  tSkinComponent;
-    plVec3*   ptVertexPositions;
-    plVec3*   ptVertexNormals;
-    plVec4*   ptVertexTangents;
-    plVec4*   ptVertexColors[2];
-    plVec4*   ptVertexWeights[2];
-    plVec4*   ptVertexJoints[2];
-    plVec2*   ptVertexTextureCoordinates[2];
-    uint32_t* puIndices;
-    plAABB    tAABB;
-} plMeshComponent;
+    uint64_t uVertexStreamMask;
+    size_t   szVertexCount;
+    size_t   szIndexCount;
+} plSubmeshAllocationDesc;
+
+typedef struct _plSubmesh
+{
+    uint64_t      uVertexStreamMask;
+    size_t        szVertexCount;
+    size_t        szIndexCount;
+    plVec3*       ptVertexPositions;
+    plVec3*       ptVertexNormals;
+    plVec4*       ptVertexTangents;
+    plVec4*       ptVertexColors[2];
+    plVec4*       ptVertexWeights[2];
+    plVec4*       ptVertexJoints[2];
+    plVec2*       ptVertexTextureCoordinates[2];
+    uint32_t*     puIndices; // optional
+    plAssetHandle tMaterial;
+    plAABB        tAABB;
+} plSubmesh;
+
+typedef struct _plMesh
+{
+    uint8_t*   puRawData;
+    size_t     szRawDataSize;
+    plAABB     tAABB;
+    uint32_t   uSubmeshCount;
+    plSubmesh* atSubmeshes;
+} plMesh;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -191,7 +195,7 @@ typedef struct _plMeshComponent
 
 enum _plMeshBuilderFlags
 {
-    PL_MESH_BUILDER_FLAGS_NONE         = 0,
+    PL_MESH_BUILDER_FLAGS_NONE = 0,
     // PL_MESH_BUILDER_FLAGS_DOUBLE_SIDED = 1 << 0,
 };
 
