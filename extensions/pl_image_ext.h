@@ -35,7 +35,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plImageI_version {1, 2, 0}
+#define plImageI_version {1, 2, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
