@@ -3,7 +3,8 @@ void
 pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plTimerI tTimerI = {
-        .get_time = pl_timer_get_time
+        .get_time     = pl_timer_get_time,
+        .get_raw_time = pl_timer_get_raw_time,
     };
 
     const plWindowI tWindowApi = {

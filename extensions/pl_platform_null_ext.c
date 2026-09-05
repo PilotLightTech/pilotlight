@@ -193,6 +193,27 @@ pl_timer_get_time(void)
     #endif
 }
 
+double
+pl_timer_get_raw_time(void)
+{
+    #ifdef PL_PLATFORM_WINDOWS
+        int64_t ilCurrentTime = 0;
+        QueryPerformanceCounter((LARGE_INTEGER*)&ilCurrentTime);
+        return (double)ilCurrentTime / (double)gptPlatformExtCtx->ilTicksPerSecond;
+    #elif defined(PL_PLATFORM_LINUX)
+        struct timespec ts;
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) 
+        {
+            PL_ASSERT(false && "clock_gettime() failed");
+        }
+        uint64_t nsec_count = ts.tv_nsec + ts.tv_sec * 1e9;
+        return (double)nsec_count / gptPlatformExtCtx->dFrequency;
+    #elif defined(PL_PLATFORM_APPLE)
+    double dNewTime = (CFTimeInterval)((double)clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9);
+    return dNewTime;
+    #endif
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] window api
 //-----------------------------------------------------------------------------

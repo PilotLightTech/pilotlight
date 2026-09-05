@@ -105,6 +105,14 @@ pl_timer_get_time(void)
     return (double)(ilCurrentTime - gptPlatformExtCtx->ilTime) / (double)gptPlatformExtCtx->ilTicksPerSecond;
 }
 
+double
+pl_timer_get_raw_time(void)
+{
+    INT64 ilCurrentTime = 0;
+    QueryPerformanceCounter((LARGE_INTEGER*)&ilCurrentTime);
+    return (double)ilCurrentTime / (double)gptPlatformExtCtx->ilTicksPerSecond;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] window api
 //-----------------------------------------------------------------------------

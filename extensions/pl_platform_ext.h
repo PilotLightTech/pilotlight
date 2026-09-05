@@ -134,6 +134,7 @@ PL_API void pl_unload_platform_ext(plApiRegistryI*, bool reload);
 //--------------------------------timer api------------------------------------
 
 PL_API double pl_timer_get_time(void);
+PL_API double pl_timer_get_raw_time(void);
 
 //-------------------------------window api------------------------------------
 
@@ -296,6 +297,7 @@ PL_API void   pl_virtual_memory_free         (void* address, size_t); // frees a
 typedef struct _plTimerI
 {
     double (*get_time)(void);
+    double (*get_raw_time)(void);
 } plTimerI;
 
 typedef struct _plWindowI

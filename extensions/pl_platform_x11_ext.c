@@ -142,6 +142,18 @@ pl_timer_get_time(void)
     return ((double)nsec_count / gptPlatformExtCtx->dFrequency) - gptPlatformExtCtx->dStartTime;
 }
 
+double
+pl_timer_get_raw_time(void)
+{
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) 
+    {
+        PL_ASSERT(false && "clock_gettime() failed");
+    }
+    uint64_t nsec_count = ts.tv_nsec + ts.tv_sec * 1e9;
+    return (double)nsec_count / gptPlatformExtCtx->dFrequency;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] window api
 //-----------------------------------------------------------------------------

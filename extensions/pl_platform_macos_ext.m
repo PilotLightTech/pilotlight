@@ -102,6 +102,13 @@ pl_timer_get_time(void)
     return dNewTime - gptPlatformExtCtx->dInitialTime;
 }
 
+double
+pl_timer_get_raw_time(void)
+{
+    double dNewTime = (CFTimeInterval)((double)clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9);
+    return dNewTime;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] window ext
 //-----------------------------------------------------------------------------
