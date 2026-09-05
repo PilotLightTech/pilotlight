@@ -40,9 +40,13 @@ if os.path.isdir(target_directory + "/dependencies"):
     shutil.rmtree(target_directory + "/dependencies/cgltf")
     shutil.rmtree(target_directory + "/dependencies/imgui")
     shutil.rmtree(target_directory + "/dependencies/stb")
+    shutil.rmtree(target_directory + "/resources/core")
 
-if not os.path.isdir(target_directory):
+if not os.path.isdir(target_directory): # first run
     os.mkdir(target_directory)
+    shutil.copytree(file_directory + "/../assets", target_directory + "/assets")
+    os.mkdir(target_directory + "/resources")
+    # os.mkdir(target_directory + "/resources/core")
     os.mkdir(target_directory + "/src")
     os.mkdir(target_directory + "/scripts")
     os.mkdir(target_directory + "/shaders")
@@ -88,6 +92,7 @@ shutil.copytree(file_directory + "/../thirdparty/cgltf", target_directory + "/de
 shutil.copytree(file_directory + "/../thirdparty/imgui", target_directory + "/dependencies/imgui")
 shutil.copytree(file_directory + "/../thirdparty/stb", target_directory + "/dependencies/stb")
 shutil.copytree(file_directory + "/../shaders", target_directory + "/dependencies/pilotlight/shaders")
+shutil.copytree(file_directory + "/../resources/core", target_directory + "/resources/core")
 
 if cpp and api:
     shutil.copy(file_directory + "/../internal/templates/gen_build_cpp_api.py", target_directory + "/scripts/gen_build.py")
@@ -130,8 +135,6 @@ if newProject:
 else:
     if(os.path.isdir(target_directory + "/out")):
         shutil.rmtree(target_directory + "/out")
-    if(os.path.isdir(target_directory + "/shader-temp")):
-        shutil.rmtree(target_directory + "/shader-temp")
     if(os.path.isdir(target_directory + "/cache")):
         shutil.rmtree(target_directory + "/cache")
     os.chdir(target_directory)

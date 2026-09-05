@@ -271,7 +271,7 @@ with pl.project("pilotlight"):
     # [SECTION] pilot_light
     #-----------------------------------------------------------------------------
 
-    with pl.target("pilot_light", pl.TargetType.EXECUTABLE, cache=True):
+    with pl.target("pilot_light", pl.TargetType.EXECUTABLE):
     
         pl.set_output_binary("pilot_light")
     

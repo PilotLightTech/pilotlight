@@ -106,7 +106,7 @@ with pl.project("pilotlight"):
     # [SECTION] shader extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
+    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY):
 
         pl.add_source_files("../dependencies/pilotlight/src/pl_shader_ext.c")
         pl.set_output_binary("pl_shader_ext")

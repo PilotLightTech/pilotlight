@@ -25,6 +25,8 @@ Build Instructions:
 * <ins>shaders</ins> - Contains shader code.
 * <ins>src</ins> - Contains source code for this project.
 * <ins>tests</ins> - Contains tests.
+* <ins>assets</ins> - Contains Pilot Light native assets.
+* <ins>assets</ins> - Contains raw resources.
 
 ## License
 TBD

@@ -170,6 +170,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData = (plAppData*)PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
 
+    // create cache directories
+    gptFile->create_directory("../cache");
+    gptFile->create_directory("../cache/shaders");
+    gptFile->create_directory("../cache/imports");
+    gptFile->create_directory("../cache/textures");
+    gptFile->create_directory("../cache/terrain");
+
+    // mount required directories
+    gptVfs->mount_directory("/shaders",   "../shaders",   PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/resources", "../resources", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/cache",     "../cache",     PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/assets",    "../assets",    PL_VFS_MOUNT_FLAGS_NONE);
+
     // use window API to create a window
     plWindowDesc tWindowDesc = PL_ZERO_INIT;
     tWindowDesc.pcTitle = "App";
@@ -182,10 +195,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     plStarterInit tStarterInit = PL_ZERO_INIT;
     tStarterInit.eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS;
+    tStarterInit.eFlags   &= ~PL_STARTER_FLAGS_SHADER_EXT;
     tStarterInit.ptWindow = ptAppData->ptWindow;
 
     // let starter extension handle a lot of boilerplate
     gptStarter->initialize(tStarterInit);
+    
+    // initialize shader extension (we are doing this ourselves so we can add additional shader directories)
+    static plShaderOptions tDefaultShaderOptions = {};
+    tDefaultShaderOptions.apcIncludeDirectories[0] = "../dependencies/pilotlight/shaders/";
+    tDefaultShaderOptions.apcDirectories[0] = "../dependencies/pilotlight/shaders/";
+    tDefaultShaderOptions.eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE;
+    gptShader->initialize(&tDefaultShaderOptions);
+
     gptStarter->finalize();
 
     // return app memory

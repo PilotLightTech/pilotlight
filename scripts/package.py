@@ -43,7 +43,6 @@ extension_headers = [
     "pl_image_ext.h",
     "pl_job_ext.h",
     "pl_log_ext.h",
-    "pl_model_loader_ext.h",
     "pl_profile_ext.h",
     "pl_rect_pack_ext.h",
     "pl_renderer_ext.h",
@@ -74,7 +73,16 @@ extension_headers = [
     "pl_freelist_ext.h",
     "pl_image_ops_ext.h",
     "pl_unity_ext.h",
+    "pl_json_ext.h",
     "pl_gjk_ext.h",
+    "pl_transform_ext.h",
+    "pl_ik_ext.h",
+    "pl_texture_ext.h",
+    "pl_skeleton_ext.h",
+    "pl_gltf_ext.h",
+    "pl_stl_ext.h",
+    "pl_scene_ext.h",
+    "pl_asset_ext.h",
 ]
 
 # extension binaries
@@ -94,7 +102,6 @@ extensions = [
     "pl_image_ext",
     "pl_job_ext",
     "pl_log_ext",
-    "pl_model_loader_ext",
     "pl_profile_ext",
     "pl_rect_pack_ext",
     "pl_renderer_ext",
@@ -125,6 +132,15 @@ extensions = [
     "pl_freelist_ext",
     "pl_image_ops_ext",
     "pl_gjk_ext",
+    "pl_transform_ext",
+    "pl_json_ext",
+    "pl_asset_ext",
+    "pl_ik_ext",
+    "pl_texture_ext",
+    "pl_skeleton_ext",
+    "pl_gltf_ext",
+    "pl_stl_ext",
+    "pl_scene_ext",
     "pl_ui_ext"
 ]
 
