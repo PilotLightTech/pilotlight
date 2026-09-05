@@ -5,7 +5,38 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
-- v0.12.1 (xxxx-xx-xx)
+- v0.13.0 (2026-09-xx)(core)                   -added PL_FOURCC helper to pl.inc
+                      (timer      v1.1.0)      -added "get_raw_time(...)"
+                      (virt. mem. v2.0.0)      -removed optional starting address for commit/reserve
+                                               -renamed "uncommit" to "decommit"
+                                               -improved backends to be consistent in behavior
+                      (ecs        v3.0.0)      -removed default library
+                                               -added new component registration requirements (serialization)
+                                               -added plEntityId (persistent identification)
+                                               -moved hierarchy & transform to "pl_transform_ext"
+                                               -removed layer component for now (was unused)
+                                               -changed tag component "acName" to interned "pcName"
+                      (json       v1.0.0)      -new json extension (similar to library)
+                      (transform  v1.0.0)      -new transform extension
+                      (material   v0.3.0)      -new material extension
+                      (texture    v0.1.0)      -new texture extension
+                      (asset      v1.0.0)      -new asset extension
+                      (skeleton   v0.1.0)      -new skeleton extension
+                      (scene      v0.1.0)      -new scene extension
+                      (gltf       v0.1.0)      -new gltf importer extension
+                      (stl        v0.1.0)      -new stl importer extension
+                      (ik         v0.3.0)      -new ik extension
+                                               -hierarchy order no longer matters!
+                      (model loader)           -removed
+                      (str. intern v3.0.0)     -removed string repo arg & added extended versions
+                      (image       v1.2.1)     -fixed "write" to use vfs
+                      (resource    v1.6.0)     -made "pcCacheDirectory" obsolete & now REQUIRES VFS has "/cache/textures" mounted
+                      (shader      v2.1.0)     -made "pcCacheOutputDirectory" obsolete & now REQUIRES VFS has "/cache/shaders" mounted
+                      (graphics    v2.2.0)     -added "get_format_as_string(...)" helper
+                                               -fix wireframe in Metal backend
+
+-----------------------------------------------------------------------------
+
 - v0.12.0 (2026-08-17)(renderer)          -add realistic sky/atmosphere rendering
                       (io        v1.2.0)  -added trickled IO support for low framerates
                       (shader    v2.0.1)  -moved shader extension to separate binary (pl_shader_ext.dll/.so/.dylib)

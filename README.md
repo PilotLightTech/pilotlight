@@ -65,7 +65,7 @@ Information for developers can be found in the [wiki](https://github.com/PilotLi
 * [style guide](https://github.com/PilotLightTech/pilotlight/wiki/Style-Guide)
 
 ## Folder Structure
-* <ins>assets</ins> - Contains assets for development.
+* <ins>assets</ins> - Contains Pilot Light native assets.
 * <ins>thirdparty</ins> - Contains any third party libraries.
 * <ins>docs</ins> - Contains documentation for the project.
 * <ins>examples</ins> - Contains small complete examples that utilize stable APIs & extensions
@@ -78,6 +78,7 @@ Information for developers can be found in the [wiki](https://github.com/PilotLi
 * <ins>shaders</ins> - Contains shader code.
 * <ins>src</ins> - Contains the small core of Pilot Light.
 * <ins>tests</ins> - Contains all unit & system tests.
+* <ins>resources</ins> - Contains asset sources
 
 ## License
 Pilot Light is licensed under the [MIT License](https://github.com/PilotLightTech/pilotlight/blob/master/LICENSE).

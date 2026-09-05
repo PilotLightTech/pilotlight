@@ -6,17 +6,49 @@
 data/
 out/
 out-temp/
-shader-temp/
 user/
 game/
 app/
 cache/
+shaders-temp/
 
 # assets
 assets/development
 assets/gltf-samples
-assets/user
-assets/*.zip
+
+!assets/environments/realistic.plenvironment
+!assets/environments/skybox.plenvironment
+
+assets/materials/*
+!assets/materials/default.plmaterial
+!assets/materials/probe.plmaterial
+
+assets/meshes/*
+!assets/meshes/plane.plmesh
+!assets/meshes/probe.plmesh
+
+assets/models/*
+!assets/models/cube.plscene
+
+
+assets/skeletons/*
+assets/animations/*
+assets/skins/*
+
+assets/textures/*
+!assets/textures/damaged_helmet_albedo.pltexture
+!assets/textures/damaged_helmet_emissive.pltexture
+!assets/textures/damaged_helmet_metal_roughness.pltexture
+!assets/textures/damaged_helmet_normal.pltexture
+!assets/textures/damaged_helmet_occlusion.pltexture
+!assets/textures/skybox.pltexture
+!assets/textures/mountains.pltexture
+
+# resources
+resources/development
+resources/gltf-samples
+resources/user
+resources/*.zip
 
 # python
 build/__pycache__/
