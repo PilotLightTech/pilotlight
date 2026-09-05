@@ -33,7 +33,6 @@ Index of this file:
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 #include "pl_icons.h"
-#include "pl_json.h"
 
 // stable extensions
 #include "pl_image_ext.h"
@@ -56,6 +55,7 @@ Index of this file:
 #include "pl_pak_ext.h"
 #include "pl_datetime_ext.h"
 #include "pl_ecs_ext.h"
+#include "pl_transform_ext.h"
 
 // unstable extensions
 #include "pl_mesh_ext.h"
@@ -63,7 +63,7 @@ Index of this file:
 #include "pl_camera_ext.h"
 #include "pl_config_ext.h"
 #include "pl_resource_ext.h"
-#include "pl_model_loader_ext.h"
+#include "pl_gltf_ext.h"
 #include "pl_renderer_ext.h"
 #include "pl_ecs_tools_ext.h"
 #include "pl_gizmo_ext.h"
@@ -73,6 +73,13 @@ Index of this file:
 #include "pl_shader_variant_ext.h"
 #include "pl_material_ext.h"
 #include "pl_script_ext.h"
+#include "pl_asset_ext.h"
+#include "pl_ik_ext.h"
+#include "pl_scene_ext.h"
+#include "pl_skeleton_ext.h"
+#include "pl_texture_ext.h"
+#include "pl_terrain_ext.h"
+#include "pl_stl_ext.h"
 
 // shaders
 #include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
@@ -94,7 +101,7 @@ const plEcsI*               gptEcs              = nullptr;
 const plCameraI*            gptCamera           = nullptr;
 const plCameraEcsI*         gptCameraEcs        = nullptr;
 const plRendererI*          gptRenderer         = nullptr;
-const plModelLoaderI*       gptModelLoader      = nullptr;
+const plGltfI*              gptGltf             = nullptr;
 const plJobI*               gptJobs             = nullptr;
 const plDrawI*              gptDraw             = nullptr;
 const plUiI*                gptUI               = nullptr;
@@ -125,10 +132,17 @@ const plDateTimeI*          gptDateTime         = nullptr;
 const plCompressI*          gptCompress         = nullptr;
 const plMaterialI*          gptMaterial         = nullptr;
 const plScriptI*            gptScript           = nullptr;
-const plRendererTerrainI*   gptRendererTerrain  = nullptr;
 const plRendererEcsI*       gptRendererEcs      = nullptr;
 const plRendererDebugI*     gptRendererDebug    = nullptr;
 const plRendererEditorI*    gptRendererEditor   = nullptr;
+const plAssetI*             gptAsset            = nullptr;
+const plTransformI*         gptTransform        = nullptr;
+const plIkI*                gptIk               = nullptr;
+const plSceneI*             gptScene            = nullptr;
+const plSkeletonI*          gptSkeleton         = nullptr;
+const plTextureI*           gptTexture          = nullptr;
+const plTerrainI*           gptTerrain          = nullptr;
+const plStlI*               gptStl              = nullptr;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(nullptr, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -184,7 +198,7 @@ typedef struct _plAppData
     bool bVSync;
 
     // ui options
-    bool bContinuousBVH;
+    // bool bContinuousBVH;
 
     // dear imgui ui windows
     bool bShowImGuiDemo;
@@ -202,17 +216,16 @@ typedef struct _plAppData
     bool* pbShowLogging;
 
     // scene
-    // plEntity tMainCamera;
-    // plEntity tSecondaryCamera;
+    plEntity tMainCamera;
     bool     bMainViewHovered;
+    bool     bHasTerrain;
 
     // scenes/views
-    plComponentLibrary* ptCompLibrary;
-    // plScene* ptScene;
-    // plView*  ptView;
-    // plView*  ptSecondaryView;
+    plRenderScene* ptScene;
+    plView*  ptView;
     plVec2 tView0Offset;
     plVec2 tView0Scale;
+    plAssetHandle tSceneHandle;
 
     // drawing
     plDrawLayer2D* ptDrawLayer;
@@ -227,7 +240,7 @@ typedef struct _plAppData
     ImGuiTextFilter tFilter;
 
     // physics
-    bool bPhysicsDebugDraw;
+    // bool bPhysicsDebugDraw;
 
     // misc
     char* sbcTempBuffer;
@@ -237,14 +250,17 @@ typedef struct _plAppData
     char acCurrentScene[PL_MAX_PATH_LENGTH];
     plSandboxEnvironment* sbtSceneEnvironments;
     plSandboxSceneFile* sbtSceneFilesCore;
-    plSandboxSceneFile* sbtSceneFilesDev;
-    plSandboxSceneFile* sbtSceneFilesUser;
     int iSelectedSceneCore;
-    int iSelectedSceneDev;
-    int iSelectedSceneUser;
     int iSelectedEnvironment;
 
-    plTestWorldData tTestWorld;
+    // ui options
+    bool bMSAA;
+    bool bContinuousBVH;
+    bool bPhysicsDebugDraw;
+    bool bShowBVH;
+    bool bFrustumCulling;
+    bool bShowDebugLights;
+    bool bDrawAllBoundingBoxes;
 
 } plAppData;
 
@@ -254,7 +270,7 @@ typedef struct _plAppData
 
 void pl__show_editor_window(plAppData*);
 void pl__show_ui_demo_window(plAppData* ptAppData);
-void pl__show_entity_components(plAppData*, plScene*, plEntity);
+void pl__show_entity_components(plAppData*, plRenderScene*, plEntity);
 
 void pl__load_apis(plApiRegistryI*);
 void pl__refresh_files(plAppData*);
