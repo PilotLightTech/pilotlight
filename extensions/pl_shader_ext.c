@@ -178,13 +178,6 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
     };
     gptShaderCtx->uLogChannel = gptLog->add_channel("Shader", tLogInit);
     gptShaderCtx->bInitialized = true;
-
-    if(ptShaderOptions->pcCacheOutputDirectory == NULL)
-        gptShaderCtx->tDefaultShaderOptions.pcCacheOutputDirectory = gptString->intern(gptShaderCtx->ptStringRepo, "./");
-    else
-    {
-        gptShaderCtx->tDefaultShaderOptions.pcCacheOutputDirectory = gptString->intern(gptShaderCtx->ptStringRepo, ptShaderOptions->pcCacheOutputDirectory);
-    }
     gptShaderCtx->tDefaultShaderOptions.eFlags = ptShaderOptions->eFlags;
     if(ptShaderOptions->eFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
     {
@@ -226,11 +219,13 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_AUTO_OUTPUT");
     }
 
-    gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[0] = gptString->intern(gptShaderCtx->ptStringRepo, "./");
-    gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount = 1;
+    gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[0] = gptString->intern_ex("./", gptShaderCtx->ptStringRepo);
+    gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[1] = gptString->intern_ex("/shaders/", gptShaderCtx->ptStringRepo);
+    gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount = 2;
 
-    gptShaderCtx->tDefaultShaderOptions.apcDirectories[0] = gptString->intern(gptShaderCtx->ptStringRepo, "./");
-    gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount = 1;
+    gptShaderCtx->tDefaultShaderOptions.apcDirectories[0] = gptString->intern_ex("./", gptShaderCtx->ptStringRepo);
+    gptShaderCtx->tDefaultShaderOptions.apcDirectories[1] = gptString->intern_ex("/shaders/", gptShaderCtx->ptStringRepo);
+    gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount = 2;
 
     if(ptShaderOptions)
     {
@@ -238,7 +233,7 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
         {
             if(ptShaderOptions->apcIncludeDirectories[i])
             {
-                gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[i + 1] = gptString->intern(gptShaderCtx->ptStringRepo, ptShaderOptions->apcIncludeDirectories[i]);
+                gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[i + 2] = gptString->intern_ex(ptShaderOptions->apcIncludeDirectories[i], gptShaderCtx->ptStringRepo);
                 PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "initialized include directory \"%s\"", ptShaderOptions->apcIncludeDirectories[i]);
             }
             else
@@ -250,7 +245,7 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
         {
             if(ptShaderOptions->apcDirectories[i])
             {
-                gptShaderCtx->tDefaultShaderOptions.apcDirectories[i + 1] = gptString->intern(gptShaderCtx->ptStringRepo, ptShaderOptions->apcDirectories[i]);
+                gptShaderCtx->tDefaultShaderOptions.apcDirectories[i + 2] = gptString->intern_ex(ptShaderOptions->apcDirectories[i], gptShaderCtx->ptStringRepo);
                 PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "initialized directory \"%s\"", ptShaderOptions->apcDirectories[i]);
             }
             else
@@ -262,8 +257,8 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
         {
             if(ptShaderOptions->atMacroDefinitions[i].pcName)
             {
-                gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcName = gptString->intern(gptShaderCtx->ptStringRepo, ptShaderOptions->atMacroDefinitions[i].pcName);
-                gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcValue = gptString->intern(gptShaderCtx->ptStringRepo, ptShaderOptions->atMacroDefinitions[i].pcValue);
+                gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcName = gptString->intern_ex(ptShaderOptions->atMacroDefinitions[i].pcName, gptShaderCtx->ptStringRepo);
+                gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcValue = gptString->intern_ex(ptShaderOptions->atMacroDefinitions[i].pcValue, gptShaderCtx->ptStringRepo);
                 PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "added definition: %s = %s", ptShaderOptions->atMacroDefinitions[i].pcName, ptShaderOptions->atMacroDefinitions[i].pcValue);
             }
             else
@@ -359,10 +354,10 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
         gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcValue = NULL;
     }
 
-    gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[0] = gptString->intern(gptShaderCtx->ptStringRepo, "./");
+    gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[0] = gptString->intern_ex("./", gptShaderCtx->ptStringRepo);
     gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount = 1;
 
-    gptShaderCtx->tDefaultShaderOptions.apcDirectories[0] = gptString->intern(gptShaderCtx->ptStringRepo, "./");
+    gptShaderCtx->tDefaultShaderOptions.apcDirectories[0] = gptString->intern_ex("./", gptShaderCtx->ptStringRepo);
     gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount = 1;
     
     gptShaderCtx->tDefaultShaderOptions._uMacroDefinitionCount = 0;
@@ -391,7 +386,7 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
                 }
                 if(!bDuplicate)
                 {
-                    gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount] = gptString->intern(gptShaderCtx->ptStringRepo, ptShaderOptions->apcIncludeDirectories[i]);
+                    gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount] = gptString->intern_ex(ptShaderOptions->apcIncludeDirectories[i], gptShaderCtx->ptStringRepo);
                     PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "set include directory \"%s\"", ptShaderOptions->apcIncludeDirectories[i]);
                     gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount++;
                 }
@@ -420,7 +415,7 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
                 }
                 if(!bDuplicate)
                 {
-                    gptShaderCtx->tDefaultShaderOptions.apcDirectories[gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount] = gptString->intern(gptShaderCtx->ptStringRepo, ptShaderOptions->apcDirectories[i]);
+                    gptShaderCtx->tDefaultShaderOptions.apcDirectories[gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount] = gptString->intern_ex(ptShaderOptions->apcDirectories[i], gptShaderCtx->ptStringRepo);
                     gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount++;
                     PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "set directory \"%s\"", ptShaderOptions->apcDirectories[i]);
                 }
@@ -450,8 +445,8 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
                 }
                 if(!bDuplicate)
                 {
-                    gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[gptShaderCtx->tDefaultShaderOptions._uMacroDefinitionCount].pcName = gptString->intern(gptShaderCtx->ptStringRepo, ptShaderOptions->atMacroDefinitions[i].pcName);
-                    gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[gptShaderCtx->tDefaultShaderOptions._uMacroDefinitionCount].pcValue = gptString->intern(gptShaderCtx->ptStringRepo, ptShaderOptions->atMacroDefinitions[i].pcValue);
+                    gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[gptShaderCtx->tDefaultShaderOptions._uMacroDefinitionCount].pcName = gptString->intern_ex(ptShaderOptions->atMacroDefinitions[i].pcName, gptShaderCtx->ptStringRepo);
+                    gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[gptShaderCtx->tDefaultShaderOptions._uMacroDefinitionCount].pcValue = gptString->intern_ex(ptShaderOptions->atMacroDefinitions[i].pcValue, gptShaderCtx->ptStringRepo);
                     gptShaderCtx->tDefaultShaderOptions._uMacroDefinitionCount++;
                     PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "added definition: %s = %s", ptShaderOptions->atMacroDefinitions[i].pcName, ptShaderOptions->atMacroDefinitions[i].pcValue);
                 }
@@ -801,8 +796,6 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
                 ptOptions->eFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
             #endif
         }
-        if(ptOptions->pcCacheOutputDirectory == NULL)
-            ptOptions->pcCacheOutputDirectory = gptShaderCtx->tDefaultShaderOptions.pcCacheOutputDirectory;
     }
 
     if(ptOptions == NULL)
@@ -879,9 +872,9 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
         {
             PL_LOG_DEBUG_API_F(gptLog, gptShaderCtx->uLogChannel, "no cached shader found for: \"%s\"", pcFileNameOnly);
             if(ptOptions->eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
-                pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.metal", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
+                pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "/cache/shaders/%s.metal", pcFileNameOnly);
             else
-                pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.spv", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
+                pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "/cache/shaders/%s.spv", pcFileNameOnly);
         }
     }
     
@@ -894,9 +887,9 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
     {
         const char* pcFileNameOnly = pl_str_get_file_name(pcShader, NULL, 0);
         if(ptOptions->eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
-            pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.metal", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
+            pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "/cache/shaders/%s.metal", pcFileNameOnly);
         else
-            pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.spv", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
+            pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "/cache/shaders/%s.spv", pcFileNameOnly);
 
         tModule = pl_shader_compile_glsl(pcShader, pcEntryFunc, ptOptions);
         if(!(ptOptions->eFlags & PL_SHADER_FLAGS_NEVER_CACHE) && tModule.szCodeSize > 0)
