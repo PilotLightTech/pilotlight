@@ -40,6 +40,7 @@ Index of this file:
 #include "pl_image_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_starter_ext.h"
+#include "pl_vfs_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -84,6 +85,7 @@ const plImageI*    gptImage   = NULL;
 const plShaderI*   gptShader  = NULL;
 const plFileI*     gptFile    = NULL;
 const plStarterI*  gptStarter = NULL;
+const plVfsI*      gptVfs     = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -112,6 +114,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
         gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
         gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
 
         return ptAppData;
     }
@@ -140,6 +143,21 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
     gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
     gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
+
+    // create cache directories
+    gptFile->create_directory("../cache");
+    gptFile->create_directory("../cache/shaders");
+    gptFile->create_directory("../cache/imports");
+    gptFile->create_directory("../cache/textures");
+    gptFile->create_directory("../cache/terrain");
+
+    // mount required directories
+    gptVfs->mount_directory("/shaders",   "../shaders",   PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/resources", "../resources", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/cache",     "../cache",     PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/assets",    "../assets",    PL_VFS_MOUNT_FLAGS_NONE);
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
@@ -173,7 +191,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             "../examples/shaders/"
         },
         .apcDirectories = {
-            "../shaders/",
             "../examples/shaders/"
         },
         .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE
@@ -284,7 +301,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     int iImageWidth = 0;
     int iImageHeight = 0;
     int _unused;
-    unsigned char* pucImageData = gptImage->load_from_file("../assets/core/textures/sprite_map.png", &iImageWidth, &iImageHeight, &_unused, 4);
+    unsigned char* pucImageData = gptImage->load_from_file("../resources/core/textures/sprite_map.png", &iImageWidth, &iImageHeight, &_unused, 4);
 
     // create texture
     const plTextureDesc tTextureDesc = {

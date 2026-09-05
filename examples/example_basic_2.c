@@ -81,6 +81,7 @@ Index of this file:
 #include "pl_log_ext.h"
 #include "pl_stats_ext.h"
 #include "pl_console_ext.h"
+#include "pl_vfs_ext.h"
 #include "pl_platform_ext.h" // plWindowI
 
 //-----------------------------------------------------------------------------
@@ -114,6 +115,8 @@ const plStatsI*     gptStats     = NULL;
 const plMemoryI*    gptMemory    = NULL;
 const plLogI*       gptLog       = NULL;
 const plConsoleI*   gptConsole   = NULL;
+const plVfsI*       gptVfs       = NULL;
+const plFileI*      gptFile      = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -148,6 +151,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
         gptLog       = pl_get_api_latest(ptApiRegistry, plLogI);
         gptConsole   = pl_get_api_latest(ptApiRegistry, plConsoleI);
+        gptVfs       = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptFile      = pl_get_api_latest(ptApiRegistry, plFileI);
 
         return ptAppData;
     }
@@ -179,11 +184,26 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptLog       = pl_get_api_latest(ptApiRegistry, plLogI);
     gptConsole   = pl_get_api_latest(ptApiRegistry, plConsoleI);
+    gptVfs       = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptFile      = pl_get_api_latest(ptApiRegistry, plFileI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
     ptAppData = PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+
+    // create cache directories
+    gptFile->create_directory("../cache");
+    gptFile->create_directory("../cache/shaders");
+    gptFile->create_directory("../cache/imports");
+    gptFile->create_directory("../cache/textures");
+    gptFile->create_directory("../cache/terrain");
+
+    // mount required directories
+    gptVfs->mount_directory("/shaders",   "../shaders",   PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/resources", "../resources", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/cache",     "../cache",     PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/assets",    "../assets",    PL_VFS_MOUNT_FLAGS_NONE);
 
     // default values
     ptAppData->bShowHelpWindow = true;

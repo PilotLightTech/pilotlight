@@ -84,6 +84,7 @@ Index of this file:
 #include "pl_shader_ext.h"
 #include "pl_starter_ext.h"
 #include "pl_platform_ext.h"
+#include "pl_vfs_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -110,6 +111,8 @@ const plWindowI*   gptWindows = NULL;
 const plGraphicsI* gptGfx     = NULL;
 const plShaderI*   gptShader  = NULL;
 const plStarterI*  gptStarter = NULL;
+const plVfsI*      gptVfs     = NULL;
+const plFileI*     gptFile    = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -136,6 +139,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
         gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
         gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
 
         return ptAppData;
     }
@@ -162,6 +167,21 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
+
+    // create cache directories
+    gptFile->create_directory("../cache");
+    gptFile->create_directory("../cache/shaders");
+    gptFile->create_directory("../cache/imports");
+    gptFile->create_directory("../cache/textures");
+    gptFile->create_directory("../cache/terrain");
+
+    // mount required directories
+    gptVfs->mount_directory("/shaders",   "../shaders",   PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/resources", "../resources", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/cache",     "../cache",     PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/assets",    "../assets",    PL_VFS_MOUNT_FLAGS_NONE);
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
@@ -193,7 +213,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             "../examples/shaders/"
         },
         .apcDirectories = {
-            "../shaders/",
             "../examples/shaders/"
         },
         .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE

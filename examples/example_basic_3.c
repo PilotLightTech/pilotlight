@@ -74,6 +74,7 @@ Index of this file:
 #include "pl_platform_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_shader_ext.h"
+#include "pl_vfs_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -123,6 +124,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // allocate app memory here
     ptAppData = PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+
+    // create cache directories
+    pl_file_create_directory("../cache");
+    pl_file_create_directory("../cache/shaders");
+    pl_file_create_directory("../cache/imports");
+    pl_file_create_directory("../cache/textures");
+    pl_file_create_directory("../cache/terrain");
+
+    // mount required directories
+    pl_vfs_mount_directory("/shaders",   "../shaders",   PL_VFS_MOUNT_FLAGS_NONE);
+    pl_vfs_mount_directory("/resources", "../resources", PL_VFS_MOUNT_FLAGS_NONE);
+    pl_vfs_mount_directory("/cache",     "../cache",     PL_VFS_MOUNT_FLAGS_NONE);
+    pl_vfs_mount_directory("/assets",    "../assets",    PL_VFS_MOUNT_FLAGS_NONE);
 
     // default values
     ptAppData->bShowHelpWindow = true;
