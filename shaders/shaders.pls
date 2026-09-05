@@ -443,7 +443,7 @@
                 { "eType": "PL_DATA_TYPE_INT" },
                 { "eType": "PL_DATA_TYPE_INT" },
                 { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 { "pcName": "scene" },
@@ -1006,7 +1006,7 @@
                     "atAttributes": [
                         { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" },
                         { "eFormat": "PL_VERTEX_FORMAT_FLOAT2" },
-                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT2" }
                     ]
                 }
             ],
@@ -1047,7 +1047,7 @@
                     "atAttributes": [
                         { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" },
                         { "eFormat": "PL_VERTEX_FORMAT_FLOAT2" },
-                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT2" }
                     ]
                 }
             ],

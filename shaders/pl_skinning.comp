@@ -102,7 +102,7 @@ main()
     if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0))  { inJoints0      = tDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
     if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0)) { inWeights0     = tDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 
-    mat4 skin = tObjectInfo.tData.tInverseWorld * get_skinning_matrix(inJoints0, inWeights0);
+    mat4 skin = get_skinning_matrix(inJoints0, inWeights0);
 
     vec4 outPosition = skin * inPosition;
     vec3 outNormal = normalize(mat3(skin) * inNormal);

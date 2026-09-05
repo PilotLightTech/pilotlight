@@ -205,7 +205,7 @@ void main()
         vec3 metal_fresnel = pl_fresnel_schlick(materialInfo.baseColor, vec3(1.0), abs(clampedDot(v, h)));
 
 
-        if (NdotL > 0.0 && NdotV > 0.0)
+        if (NdotL > 0.0)
         {
 
             vec3 intensity = tGpuScene.tData.fIntensity * tGpuScene.tData.tColor;
@@ -217,16 +217,19 @@ void main()
             vec3 l_dielectric_brdf = vec3(0.0);
             vec3 l_metal_brdf = vec3(0.0);
 
-            float NdotH = clampedDot(n, h);
-            l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
-            l_specular_dielectric = l_specular_metal;
+            if(NdotV > 0)
+            {
+                float NdotH = clampedDot(n, h);
+                l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                l_specular_dielectric = l_specular_metal;
+            }
 
             l_metal_brdf = metal_fresnel * l_specular_metal;
             l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
     
             vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
             color += l_color;
-        }    
+        }
     }
 
     // Layer blending

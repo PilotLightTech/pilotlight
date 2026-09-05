@@ -51,13 +51,14 @@ vec4 getBaseColor(vec4 u_ColorFactor)
 {
     vec4 baseColor = vec4(1);
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
+    // if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
     {
         // baseColor = u_BaseColorFactor;
         baseColor = u_ColorFactor;
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
+    // if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
+    if(bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
         plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
         baseColor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_BASE_COLOR])], tSamplerLinearRepeat), tShaderIn.tUV);
@@ -74,7 +75,7 @@ void main()
     vec4 tBaseColor = getBaseColor(
         tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex].tBaseColorFactor);
 
-    if(tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex].tAlphaMode == PL_SHADER_ALPHA_MODE_MASK)
+    if(tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex].eAlphaMode == PL_SHADER_ALPHA_MODE_MASK)
     {
         if(tBaseColor.a <  tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex].fAlphaCutoff)
         {

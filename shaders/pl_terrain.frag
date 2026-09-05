@@ -109,7 +109,7 @@ void main()
     // outAlbedo = vec4(0.2, 0.2, 0.2, 1.0);
 
     outNormal = Encode(normal);
-    outAOMetalnessRoughness = vec4(1.0, 1.0, 1.0, 1.0);
+    outAOMetalnessRoughness = vec4(1.0, 0.0, 1.0, 1.0);
 
 
     if(bool(tDynamicData.tData.tFlags & PL_TERRAIN_SHADER_FLAGS_SHOW_LEVELS))

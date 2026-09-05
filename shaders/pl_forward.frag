@@ -184,7 +184,7 @@ void main()
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
     vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.aiTextureUVSet[PL_TEXTURE_BASE_COLOR]);
 
-    if(material.tAlphaMode == PL_SHADER_ALPHA_MODE_OPAQUE)
+    if(material.eAlphaMode == PL_SHADER_ALPHA_MODE_OPAQUE)
     {
         tBaseColor.a = 1.0;
     }
@@ -217,7 +217,7 @@ void main()
 
     materialInfo = getIorInfo(materialInfo);
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
+    // if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
     {
         materialInfo = getMetallicRoughnessInfo(materialInfo, material.fMetallicFactor, material.fRoughnessFactor);
     }
@@ -593,7 +593,7 @@ void main()
             vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
 
 
-            if (NdotL > 0.0 && NdotV > 0.0)
+            if (NdotL > 0.0)
             {
                 
                 vec3 intensity = tGpuScene.tData.fIntensity * tGpuScene.tData.tColor;
@@ -644,15 +644,18 @@ void main()
                         l_diffuse = mix(l_diffuse, transmittedLight, materialInfo.transmissionFactor);
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+                if(NdotV > 0.0)
                 {
-                    l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGXAnisotropy(materialInfo.alphaRoughness, materialInfo.anisotropyStrength, n, v, l, h, materialInfo.anisotropicT, materialInfo.anisotropicB);
-                    l_specular_dielectric = l_specular_metal;
-                }
-                else
-                {
-                    l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
-                    l_specular_dielectric = l_specular_metal;
+                    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+                    {
+                        l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGXAnisotropy(materialInfo.alphaRoughness, materialInfo.anisotropyStrength, n, v, l, h, materialInfo.anisotropicT, materialInfo.anisotropicB);
+                        l_specular_dielectric = l_specular_metal;
+                    }
+                    else
+                    {
+                        l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                        l_specular_dielectric = l_specular_metal;
+                    }
                 }
 
                 l_metal_brdf = metal_fresnel * l_specular_metal;
@@ -1123,7 +1126,7 @@ void main()
         f_emissive *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_EMISSIVE])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_EMISSIVE)).rgb);
     }
 
-    if(material.tAlphaMode == PL_SHADER_ALPHA_MODE_MASK)
+    if(material.eAlphaMode == PL_SHADER_ALPHA_MODE_MASK)
     {
         if(tBaseColor.a <  material.fAlphaCutoff)
         {
