@@ -28,7 +28,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plStringInternI_version {2, 0, 0}
+#define plStringInternI_version {3, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -54,8 +54,11 @@ PL_API void pl_unload_string_intern_ext(plApiRegistryI*, bool reload);
 PL_API plStringRepository* pl_string_intern_create_repository (void);
 PL_API void                pl_string_intern_destroy_repository(plStringRepository*);
 
-PL_API const char*         pl_string_intern_intern(plStringRepository*, const char* pcString);
-PL_API void                pl_string_intern_remove(plStringRepository*, const char* pcString);
+PL_API const char* pl_string_intern_intern   (const char* cString);
+PL_API const char* pl_string_intern_intern_ex(const char* cString, plStringRepository*);
+
+PL_API void pl_string_intern_remove(const char* cString);
+PL_API void pl_string_intern_remove_ex(const char* cString, plStringRepository*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -66,8 +69,11 @@ typedef struct _plStringInternI
     plStringRepository* (*create_repository) (void);
     void                (*destroy_repository)(plStringRepository*);
     
-    const char* (*intern)(plStringRepository*, const char* pcString);
-    void        (*remove)(plStringRepository*, const char* pcString);
+    const char* (*intern)(const char* cString);
+    const char* (*intern_ex)(const char* cString, plStringRepository*);
+
+    void (*remove)(const char* cString);
+    void (*remove_ex)(const char* cString, plStringRepository*);
 
 } plStringInternI;
 
