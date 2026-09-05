@@ -128,7 +128,7 @@ PL_API void                   pl_physics_create_rigid_body(plComponentLibrary*, 
 //----------------------------ECS INTEGRATION----------------------------------
 
 // system setup/shutdown/etc
-PL_API void                   pl_physics_register_ecs_system(void);
+PL_API void                   pl_physics_register_ecs_components(void);
 
 // ecs types
 PL_API plEcsTypeKey           pl_physics_get_ecs_type_key_rigid_body_physics(void);
@@ -179,7 +179,7 @@ typedef struct _plPhysicsI
     //----------------------------ECS INTEGRATION----------------------------------
 
     // system setup/shutdown/etc
-    void (*register_ecs_system)(void);
+    void (*register_ecs_components)(void);
 
     // ecs types
     plEcsTypeKey (*get_ecs_type_key_rigid_body_physics)(void);

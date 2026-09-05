@@ -27,9 +27,9 @@ Index of this file:
 #include "pl_shader_ext.h"
 #include "pl_vfs_ext.h"
 #include "pl_profile_ext.h"
+#include "pl_json_ext.h"
 
 // libs
-#include "pl_json.h"
 #include "pl_string.h"
 #include "pl_memory.h"
 
@@ -52,6 +52,7 @@ Index of this file:
     static const plShaderI*   gptShader  = NULL;
     static const plVfsI*      gptVfs     = NULL;
     static const plProfileI*  gptProfile = NULL;
+    static const plJsonI*     gptJson = NULL;
 
 #endif
 
@@ -396,18 +397,18 @@ pl_shader_variant_load_manifest(const char* pcPath)
     gptVfs->close_file(tShaderJson);
 
     plJsonObject* ptRootJsonObject = NULL;
-    pl_load_json(pucBuffer, &ptRootJsonObject);
+    gptJson->load(pucBuffer, &ptRootJsonObject);
 
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "bind group layouts");
 
     // load bind group layouts
     uint32_t uHighBindGroupLayoutCount = 0;
-    plJsonObject* ptHighBindGroupLayouts = pl_json_array_member(ptRootJsonObject, "bind group layouts", &uHighBindGroupLayoutCount);
+    plJsonObject* ptHighBindGroupLayouts = gptJson->array_member(ptRootJsonObject, "bind group layouts", &uHighBindGroupLayoutCount);
     for(uint32_t i = 0; i < uHighBindGroupLayoutCount; i++)
     {
-        plJsonObject* ptBindGroupLayout = pl_json_member_by_index(ptHighBindGroupLayouts, i);
+        plJsonObject* ptBindGroupLayout = gptJson->member_by_index(ptHighBindGroupLayouts, i);
         char acNameBuffer[256] = {0};
-        pl_json_string_member(ptBindGroupLayout, "pcName", acNameBuffer, 256);
+        gptJson->string_member(ptBindGroupLayout, "pcName", acNameBuffer, 256);
 
         if(pl_hm32_has_key_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acNameBuffer))
         {
@@ -434,31 +435,31 @@ pl_shader_variant_load_manifest(const char* pcPath)
 
     // load compute shaders
     uint32_t uComputeShaderCount = 0;
-    plJsonObject* ptComputeShaders = pl_json_array_member(ptRootJsonObject, "compute shaders", &uComputeShaderCount);
+    plJsonObject* ptComputeShaders = gptJson->array_member(ptRootJsonObject, "compute shaders", &uComputeShaderCount);
 
     uint32_t uShaderCount = 0;
-    plJsonObject* ptGraphicsShaders = pl_json_array_member(ptRootJsonObject, "graphics shaders", &uShaderCount);
+    plJsonObject* ptGraphicsShaders = gptJson->array_member(ptRootJsonObject, "graphics shaders", &uShaderCount);
 
     // bind group layout prepass
     for(uint32_t uShaderIndex = 0; uShaderIndex < uComputeShaderCount; uShaderIndex++)
     {
-        plJsonObject* ptComputeShader = pl_json_member_by_index(ptComputeShaders, uShaderIndex);
+        plJsonObject* ptComputeShader = gptJson->member_by_index(ptComputeShaders, uShaderIndex);
         uint32_t uBindGroupLayoutCount = 0;
-        plJsonObject* ptBindGroupLayouts = pl_json_array_member(ptComputeShader, "atBindGroupLayouts", &uBindGroupLayoutCount);
+        plJsonObject* ptBindGroupLayouts = gptJson->array_member(ptComputeShader, "atBindGroupLayouts", &uBindGroupLayoutCount);
         for(uint32_t uBindGroupIndex = 0; uBindGroupIndex < uBindGroupLayoutCount; uBindGroupIndex++)
         {
-            plJsonObject* ptBindGroupLayout = pl_json_member_by_index(ptBindGroupLayouts, uBindGroupIndex);
+            plJsonObject* ptBindGroupLayout = gptJson->member_by_index(ptBindGroupLayouts, uBindGroupIndex);
 
-            if(pl_json_member_exist(ptBindGroupLayout, "pcName"))
+            if(gptJson->member_exist(ptBindGroupLayout, "pcName"))
             {
 
-                if(pl_json_member_exist(ptBindGroupLayout, "atBufferBindings") ||
-                    pl_json_member_exist(ptBindGroupLayout, "atSamplerBindings") ||
-                    pl_json_member_exist(ptBindGroupLayout, "atTextureBindings"))
+                if(gptJson->member_exist(ptBindGroupLayout, "atBufferBindings") ||
+                    gptJson->member_exist(ptBindGroupLayout, "atSamplerBindings") ||
+                    gptJson->member_exist(ptBindGroupLayout, "atTextureBindings"))
                     {
 
                         char acNameBuffer[256] = {0};
-                        pl_json_string_member(ptBindGroupLayout, "pcName", acNameBuffer, 256);
+                        gptJson->string_member(ptBindGroupLayout, "pcName", acNameBuffer, 256);
 
                         if(pl_hm32_has_key_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acNameBuffer))
                         {
@@ -489,24 +490,24 @@ pl_shader_variant_load_manifest(const char* pcPath)
     // bind group layout prepass
     for(uint32_t uShaderIndex = 0; uShaderIndex < uShaderCount; uShaderIndex++)
     {
-        plJsonObject* ptShader = pl_json_member_by_index(ptGraphicsShaders, uShaderIndex);
+        plJsonObject* ptShader = gptJson->member_by_index(ptGraphicsShaders, uShaderIndex);
         uint32_t uBindGroupLayoutCount = 0;
-        plJsonObject* ptBindGroupLayouts = pl_json_array_member(ptShader, "atBindGroupLayouts", &uBindGroupLayoutCount);
+        plJsonObject* ptBindGroupLayouts = gptJson->array_member(ptShader, "atBindGroupLayouts", &uBindGroupLayoutCount);
         for(uint32_t uBindGroupIndex = 0; uBindGroupIndex < uBindGroupLayoutCount; uBindGroupIndex++)
         {
-            plJsonObject* ptBindGroupLayout = pl_json_member_by_index(ptBindGroupLayouts, uBindGroupIndex);
+            plJsonObject* ptBindGroupLayout = gptJson->member_by_index(ptBindGroupLayouts, uBindGroupIndex);
 
-            if(pl_json_member_exist(ptBindGroupLayout, "pcName"))
+            if(gptJson->member_exist(ptBindGroupLayout, "pcName"))
             {
 
 
-                if(pl_json_member_exist(ptBindGroupLayout, "atBufferBindings") ||
-                    pl_json_member_exist(ptBindGroupLayout, "atSamplerBindings") ||
-                    pl_json_member_exist(ptBindGroupLayout, "atTextureBindings"))
+                if(gptJson->member_exist(ptBindGroupLayout, "atBufferBindings") ||
+                    gptJson->member_exist(ptBindGroupLayout, "atSamplerBindings") ||
+                    gptJson->member_exist(ptBindGroupLayout, "atTextureBindings"))
                     {
 
                         char acNameBuffer[256] = {0};
-                        pl_json_string_member(ptBindGroupLayout, "pcName", acNameBuffer, 256);
+                        gptJson->string_member(ptBindGroupLayout, "pcName", acNameBuffer, 256);
 
                         if(pl_hm32_has_key_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acNameBuffer))
                         {
@@ -533,9 +534,9 @@ pl_shader_variant_load_manifest(const char* pcPath)
 
     for(uint32_t uShaderIndex = 0; uShaderIndex < uComputeShaderCount; uShaderIndex++)
     {
-        plJsonObject* ptComputeShader = pl_json_member_by_index(ptComputeShaders, uShaderIndex);
+        plJsonObject* ptComputeShader = gptJson->member_by_index(ptComputeShaders, uShaderIndex);
         char acNameBuffer[256] = {0};
-        pl_json_string_member(ptComputeShader, "pcName", acNameBuffer, 64);
+        gptJson->string_member(ptComputeShader, "pcName", acNameBuffer, 64);
 
         if(pl_hm32_has_key_str(&gptShaderVariantCtx->tComputeHashmap, acNameBuffer))
         {
@@ -553,12 +554,12 @@ pl_shader_variant_load_manifest(const char* pcPath)
         }
         pl_hm32_insert_str(&gptShaderVariantCtx->tComputeHashmap, acNameBuffer, uVariantIndex);
 
-        plJsonObject* ptShaderMember = pl_json_member(ptComputeShader, "tShader");
+        plJsonObject* ptShaderMember = gptJson->member(ptComputeShader, "tShader");
         char acFileBuffer[256] = {0};
         char acEntryBuffer[64] = {0};
         strncpy(acEntryBuffer, "main", 64);
-        pl_json_string_member(ptShaderMember, "file", acFileBuffer, 256);
-        pl_json_string_member(ptShaderMember, "entry", acEntryBuffer, 64);
+        gptJson->string_member(ptShaderMember, "file", acFileBuffer, 256);
+        gptJson->string_member(ptShaderMember, "entry", acEntryBuffer, 64);
 
         plMetaShaderInfo tInfo = {0};
         plComputeShaderDesc tComputeShaderDesc = {0};
@@ -567,15 +568,15 @@ pl_shader_variant_load_manifest(const char* pcPath)
 
         size_t szMaxContantExtent = 0;
         uint32_t uConstantCount = 0;
-        plJsonObject* ptConstants = pl_json_array_member(ptComputeShader, "atConstants", &uConstantCount);
+        plJsonObject* ptConstants = gptJson->array_member(ptComputeShader, "atConstants", &uConstantCount);
         for(uint32_t i = 0; i < uConstantCount; i++)
         {
-            plJsonObject* ptConstant = pl_json_member_by_index(ptConstants, i);
-            tComputeShaderDesc.atConstants[i].uID = pl_json_uint_member(ptConstant, "uID", 0);
-            tComputeShaderDesc.atConstants[i].uOffset = pl_json_uint_member(ptConstant, "uOffset", 0);
+            plJsonObject* ptConstant = gptJson->member_by_index(ptConstants, i);
+            tComputeShaderDesc.atConstants[i].uID = gptJson->uint32_member(ptConstant, "uID", 0);
+            tComputeShaderDesc.atConstants[i].uOffset = gptJson->uint32_member(ptConstant, "uOffset", 0);
 
             char acTypeBuffer[64] = {0};
-            pl_json_string_member(ptConstant, "eType", acTypeBuffer, 64);
+            gptJson->string_member(ptConstant, "eType", acTypeBuffer, 64);
             tComputeShaderDesc.atConstants[i].eType = pl__shader_tools_get_data_type(acTypeBuffer);
 
             const size_t szConstantExtent = gptGfx->get_data_type_size(tComputeShaderDesc.atConstants[i].eType) + tComputeShaderDesc.atConstants[i].uOffset;
@@ -592,16 +593,16 @@ pl_shader_variant_load_manifest(const char* pcPath)
         }
 
         uint32_t uBindGroupLayoutCount = 0;
-        plJsonObject* ptBindGroupLayouts = pl_json_array_member(ptComputeShader, "atBindGroupLayouts", &uBindGroupLayoutCount);
+        plJsonObject* ptBindGroupLayouts = gptJson->array_member(ptComputeShader, "atBindGroupLayouts", &uBindGroupLayoutCount);
         for(uint32_t uBindGroupIndex = 0; uBindGroupIndex < uBindGroupLayoutCount; uBindGroupIndex++)
         {
-            plJsonObject* ptBindGroupLayout = pl_json_member_by_index(ptBindGroupLayouts, uBindGroupIndex);
+            plJsonObject* ptBindGroupLayout = gptJson->member_by_index(ptBindGroupLayouts, uBindGroupIndex);
             tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex] = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
 
-            if(pl_json_member_exist(ptBindGroupLayout, "pcName"))
+            if(gptJson->member_exist(ptBindGroupLayout, "pcName"))
             {
                 char acBGNameBuffer[256] = {0};
-                pl_json_string_member(ptBindGroupLayout, "pcName", acBGNameBuffer, 256);
+                gptJson->string_member(ptBindGroupLayout, "pcName", acBGNameBuffer, 256);
 
                 if(pl_hm32_has_key_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acBGNameBuffer))
                 {
@@ -640,9 +641,9 @@ pl_shader_variant_load_manifest(const char* pcPath)
     // load graphics shaders
     for(uint32_t uShaderIndex = 0; uShaderIndex < uShaderCount; uShaderIndex++)
     {
-        plJsonObject* ptGraphicsShader = pl_json_member_by_index(ptGraphicsShaders, uShaderIndex);
+        plJsonObject* ptGraphicsShader = gptJson->member_by_index(ptGraphicsShaders, uShaderIndex);
         char acNameBuffer[256] = {0};
-        pl_json_string_member(ptGraphicsShader, "pcName", acNameBuffer, 256);
+        gptJson->string_member(ptGraphicsShader, "pcName", acNameBuffer, 256);
 
         if(pl_hm32_has_key_str(&gptShaderVariantCtx->tGraphicsHashmap, acNameBuffer))
         {
@@ -661,21 +662,21 @@ pl_shader_variant_load_manifest(const char* pcPath)
         }
         pl_hm32_insert_str(&gptShaderVariantCtx->tGraphicsHashmap, acNameBuffer, uVariantIndex);
 
-        plJsonObject* ptVertexShaderMember = pl_json_member(ptGraphicsShader, "tVertexShader");
+        plJsonObject* ptVertexShaderMember = gptJson->member(ptGraphicsShader, "tVertexShader");
         char acFileBuffer[256] = {0};
         char acEntryBuffer[64] = {0};
         strncpy(acEntryBuffer, "main", 64);
-        pl_json_string_member(ptVertexShaderMember, "file", acFileBuffer, 256);
-        pl_json_string_member(ptVertexShaderMember, "entry", acEntryBuffer, 64);
+        gptJson->string_member(ptVertexShaderMember, "file", acFileBuffer, 256);
+        gptJson->string_member(ptVertexShaderMember, "entry", acEntryBuffer, 64);
 
-        plJsonObject* ptPixelShaderMember = pl_json_member(ptGraphicsShader, "tFragmentShader");
+        plJsonObject* ptPixelShaderMember = gptJson->member(ptGraphicsShader, "tFragmentShader");
         char acFileBuffer2[256] = {0};
         char acEntryBuffer2[64] = {0};
         strncpy(acEntryBuffer2, "main", 64);
         if(ptPixelShaderMember)
         {
-            pl_json_string_member(ptPixelShaderMember, "file", acFileBuffer2, 256);
-            pl_json_string_member(ptPixelShaderMember, "entry", acEntryBuffer2, 64);
+            gptJson->string_member(ptPixelShaderMember, "file", acFileBuffer2, 256);
+            gptJson->string_member(ptPixelShaderMember, "entry", acEntryBuffer2, 64);
         }
 
         plShaderDesc tShaderDesc = {0};
@@ -685,38 +686,38 @@ pl_shader_variant_load_manifest(const char* pcPath)
         if(ptPixelShaderMember)
             tShaderDesc.tFragmentShader = gptShader->load_glsl(acFileBuffer2, acEntryBuffer2, NULL, NULL);
 
-        plJsonObject* ptGraphicsMember = pl_json_member(ptGraphicsShader, "tGraphicsState");
+        plJsonObject* ptGraphicsMember = gptJson->member(ptGraphicsShader, "tGraphicsState");
         if(ptGraphicsMember)
         {
-            tShaderDesc.tGraphicsState.bWireframe = pl_json_bool_member(ptGraphicsMember, "bWireframe", false);
-            tShaderDesc.tGraphicsState.bDepthWriteEnabled = pl_json_bool_member(ptGraphicsMember, "bDepthWriteEnabled", false);
-            tShaderDesc.tGraphicsState.uStencilRef = pl_json_uint_member(ptGraphicsMember, "uStencilRef", 255);
-            tShaderDesc.tGraphicsState.uStencilMask = pl_json_uint_member(ptGraphicsMember, "uStencilMask", 255);
-            tShaderDesc.tGraphicsState.bDepthClampEnabled = pl_json_bool_member(ptGraphicsMember, "bDepthClampEnabled", false);
-            tShaderDesc.tGraphicsState.bStencilTestEnabled = pl_json_bool_member(ptGraphicsMember, "bStencilTestEnabled", false);
+            tShaderDesc.tGraphicsState.bWireframe = gptJson->bool_member(ptGraphicsMember, "bWireframe", false);
+            tShaderDesc.tGraphicsState.bDepthWriteEnabled = gptJson->bool_member(ptGraphicsMember, "bDepthWriteEnabled", false);
+            tShaderDesc.tGraphicsState.uStencilRef = gptJson->uint32_member(ptGraphicsMember, "uStencilRef", 255);
+            tShaderDesc.tGraphicsState.uStencilMask = gptJson->uint32_member(ptGraphicsMember, "uStencilMask", 255);
+            tShaderDesc.tGraphicsState.bDepthClampEnabled = gptJson->bool_member(ptGraphicsMember, "bDepthClampEnabled", false);
+            tShaderDesc.tGraphicsState.bStencilTestEnabled = gptJson->bool_member(ptGraphicsMember, "bStencilTestEnabled", false);
 
             char acEnumBuffer[64] = {0};
-            char* pcEnumValue = pl_json_string_member(ptGraphicsMember, "eStencilOpFail", acEntryBuffer, 64);
-            if(pl_json_member_exist(ptGraphicsMember, "eStencilOpFail"))
+            char* pcEnumValue = gptJson->string_member(ptGraphicsMember, "eStencilOpFail", acEntryBuffer, 64);
+            if(gptJson->member_exist(ptGraphicsMember, "eStencilOpFail"))
                 tShaderDesc.tGraphicsState.eStencilOpFail = pl__shader_tools_get_stencil_op(pcEnumValue);
 
-            pl_json_string_member(ptGraphicsMember, "eStencilOpDepthFail", acEntryBuffer, 64);
-            if(pl_json_member_exist(ptGraphicsMember, "eStencilOpDepthFail"))
+            gptJson->string_member(ptGraphicsMember, "eStencilOpDepthFail", acEntryBuffer, 64);
+            if(gptJson->member_exist(ptGraphicsMember, "eStencilOpDepthFail"))
                 tShaderDesc.tGraphicsState.eStencilOpDepthFail = pl__shader_tools_get_stencil_op(pcEnumValue);
 
-            pl_json_string_member(ptGraphicsMember, "eStencilOpPass", acEntryBuffer, 64);
-            if(pl_json_member_exist(ptGraphicsMember, "eStencilOpPass"))
+            gptJson->string_member(ptGraphicsMember, "eStencilOpPass", acEntryBuffer, 64);
+            if(gptJson->member_exist(ptGraphicsMember, "eStencilOpPass"))
                 tShaderDesc.tGraphicsState.eStencilOpPass = pl__shader_tools_get_stencil_op(pcEnumValue);
 
-            pcEnumValue = pl_json_string_member(ptGraphicsMember, "eStencilMode", acEntryBuffer, 64);
+            pcEnumValue = gptJson->string_member(ptGraphicsMember, "eStencilMode", acEntryBuffer, 64);
             if(pcEnumValue)
                 tShaderDesc.tGraphicsState.eStencilMode = pl__shader_tools_get_compare_mode(pcEnumValue);
 
-            pcEnumValue = pl_json_string_member(ptGraphicsMember, "eDepthMode", acEntryBuffer, 64);
+            pcEnumValue = gptJson->string_member(ptGraphicsMember, "eDepthMode", acEntryBuffer, 64);
             if(pcEnumValue)
                 tShaderDesc.tGraphicsState.eDepthMode = pl__shader_tools_get_compare_mode(pcEnumValue);
 
-            pcEnumValue = pl_json_string_member(ptGraphicsMember, "eCullMode", acEntryBuffer, 64);
+            pcEnumValue = gptJson->string_member(ptGraphicsMember, "eCullMode", acEntryBuffer, 64);
             if(pcEnumValue)
             {
                 if     (pcEnumValue[13] == 'N')                           tShaderDesc.tGraphicsState.eCullMode = PL_CULL_MODE_NONE;
@@ -731,93 +732,93 @@ pl_shader_variant_load_manifest(const char* pcPath)
         }
 
         uint32_t uBlendCount = 0;
-        plJsonObject* ptBlendStates = pl_json_array_member(ptGraphicsShader, "atBlendStates", &uBlendCount);
+        plJsonObject* ptBlendStates = gptJson->array_member(ptGraphicsShader, "atBlendStates", &uBlendCount);
         for(uint32_t i = 0; i < uBlendCount; i++)
         {
-            plJsonObject* ptBlendState = pl_json_member_by_index(ptBlendStates, i);
-            tShaderDesc.atBlendStates[i].bBlendEnabled = pl_json_bool_member(ptBlendState, "bBlendEnabled", false);
-            tShaderDesc.atBlendStates[i].uColorWriteMask = (uint8_t)pl_json_uint_member(ptBlendState, "uColorWriteMask", PL_COLOR_WRITE_MASK_ALL);
+            plJsonObject* ptBlendState = gptJson->member_by_index(ptBlendStates, i);
+            tShaderDesc.atBlendStates[i].bBlendEnabled = gptJson->bool_member(ptBlendState, "bBlendEnabled", false);
+            tShaderDesc.atBlendStates[i].uColorWriteMask = (uint8_t)gptJson->uint32_member(ptBlendState, "uColorWriteMask", PL_COLOR_WRITE_MASK_ALL);
 
             char acBlendOp[64] = {0};
             char* pcBlendEnum = NULL;
 
-            pcBlendEnum = pl_json_string_member(ptBlendState, "eSrcColorFactor", acBlendOp, 64);
+            pcBlendEnum = gptJson->string_member(ptBlendState, "eSrcColorFactor", acBlendOp, 64);
             tShaderDesc.atBlendStates[i].eSrcColorFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
 
-            pcBlendEnum = pl_json_string_member(ptBlendState, "eDstColorFactor", acBlendOp, 64);
+            pcBlendEnum = gptJson->string_member(ptBlendState, "eDstColorFactor", acBlendOp, 64);
             tShaderDesc.atBlendStates[i].eDstColorFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
 
-            pcBlendEnum = pl_json_string_member(ptBlendState, "eSrcAlphaFactor", acBlendOp, 64);
+            pcBlendEnum = gptJson->string_member(ptBlendState, "eSrcAlphaFactor", acBlendOp, 64);
             tShaderDesc.atBlendStates[i].eSrcAlphaFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
 
-            pcBlendEnum = pl_json_string_member(ptBlendState, "eDstAlphaFactor", acBlendOp, 64);
+            pcBlendEnum = gptJson->string_member(ptBlendState, "eDstAlphaFactor", acBlendOp, 64);
             tShaderDesc.atBlendStates[i].eDstAlphaFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
 
-            pcBlendEnum = pl_json_string_member(ptBlendState, "eAlphaOp", acBlendOp, 64);
+            pcBlendEnum = gptJson->string_member(ptBlendState, "eAlphaOp", acBlendOp, 64);
             tShaderDesc.atBlendStates[i].eAlphaOp = pl__shader_tools_get_blend_op(pcBlendEnum);
 
-            pcBlendEnum = pl_json_string_member(ptBlendState, "eColorOp", acBlendOp, 64);
+            pcBlendEnum = gptJson->string_member(ptBlendState, "eColorOp", acBlendOp, 64);
             tShaderDesc.atBlendStates[i].eColorOp = pl__shader_tools_get_blend_op(pcBlendEnum);
         }
 
         uint32_t uVertexBufferCount = 0;
-        plJsonObject* ptVertexBufferLayouts = pl_json_array_member(ptGraphicsShader, "atVertexBufferLayouts", &uVertexBufferCount);
+        plJsonObject* ptVertexBufferLayouts = gptJson->array_member(ptGraphicsShader, "atVertexBufferLayouts", &uVertexBufferCount);
         for(uint32_t i = 0; i < uVertexBufferCount; i++)
         {
-            plJsonObject* ptVertexBufferLayout = pl_json_member_by_index(ptVertexBufferLayouts, i);
-            tShaderDesc.atVertexBufferLayouts[i].uByteStride = pl_json_uint_member(ptVertexBufferLayout, "uByteStride", 0);
+            plJsonObject* ptVertexBufferLayout = gptJson->member_by_index(ptVertexBufferLayouts, i);
+            tShaderDesc.atVertexBufferLayouts[i].uByteStride = gptJson->uint32_member(ptVertexBufferLayout, "uByteStride", 0);
 
             uint32_t uAttributeCount = 0;
-            plJsonObject* ptAttributes = pl_json_array_member(ptVertexBufferLayout, "atAttributes", &uAttributeCount);
+            plJsonObject* ptAttributes = gptJson->array_member(ptVertexBufferLayout, "atAttributes", &uAttributeCount);
             for(uint32_t j = 0; j < uAttributeCount; j++)
             {
-                plJsonObject* ptAttribute = pl_json_member_by_index(ptAttributes, j);
-                tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].uByteOffset = pl_json_uint_member(ptAttribute, "uByteOffset", 0);
-                tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].uLocation = pl_json_uint_member(ptAttribute, "uLocation", 0);
+                plJsonObject* ptAttribute = gptJson->member_by_index(ptAttributes, j);
+                tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].uByteOffset = gptJson->uint32_member(ptAttribute, "uByteOffset", 0);
+                tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].uLocation = gptJson->uint32_member(ptAttribute, "uLocation", 0);
 
                 char acVertexFormatBuffer[64] = {0};
-                pl_json_string_member(ptAttribute, "eFormat", acVertexFormatBuffer, 64);
-                if(pl_json_member_exist(ptAttribute, "eFormat"))
+                gptJson->string_member(ptAttribute, "eFormat", acVertexFormatBuffer, 64);
+                if(gptJson->member_exist(ptAttribute, "eFormat"))
                     tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].eFormat = pl__shader_tools_get_vertex_format(acVertexFormatBuffer);
             }
         }
 
         uint32_t uConstantCount = 0;
-        plJsonObject* ptVertexConstants = pl_json_array_member(ptGraphicsShader, "atVertexConstants", &uConstantCount);
+        plJsonObject* ptVertexConstants = gptJson->array_member(ptGraphicsShader, "atVertexConstants", &uConstantCount);
         for(uint32_t i = 0; i < uConstantCount; i++)
         {
-            plJsonObject* ptConstant = pl_json_member_by_index(ptVertexConstants, i);
-            tShaderDesc.atVertexConstants[i].uID = pl_json_uint_member(ptConstant, "uID", 0);
-            tShaderDesc.atVertexConstants[i].uOffset = pl_json_uint_member(ptConstant, "uOffset", 0);
+            plJsonObject* ptConstant = gptJson->member_by_index(ptVertexConstants, i);
+            tShaderDesc.atVertexConstants[i].uID = gptJson->uint32_member(ptConstant, "uID", 0);
+            tShaderDesc.atVertexConstants[i].uOffset = gptJson->uint32_member(ptConstant, "uOffset", 0);
 
             char acTypeBuffer[64] = {0};
-            pl_json_string_member(ptConstant, "eType", acTypeBuffer, 64);
+            gptJson->string_member(ptConstant, "eType", acTypeBuffer, 64);
             tShaderDesc.atVertexConstants[i].eType = pl__shader_tools_get_data_type(acTypeBuffer);
         }
 
         uConstantCount = 0;
-        plJsonObject* ptFragmentConstants = pl_json_array_member(ptGraphicsShader, "atFragmentConstants", &uConstantCount);
+        plJsonObject* ptFragmentConstants = gptJson->array_member(ptGraphicsShader, "atFragmentConstants", &uConstantCount);
         for(uint32_t i = 0; i < uConstantCount; i++)
         {
-            plJsonObject* ptConstant = pl_json_member_by_index(ptFragmentConstants, i);
-            tShaderDesc.atFragmentConstants[i].uID = pl_json_uint_member(ptConstant, "uID", 0);
-            tShaderDesc.atFragmentConstants[i].uOffset = pl_json_uint_member(ptConstant, "uOffset", 0);
+            plJsonObject* ptConstant = gptJson->member_by_index(ptFragmentConstants, i);
+            tShaderDesc.atFragmentConstants[i].uID = gptJson->uint32_member(ptConstant, "uID", 0);
+            tShaderDesc.atFragmentConstants[i].uOffset = gptJson->uint32_member(ptConstant, "uOffset", 0);
 
             char acTypeBuffer[64] = {0};
-            pl_json_string_member(ptConstant, "eType", acTypeBuffer, 64);
+            gptJson->string_member(ptConstant, "eType", acTypeBuffer, 64);
             tShaderDesc.atFragmentConstants[i].eType = pl__shader_tools_get_data_type(acTypeBuffer);
         }
 
         uint32_t uBindGroupLayoutCount = 0;
-        plJsonObject* ptBindGroupLayouts = pl_json_array_member(ptGraphicsShader, "atBindGroupLayouts", &uBindGroupLayoutCount);
+        plJsonObject* ptBindGroupLayouts = gptJson->array_member(ptGraphicsShader, "atBindGroupLayouts", &uBindGroupLayoutCount);
         for(uint32_t i = 0; i < uBindGroupLayoutCount; i++)
         {
-            plJsonObject* ptBindGroupLayout = pl_json_member_by_index(ptBindGroupLayouts, i);
+            plJsonObject* ptBindGroupLayout = gptJson->member_by_index(ptBindGroupLayouts, i);
 
-            if(pl_json_member_exist(ptBindGroupLayout, "pcName"))
+            if(gptJson->member_exist(ptBindGroupLayout, "pcName"))
             {
                 char acBGNameBuffer[256] = {0};
-                pl_json_string_member(ptBindGroupLayout, "pcName", acBGNameBuffer, 256);
+                gptJson->string_member(ptBindGroupLayout, "pcName", acBGNameBuffer, 256);
 
                 if(pl_hm32_has_key_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acBGNameBuffer))
                 {
@@ -843,7 +844,7 @@ pl_shader_variant_load_manifest(const char* pcPath)
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 
-    pl_unload_json(&ptRootJsonObject);
+    gptJson->unload(&ptRootJsonObject);
     PL_FREE(pucBuffer);
     pl_temp_allocator_free(&tTempAllocator);
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
@@ -1181,14 +1182,14 @@ pl__shader_tools_bind_group_layout_desc(plJsonObject* ptBindGroupLayout)
 {
     plBindGroupLayoutDesc tDesc = {0};
     uint32_t uBufferBindingCount = 0;
-    plJsonObject* ptBufferBindings = pl_json_array_member(ptBindGroupLayout, "atBufferBindings", &uBufferBindingCount);
+    plJsonObject* ptBufferBindings = gptJson->array_member(ptBindGroupLayout, "atBufferBindings", &uBufferBindingCount);
     for(uint32_t j = 0; j < uBufferBindingCount; j++)
     {
-        plJsonObject* ptBinding = pl_json_member_by_index(ptBufferBindings, j);
-        tDesc.atBufferBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
+        plJsonObject* ptBinding = gptJson->member_by_index(ptBufferBindings, j);
+        tDesc.atBufferBindings[j].uSlot = gptJson->uint32_member(ptBinding, "uSlot", 0);
 
         char acTypeBuffer[64] = {0};
-        pl_json_string_member(ptBinding, "eType", acTypeBuffer, 64);
+        gptJson->string_member(ptBinding, "eType", acTypeBuffer, 64);
         tDesc.atBufferBindings[j].eType = pl__shader_tools_buffer_binding_type(acTypeBuffer);
 
         char acStage0[64] = {0};
@@ -1197,21 +1198,21 @@ pl__shader_tools_bind_group_layout_desc(plJsonObject* ptBindGroupLayout)
         char* aacStages[3] = {acStage0, acStage1, acStage2};
         uint32_t auLengths[3] = {64, 64, 64};
         uint32_t uStageCount = 0;
-        pl_json_string_array_member(ptBinding, "eStages", aacStages, &uStageCount, auLengths);
+        gptJson->string_array_member(ptBinding, "eStages", aacStages, &uStageCount, auLengths);
         for(uint32_t k = 0; k < uStageCount; k++)
             tDesc.atBufferBindings[j].eStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
     }
 
     uint32_t uTextureBindingCount = 0;
-    plJsonObject* ptTextureBindings = pl_json_array_member(ptBindGroupLayout, "atTextureBindings", &uTextureBindingCount);
+    plJsonObject* ptTextureBindings = gptJson->array_member(ptBindGroupLayout, "atTextureBindings", &uTextureBindingCount);
     for(uint32_t j = 0; j < uTextureBindingCount; j++)
     {
-        plJsonObject* ptBinding = pl_json_member_by_index(ptTextureBindings, j);
-        tDesc.atTextureBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
-        tDesc.atTextureBindings[j].uDescriptorCount = pl_json_uint_member(ptBinding, "uDescriptorCount", 0);
+        plJsonObject* ptBinding = gptJson->member_by_index(ptTextureBindings, j);
+        tDesc.atTextureBindings[j].uSlot = gptJson->uint32_member(ptBinding, "uSlot", 0);
+        tDesc.atTextureBindings[j].uDescriptorCount = gptJson->uint32_member(ptBinding, "uDescriptorCount", 0);
 
         char acTypeBuffer[64] = {0};
-        pl_json_string_member(ptBinding, "eType", acTypeBuffer, 64);
+        gptJson->string_member(ptBinding, "eType", acTypeBuffer, 64);
         tDesc.atTextureBindings[j].eType = pl__shader_tools_texture_binding_type(acTypeBuffer);
 
         char acStage0[64] = {0};
@@ -1220,17 +1221,17 @@ pl__shader_tools_bind_group_layout_desc(plJsonObject* ptBindGroupLayout)
         char* aacStages[3] = {acStage0, acStage1, acStage2};
         uint32_t auLengths[3] = {64, 64, 64};
         uint32_t uStageCount = 0;
-        pl_json_string_array_member(ptBinding, "eStages", aacStages, &uStageCount, auLengths);
+        gptJson->string_array_member(ptBinding, "eStages", aacStages, &uStageCount, auLengths);
         for(uint32_t k = 0; k < uStageCount; k++)
             tDesc.atTextureBindings[j].eStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
     }
 
     uint32_t uSamplerBindingCount = 0;
-    plJsonObject* ptSamplerBindings = pl_json_array_member(ptBindGroupLayout, "atSamplerBindings", &uSamplerBindingCount);
+    plJsonObject* ptSamplerBindings = gptJson->array_member(ptBindGroupLayout, "atSamplerBindings", &uSamplerBindingCount);
     for(uint32_t j = 0; j < uSamplerBindingCount; j++)
     {
-        plJsonObject* ptBinding = pl_json_member_by_index(ptSamplerBindings, j);
-        tDesc.atSamplerBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
+        plJsonObject* ptBinding = gptJson->member_by_index(ptSamplerBindings, j);
+        tDesc.atSamplerBindings[j].uSlot = gptJson->uint32_member(ptBinding, "uSlot", 0);
 
         char acStage0[64] = {0};
         char acStage1[64] = {0};
@@ -1238,7 +1239,7 @@ pl__shader_tools_bind_group_layout_desc(plJsonObject* ptBindGroupLayout)
         char* aacStages[3] = {acStage0, acStage1, acStage2};
         uint32_t auLengths[3] = {64, 64, 64};
         uint32_t uStageCount = 0;
-        pl_json_string_array_member(ptBinding, "eStages", aacStages, &uStageCount, auLengths);
+        gptJson->string_array_member(ptBinding, "eStages", aacStages, &uStageCount, auLengths);
         for(uint32_t k = 0; k < uStageCount; k++)
             tDesc.atSamplerBindings[j].eStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
     }
@@ -1272,6 +1273,7 @@ pl_load_shader_variant_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
         gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
         gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
+        gptJson    = pl_get_api_latest(ptApiRegistry, plJsonI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
@@ -1299,10 +1301,6 @@ pl_unload_shader_variant_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 }
 
 #ifndef PL_UNITY_BUILD
-
-    #define PL_JSON_IMPLEMENTATION
-    #include "pl_json.h"
-    #undef PL_JSON_IMPLEMENTATION
 
     #define PL_STRING_IMPLEMENTATION
     #include "pl_string.h"

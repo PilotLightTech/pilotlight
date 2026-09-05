@@ -1,5 +1,5 @@
 /*
-   pl_terrain_processor_ext.c
+   pl_terrain_ext.c
 */
 
 /*
@@ -34,15 +34,19 @@ Index of this file:
 #include "pl_math.h"
 #undef pl_vnsprintf
 #include "pl_memory.h"
+#include "pl_string.h"
 
 // stable extensions
 #include "pl_image_ext.h"
 #include "pl_vfs_ext.h"
 #include "pl_platform_ext.h"
+#include "pl_asset_ext.h"
+#include "pl_json_ext.h"
 
 // unstable extensions
 #include "pl_collision_ext.h"
 #include "pl_freelist_ext.h"
+#include "pl_texture_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -56,8 +60,8 @@ typedef struct _plTrianglePrimitive plTrianglePrimitive;
 typedef struct _plTerrainHeightMap  plTerrainHeightMap;
 
 // basic types for rendering
-typedef struct _plTerrainChunk           plTerrainChunk;
-typedef struct _plTerrainChunkFile       plTerrainChunkFile;
+typedef struct _plTerrainChunk     plTerrainChunk;
+typedef struct _plTerrainChunkFile plTerrainChunkFile;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -107,7 +111,6 @@ typedef struct _plTerrainHeightMap
     float                fMinHeight;
     plVec3               tCenter;
     plTerrainMapElement* atElements;
-    const char*          pcOutputFile;
     plEdgeEntry*         sbtEdges;
     plVec3               tMinBounding;
     plVec3               tMaxBounding;
@@ -123,9 +126,16 @@ typedef struct _plTerrainHeightMap
     uint32_t uHeightmapCount;
 } plTerrainHeightMap;
 
+typedef struct _plTerrainContext
+{
+    plAssetTypeKey tAssetTypeKey;
+} plTerrainContext;
+
 //-----------------------------------------------------------------------------
 // [SECTION] global data
 //-----------------------------------------------------------------------------
+
+static plTerrainContext* gptTerrainCtx = NULL;
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -146,7 +156,8 @@ typedef struct _plTerrainHeightMap
     static const plImageI*   gptImage = NULL;
     static const plFileI*    gptFile  = NULL;
     static const plVfsI*     gptVfs   = NULL;
-    
+    static const plAssetI*   gptAsset = NULL;
+    static const plJsonI*    gptJson = NULL;
 
 #endif
 
@@ -247,7 +258,7 @@ static void pl__update(plTerrainHeightMap*, float base_max_error, int ax, int az
 static void pl__propagate_activation_level(plTerrainHeightMap*, int cx, int cz, int level, int target_level);
 
 // main steps
-static void pl__initialize_cdlod_heightmap(plTerrainHeightMap*, plTerrainProcessInfo*, uint32_t);
+static void pl__initialize_cdlod_heightmap(plTerrainHeightMap*, plTerrainAsset*, uint32_t);
 static void pl__terrain_mesh(FILE*, plTerrainHeightMap*, int iStartIndexX, int iStartIndexY, int iLogSize, int iLevel);
 
 static inline plVec2
@@ -287,11 +298,19 @@ static plVec2 pl__get_normal(plTerrainHeightMap*, plTerrainMapElement*);
 //-----------------------------------------------------------------------------
 
 void
-pl_terrain_process(plTerrainProcessInfo* ptInfo)
+pl_terrain_process(plTerrainAsset* ptInfo)
 {
     for(uint32_t i = 0; i < ptInfo->uTileCount; i++)
     {
-        if(gptVfs->does_file_exist(ptInfo->atTiles[i].acOutputFile))
+        const char* pcAssetPath = gptAsset->get_path(ptInfo->atTiles[i].tHeightmap);
+
+        char acFileNameOnly[256] = {0};
+        pl_str_get_file_name_only(pcAssetPath, acFileNameOnly, 256);
+
+        char acCacheFile[256] = {0};
+        pl_sprintf(acCacheFile, "/cache/terrain/%s.chu", acFileNameOnly);
+
+        if(gptVfs->does_file_exist(acCacheFile))
             continue;
 
         plTerrainHeightMap tHeightMap = {
@@ -305,8 +324,7 @@ pl_terrain_process(plTerrainProcessInfo* ptInfo)
                 .y = ptInfo->atTiles[i].tCenter.y,
                 .z = ptInfo->atTiles[i].tCenter.z,
             },
-            .uRequestedSize  = ptInfo->uSize,
-            .pcOutputFile    = ptInfo->atTiles[i].acOutputFile
+            .uRequestedSize  = ptInfo->uSize
         };
 
         pl__initialize_cdlod_heightmap(&tHeightMap, ptInfo, i);
@@ -337,7 +355,7 @@ pl_terrain_process(plTerrainProcessInfo* ptInfo)
 
         int iRootLevel = ptInfo->atTiles[i].iTreeDepth - 1;
 
-        plVfsFileHandle tFileHandle = gptVfs->register_file(ptInfo->atTiles[i].acOutputFile, false);
+        plVfsFileHandle tFileHandle = gptVfs->register_file(acCacheFile, false);
         const char* pcPath = gptVfs->get_real_path(tFileHandle);
 
         FILE* ptDataFile = fopen(pcPath, "wb");
@@ -462,13 +480,88 @@ pl__chlod_read_chunk(plTerrainChunkFile* ptFileOut, int iRecurseCount, FILE* ptD
     }
 }
 
+static bool
+pl__terrain_serialize(const char* pcName, const void* pTerrain, plAssetEncoding eEncoding)
+{
+    return false;
+}
+
+static bool
+pl__terrain_deserialize(const char* pcName, void* pTerrain)
+{
+    plTerrainAsset* ptTerrain = pTerrain;
+
+    if(!gptVfs->does_file_exist(pcName))
+        return false;
+
+    plVfsFileHandle tFileHandle = gptVfs->open_file(pcName, PL_VFS_FILE_MODE_READ);
+
+    plAssetFileHeader tAssetHeader = {0};
+    gptVfs->read_file_stream(tFileHandle, sizeof(plAssetFileHeader), 1, &tAssetHeader);
+
+    if(tAssetHeader.uMagic == PL_ASSET_MAGIC)
+    {
+    }
+    else // json
+    {
+        char acTempBuffer[256] = {0};
+
+        gptVfs->set_file_stream_position(tFileHandle, 0);
+        size_t szJsonFileSize = gptVfs->get_file_size_str(pcName);
+        uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
+        memset(puFileBuffer, 0, szJsonFileSize + 1);
+        
+        gptVfs->read_file(tFileHandle, puFileBuffer, &szJsonFileSize);
+
+        plJsonObject* ptRoot = NULL;
+        gptJson->load((const char*)puFileBuffer, &ptRoot);
+
+        ptTerrain->fMetersPerPixel = gptJson->float_member(ptRoot, "meters_per_pixel", 1.0f);
+        ptTerrain->uSize = gptJson->uint32_member(ptRoot, "tile_size", 4096);
+
+        plJsonObject* ptJsonGrid = gptJson->member(ptRoot, "grid");
+        if(ptJsonGrid)
+        {
+            ptTerrain->uHorizontalTiles = gptJson->uint32_member(ptJsonGrid, "columns", 1);
+            ptTerrain->uVerticalTiles = gptJson->uint32_member(ptJsonGrid, "rows", 1);
+        }
+
+        plJsonObject* ptJsonTiles = gptJson->array_member(ptRoot, "tiles", &ptTerrain->uTileCount);
+        ptTerrain->atTiles = PL_ALLOC(ptTerrain->uTileCount * sizeof(plTerrainProcessTileInfo));
+        memset(ptTerrain->atTiles, 0, ptTerrain->uTileCount * sizeof(plTerrainProcessTileInfo));
+        for(uint32_t i = 0; i < ptTerrain->uTileCount; i++)
+        {
+            plJsonObject* ptJsonTile = gptJson->member_by_index(ptJsonTiles, i);
+            plTerrainProcessTileInfo* ptTile = &ptTerrain->atTiles[i];
+
+            ptTile->fMinHeight = gptJson->float_member(ptJsonTile, "min_height", 0.0f);
+            ptTile->fMaxHeight = gptJson->float_member(ptJsonTile, "max_height", 0.0f);
+            gptJson->float_array_member(ptJsonTile, "center", ptTile->tCenter.d, NULL);
+
+            gptJson->string_member(ptJsonTile, "heightmap", acTempBuffer, 256);
+            ptTile->tHeightmap = gptAsset->load(acTempBuffer);
+
+            plJsonObject* ptJsonGeneration = gptJson->member(ptJsonTile, "generation");
+            if(ptJsonGeneration)
+            {
+                ptTile->iTreeDepth = gptJson->int_member(ptJsonGeneration, "tree_depth", 2);
+                ptTile->fMaxBaseError = gptJson->float_member(ptJsonGeneration, "max_base_error", 1.0f);
+            }
+        }
+
+        PL_FREE(puFileBuffer);
+    }
+
+    gptVfs->close_file(tFileHandle);
+    return true;
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
 static void
-pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainProcessInfo* ptInfo, uint32_t uCurrentTileIndex)
+pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainAsset* ptInfo, uint32_t uCurrentTileIndex)
 {
 
     ptHeightMap->uFrameStamp = 0;
@@ -494,25 +587,46 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainProcess
     const char* atHaloTiles[7] = {0};
 
     if(uRow > 0) // north
-        atHaloTiles[0] = ptInfo->atTiles[uCol + (uRow - 1) * ptInfo->uHorizontalTiles].acHeightMapFile;
+    {
+        plTextureAsset* ptTextureAsset = gptAsset->get_data(ptInfo->atTiles[uCol + (uRow - 1) * ptInfo->uHorizontalTiles].tHeightmap);
+        atHaloTiles[0] = ptTextureAsset->pcSourceFile;
+    }
 
     if(uRow > 0 && uCol < ptInfo->uHorizontalTiles - 1) // northeast
-        atHaloTiles[1] = ptInfo->atTiles[uCol + 1 + (uRow - 1) * ptInfo->uHorizontalTiles].acHeightMapFile;
+    {
+        plTextureAsset* ptTextureAsset = gptAsset->get_data(ptInfo->atTiles[uCol + 1 + (uRow - 1) * ptInfo->uHorizontalTiles].tHeightmap);
+        atHaloTiles[1] = ptTextureAsset->pcSourceFile;
+    }
 
     if(uCol < ptInfo->uHorizontalTiles - 1) // east
-        atHaloTiles[2] = ptInfo->atTiles[uCol + 1 + uRow  * ptInfo->uHorizontalTiles].acHeightMapFile;
+    {
+        plTextureAsset* ptTextureAsset = gptAsset->get_data(ptInfo->atTiles[uCol + 1 + uRow  * ptInfo->uHorizontalTiles].tHeightmap);
+        atHaloTiles[2] = ptTextureAsset->pcSourceFile;
+    }
 
     if(uRow < ptInfo->uVerticalTiles - 1 && uCol < ptInfo->uHorizontalTiles - 1) // southeast
-        atHaloTiles[3] = ptInfo->atTiles[uCol + 1 + (uRow + 1) * ptInfo->uHorizontalTiles].acHeightMapFile;
+    {
+        plTextureAsset* ptTextureAsset = gptAsset->get_data(ptInfo->atTiles[uCol + 1 + (uRow + 1) * ptInfo->uHorizontalTiles].tHeightmap);
+        atHaloTiles[3] = ptTextureAsset->pcSourceFile;
+    }
 
     if(uRow < ptInfo->uVerticalTiles - 1) // south
-        atHaloTiles[4] = ptInfo->atTiles[uCol + (uRow + 1) * ptInfo->uHorizontalTiles].acHeightMapFile;
+    {
+        plTextureAsset* ptTextureAsset = gptAsset->get_data(ptInfo->atTiles[uCol + (uRow + 1) * ptInfo->uHorizontalTiles].tHeightmap);
+        atHaloTiles[4] = ptTextureAsset->pcSourceFile;
+    }
 
     if(uRow < ptInfo->uVerticalTiles - 1 && uCol > 0) // southwest
-        atHaloTiles[5] = ptInfo->atTiles[uCol - 1 + (uRow + 1) * ptInfo->uHorizontalTiles].acHeightMapFile;
+    {
+        plTextureAsset* ptTextureAsset = gptAsset->get_data(ptInfo->atTiles[uCol - 1 + (uRow + 1) * ptInfo->uHorizontalTiles].tHeightmap);
+        atHaloTiles[5] = ptTextureAsset->pcSourceFile;
+    }
 
     if(uCol > 0) // west
-        atHaloTiles[6] = ptInfo->atTiles[uCol - 1 + uRow * ptInfo->uHorizontalTiles].acHeightMapFile;
+    {
+        plTextureAsset* ptTextureAsset = gptAsset->get_data(ptInfo->atTiles[uCol - 1 + uRow * ptInfo->uHorizontalTiles].tHeightmap);
+        atHaloTiles[6] = ptTextureAsset->pcSourceFile;
+    }
 
     for(uint32_t uTileIndex = 0; uTileIndex < 7; uTileIndex++)
     {
@@ -671,8 +785,9 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainProcess
         }
     }
 
-    size_t szFileSize = gptVfs->get_file_size_str(ptInfo->atTiles[uCurrentTileIndex].acHeightMapFile);
-    plVfsFileHandle tHeightMap = gptVfs->open_file(ptInfo->atTiles[uCurrentTileIndex].acHeightMapFile, PL_VFS_FILE_MODE_READ);
+    plTextureAsset* ptTextureAsset = gptAsset->get_data(ptInfo->atTiles[uCurrentTileIndex].tHeightmap);
+    size_t szFileSize = gptVfs->get_file_size_str(ptTextureAsset->pcSourceFile);
+    plVfsFileHandle tHeightMap = gptVfs->open_file(ptTextureAsset->pcSourceFile, PL_VFS_FILE_MODE_READ);
     gptVfs->read_file(tHeightMap, NULL, &szFileSize);
     uint8_t* puFileData = PL_ALLOC(szFileSize + 1);
     memset(puFileData, 0, szFileSize + 1);
@@ -1328,6 +1443,25 @@ pl__propagate_activation_level(plTerrainHeightMap* ptHeightMap, int cx, int cz, 
 	pl__activate_height_map_element(c, ew->iActivationLevel);
 }
 
+void
+pl_terrain_register_asset_type(void)
+{
+    static const plAssetTypeDesc tDesc = {
+        .pcName          = "Terrain",
+        .pcFileExtension = "plterrain",
+        .szSize          = sizeof(plTerrainAsset),
+        .serialize       = pl__terrain_serialize,
+        .deserialize     = pl__terrain_deserialize,
+    };
+    gptTerrainCtx->tAssetTypeKey = gptAsset->register_type(tDesc);
+}
+
+plAssetTypeKey
+pl_terrain_get_asset_type_key(void)
+{
+    return gptTerrainCtx->tAssetTypeKey;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -1338,6 +1472,8 @@ pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plTerrainI tApi = {
         .process         = pl_terrain_process,
         .load_chunk_file = pl_terrain_load_chunk_file,
+        .register_asset_types = pl_terrain_register_asset_type,
+        .get_asset_type_key = pl_terrain_get_asset_type_key
     };
     pl_set_api(ptApiRegistry, plTerrainI, &tApi);
 
@@ -1346,9 +1482,23 @@ pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
         gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
         gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptAsset   = pl_get_api_latest(ptApiRegistry, plAssetI);
+        gptJson    = pl_get_api_latest(ptApiRegistry, plJsonI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+
+    if(bReload)
+    {
+        gptTerrainCtx = ptDataRegistry->get_data("plTerrainContext");
+    }
+    else // first load
+    {
+        static plTerrainContext tCtx = {0};
+        gptTerrainCtx = &tCtx;
+        ptDataRegistry->set_data("plTerrainContext", gptTerrainCtx);
+    }
+
 }
 
 void
@@ -1370,5 +1520,16 @@ pl_unload_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     #define PL_MEMORY_IMPLEMENTATION
     #include "pl_memory.h"
+    #undef PL_MEMORY_IMPLEMENTATION
+
+    #define PL_STRING_IMPLEMENTATION
+    #include "pl_string.h"
+    #undef PL_STRING_IMPLEMENTATION
+
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
 
 #endif

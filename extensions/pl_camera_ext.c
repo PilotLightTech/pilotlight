@@ -18,26 +18,28 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <float.h> // FLT_MAX
+#include <string.h> // memset
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl.h"
-#include "pl_ecs_ext.h"
-#include "pl_animation_ext.h"
 #include "pl_camera_ext.h"
 #include "pl_math.h"
 
 // extensions
+#include "pl_ecs_ext.h"
 #include "pl_profile_ext.h"
-#include "pl_log_ext.h"
+#include "pl_transform_ext.h"
+#include "pl_json_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
 #else
-    static const plProfileI* gptProfile = NULL;
-    static const plLogI*     gptLog     = NULL;
-    static const plEcsI*     gptECS     = NULL;
+    static const plProfileI*   gptProfile   = NULL;
+    static const plEcsI*       gptEcs       = NULL;
+    static const plTransformI* gptTransform = NULL;
+    static const plJsonI*      gptJson      = NULL;
+    static const plIOI*        gptIOI = NULL;
+    static const plIO*         gptIO = NULL;
 #endif
-
-#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -144,6 +146,79 @@ pl__quat_from_mat3_basis(plVec3 right, plVec3 up, plVec3 forward)
     }
 
     return pl_norm_quat(q);
+}
+
+static void
+pl__ecs_camera_serialize(void* pComponent, plJsonObject* ptJson)
+{
+    plCamera* ptComponent = pComponent;
+
+    if(ptComponent->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
+        gptJson->add_string_member(ptJson, "projection", "perspective");
+    else if(ptComponent->eProjectionType == PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC)
+        gptJson->add_string_member(ptJson, "projection", "orthographic");
+
+    if(ptComponent->eDepthMode == PL_CAMERA_DEPTH_MODE_STANDARD)
+        gptJson->add_string_member(ptJson, "depth_mode", "standard");
+    else if(ptComponent->eProjectionType == PL_CAMERA_DEPTH_MODE_REVERSE_Z)
+        gptJson->add_string_member(ptJson, "depth_mode", "reverse");
+
+    gptJson->add_double_array(ptJson, "position", ptComponent->tPosition.d, 3);
+    
+    gptJson->add_float_member(ptJson, "near", ptComponent->fNearZ);
+    gptJson->add_float_member(ptJson, "far", ptComponent->fFarZ);
+    gptJson->add_float_member(ptJson, "pitch", ptComponent->fPitch);
+    gptJson->add_float_member(ptJson, "yaw", ptComponent->fYaw);
+    gptJson->add_float_member(ptJson, "roll", ptComponent->fRoll);
+
+    if(ptComponent->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
+    {
+        gptJson->add_float_member(ptJson, "yfov", ptComponent->fYFov);
+    }
+    else if(ptComponent->eProjectionType == PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC)
+    {
+        gptJson->add_float_member(ptJson, "width", ptComponent->fWidth);
+        gptJson->add_float_member(ptJson, "height", ptComponent->fHeight);
+    }
+}
+
+static void
+pl__ecs_camera_deserialize(plJsonObject* ptJson, void* pComponent)
+{
+    plCamera* ptComponent = pComponent;
+
+    char acTempBuffer0[64] = {0};
+
+    pl_camera_init(ptComponent);
+
+    gptJson->string_member(ptJson, "projection", acTempBuffer0, 64);
+    if(acTempBuffer0[0] == 'p')
+    {
+        ptComponent->eProjectionType = PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE;
+        ptComponent->fAspectRatio  = gptIO->tMainViewportSize.x / gptIO->tMainViewportSize.y;
+    }
+    else if(acTempBuffer0[0] == 'o')
+    {
+        ptComponent->eProjectionType = PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC;
+    }
+
+    gptJson->string_member(ptJson, "depth_mode", acTempBuffer0, 64);
+    if(acTempBuffer0[0] == 's')
+    {
+        ptComponent->eDepthMode = PL_CAMERA_DEPTH_MODE_STANDARD;
+    }
+    else if(acTempBuffer0[0] == 'r')
+    {
+        ptComponent->eDepthMode = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
+    }
+
+    ptComponent->fNearZ = gptJson->float_member(ptJson, "near", 0.1f);
+    ptComponent->fFarZ = gptJson->float_member(ptJson, "far", 100.0f);
+    ptComponent->fYFov = gptJson->float_member(ptJson, "yfov", PL_PI_3);
+    ptComponent->fRoll = gptJson->float_member(ptJson, "roll", 0.0f);
+    ptComponent->fPitch = gptJson->float_member(ptJson, "pitch", 0.0f);
+    ptComponent->fYaw = gptJson->float_member(ptJson, "yaw", 0.0f);
+    gptJson->double_array_member(ptJson, "position", ptComponent->tPosition.d, NULL);
 }
 
 //-----------------------------------------------------------------------------
@@ -333,14 +408,13 @@ plEntity
 pl_camera_ecs_create_perspective(plComponentLibrary* ptLibrary, const char* pcName, const plCameraPerspectiveDesc* ptDesc, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
-    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
-    plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
+    plEntity tNewEntity = gptEcs->create_entity(ptLibrary, pcName);
 
     plCamera tCamera = {0};
     pl_camera_init(&tCamera);
     pl_camera_set_perspective(&tCamera, ptDesc);
 
-    plCamera* ptCamera = gptECS->add_component(ptLibrary, gptCameraCtx->uManagerIndex, tNewEntity);
+    plCamera* ptCamera = gptEcs->add_component(ptLibrary, gptCameraCtx->uManagerIndex, tNewEntity);
     *ptCamera = tCamera;
     pl_camera_update(ptCamera);
 
@@ -354,14 +428,13 @@ plEntity
 pl_camera_ecs_create_orthographic(plComponentLibrary* ptLibrary, const char* pcName, const plCameraOrthographicDesc* ptDesc, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
-    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
-    plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
+    plEntity tNewEntity = gptEcs->create_entity(ptLibrary, pcName);
 
     plCamera tCamera = {0};
     pl_camera_init(&tCamera);
     pl_camera_set_orthographic(&tCamera, ptDesc);
 
-    plCamera* ptCamera = gptECS->add_component(ptLibrary, gptCameraCtx->uManagerIndex, tNewEntity);
+    plCamera* ptCamera = gptEcs->add_component(ptLibrary, gptCameraCtx->uManagerIndex, tNewEntity);
     *ptCamera = tCamera;
     pl_camera_update(ptCamera);
 
@@ -379,16 +452,16 @@ pl_camera_ecs_run_ecs(plComponentLibrary* ptLibrary)
     plCamera* ptComponents = NULL;
     const plEntity* ptEntities = NULL;
 
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptCameraCtx->uManagerIndex, (void**)&ptComponents, &ptEntities);
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const uint32_t uComponentCount = gptEcs->get_components(ptLibrary, gptCameraCtx->uManagerIndex, (void**)&ptComponents, &ptEntities);
+    const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
 
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
         plEntity tEntity = ptEntities[i];
-        if(gptECS->has_component(ptLibrary, tTransformComponentType, tEntity))
+        if(gptEcs->has_component(ptLibrary, tTransformComponentType, tEntity))
         {
             plCamera* ptCamera = &ptComponents[i];
-            plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, tTransformComponentType, tEntity);
+            plTransformComponent* ptTransform = gptEcs->get_component(ptLibrary, tTransformComponentType, tEntity);
             ptCamera->tPosition.x = (double)ptTransform->tWorld.col[3].x;
             ptCamera->tPosition.y = (double)ptTransform->tWorld.col[3].y;
             ptCamera->tPosition.z = (double)ptTransform->tWorld.col[3].z;
@@ -603,13 +676,16 @@ pl_camera_look_at(plCamera* ptCamera, plVec3d tEye, plVec3d tTarget, plVec3 tUp)
 }
 
 void
-pl_camera_ecs_register_ecs_system(void)
+pl_camera_ecs_register_ecs_components(void)
 {
     static const plComponentDesc tDesc = {
-        .pcName = "Camera",
-        .szSize = sizeof(plCamera)
+        .pcDisplayName = "Camera",
+        .pcName        = "camera",
+        .szSize        = sizeof(plCamera),
+        .serialize     = pl__ecs_camera_serialize,
+        .deserialize   = pl__ecs_camera_deserialize,
     };
-    gptCameraCtx->uManagerIndex = gptECS->register_type(tDesc, NULL);
+    gptCameraCtx->uManagerIndex = gptEcs->register_type(tDesc, NULL);
 }
 
 plEcsTypeKey
@@ -648,7 +724,7 @@ pl_load_camera_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plCameraI, &tApi0);
 
     const plCameraEcsI tApi1 = {
-        .register_ecs_system = pl_camera_ecs_register_ecs_system,
+        .register_ecs_components = pl_camera_ecs_register_ecs_components,
         .run_ecs             = pl_camera_ecs_run_ecs,
         .get_ecs_type_key    = pl_camera_ecs_get_ecs_type_key,
         .create_perspective  = pl_camera_ecs_create_perspective,
@@ -656,9 +732,14 @@ pl_load_camera_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plCameraEcsI, &tApi1);
 
-    gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
-    gptLog     = pl_get_api_latest(ptApiRegistry, plLogI);
-    gptECS     = pl_get_api_latest(ptApiRegistry, plEcsI);
+    #ifndef PL_UNITY_BUILD
+    gptProfile   = pl_get_api_latest(ptApiRegistry, plProfileI);
+    gptEcs       = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptTransform = pl_get_api_latest(ptApiRegistry, plTransformI);
+    gptJson      = pl_get_api_latest(ptApiRegistry, plJsonI);
+    gptIOI               = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptIO = gptIOI->get_io();
+    #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 

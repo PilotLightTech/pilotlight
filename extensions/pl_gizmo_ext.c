@@ -27,6 +27,7 @@ Index of this file:
 #include "pl_camera_ext.h"
 #include "pl_animation_ext.h"
 #include "pl_collision_ext.h"
+#include "pl_transform_ext.h"
 #include "pl_ui_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -38,6 +39,7 @@ static const plUiI*        gptUI   = NULL;
 static const plDrawI*      gptDraw = NULL;
 static const plIOI*        gptIOI  = NULL;
 static const plCollisionI* gptCollision  = NULL;
+static const plTransformI* gptTransform  = NULL;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -1322,6 +1324,7 @@ pl_load_gizmo_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptUI        = pl_get_api_latest(ptApiRegistry, plUiI);
     gptDraw      = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptCollision = pl_get_api_latest(ptApiRegistry, plCollisionI);
+    gptTransform = pl_get_api_latest(ptApiRegistry, plTransformI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
     if(bReload)

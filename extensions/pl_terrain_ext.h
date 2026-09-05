@@ -38,6 +38,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 #include "pl_math.h"
+#include "pl_asset_ext.inl" // plAssetHandle
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -47,7 +48,7 @@ extern "C" {
 typedef struct _plTerrainChunkFile       plTerrainChunkFile;
 typedef struct _plTerrainChunk           plTerrainChunk;
 typedef struct _plTerrainProcessTileInfo plTerrainProcessTileInfo;
-typedef struct _plTerrainProcessInfo     plTerrainProcessInfo;
+typedef struct _plTerrainAsset           plTerrainAsset;
 
 // external
 typedef struct _plFreeListNode plFreeListNode; // pl_freelist_ext.h
@@ -60,8 +61,12 @@ typedef struct _plFreeListNode plFreeListNode; // pl_freelist_ext.h
 PL_API void pl_load_terrain_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_terrain_ext(plApiRegistryI*, bool reload);
 
-PL_API void pl_terrain_process         (plTerrainProcessInfo*);
+PL_API void pl_terrain_process         (plTerrainAsset*);
 PL_API bool pl_terrain_load_chunk_file (const char* path, plTerrainChunkFile* fileOut, uint32_t fileID);
+
+// assets
+PL_API void           pl_terrain_register_asset_type(void);
+PL_API plAssetTypeKey pl_terrain_get_asset_type_key(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -69,8 +74,12 @@ PL_API bool pl_terrain_load_chunk_file (const char* path, plTerrainChunkFile* fi
 
 typedef struct _plTerrainI
 {
-    void (*process)         (plTerrainProcessInfo*);
+    void (*process)         (plTerrainAsset*);
     bool (*load_chunk_file) (const char* path, plTerrainChunkFile* fileOut, uint32_t fileID);
+
+    // assets
+    void           (*register_asset_types)(void);
+    plAssetTypeKey (*get_asset_type_key)(void);
 } plTerrainI;
 
 //-----------------------------------------------------------------------------
@@ -79,24 +88,13 @@ typedef struct _plTerrainI
 
 typedef struct _plTerrainProcessTileInfo
 {
-    float       fMaxBaseError;
-    float       fMaxHeight;
-    float       fMinHeight;
-    int         iTreeDepth;
-    plVec3      tCenter;
-    char        acHeightMapFile[256];
-    char        acOutputFile[256];
+    float         fMaxBaseError;
+    float         fMaxHeight;
+    float         fMinHeight;
+    int           iTreeDepth;
+    plVec3        tCenter;
+    plAssetHandle tHeightmap;
 } plTerrainProcessTileInfo;
-
-typedef struct _plTerrainProcessInfo
-{
-    float                     fMetersPerPixel;
-    uint32_t                  uSize;
-    uint32_t                  uTileCount;
-    plTerrainProcessTileInfo* atTiles;
-    uint32_t                  uHorizontalTiles;
-    uint32_t                  uVerticalTiles;
-} plTerrainProcessInfo;
 
 typedef struct _plTerrainChunk
 {
@@ -145,6 +143,18 @@ typedef struct _plTerrainVertex
     plVec2 tNormal;
     plVec2 tUV;
 } plTerrainVertex;
+
+typedef struct _plTerrainAsset
+{
+    float    fMetersPerPixel;
+    uint32_t uHorizontalTiles;
+    uint32_t uVerticalTiles;
+    uint32_t uSize;
+
+    uint32_t                  uTileCount;
+    plTerrainProcessTileInfo* atTiles;
+
+} plTerrainAsset;
 
 #ifdef __cplusplus
 }

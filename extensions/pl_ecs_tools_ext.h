@@ -44,7 +44,7 @@ extern "C" {
 // external
 typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
-typedef struct _plScene            plScene;            // pl_renderer_ext.h
+typedef struct _plRenderScene      plRenderScene;      // pl_renderer_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -56,7 +56,7 @@ PL_API void pl_unload_ecs_tools_ext(plApiRegistryI*, bool reload);
 
 PL_API void pl_ecs_tools_initialize (void);
 PL_API void pl_ecs_tools_cleanup    (void);
-PL_API bool pl_ecs_tools_show_window(plComponentLibrary*, plEntity* selectedEntity, plScene*, bool*);
+PL_API bool pl_ecs_tools_show_window(plComponentLibrary*, plEntity* selectedEntity, plRenderScene*, bool*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -66,7 +66,7 @@ typedef struct _plEcsToolsI
 {
     void (*initialize)     (void);
     void (*cleanup)        (void);
-    bool (*show_window)(plComponentLibrary*, plEntity* selectedEntity, plScene*, bool*);
+    bool (*show_window)(plComponentLibrary*, plEntity* selectedEntity, plRenderScene*, bool*);
 } plEcsToolsI;
 
 #ifdef __cplusplus

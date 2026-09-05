@@ -18,6 +18,7 @@ Index of this file:
 #include "pl.h"
 #include "pl_gpu_allocators_ext.h"
 #include "pl_graphics_ext.h"
+#include "pl_string_intern_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
@@ -37,6 +38,7 @@ Index of this file:
 
     static const plGraphicsI* gptGfx = NULL;
     static const plDataRegistryI* gptDataRegistry = NULL;
+    static const plStringInternI* gptString = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -230,7 +232,7 @@ pl_create_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uMemoryT
             ptData->sbtNodes[uNodeIndex].ulOffset     = uCurrentOffset;
             ptData->sbtNodes[uNodeIndex].ulTotalSize  = uSizeOfLevel;
             ptData->sbtNodes[uNodeIndex].ulBlockIndex = uBlockIndex;
-            strncpy(ptData->sbtNodes[uNodeIndex].acName, "not used", PL_MAX_NAME_LENGTH);
+            ptData->sbtNodes[uNodeIndex].pcName       = gptString->intern("not used");
             uCurrentOffset += uSizeOfLevel;
             uNodeIndex++;
         }
@@ -493,9 +495,9 @@ pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFil
         .ulOffset     = 0,
         .ulTotalSize  = ulSize,
         .ulUsedSize   = ulSize,
-        .ulBlockIndex = uBlockIndex
+        .ulBlockIndex = uBlockIndex,
+        .pcName       = gptString->intern(pcName)
     };
-    pl_sprintf(tRange.acName, "%s", pcName);
 
     pl_sb_push(ptData->sbtNodes, tRange);
     ptData->sbtBlocks[uBlockIndex] = tBlock;
@@ -517,6 +519,7 @@ pl_free_dedicated(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocat
 
         if(ptBlock->uHandle == ptAllocation->uHandle)
         {
+            gptString->remove(ptNode->pcName);
             uNodeIndex = i;
             uBlockIndex = (uint32_t)ptNode->ulBlockIndex;
             // ptBlock->ulSize = 0;
@@ -573,7 +576,7 @@ pl_allocate_buddy(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
     PL_ASSERT(uNode != UINT32_MAX);
 
     plDeviceAllocationRange* ptNode = &ptData->sbtNodes[uNode];
-    strncpy(ptNode->acName, pcName, PL_MAX_NAME_LENGTH);
+    ptNode->pcName = gptString->intern(pcName);
     ptNode->ulUsedSize = ulSize;
 
     const uint32_t uBlockCount =  pl_sb_size(ptData->sbtBlocks);
@@ -641,7 +644,8 @@ pl_free_buddy(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation*
     }
     uLevel = pl_minu(uLevel, PL_DEVICE_LOCAL_LEVELS - 1);
 
-    strncpy(ptNode->acName, "not used", PL_MAX_NAME_LENGTH);
+    gptString->remove(ptNode->pcName);
+    ptNode->pcName = gptString->intern("not used");
     bool bFreeBlock = pl__coalesce_nodes(ptData, uLevel, uNodeIndex);
 
     if(!bFreeBlock)
@@ -702,9 +706,9 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
         .ulOffset     = 0,
         .ulTotalSize  = ulSize,
         .ulUsedSize   = ulSize,
-        .ulBlockIndex = uBlockIndex
+        .ulBlockIndex = uBlockIndex,
+        .pcName       = gptString->intern(pcName)
     };
-    pl_sprintf(tRange.acName, "%s", pcName);
 
     pl_sb_push(ptData->sbtNodes, tRange);
     ptData->sbtBlocks[uBlockIndex] = tBlock;
@@ -765,7 +769,7 @@ pl_allocate_staging_uncached_buddy(struct plDeviceMemoryAllocatorO* ptInst, uint
     PL_ASSERT(uNode != UINT32_MAX);
 
     plDeviceAllocationRange* ptNode = &ptData->sbtNodes[uNode];
-    strncpy(ptNode->acName, pcName, PL_MAX_NAME_LENGTH);
+    ptNode->pcName = gptString->intern(pcName);
     ptNode->ulUsedSize = ulSize;
 
     const uint32_t uBlockCount =  pl_sb_size(ptData->sbtBlocks);
@@ -822,9 +826,9 @@ pl_allocate_staging_cached(
         .ulOffset     = 0,
         .ulTotalSize  = ulSize,
         .ulUsedSize   = ulSize,
-        .ulBlockIndex = uBlockIndex
+        .ulBlockIndex = uBlockIndex,
+        .pcName = gptString->intern(pcName)
     };
-    pl_sprintf(tRange.acName, "%s", pcName);
 
     pl_sb_push(ptData->sbtNodes, tRange);
     ptData->sbtBlocks[uBlockIndex] = tBlock;
@@ -1143,7 +1147,7 @@ pl_load_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
     gptGfx = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-
+    gptString = pl_get_api_latest(ptApiRegistry, plStringInternI);
 }
 
 void

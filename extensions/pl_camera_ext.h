@@ -25,9 +25,10 @@ Index of this file:
         The provided implementation of this extension depends on the following
         APIs being available:
 
-        * plEcsI     (v1.x) (only if using ECS integration)
-        * plProfileI (v1.x) (only if using ECS integration)
-        * plLogI     (v1.x) (only if using ECS integration)
+        * plEcsI     (v3.x) (only if using ECS integration)
+        * plProfileI (v2.x) (only if using ECS integration)
+        * plLogI     (v2.x) (only if using ECS integration)
+        * plJsonI    (v1.x) (only if using ECS integration)
 */
 
 //-----------------------------------------------------------------------------
@@ -121,7 +122,7 @@ PL_API plEntity pl_camera_ecs_create_perspective (plComponentLibrary*, const cha
 PL_API plEntity pl_camera_ecs_create_orthographic(plComponentLibrary*, const char* name, const plCameraOrthographicDesc*, plCamera**);
 
 // system setup/shutdown/etc
-PL_API void         pl_camera_ecs_register_ecs_system(void);
+PL_API void         pl_camera_ecs_register_ecs_components(void);
 PL_API void         pl_camera_ecs_run_ecs            (plComponentLibrary*);
 PL_API plEcsTypeKey pl_camera_ecs_get_ecs_type_key   (void);
 
@@ -171,7 +172,7 @@ typedef struct _plCameraEcsI
     plEntity (*create_orthographic)(plComponentLibrary*, const char* name, const plCameraOrthographicDesc*, plCamera**);
 
     // system setup/shutdown/etc
-    void         (*register_ecs_system)(void);
+    void         (*register_ecs_components)(void);
     void         (*run_ecs)            (plComponentLibrary*);
     plEcsTypeKey (*get_ecs_type_key)   (void);
 

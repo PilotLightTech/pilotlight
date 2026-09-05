@@ -23,7 +23,8 @@ Index of this file:
         The provided implementation of this extension depends on the following
         APIs being available:
 
-        * plVfsI (v2.x)
+        * plVfsI  (v2.1)
+        * plJsonI (v1.x)
 */
 
 //-----------------------------------------------------------------------------

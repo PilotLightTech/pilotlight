@@ -49,7 +49,6 @@ typedef int plScriptFlags;
 
 // external
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
-typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -62,9 +61,10 @@ PL_API void pl_unload_script_ext(plApiRegistryI*, bool reload);
 // scripts
 PL_API plEntity     pl_script_create(plComponentLibrary*, const char* file, plScriptFlags, plScriptComponent**);
 PL_API void         pl_script_attach(plComponentLibrary*, const char* file, plScriptFlags, plEntity, plScriptComponent**);
+PL_API void         pl_script_load(plComponentLibrary*, plEntity);
 
 // system setup/shutdown/etc
-PL_API void         pl_script_register_ecs_system(void);
+PL_API void         pl_script_register_ecs_components(void);
 PL_API void         pl_script_run_update_system  (plComponentLibrary*);
 
 // ecs types
@@ -78,7 +78,8 @@ typedef struct _plScriptI
 {
     plEntity     (*create)             (plComponentLibrary*, const char* file, plScriptFlags, plScriptComponent**);
     void         (*attach)             (plComponentLibrary*, const char* file, plScriptFlags, plEntity, plScriptComponent**);
-    void         (*register_ecs_system)(void);
+    void         (*load)               (plComponentLibrary*, plEntity);
+    void         (*register_ecs_components)(void);
     void         (*run_update_system)  (plComponentLibrary*);
     plEcsTypeKey (*get_ecs_type_key)   (void);
 
@@ -90,10 +91,10 @@ typedef struct _plScriptI
 
 typedef struct _plScriptInterface
 {
-    // ran when creating a new script component (optional)
+    // called once after the script is successfully loaded (optional)
     void (*setup)(plComponentLibrary*, plEntity);
 
-    // ran every frame
+    // called each update while the script is playing
     void (*run)(plComponentLibrary*, plEntity);
 } plScriptInterface;
 
@@ -104,7 +105,7 @@ typedef struct _plScriptInterface
 typedef struct _plScriptComponent
 {
     plScriptFlags tFlags;
-    char          acFile[PL_MAX_PATH_LENGTH];
+    const char*   pcPath;
 
     // [INTERNAL]
     const struct _plScriptInterface* _ptApi;

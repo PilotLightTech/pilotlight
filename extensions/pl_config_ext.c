@@ -24,9 +24,9 @@ Index of this file:
 
 // extensions
 #include "pl_vfs_ext.h"
+#include "pl_json_ext.h"
 
 // libs
-#include "pl_json.h"
 #include "pl_string.h"
 
 #ifdef PL_UNITY_BUILD
@@ -47,6 +47,7 @@ Index of this file:
     #endif
 
     static const plVfsI* gptVfs = NULL;
+    static const plJsonI* gptJson = NULL;
 
 #endif
 
@@ -479,47 +480,47 @@ pl_config_load_from_disk(const char* pcFileName)
     gptVfs->close_file(tHandle);
 
     plJsonObject* ptRootJsonObject = NULL;
-    pl_load_json((const char*)puFileBuffer, &ptRootJsonObject);
+    gptJson->load((const char*)puFileBuffer, &ptRootJsonObject);
 
     uint32_t uVarCount = 0;
-    pl_json_member_list(ptRootJsonObject, NULL, &uVarCount, NULL);
+    gptJson->member_list(ptRootJsonObject, NULL, &uVarCount, NULL);
     for(uint32_t i = 0; i < uVarCount; i++)
     {
-        plJsonObject* ptVarObject = pl_json_member_by_index(ptRootJsonObject, i);
+        plJsonObject* ptVarObject = gptJson->member_by_index(ptRootJsonObject, i);
 
         plConfigVar tVar = {0};
 
-        strncpy(tVar.acName, pl_json_get_name(ptVarObject), PL_MAX_NAME_LENGTH);
+        strncpy(tVar.acName, gptJson->get_name(ptVarObject), PL_MAX_NAME_LENGTH);
 
         char acTypeBuffer[64] = {0};
-        const char* pcTypeString = pl_json_string_member(ptVarObject, "type", acTypeBuffer, 64);
+        const char* pcTypeString = gptJson->string_member(ptVarObject, "type", acTypeBuffer, 64);
 
         
         if(pl_str_equal(pcTypeString, "bool"))
         {
             tVar.tType = PL_CONFIG_VAR_TYPE_BOOL;
-            tVar.bValue = pl_json_bool_member(ptVarObject, "value", false);
+            tVar.bValue = gptJson->bool_member(ptVarObject, "value", false);
         }
         else if(pl_str_equal(pcTypeString, "int"))
         {
             tVar.tType = PL_CONFIG_VAR_TYPE_INT;
-            tVar.iValue = pl_json_int_member(ptVarObject, "value", 0);
+            tVar.iValue = gptJson->int_member(ptVarObject, "value", 0);
         }
         else if(pl_str_equal(pcTypeString, "uint"))
         {
             tVar.tType = PL_CONFIG_VAR_TYPE_UINT;
-            tVar.uValue = pl_json_uint_member(ptVarObject, "value", 0);
+            tVar.uValue = gptJson->uint32_member(ptVarObject, "value", 0);
         }
         else if(pl_str_equal(pcTypeString, "double"))
         {
             tVar.tType = PL_CONFIG_VAR_TYPE_DOUBLE;
-            tVar.dValue = pl_json_double_member(ptVarObject, "value", 0.0);
+            tVar.dValue = gptJson->double_member(ptVarObject, "value", 0.0);
             
         }
         else if(pl_str_equal(pcTypeString, "vec2"))
         {
             tVar.tType = PL_CONFIG_VAR_TYPE_VEC2;
-            pl_json_float_array_member(ptVarObject, "value", tVar.tValueVec2.d, NULL);
+            gptJson->float_array_member(ptVarObject, "value", tVar.tValueVec2.d, NULL);
         }
 
         uint32_t uIndex = pl_hm32_get_free_index(&gptConfigCtx->tHashmap);
@@ -535,6 +536,7 @@ pl_config_load_from_disk(const char* pcFileName)
     }
 
     pl_temp_allocator_reset(&gptConfigCtx->tTempAllocator);
+    gptJson->unload(&ptRootJsonObject);
 }
 
 void
@@ -543,7 +545,7 @@ pl_config_save_to_disk(const char* pcFileName)
     if(pcFileName == NULL)
         pcFileName = "pl_config.json";
 
-    plJsonObject* ptRootJsonObject = pl_json_new_root_object("ROOT");
+    plJsonObject* ptRootJsonObject = gptJson->new_root_object("ROOT");
 
     const uint32_t uVarCount = pl_sb_size(gptConfigCtx->sbtVars);
 
@@ -551,29 +553,29 @@ pl_config_save_to_disk(const char* pcFileName)
     {
         const plConfigVar* ptVar = &gptConfigCtx->sbtVars[i];
 
-        plJsonObject* ptNewJsonVar = pl_json_add_member(ptRootJsonObject, ptVar->acName); 
+        plJsonObject* ptNewJsonVar = gptJson->add_member(ptRootJsonObject, ptVar->acName); 
 
         switch(ptVar->tType)
         {
             case PL_CONFIG_VAR_TYPE_BOOL:
-                pl_json_add_string_member(ptNewJsonVar, "type", "bool");
-                pl_json_add_bool_member(ptNewJsonVar, "value", ptVar->bValue);
+                gptJson->add_string_member(ptNewJsonVar, "type", "bool");
+                gptJson->add_bool_member(ptNewJsonVar, "value", ptVar->bValue);
                 break;
             case PL_CONFIG_VAR_TYPE_INT:
-                pl_json_add_string_member(ptNewJsonVar, "type", "int");
-                pl_json_add_bool_member(ptNewJsonVar, "value", ptVar->iValue);
+                gptJson->add_string_member(ptNewJsonVar, "type", "int");
+                gptJson->add_bool_member(ptNewJsonVar, "value", ptVar->iValue);
                 break;
             case PL_CONFIG_VAR_TYPE_UINT:
-                pl_json_add_string_member(ptNewJsonVar, "type", "uint");
-                pl_json_add_bool_member(ptNewJsonVar, "value", ptVar->uValue);
+                gptJson->add_string_member(ptNewJsonVar, "type", "uint");
+                gptJson->add_bool_member(ptNewJsonVar, "value", ptVar->uValue);
                 break;
             case PL_CONFIG_VAR_TYPE_DOUBLE:
-                pl_json_add_string_member(ptNewJsonVar, "type", "double");
-                pl_json_add_bool_member(ptNewJsonVar, "value", ptVar->dValue);
+                gptJson->add_string_member(ptNewJsonVar, "type", "double");
+                gptJson->add_bool_member(ptNewJsonVar, "value", ptVar->dValue);
                 break;
             case PL_CONFIG_VAR_TYPE_VEC2:
-                pl_json_add_string_member(ptNewJsonVar, "type", "vec2");
-                pl_json_add_float_array(ptNewJsonVar, "value", ptVar->tValueVec2.d, 2);
+                gptJson->add_string_member(ptNewJsonVar, "type", "vec2");
+                gptJson->add_float_array(ptNewJsonVar, "value", ptVar->tValueVec2.d, 2);
                 break;
             default:
                 PL_ASSERT(false);
@@ -582,18 +584,18 @@ pl_config_save_to_disk(const char* pcFileName)
     }
 
     uint32_t uBufferSize = 0;
-    pl_write_json(ptRootJsonObject, NULL, &uBufferSize);
+    gptJson->write(ptRootJsonObject, NULL, &uBufferSize);
 
     char* pcBuffer = pl_temp_allocator_alloc(&gptConfigCtx->tTempAllocator, uBufferSize + 1);
     memset(pcBuffer, 0, uBufferSize + 1);
-    pl_write_json(ptRootJsonObject, pcBuffer, &uBufferSize);
+    gptJson->write(ptRootJsonObject, pcBuffer, &uBufferSize);
 
     plVfsFileHandle tHandle = gptVfs->open_file(pcFileName, PL_VFS_FILE_MODE_WRITE);
     gptVfs->write_file(tHandle, (uint8_t*)pcBuffer, uBufferSize);
     gptVfs->close_file(tHandle);
     
 
-    pl_unload_json(&ptRootJsonObject);
+    gptJson->unload(&ptRootJsonObject);
 
     pl_temp_allocator_reset(&gptConfigCtx->tTempAllocator);
 }
@@ -625,6 +627,7 @@ pl_load_config_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptVfs   = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptJson   = pl_get_api_latest(ptApiRegistry, plJsonI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
@@ -666,10 +669,6 @@ pl_unload_config_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         #include "stb_sprintf.h"
         #undef STB_SPRINTF_IMPLEMENTATION
     #endif
-
-   #define PL_JSON_IMPLEMENTATION
-   #include "pl_json.h"
-   #undef PL_JSON_IMPLEMENTATION
 
    #define PL_MEMORY_IMPLEMENTATION
    #include "pl_memory.h"
