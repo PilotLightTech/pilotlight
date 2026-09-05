@@ -47,7 +47,7 @@ typedef struct _plTerrain
     plRenderAttachmentInfo tRenderPassLayoutHandle;
     plTerrainRuntimeOptions tRuntimeOptions;
     plChunkFileData* sbtChunkFiles;
-    plTerrainProcessInfo tInfo;
+    plTerrainAsset tInfo;
     plVec2           tTopLeftGlobal;
     plVec2           tBottomRightGlobal;
     uint32_t                 uTileCount;
@@ -75,13 +75,13 @@ static void pl__handle_residency (plTerrain*);
 static void pl__request_residency(plTerrain*, plTerrainChunk*);
 static void pl__touch_chunk(plTerrain*, plTerrainChunk*);
 static void pl__make_unresident  (plTerrain*, plTerrainChunk*);
-static bool pl__terrain_load(plTerrain* ptTerrain, plTerrainProcessInfo* ptInfo);
+static bool pl__terrain_load(plTerrain* ptTerrain, plTerrainAsset* ptInfo);
 void pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk);
 
-static void pl__render_chunk(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t);
+static void pl__render_chunk(plRenderScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t);
 static void
 pl__render_chunk_shadow(
-    plScene* ptScene,
+    plRenderScene* ptScene,
     plTerrain* ptTerrain,
     const plCamera* ptCamera,
     plCommandBuffer* ptCmdBuffer,
@@ -109,8 +109,8 @@ static inline bool pl__is_leaf_resident(const plTerrainChunk* c)
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-plTerrain*
-pl_renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plTerrainProcessInfo* ptInfo)
+static plTerrain*
+pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plTerrainAsset* ptInfo)
 {
     plTerrain* ptTerrain = PL_ALLOC(sizeof(plTerrain));
     memset(ptTerrain, 0, sizeof(plTerrain));
@@ -181,14 +181,16 @@ pl_renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plTerrainProcessInfo* p
     return ptTerrain;
 }
 
-PL_API plTerrainRuntimeOptions*
-pl_renderer_terrain_get_runtime_options(plTerrain* ptTerrain)
+plTerrainRuntimeOptions*
+pl_renderer_get_terrain_options(plRenderScene* ptScene)
 {
-    return &ptTerrain->tRuntimeOptions;
+    if(ptScene->ptTerrain)
+        return &ptScene->ptTerrain->tRuntimeOptions;
+    return NULL;
 }
 
-void
-pl_renderer_terrain_destroy(plTerrain* ptTerrain)
+static void
+pl__renderer_terrain_destroy(plTerrain* ptTerrain)
 {
     plDevice* ptDevice = gptData->ptDevice;
 
@@ -600,7 +602,7 @@ pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 }
 
 static void
-pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex)
+pl__render_chunk(plRenderScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -717,7 +719,7 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
 
 static void
 pl__render_chunk_shadow(
-    plScene* ptScene,
+    plRenderScene* ptScene,
     plTerrain* ptTerrain,
     const plCamera* ptCamera,
     plCommandBuffer* ptCmdBuffer,
@@ -840,7 +842,7 @@ pl__render_chunk_shadow(
 }
 
 static bool
-pl__terrain_load(plTerrain* ptTerrain, plTerrainProcessInfo* ptInfo)
+pl__terrain_load(plTerrain* ptTerrain, plTerrainAsset* ptInfo)
 {
     {
         float fX = ptInfo->atTiles[0].tCenter.x;
@@ -860,7 +862,16 @@ pl__terrain_load(plTerrain* ptTerrain, plTerrainProcessInfo* ptInfo)
     {
         uint32_t i = k % ptInfo->uHorizontalTiles;
         uint32_t j = (k - i) / ptInfo->uVerticalTiles;
-        pl_chlod_load_chunk_file(ptTerrain, ptInfo->atTiles[k].acOutputFile);
+
+        const char* pcAssetPath = gptAsset->get_path(ptInfo->atTiles[i].tHeightmap);
+
+        char acFileNameOnly[256] = {0};
+        pl_str_get_file_name_only(pcAssetPath, acFileNameOnly, 256);
+
+        char acCacheFile[256] = {0};
+        pl_sprintf(acCacheFile, "/cache/terrain/%s.chu", acFileNameOnly);
+
+        pl_chlod_load_chunk_file(ptTerrain, acCacheFile);
     }
     return true;
 }

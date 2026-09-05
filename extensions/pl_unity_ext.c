@@ -36,7 +36,6 @@ Index of this file:
 #include "pl_ecs_ext.c"
 #include "pl_camera_ext.c"
 #include "pl_resource_ext.c"
-#include "pl_model_loader_ext.c"
 #include "pl_renderer_ext.c"
 #include "pl_tools_ext.c"
 #include "pl_profile_ext.c"
@@ -68,6 +67,14 @@ Index of this file:
 #include "pl_freelist_ext.c"
 #include "pl_image_ops_ext.c"
 #include "pl_gjk_ext.c"
+#include "pl_transform_ext.c"
+#include "pl_ik_ext.c"
+#include "pl_asset_ext.c"
+#include "pl_gltf_ext.c"
+#include "pl_skeleton_ext.c"
+#include "pl_scene_ext.c"
+#include "pl_texture_ext.c"
+#include "pl_stl_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -327,7 +334,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptGpuAllocators     = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
     gptDraw              = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptUI                = pl_get_api_latest(ptApiRegistry, plUiI);
-    gptECS               = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptEcs               = pl_get_api_latest(ptApiRegistry, plEcsI);
     gptCamera            = pl_get_api_latest(ptApiRegistry, plCameraI);
     gptCameraEcs         = pl_get_api_latest(ptApiRegistry, plCameraEcsI);
     gptResource          = pl_get_api_latest(ptApiRegistry, plResourceI);
@@ -364,12 +371,21 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptStage             = pl_get_api_latest(ptApiRegistry, plStageI);
     gptGjk               = pl_get_api_latest(ptApiRegistry, plGjkI);
     gptRenderer          = pl_get_api_latest(ptApiRegistry, plRendererI);
-    gptRendererTerrain   = pl_get_api_latest(ptApiRegistry, plRendererTerrainI);
     gptRendererEcs       = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
     gptRendererDebug     = pl_get_api_latest(ptApiRegistry, plRendererDebugI);
     gptRendererEditor    = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
-    gptModelLoader       = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
     gptShader            = pl_get_api_latest(ptApiRegistry, plShaderI);
+    gptTransform         = pl_get_api_latest(ptApiRegistry, plTransformI);
+    gptIk                = pl_get_api_latest(ptApiRegistry, plIkI);
+    gptAsset             = pl_get_api_latest(ptApiRegistry, plAssetI);
+    gptGltf              = pl_get_api_latest(ptApiRegistry, plGltfI);
+    gptSkeleton          = pl_get_api_latest(ptApiRegistry, plSkeletonI);
+    gptScene             = pl_get_api_latest(ptApiRegistry, plSceneI);
+    gptTexture           = pl_get_api_latest(ptApiRegistry, plTextureI);
+    gptTimer             = pl_get_api_latest(ptApiRegistry, plTimerI);
+    gptJson              = pl_get_api_latest(ptApiRegistry, plJsonI);
+    gptVirtualMemory     = pl_get_api_latest(ptApiRegistry, plVirtualMemoryI);
+    gptStl               = pl_get_api_latest(ptApiRegistry, plStlI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -385,7 +401,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_ecs_ext(ptApiRegistry, bReload);
     pl_load_camera_ext(ptApiRegistry, bReload);
     pl_load_resource_ext(ptApiRegistry, bReload);
-    pl_load_model_loader_ext(ptApiRegistry, bReload);
     pl_load_renderer_ext(ptApiRegistry, bReload);
     pl_load_animation_ext(ptApiRegistry, bReload);
     pl_load_ecs_tools_ext(ptApiRegistry, bReload);
@@ -416,11 +431,29 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_audio_ext(ptApiRegistry, bReload);
     pl_load_stage_ext(ptApiRegistry, bReload);
     pl_load_gjk_ext(ptApiRegistry, bReload);
+    pl_load_transform_ext(ptApiRegistry, bReload);
+    pl_load_ik_ext(ptApiRegistry, bReload);
+    pl_load_asset_ext(ptApiRegistry, bReload);
+    pl_load_gltf_ext(ptApiRegistry, bReload);
+    pl_load_skeleton_ext(ptApiRegistry, bReload);
+    pl_load_scene_ext(ptApiRegistry, bReload);
+    pl_load_texture_ext(ptApiRegistry, bReload);
+    pl_load_json_ext(ptApiRegistry, bReload);
+    pl_load_stl_ext(ptApiRegistry, bReload);
 }
 
 void
 pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    pl_unload_stl_ext(ptApiRegistry, bReload);
+    pl_unload_json_ext(ptApiRegistry, bReload);
+    pl_unload_texture_ext(ptApiRegistry, bReload);
+    pl_unload_scene_ext(ptApiRegistry, bReload);
+    pl_unload_skeleton_ext(ptApiRegistry, bReload);
+    pl_unload_gltf_ext(ptApiRegistry, bReload);
+    pl_unload_asset_ext(ptApiRegistry, bReload);
+    pl_unload_ik_ext(ptApiRegistry, bReload);
+    pl_unload_transform_ext(ptApiRegistry, bReload);
     pl_unload_job_ext(ptApiRegistry, bReload);
     pl_unload_image_ext(ptApiRegistry, bReload);
     pl_unload_rect_pack_ext(ptApiRegistry, bReload);
@@ -436,7 +469,6 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_mesh_ext(ptApiRegistry, bReload);
     pl_unload_camera_ext(ptApiRegistry, bReload);
     pl_unload_resource_ext(ptApiRegistry, bReload);
-    pl_unload_model_loader_ext(ptApiRegistry, bReload);
     pl_unload_renderer_ext(ptApiRegistry, bReload);
     pl_unload_gizmo_ext(ptApiRegistry, bReload);
     pl_unload_console_ext(ptApiRegistry, bReload);
@@ -516,12 +548,11 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
 
-#define PL_JSON_IMPLEMENTATION
-#include "pl_json.h"
-#undef PL_JSON_IMPLEMENTATION
-
 #define STB_DXT_IMPLEMENTATION
 #include "stb_dxt.h"
 #undef STB_DXT_IMPLEMENTATION
 
+#include "pl_json_ext.c"
+
 #undef CGLTF_IMPLEMENTATION
+
