@@ -32,6 +32,9 @@ Index of this file:
         * plDxtI           (v1.x)
         * plDdsI           (v1.x)
         * plPakI           (v1.x)
+    
+    Notes:
+        Requires VFS has "/cache/textures" mounted
 */
 
 //-----------------------------------------------------------------------------
@@ -49,7 +52,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plResourceI_version {1, 5, 0}
+#define plResourceI_version {1, 6, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -175,7 +178,7 @@ typedef struct _plResourceManagerInit
 {
     plDevice*   ptDevice;
     uint32_t    uMaxTextureResolution; // default: 1024
-    const char* pcCacheDirectory;      // default: ../cache
+    const char* pcCacheDirectory;      // OBSOLETE
 } plResourceManagerInit;
 
 #ifdef __cplusplus

@@ -167,12 +167,7 @@ pl_resource_initialize(plResourceManagerInit tDesc)
     if(tDesc.uMaxTextureResolution == 0)
         tDesc.uMaxTextureResolution = 1024;
 
-    if(tDesc.pcCacheDirectory == NULL)
-        tDesc.pcCacheDirectory = "../cache";
-
     gptResourceManager->tDesc = tDesc;
-    gptFile->create_directory(tDesc.pcCacheDirectory);
-    gptVfs->mount_directory("/cache", tDesc.pcCacheDirectory, PL_VFS_MOUNT_FLAGS_NONE);
 
     plDevice* ptDevice = tDesc.ptDevice;
 
@@ -406,7 +401,7 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
             char* sbtNameConcat = NULL;
             char acFileNameOnly[256] = {0};
             pl_str_get_file_name_only(pcName, acFileNameOnly, 256);
-            pl_sb_sprintf(sbtNameConcat, "/cache/%s.dds", acFileNameOnly);
+            pl_sb_sprintf(sbtNameConcat, "/cache/textures/%s.dds", acFileNameOnly);
 
             // prep texture for GPU if not done already
             if(tFlags & PL_RESOURCE_LOAD_FLAG_NO_CACHING)
@@ -522,7 +517,7 @@ pl_resource_is_resident(plResourceHandle tHandle, plResourceEvictFlags tFlags)
         char acFinalFile[512] = {0};
         char acFileNameOnly[256] = {0};
         pl_str_get_file_name_only(gptResourceManager->sbtResources[tHandle.uIndex].acName, acFileNameOnly, 256);
-        pl_sprintf(acFinalFile, "/cache/%s.dds", acFileNameOnly);
+        pl_sprintf(acFinalFile, "/cache/textures/%s.dds", acFileNameOnly);
 
         // prep texture for GPU if not done already
         if(!gptVfs->does_file_exist(acFinalFile))
@@ -558,7 +553,7 @@ pl_resource_evict_ex(plResourceHandle tHandle, plResourceEvictFlags tFlags)
         char acFinalFile[512] = {0};
         char acFileNameOnly[256] = {0};
         pl_str_get_file_name_only(gptResourceManager->sbtResources[tHandle.uIndex].acName, acFileNameOnly, 256);
-        pl_sprintf(acFinalFile, "/cache/%s.dds", acFileNameOnly);
+        pl_sprintf(acFinalFile, "/cache/textures/%s.dds", acFileNameOnly);
 
         // prep texture for GPU if not done already
         if(gptVfs->does_file_exist(acFinalFile))
@@ -602,7 +597,7 @@ pl_resource_make_resident(plResourceHandle tHandle)
             char* sbtNameConcat = NULL;
             char acFileNameOnly[256] = {0};
             pl_str_get_file_name_only(ptResource->acName, acFileNameOnly, 256);
-            pl_sb_sprintf(sbtNameConcat, "/cache/%s.dds", acFileNameOnly);
+            pl_sb_sprintf(sbtNameConcat, "/cache/textures/%s.dds", acFileNameOnly);
 
             plDevice* ptDevice = gptResourceManager->tDesc.ptDevice;
             
