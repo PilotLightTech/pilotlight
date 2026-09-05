@@ -1,5 +1,5 @@
 /*
-   pl_ecs_ext.c
+   pl_animation_ext.c
 */
 
 /*
@@ -11,6 +11,7 @@ Index of this file:
 // [SECTION] public api implementations
 // [SECTION] internal api implementations
 // [SECTION] extension loading
+// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -27,6 +28,10 @@ Index of this file:
 // extensions
 #include "pl_profile_ext.h"
 #include "pl_log_ext.h"
+#include "pl_asset_ext.h"
+#include "pl_vfs_ext.h"
+#include "pl_transform_ext.h"
+#include "pl_json_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -42,11 +47,18 @@ Index of this file:
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
-    static plApiRegistryI*             gptApiRegistry       = NULL;
-    static const plExtensionRegistryI* gptExtensionRegistry = NULL;
-    static const plProfileI*           gptProfile           = NULL;
-    static const plLogI*               gptLog               = NULL;
-    static const plEcsI*               gptECS               = NULL;
+    #ifndef PL_JSON_ALLOC
+        #define PL_JSON_ALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_JSON_FREE(x)  gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+
+    static const plProfileI*   gptProfile   = NULL;
+    static const plLogI*       gptLog       = NULL;
+    static const plEcsI*       gptEcs       = NULL;
+    static const plAssetI*     gptAsset     = NULL;
+    static const plVfsI*       gptVfs       = NULL;
+    static const plTransformI* gptTransform = NULL;
+    static const plJsonI*     gptJson = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -55,19 +67,30 @@ Index of this file:
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plComponentLibraryData
+typedef struct _plAnimationDataHeader
 {
-    plTransformComponent* sbtTransformsCopy; // used for inverse kinematics system
-} plComponentLibraryData;
+    uint32_t uKeyFrameCount;
+    size_t   szDataSize;
+} plAnimationDataHeader;
+
+typedef struct _plAnimationFileHeader
+{
+    uint32_t uFlags;
+    float    fStart;
+    float    fEnd;
+    uint32_t uChannelCount;
+    uint32_t uDataCount;
+    uint64_t uFileSize;
+} plAnimationFileHeader;
 
 typedef struct _plAnimationContext
 {
     plEcsTypeKey tAnimationComponentType;
-    plEcsTypeKey tAnimationDataComponentType;
-    plEcsTypeKey tInverseKinematicsComponentType;
     plEcsTypeKey tHumanoidComponentType;
     plEcsTypeKey tTransformComponentType;
     plEcsTypeKey tHierarchyComponentType;
+
+    plAssetTypeKey tAssetTypeKey;
 } plAnimationContext;
 
 //-----------------------------------------------------------------------------
@@ -87,110 +110,36 @@ pl_animation_get_ecs_type_key_animation(void)
 }
 
 plEcsTypeKey
-pl_animation_get_ecs_type_key_animation_data(void)
-{
-    return gptAnimationCtx->tAnimationDataComponentType;
-}
-
-plEcsTypeKey
-pl_animation_get_ecs_type_key_inverse_kinematics(void)
-{
-    return gptAnimationCtx->tInverseKinematicsComponentType;
-}
-
-plEcsTypeKey
 pl_animation_get_ecs_type_key_humanoid(void)
 {
     return gptAnimationCtx->tHumanoidComponentType;
 }
 
 static void
-pl__ecs_ik_init(plComponentLibrary* ptLibrary)
-{
-    void* pData = PL_ALLOC(sizeof(plComponentLibraryData));
-    memset(pData, 0, sizeof(plComponentLibraryData));
-    gptECS->set_library_type_data(ptLibrary, gptAnimationCtx->tInverseKinematicsComponentType, pData);
-}
-
-static void
 pl__ecs_animation_cleanup(plComponentLibrary* ptLibrary)
 {
     plAnimationComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tAnimationComponentType, (void**)&ptComponents, NULL);
+    const uint32_t uComponentCount = gptEcs->get_components(ptLibrary, gptAnimationCtx->tAnimationComponentType, (void**)&ptComponents, NULL);
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
-        PL_FREE(ptComponents[i].atChannels);
-        ptComponents[i].atChannels = NULL;
-        ptComponents[i].atSamplers = NULL;
-        ptComponents[i].uChannelCount = 0;
+        PL_FREE(ptComponents[i].atTargets);
+        PL_FREE(ptComponents[i].atTargetIds);
+        ptComponents[i].atTargets = NULL;
+        ptComponents[i].uTargetCount = 0;
     }
-}
-
-static void
-pl__ecs_animation_data_cleanup(plComponentLibrary* ptLibrary)
-{
-    plAnimationDataComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tAnimationDataComponentType, (void**)&ptComponents, NULL);
-    for(uint32_t i = 0; i < uComponentCount; i++)
-    {
-        PL_FREE(ptComponents[i].afKeyFrameTimes);
-        ptComponents[i].afKeyFrameTimes = NULL;
-        ptComponents[i].pKeyFrameData = NULL;
-    }
-}
-
-static void
-pl__ecs_ik_cleanup(plComponentLibrary* ptLibrary)
-{
-    plComponentLibraryData* ptData = gptECS->get_library_type_data(ptLibrary, gptAnimationCtx->tInverseKinematicsComponentType);
-    pl_sb_free(ptData->sbtTransformsCopy);
-    PL_FREE(ptData);
-    gptECS->set_library_type_data(ptLibrary, gptAnimationCtx->tInverseKinematicsComponentType, NULL);
-}
-
-static void
-pl__ecs_ik_reset(plComponentLibrary* ptLibrary)
-{
-    plComponentLibraryData* ptData = gptECS->get_library_type_data(ptLibrary, gptAnimationCtx->tInverseKinematicsComponentType);
-    pl_sb_reset(ptData->sbtTransformsCopy);
 }
 
 plEntity
 pl_animation_create(plComponentLibrary* ptLibrary, const char* pcName, uint32_t uChannelCount, plAnimationComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed animation";
-    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created animation: '%s'", pcName);
-    plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
+    plEntity tNewEntity = gptEcs->create_entity(ptLibrary, pcName);
 
-    plAnimationComponent* ptCompOut = gptECS->add_component(ptLibrary, gptAnimationCtx->tAnimationComponentType, tNewEntity);
+    plAnimationComponent* ptCompOut = gptEcs->add_component(ptLibrary, gptAnimationCtx->tAnimationComponentType, tNewEntity);
 
-    size_t szAllocationSize = (sizeof(plAnimationChannel) + sizeof(plAnimationSampler)) * uChannelCount;
-    ptCompOut->uChannelCount = uChannelCount;
-    ptCompOut->atChannels = PL_ALLOC(szAllocationSize);
-    memset(ptCompOut->atChannels, 0, szAllocationSize);
-    ptCompOut->atSamplers = (plAnimationSampler*)&ptCompOut->atChannels[uChannelCount];
-
-    if(pptCompOut)
-        *pptCompOut = ptCompOut;
-
-    return tNewEntity;
-}
-
-plEntity
-pl_animation_create_data(plComponentLibrary* ptLibrary, const char* pcName, uint32_t uKeyFrameCount, size_t szDataSize, plAnimationDataComponent** pptCompOut)
-{
-    pcName = pcName ? pcName : "unnamed animation data";
-    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created animation data: '%s'", pcName);
-    plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
-
-    plAnimationDataComponent* ptCompOut = gptECS->add_component(ptLibrary, gptAnimationCtx->tAnimationDataComponentType, tNewEntity);
-
-    ptCompOut->uKeyFrameCount = uKeyFrameCount;
-    ptCompOut->szDataSize = szDataSize;
-
-    ptCompOut->afKeyFrameTimes = PL_ALLOC(sizeof(float) * uKeyFrameCount + szDataSize);
-    memset(ptCompOut->afKeyFrameTimes, 0, sizeof(float) * uKeyFrameCount + szDataSize);
-    ptCompOut->pKeyFrameData = (void*)&ptCompOut->afKeyFrameTimes[uKeyFrameCount];
+    size_t szAllocationSize = uChannelCount * sizeof(plEntity);
+    ptCompOut->atTargets = PL_ALLOC(szAllocationSize);
+    memset(ptCompOut->atTargets, 0, szAllocationSize);
 
     if(pptCompOut)
         *pptCompOut = ptCompOut;
@@ -204,7 +153,7 @@ pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fD
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     plAnimationComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tAnimationComponentType, (void**)&ptComponents, NULL);
+    const uint32_t uComponentCount = gptEcs->get_components(ptLibrary, gptAnimationCtx->tAnimationComponentType, (void**)&ptComponents, NULL);
 
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
@@ -213,27 +162,29 @@ pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fD
         if(!(ptAnimationComponent->tFlags & PL_ANIMATION_FLAG_PLAYING))
             continue;
 
+        plAnimation* ptAnimation = gptAsset->get_data(ptAnimationComponent->tAnimation);
+
         ptAnimationComponent->fTimer += fDeltaTime * ptAnimationComponent->fSpeed;
 
         if(ptAnimationComponent->tFlags & PL_ANIMATION_FLAG_LOOPED)
         {
-            ptAnimationComponent->fTimer = fmodf(ptAnimationComponent->fTimer, ptAnimationComponent->fEnd);
+            const float fDuration = ptAnimation->fEnd - ptAnimation->fStart;
+            ptAnimationComponent->fTimer = ptAnimation->fStart + fmodf(ptAnimationComponent->fTimer - ptAnimation->fStart, fDuration);
         }
 
-        if(ptAnimationComponent->fTimer > ptAnimationComponent->fEnd)
+        if(ptAnimationComponent->fTimer > ptAnimation->fEnd)
         {
             ptAnimationComponent->tFlags &= ~PL_ANIMATION_FLAG_PLAYING;
-            ptAnimationComponent->fTimer = 0.0f;
+            ptAnimationComponent->fTimer = ptAnimation->fStart;
             continue;
         }
 
-        for(uint32_t j = 0; j < ptAnimationComponent->uChannelCount; j++)
+        for(uint32_t j = 0; j < ptAnimation->uChannelCount; j++)
         {
             
-            const plAnimationChannel* ptChannel = &ptAnimationComponent->atChannels[j];
-            const plAnimationSampler* ptSampler = &ptAnimationComponent->atSamplers[ptChannel->uSamplerIndex];
-            const plAnimationDataComponent* ptData = gptECS->get_component(ptLibrary, gptAnimationCtx->tAnimationDataComponentType, ptSampler->tData);
-            plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, gptAnimationCtx->tTransformComponentType, ptChannel->tTarget);
+            const plAnimationChannel* ptChannel = &ptAnimation->atChannels[j];
+            const plAnimationData* ptData = &ptAnimation->atData[ptChannel->uDataIndex];
+            plTransformComponent* ptTransform = gptEcs->get_component(ptLibrary, gptAnimationCtx->tTransformComponentType, ptAnimationComponent->atTargets[ptChannel->uTargetIndex]);
             ptTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
 
             // wrap t around, so the animation loops.
@@ -269,7 +220,7 @@ pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fD
                 case PL_ANIMATION_PATH_TRANSLATION:
                 {
 
-                    if(ptSampler->tMode == PL_ANIMATION_MODE_LINEAR)
+                    if(ptChannel->tMode == PL_ANIMATION_MODE_LINEAR)
                     {
                         const plVec3 tPrev = *(plVec3*)&afKeyFrameData[iPrevKey * 3];
                         const plVec3 tNext = *(plVec3*)&afKeyFrameData[iNextKey * 3];
@@ -281,13 +232,13 @@ pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fD
                         ptTransform->tTranslation = pl_lerp_vec3(ptTransform->tTranslation, tTranslation, ptAnimationComponent->fBlendAmount);
                     }
 
-                    else if(ptSampler->tMode == PL_ANIMATION_MODE_STEP)
+                    else if(ptChannel->tMode == PL_ANIMATION_MODE_STEP)
                     {
                         const plVec3 tTranslation = *(plVec3*)&afKeyFrameData[iPrevKey * 3];
                         ptTransform->tTranslation = pl_lerp_vec3(ptTransform->tTranslation, tTranslation, ptAnimationComponent->fBlendAmount);
                     }
 
-                    else if(ptSampler->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
+                    else if(ptChannel->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
                     {
                         const int iPrevIndex = iPrevKey * 3 * 3;
                         const int iNextIndex = iNextKey * 3 * 3;
@@ -311,23 +262,26 @@ pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fD
                 case PL_ANIMATION_PATH_SCALE:
                 {
 
-                    if(ptSampler->tMode == PL_ANIMATION_MODE_LINEAR)
+                    plVec3 tScale = {0};
+                    if(ptChannel->tMode == PL_ANIMATION_MODE_LINEAR)
                     {
                         const plVec3 tPrev = *(plVec3*)&afKeyFrameData[iPrevKey * 3];
                         const plVec3 tNext = *(plVec3*)&afKeyFrameData[iNextKey * 3];
-                        ptTransform->tScale = (plVec3){
+                        tScale = (plVec3){
                             .x = tPrev.x * (1.0f - fTn) + tNext.x * fTn,
                             .y = tPrev.y * (1.0f - fTn) + tNext.y * fTn,
                             .z = tPrev.z * (1.0f - fTn) + tNext.z * fTn,
                         };
+                        ptTransform->tScale = pl_lerp_vec3(ptTransform->tScale, tScale, ptAnimationComponent->fBlendAmount);
                     }
 
-                    else if(ptSampler->tMode == PL_ANIMATION_MODE_STEP)
+                    else if(ptChannel->tMode == PL_ANIMATION_MODE_STEP)
                     {
-                        ptTransform->tScale = *(plVec3*)&afKeyFrameData[iPrevKey * 3];
+                        tScale = *(plVec3*)&afKeyFrameData[iPrevKey * 3];
+                        ptTransform->tScale = pl_lerp_vec3(ptTransform->tScale, tScale, ptAnimationComponent->fBlendAmount);
                     }
 
-                    else if(ptSampler->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
+                    else if(ptChannel->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
                     {
                         const int iPrevIndex = iPrevKey * 3 * 3;
                         const int iNextIndex = iNextKey * 3 * 3;
@@ -340,8 +294,9 @@ pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fD
                             float a = fKeyDelta * afKeyFrameData[iNextIndex + k + iA];
                             float b = fKeyDelta * afKeyFrameData[iPrevIndex + k + iB];
                             float v1 = afKeyFrameData[iNextIndex + k + iV];
-                            ptTransform->tScale.d[k] = ((2 * fTCub - 3 * fTSq + 1) * v0) + ((fTCub - 2 * fTSq + fTn) * b) + ((-2 * fTCub + 3 * fTSq) * v1) + ((fTCub - fTSq) * a);
+                            tScale.d[k] = ((2 * fTCub - 3 * fTSq + 1) * v0) + ((fTCub - 2 * fTSq + fTn) * b) + ((-2 * fTCub + 3 * fTSq) * v1) + ((fTCub - fTSq) * a);
                         }
+                        ptTransform->tScale = pl_lerp_vec3(ptTransform->tScale, tScale, ptAnimationComponent->fBlendAmount);
                     }
                     break;
                 }
@@ -349,19 +304,19 @@ pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fD
                 case PL_ANIMATION_PATH_ROTATION:
                 {
 
-                    if(ptSampler->tMode == PL_ANIMATION_MODE_LINEAR)
+                    if(ptChannel->tMode == PL_ANIMATION_MODE_LINEAR)
                     {
                         const plVec4 tQ0 = *(plVec4*)&afKeyFrameData[iPrevKey * 4];
                         const plVec4 tQ1 = *(plVec4*)&afKeyFrameData[iNextKey * 4];
                         const plVec4 tRotation = pl_quat_slerp(tQ0, tQ1, fTn);
                         ptTransform->tRotation = pl_quat_slerp(ptTransform->tRotation, tRotation, ptAnimationComponent->fBlendAmount);
                     }
-                    else if(ptSampler->tMode == PL_ANIMATION_MODE_STEP)
+                    else if(ptChannel->tMode == PL_ANIMATION_MODE_STEP)
                     {
                         const plVec4 tRotation = *(plVec4*)&afKeyFrameData[iPrevKey * 4];
                         ptTransform->tRotation = pl_quat_slerp(ptTransform->tRotation, tRotation, ptAnimationComponent->fBlendAmount);
                     }
-                    else if(ptSampler->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
+                    else if(ptChannel->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
                     {
                         const int iPrevIndex = iPrevKey * 4 * 3;
                         const int iNextIndex = iNextKey * 4 * 3;
@@ -379,6 +334,7 @@ pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fD
                             tResult.d[k] = ((2 * fTCub - 3 * fTSq + 1) * iV0) + ((fTCub - 2 * fTSq + fTn) * b) + ((-2 * fTCub + 3 * fTSq) * iV1) + ((fTCub - fTSq) * a);
                         }
                         ptTransform->tRotation = pl_quat_slerp(ptTransform->tRotation, tResult, ptAnimationComponent->fBlendAmount);
+                        ptTransform->tRotation = pl_norm_quat(ptTransform->tRotation);
                     }
                     break;
                 }
@@ -389,214 +345,314 @@ pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fD
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
-void
-pl_animation_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
+static bool
+pl__animation_serialize(const char* pcName, const void* pAnimation, plAssetEncoding eEncoding)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
-    plInverseKinematicsComponent* ptComponents = NULL;
-    const plEntity* ptEntities = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tInverseKinematicsComponentType, (void**)&ptComponents, &ptEntities);
-
-
-    plTransformComponent* ptTransforms = NULL;
-    const uint32_t uTransformCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tTransformComponentType, (void**)&ptTransforms, NULL);
-
-    plComponentLibraryData* ptData = gptECS->get_library_type_data(ptLibrary, gptAnimationCtx->tInverseKinematicsComponentType);
-    pl_sb_resize(ptData->sbtTransformsCopy, uTransformCount);
-    memcpy(ptData->sbtTransformsCopy, ptTransforms, uTransformCount * sizeof(plTransformComponent));
-    gptECS->set_library_type_data(ptLibrary, gptAnimationCtx->tInverseKinematicsComponentType, ptData);
-    
-    bool bRecomputeHierarchy = false;
-    for(uint32_t i = 0; i < uComponentCount; i++)
+    const plAnimation* ptAnimation = pAnimation;
+    if(eEncoding == PL_ASSET_ENCODING_BINARY)
     {
+        plVfsFileHandle tFileHandle = gptVfs->open_file(pcName, PL_VFS_FILE_MODE_READ_WRITE);
 
-        const plEntity tIKEntity = ptEntities[i];
-        const size_t uIKIndex = gptECS->get_index(ptLibrary, gptAnimationCtx->tInverseKinematicsComponentType, tIKEntity);
+        plAssetFileHeader tAssetFileHeader = {
+            .uMagic = PL_ASSET_MAGIC
+        };
 
-        const plInverseKinematicsComponent* ptInverseKinematicsComponent = &ptComponents[uIKIndex];
-        
-        if(!ptInverseKinematicsComponent->bEnabled)
-            continue;
+        plAnimationFileHeader tHeader = {
+            .uFlags        = 0,
+            .fStart        = ptAnimation->fStart,
+            .fEnd          = ptAnimation->fEnd,
+            .uChannelCount = ptAnimation->uChannelCount,
+            .uDataCount    = ptAnimation->uDataCount
+        };
 
-        const size_t uTransformIndex = gptECS->get_index(ptLibrary, gptAnimationCtx->tTransformComponentType, tIKEntity);
-        const size_t uTargetIndex = gptECS->get_index(ptLibrary, gptAnimationCtx->tTransformComponentType, ptInverseKinematicsComponent->tTarget);
+        size_t szRawDataSize = ptAnimation->uChannelCount * sizeof(plAnimationChannel);
+        szRawDataSize += ptAnimation->uDataCount * sizeof(plAnimationData);
 
-        plTransformComponent* ptTransform = &ptData->sbtTransformsCopy[uTransformIndex];
-        plTransformComponent* ptTarget = &ptData->sbtTransformsCopy[uTargetIndex];
-        plHierarchyComponent* ptHierComp = gptECS->get_component(ptLibrary, gptAnimationCtx->tHierarchyComponentType, tIKEntity);
-        
-        PL_ASSERT(uTransformIndex != UINT64_MAX);
-        PL_ASSERT(uTargetIndex != UINT64_MAX);
-        PL_ASSERT(ptHierComp);
+        gptVfs->write_file_stream(tFileHandle, 1, sizeof(plAssetFileHeader), &tAssetFileHeader);
+        gptVfs->write_file_stream(tFileHandle, 1, sizeof(tHeader), &tHeader);
+        gptVfs->write_file_stream(tFileHandle, 1, szRawDataSize, ptAnimation->puRawData);
 
-        const plVec3 tTargetPos = ptTarget->tWorld.col[3].xyz;
-        for(uint32_t j = 0; j < ptInverseKinematicsComponent->uIterationCount; j++)
+        for(uint32_t i = 0; i < ptAnimation->uChannelCount; i++)
         {
-            plTransformComponent* aptStack[32] = {0};
-            plEntity tParentEntity = ptHierComp->tParent;
-            plTransformComponent* ptChildTransform = ptTransform;
-            for(uint32_t uChain = 0; uChain < pl_min(ptInverseKinematicsComponent->uChainLength, 32); ++uChain)
-            {
-                bRecomputeHierarchy = true;
-
-                // stack stores all traversed chain links so far
-                aptStack[uChain] = ptChildTransform;
-
-                // compute required parent rotation that moves ik transform closer to target transform
-                const size_t uParentIndex = gptECS->get_index(ptLibrary, gptAnimationCtx->tTransformComponentType, tParentEntity);
-                PL_ASSERT(uParentIndex != UINT64_MAX);
-                plTransformComponent* ptParentTransform =  &ptData->sbtTransformsCopy[uParentIndex];
-                const plVec3 tParentPos = ptParentTransform->tWorld.col[3].xyz;
-                const plVec3 tDirParentToIk = pl_norm_vec3(pl_sub_vec3(ptTransform->tWorld.col[3].xyz, tParentPos));
-                const plVec3 tDirParentToTarget = pl_norm_vec3(pl_sub_vec3(tTargetPos, tParentPos));
-
-                // TODO: check if this transform is part of a humanoid and need some constraining
-
-                plVec4 tQ = {0};
-
-                // simple shortest rotation without constraint
-                const plVec3 tAxis = pl_norm_vec3(pl_cross_vec3(tDirParentToIk, tDirParentToTarget));
-                const float fAngle = acosf(pl_clampf(-1.0f, pl_dot_vec3(tDirParentToIk, tDirParentToTarget), 1.0f));
-                tQ = pl_norm_vec4(pl_quat_rotation_vec3(fAngle, tAxis));
-
-                // parent to world space
-                pl_decompose_matrix(&ptParentTransform->tWorld, &ptParentTransform->tScale, &ptParentTransform->tRotation, &ptParentTransform->tTranslation);
-
-                // rotate parent
-                ptParentTransform->tRotation = pl_norm_vec4(pl_mul_quat(tQ, ptParentTransform->tRotation));
-                ptParentTransform->tWorld = pl_rotation_translation_scale(ptParentTransform->tRotation, ptParentTransform->tTranslation, ptParentTransform->tScale);
-
-                // parent back to local space (if parent has parent)
-                plHierarchyComponent* ptHierParentComp = gptECS->get_component(ptLibrary, gptAnimationCtx->tHierarchyComponentType, tParentEntity);
-                if(ptHierParentComp)
-                {
-                    plEntity tParentOfParentEntity = ptHierParentComp->tParent;
-                    const size_t uGrandParentIndex = gptECS->get_index(ptLibrary, gptAnimationCtx->tTransformComponentType, tParentOfParentEntity);
-                    PL_ASSERT(uGrandParentIndex != UINT64_MAX);
-                    plTransformComponent* ptParentOfParentTransform = &ptData->sbtTransformsCopy[uGrandParentIndex];
-                    const plMat4 tParentOfParentInverse = pl_mat4_invert(&ptParentOfParentTransform->tWorld);
-                    plMat4 tW = pl_rotation_translation_scale(ptParentTransform->tRotation, ptParentTransform->tTranslation, ptParentTransform->tScale);
-                    plMat4 tNewMatrix = pl_mul_mat4(&tParentOfParentInverse, &tW);
-                    pl_decompose_matrix(&tNewMatrix, &ptParentTransform->tScale, &ptParentTransform->tRotation, &ptParentTransform->tTranslation);
-                    // keep parent world matrix in world space!
-                }
-
-                // update chain from parent to children
-                const plTransformComponent* ptRecurseParent = ptParentTransform;
-                for(int recurse_chain = (int)uChain; recurse_chain >=0; --recurse_chain)
-                {
-                    plMat4 tW = pl_rotation_translation_scale(aptStack[recurse_chain]->tRotation, aptStack[recurse_chain]->tTranslation, aptStack[recurse_chain]->tScale);
-                    aptStack[recurse_chain]->tWorld = pl_mul_mat4(&ptRecurseParent->tWorld, &tW);
-                    ptRecurseParent = aptStack[recurse_chain];
-                }
-
-                if(ptHierParentComp == NULL)
-                {
-                    // chain root reached, exit
-                    break;
-                }
-
-                // move up in the chain by one
-                ptChildTransform = ptParentTransform;
-                tParentEntity = ptHierParentComp->tParent;
-                PL_ASSERT(uChain < 32);
-            }
+            plAnimationDataHeader tDataHeader = {
+                .szDataSize = ptAnimation->atData[i].szDataSize,
+                .uKeyFrameCount = ptAnimation->atData[i].uKeyFrameCount
+            };
+            gptVfs->write_file_stream(tFileHandle, 1, sizeof(plAnimationDataHeader), &tDataHeader);
+            gptVfs->write_file_stream(tFileHandle, 1, ptAnimation->atData[i].uKeyFrameCount * sizeof(float), ptAnimation->atData[i].afKeyFrameTimes);
+            gptVfs->write_file_stream(tFileHandle, 1, ptAnimation->atData[i].szDataSize, ptAnimation->atData[i].pKeyFrameData);
         }
 
+        gptVfs->close_file(tFileHandle);
     }
-
-    if(bRecomputeHierarchy)
+    else
     {
-        const plEntity* ptHierarchyEntities = NULL;
-        const uint32_t uHierarchyCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tHierarchyComponentType, NULL, &ptHierarchyEntities);
-        for(uint32_t i = 0; i < uHierarchyCount; i++)
+        plJsonObject* ptRoot = gptJson->new_root_object("root");
+        gptJson->add_string_member(ptRoot, "format", "planimation");
+        gptJson->add_uint32_member(ptRoot, "version", 1);
+
+        gptJson->add_float_member(ptRoot, "start", ptAnimation->fStart);
+        gptJson->add_float_member(ptRoot, "end", ptAnimation->fEnd);
+
+        plJsonObject* ptChannels = gptJson->add_member_array(ptRoot, "channels", ptAnimation->uChannelCount);
+        for(uint32_t i = 0; i < ptAnimation->uChannelCount; i++)
         {
-            const plEntity tChildEntity = ptHierarchyEntities[i];
-            
-            const size_t uChildIndex = gptECS->get_index(ptLibrary, gptAnimationCtx->tTransformComponentType, tChildEntity);
-            PL_ASSERT(uChildIndex != UINT64_MAX);
+            plJsonObject* ptChannel = gptJson->member_by_index(ptChannels, i);
 
-            const plTransformComponent* ptTransformChild = &ptData->sbtTransformsCopy[uChildIndex];
+            gptJson->add_uint32_member(ptChannel, "data", ptAnimation->atChannels[i].uDataIndex);
+            gptJson->add_uint32_member(ptChannel, "target", ptAnimation->atChannels[i].uTargetIndex);
+            if     (ptAnimation->atChannels[i].tPath == PL_ANIMATION_PATH_ROTATION)    gptJson->add_string_member(ptChannel, "path", "rotation");
+            else if(ptAnimation->atChannels[i].tPath == PL_ANIMATION_PATH_TRANSLATION) gptJson->add_string_member(ptChannel, "path", "translation");
+            else if(ptAnimation->atChannels[i].tPath == PL_ANIMATION_PATH_SCALE)       gptJson->add_string_member(ptChannel, "path", "scale");
+            else if(ptAnimation->atChannels[i].tPath == PL_ANIMATION_PATH_WEIGHTS)     gptJson->add_string_member(ptChannel, "path", "weights");
 
-            plMat4 tWorldMatrix = pl_rotation_translation_scale(ptTransformChild->tRotation, ptTransformChild->tTranslation, ptTransformChild->tScale);
-
-            plHierarchyComponent* ptHierarchyComponent = gptECS->get_component(ptLibrary, gptAnimationCtx->tHierarchyComponentType, tChildEntity);
-            
-            plEntity tParentID = ptHierarchyComponent->tParent;
-            while(tParentID.uIndex != UINT32_MAX)
-            {
-                const size_t uParentIndex = gptECS->get_index(ptLibrary, gptAnimationCtx->tTransformComponentType, tParentID);
-                if(uParentIndex == UINT64_MAX)
-                    break;
-                plTransformComponent* ptTransformParent = &ptData->sbtTransformsCopy[uParentIndex];
-                plMat4 tLocalMatrix = pl_rotation_translation_scale(ptTransformParent->tRotation, ptTransformParent->tTranslation, ptTransformParent->tScale);
-                tWorldMatrix = pl_mul_mat4(&tLocalMatrix, &tWorldMatrix);
-
-                const plHierarchyComponent* ptHierarchyRecursive = gptECS->get_component(ptLibrary, gptAnimationCtx->tHierarchyComponentType, tParentID);
-                if(ptHierarchyRecursive)
-                    tParentID = ptHierarchyRecursive->tParent;
-                else
-                    tParentID.uIndex = UINT32_MAX;
-            }
-
-            ptTransforms[uChildIndex].eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
-            ptTransforms[uChildIndex].tWorld = tWorldMatrix;
+            if     (ptAnimation->atChannels[i].tMode == PL_ANIMATION_MODE_LINEAR)       gptJson->add_string_member(ptChannel, "mode", "linear");
+            else if(ptAnimation->atChannels[i].tMode == PL_ANIMATION_MODE_CUBIC_SPLINE) gptJson->add_string_member(ptChannel, "mode", "cubic");
+            else if(ptAnimation->atChannels[i].tMode == PL_ANIMATION_MODE_STEP)         gptJson->add_string_member(ptChannel, "mode", "step");
         }
 
+        plJsonObject* ptDatas = gptJson->add_member_array(ptRoot, "data", ptAnimation->uDataCount);
+        for(uint32_t i = 0; i < ptAnimation->uDataCount; i++)
+        {
+            plJsonObject* ptData = gptJson->member_by_index(ptDatas, i);
+
+            gptJson->add_float_array(ptData, "times", ptAnimation->atData[i].afKeyFrameTimes, ptAnimation->atData[i].uKeyFrameCount);
+            gptJson->add_float_array(ptData, "data", (float*)ptAnimation->atData[i].pKeyFrameData, (uint32_t)(ptAnimation->atData[i].szDataSize / sizeof(float)));
+        }
+
+        uint32_t uBufferSize = 0;
+        gptJson->write(ptRoot, NULL, &uBufferSize);
+        char* pcBuffer = PL_ALLOC(uBufferSize);
+        memset(pcBuffer, 0, uBufferSize);
+        gptJson->write(ptRoot, pcBuffer, &uBufferSize);
+        
+        gptVfs->register_file(pcName, false);
+        plVfsFileHandle tFileHandle = gptVfs->open_file(pcName, PL_VFS_FILE_MODE_WRITE);
+        gptVfs->write_file(tFileHandle, pcBuffer, uBufferSize);
+        gptVfs->close_file(tFileHandle);
+
+        PL_FREE(pcBuffer);
+        gptJson->unload(&ptRoot);
+    }
+    return true;
+}
+
+static void
+pl__animation_cleanup(void* pAnimation)
+{
+    plAnimation* ptAnimation = pAnimation;
+
+    for(uint32_t i = 0; i < ptAnimation->uChannelCount; i++)
+    {
+        if(ptAnimation->atData[i].afKeyFrameTimes)
+        {
+            PL_FREE(ptAnimation->atData[i].afKeyFrameTimes);
+        }
+
+        // if(ptAnimation->atData[i].pKeyFrameData)
+        // {
+        //     PL_FREE(ptAnimation->atData[i].pKeyFrameData);
+        // }
+        ptAnimation->atData[i].afKeyFrameTimes = NULL;
+        ptAnimation->atData[i].pKeyFrameData = NULL;
+        
     }
 
-    pl_sb_reset(ptData->sbtTransformsCopy);
+    if(ptAnimation->puRawData)
+    {
+        PL_FREE(ptAnimation->puRawData);
+        ptAnimation->puRawData = NULL;
+        ptAnimation->atData = NULL;
+        ptAnimation->atChannels = NULL;
+    }
+    ptAnimation->uChannelCount = 0;
+    ptAnimation->fEnd = 0.0f;
+    ptAnimation->fStart = 0.0f;
+}
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+static bool
+pl__animation_deserialize(const char* pcName, void* pAnimation)
+{
+    plAnimation* ptAnimation = pAnimation;
+
+    if(!gptVfs->does_file_exist(pcName))
+        return false;
+
+    plVfsFileHandle tFileHandle = gptVfs->open_file(pcName, PL_VFS_FILE_MODE_READ);
+
+    plAssetFileHeader tAssetHeader = {0};
+    gptVfs->read_file_stream(tFileHandle, sizeof(plAssetFileHeader), 1, &tAssetHeader);
+
+    if(tAssetHeader.uMagic == PL_ASSET_MAGIC)
+    {
+
+        plAnimationFileHeader tHeader = {0};
+        gptVfs->read_file_stream(tFileHandle, sizeof(tHeader), 1, &tHeader);
+
+
+        size_t szAllocationSize = tHeader.uChannelCount * sizeof(plAnimationChannel);
+        szAllocationSize += tHeader.uDataCount * sizeof(plAnimationData);
+
+        ptAnimation->fStart = tHeader.fStart;
+        ptAnimation->fEnd = tHeader.fEnd;
+        ptAnimation->uChannelCount = tHeader.uChannelCount;
+        ptAnimation->puRawData = PL_ALLOC(szAllocationSize);
+        memset(ptAnimation->puRawData, 0, szAllocationSize);
+        ptAnimation->atChannels = (plAnimationChannel*)ptAnimation->puRawData;
+        ptAnimation->atData = (plAnimationData*)&ptAnimation->atChannels[tHeader.uChannelCount];
+        ptAnimation->uDataCount = tHeader.uDataCount;
+        gptVfs->read_file_stream(tFileHandle, szAllocationSize, 1, ptAnimation->puRawData);
+        
+        for(uint32_t i = 0; i < ptAnimation->uChannelCount; i++)
+        {
+            plAnimationDataHeader tDataHeader = {0};
+            gptVfs->read_file_stream(tFileHandle, sizeof(tDataHeader), 1, &tDataHeader);
+
+            ptAnimation->atData[i].uKeyFrameCount = tDataHeader.uKeyFrameCount;
+            ptAnimation->atData[i].szDataSize = tDataHeader.szDataSize;
+            ptAnimation->atData[i].afKeyFrameTimes = PL_ALLOC(sizeof(float) * tDataHeader.uKeyFrameCount + ptAnimation->atData[i].szDataSize);
+            ptAnimation->atData[i].pKeyFrameData = (void*)&ptAnimation->atData[i].afKeyFrameTimes[tDataHeader.uKeyFrameCount];
+
+            gptVfs->read_file_stream(tFileHandle, sizeof(float) * tDataHeader.uKeyFrameCount, 1, ptAnimation->atData[i].afKeyFrameTimes);
+            gptVfs->read_file_stream(tFileHandle, ptAnimation->atData[i].szDataSize, 1, ptAnimation->atData[i].pKeyFrameData);
+        }
+    }
+    else // json
+    {
+        char acTempBuffer[256] = {0};
+
+        gptVfs->set_file_stream_position(tFileHandle, 0);
+        size_t szJsonFileSize = gptVfs->get_file_size_str(pcName);
+        uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
+        memset(puFileBuffer, 0, szJsonFileSize + 1);
+        
+        gptVfs->read_file(tFileHandle, puFileBuffer, &szJsonFileSize);
+
+        plJsonObject* ptRoot = NULL;
+        gptJson->load((const char*)puFileBuffer, &ptRoot);
+
+        gptJson->array_member(ptRoot, "channels", &ptAnimation->uChannelCount);
+        gptJson->array_member(ptRoot, "data", &ptAnimation->uDataCount);
+
+        size_t szAllocationSize = ptAnimation->uChannelCount * sizeof(plAnimationChannel);
+        szAllocationSize += ptAnimation->uDataCount * sizeof(plAnimationData);
+        
+        ptAnimation->fStart = gptJson->float_member(ptRoot, "start", 0.0f);
+        ptAnimation->fEnd = gptJson->float_member(ptRoot, "end", 1.0f);
+        ptAnimation->puRawData = PL_ALLOC(szAllocationSize);
+        memset(ptAnimation->puRawData, 0, szAllocationSize);
+        ptAnimation->atChannels = (plAnimationChannel*)ptAnimation->puRawData;
+        ptAnimation->atData = (plAnimationData*)&ptAnimation->atChannels[ptAnimation->uChannelCount];
+
+        plJsonObject* ptJsonChannels = gptJson->array_member(ptRoot, "channels", NULL);
+        for(uint32_t i = 0; i < ptAnimation->uChannelCount; i++)
+        {
+            plJsonObject* ptJsonChannel = gptJson->member_by_index(ptJsonChannels, i);
+            ptAnimation->atChannels[i].uTargetIndex = gptJson->uint32_member(ptJsonChannel, "target", UINT32_MAX);
+
+            gptJson->string_member(ptJsonChannel, "path", acTempBuffer, 256);
+
+            if(acTempBuffer[0] == 't')      ptAnimation->atChannels[i].tPath = PL_ANIMATION_PATH_TRANSLATION;
+            else if(acTempBuffer[0] == 'r') ptAnimation->atChannels[i].tPath = PL_ANIMATION_PATH_ROTATION;
+            else if(acTempBuffer[0] == 's') ptAnimation->atChannels[i].tPath = PL_ANIMATION_PATH_SCALE;
+            else if(acTempBuffer[0] == 'w') ptAnimation->atChannels[i].tPath = PL_ANIMATION_PATH_WEIGHTS;
+
+            ptAnimation->atChannels[i].uDataIndex = gptJson->uint32_member(ptJsonChannel, "data", UINT32_MAX);
+
+            gptJson->string_member(ptJsonChannel, "mode", acTempBuffer, 256);
+
+            if(acTempBuffer[0] == 'l')      ptAnimation->atChannels[i].tMode = PL_ANIMATION_MODE_LINEAR;
+            else if(acTempBuffer[0] == 's') ptAnimation->atChannels[i].tMode = PL_ANIMATION_MODE_STEP;
+            else if(acTempBuffer[0] == 'c') ptAnimation->atChannels[i].tMode = PL_ANIMATION_MODE_CUBIC_SPLINE;
+        }
+
+        plJsonObject* ptJsonDatas = gptJson->array_member(ptRoot, "data", NULL);
+        for(uint32_t i = 0; i < ptAnimation->uDataCount; i++)
+        {
+            plJsonObject* ptJsonData = gptJson->member_by_index(ptJsonDatas, i);
+            gptJson->float_array_member(ptJsonData, "times", NULL, &ptAnimation->atData[i].uKeyFrameCount);
+
+            
+
+            uint32_t uFloatCount = 0;
+            gptJson->float_array_member(ptJsonData, "data", NULL, &uFloatCount);
+
+            ptAnimation->atData[i].szDataSize = uFloatCount * sizeof(float);
+
+            ptAnimation->atData[i].afKeyFrameTimes = PL_ALLOC(sizeof(float) * ptAnimation->atData[i].uKeyFrameCount + ptAnimation->atData[i].szDataSize);
+            ptAnimation->atData[i].pKeyFrameData = (void*)&ptAnimation->atData[i].afKeyFrameTimes[ptAnimation->atData[i].uKeyFrameCount];
+
+            gptJson->float_array_member(ptJsonData, "times", ptAnimation->atData[i].afKeyFrameTimes, &ptAnimation->atData[i].uKeyFrameCount);
+            gptJson->float_array_member(ptJsonData, "data", (float*)ptAnimation->atData[i].pKeyFrameData, NULL);
+        }
+
+        PL_FREE(puFileBuffer);
+    }
+
+    gptVfs->close_file(tFileHandle);
+    return true;
+}
+
+static void
+pl__ecs_animation_serialize(void* pComponent, plJsonObject* ptJson)
+{
+    plAnimationComponent* ptComponent = pComponent;
+    gptJson->add_string_member(ptJson, "animation", gptAsset->get_path(ptComponent->tAnimation));
+    gptJson->add_float_member(ptJson, "speed", ptComponent->fSpeed);
+    gptJson->add_float_member(ptJson, "blend_amount", ptComponent->fBlendAmount);
+    gptJson->add_bool_member(ptJson, "playing", ptComponent->tFlags & PL_ANIMATION_FLAG_PLAYING);
+    gptJson->add_bool_member(ptJson, "looped", ptComponent->tFlags & PL_ANIMATION_FLAG_LOOPED);
+    gptJson->add_uint64_array(ptJson, "targets", ptComponent->atTargetIds, ptComponent->uTargetCount);
+}
+
+static void
+pl__ecs_animation_deserialize(plJsonObject* ptJson, void* pComponent)
+{
+    plAnimationComponent* ptComponent = pComponent;
+    if(gptJson->bool_member(ptJson, "playing", false)) ptComponent->tFlags |= PL_ANIMATION_FLAG_PLAYING;
+    if(gptJson->bool_member(ptJson, "looped", false))  ptComponent->tFlags |= PL_ANIMATION_FLAG_LOOPED;
+
+    ptComponent->fSpeed       = gptJson->float_member(ptJson, "speed", 1.0f);
+    ptComponent->fBlendAmount = gptJson->float_member(ptJson, "blend_amount", 1.0f);
+
+    char acTempBuffer0[1024] = {0};
+    gptJson->string_member(ptJson, "animation", acTempBuffer0, 1024);
+    ptComponent->tAnimation = gptAsset->load(acTempBuffer0);
+    gptJson->uint64_array_member(ptJson, "targets", NULL, &ptComponent->uTargetCount);
+
+    // animation target scene references
+    ptComponent->atTargetIds = PL_ALLOC(ptComponent->uTargetCount * sizeof(plEntityId));
+    gptJson->uint64_array_member(ptJson, "targets", ptComponent->atTargetIds, &ptComponent->uTargetCount);
+
 }
 
 void
-pl_animation_register_ecs_system(void)
+pl_animation_register_ecs_components(void)
 {
 
-    gptAnimationCtx->tTransformComponentType = gptECS->get_ecs_type_key_transform();
-    gptAnimationCtx->tHierarchyComponentType = gptECS->get_ecs_type_key_hierarchy();
+    gptAnimationCtx->tTransformComponentType = gptTransform->get_ecs_type_key_transform();
+    gptAnimationCtx->tHierarchyComponentType = gptTransform->get_ecs_type_key_hierarchy();
 
     const plComponentDesc tAnimationDesc = {
-        .pcName = "Animation",
-        .szSize = sizeof(plAnimationComponent),
+        .pcDisplayName  = "Animation",
+        .pcName  = "animation",
+        .szSize  = sizeof(plAnimationComponent),
         .cleanup = pl__ecs_animation_cleanup,
-        .reset = pl__ecs_animation_cleanup,
+        .reset   = pl__ecs_animation_cleanup,
+        .serialize = pl__ecs_animation_serialize,
+        .deserialize = pl__ecs_animation_deserialize,
     };
 
     static const plAnimationComponent tAnimationComponentDefault = {
         .fSpeed       = 1.0f,
         .fBlendAmount = 1.0f
     };
-
-    gptAnimationCtx->tAnimationComponentType = gptECS->register_type(tAnimationDesc, &tAnimationComponentDefault);
-
-    const plComponentDesc tAnimationDataDesc = {
-        .pcName = "Animation Data",
-        .szSize = sizeof(plAnimationDataComponent),
-        .cleanup = pl__ecs_animation_data_cleanup,
-        .reset = pl__ecs_animation_data_cleanup,
-    };
-    gptAnimationCtx->tAnimationDataComponentType = gptECS->register_type(tAnimationDataDesc, NULL);
-
-    const plComponentDesc tIKDesc = {
-        .pcName = "Inverse Kinematics",
-        .szSize = sizeof(plInverseKinematicsComponent),
-        .init   = pl__ecs_ik_init,
-        .cleanup = pl__ecs_ik_cleanup,
-        .reset = pl__ecs_ik_reset
-    };
-
-    static const plInverseKinematicsComponent tIkComponentDefault = {
-        .bEnabled = true,
-        .tTarget = UINT32_MAX,
-        .uIterationCount = 1
-    };
-    gptAnimationCtx->tInverseKinematicsComponentType = gptECS->register_type(tIKDesc, &tIkComponentDefault);
+    gptAnimationCtx->tAnimationComponentType = gptEcs->register_type(tAnimationDesc, &tAnimationComponentDefault);
 
     const plComponentDesc tHumanoidDesc = {
-        .pcName = "Humanoid",
+        .pcDisplayName = "Humanoid",
+        .pcName = "humanoid",
         .szSize = sizeof(plHumanoidComponent)
     };
 
@@ -605,8 +661,29 @@ pl_animation_register_ecs_system(void)
     {
         tHumanoidComponentDefault.atBones[i].uData = UINT64_MAX;
     }
-    gptAnimationCtx->tHumanoidComponentType = gptECS->register_type(tHumanoidDesc, &tHumanoidComponentDefault);
+    gptAnimationCtx->tHumanoidComponentType = gptEcs->register_type(tHumanoidDesc, &tHumanoidComponentDefault);
 
+}
+
+void
+pl_animation_register_asset_type(void)
+{
+    static const plAssetTypeDesc tDesc = {
+        .pcName           = "Animation",
+        .pcFileExtension  = "planimation",
+        .eDefaultEncoding = PL_ASSET_ENCODING_BINARY,
+        .szSize           = sizeof(plAnimation),
+        .serialize        = pl__animation_serialize,
+        .deserialize      = pl__animation_deserialize,
+        .cleanup          = pl__animation_cleanup,
+    };
+    gptAnimationCtx->tAssetTypeKey = gptAsset->register_type(tDesc);
+}
+
+plAssetTypeKey
+pl_animation_get_asset_type_key(void)
+{
+    return gptAnimationCtx->tAssetTypeKey;
 }
 
 //-----------------------------------------------------------------------------
@@ -617,24 +694,26 @@ void
 pl_load_animation_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plAnimationI tApi = {
-        .register_ecs_system                  = pl_animation_register_ecs_system,
-        .create                               = pl_animation_create,
-        .create_data                          = pl_animation_create_data,
-        .run_animation_update_system          = pl_animation_run_animation_update_system,
-        .run_inverse_kinematics_update_system = pl_animation_run_inverse_kinematics_update_system,
-        .get_ecs_type_key_animation           = pl_animation_get_ecs_type_key_animation,
-        .get_ecs_type_key_animation_data      = pl_animation_get_ecs_type_key_animation_data,
-        .get_ecs_type_key_inverse_kinematics  = pl_animation_get_ecs_type_key_inverse_kinematics,
-        .get_ecs_type_key_humanoid            = pl_animation_get_ecs_type_key_humanoid,
+        .register_asset_types = pl_animation_register_asset_type,
+        .get_asset_type_key = pl_animation_get_asset_type_key,
+        .register_ecs_components         = pl_animation_register_ecs_components,
+        .create                      = pl_animation_create,
+        .run_animation_update_system = pl_animation_run_animation_update_system,
+        .get_ecs_type_key_animation  = pl_animation_get_ecs_type_key_animation,
+        .get_ecs_type_key_humanoid   = pl_animation_get_ecs_type_key_humanoid,
     };
     pl_set_api(ptApiRegistry, plAnimationI, &tApi);
 
-    gptApiRegistry = ptApiRegistry;
-    gptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
-    gptECS = pl_get_api_latest(ptApiRegistry, plEcsI);
-    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
-    gptLog = pl_get_api_latest(ptApiRegistry, plLogI);
+    #ifndef PL_UNITY_BUILD
+    gptEcs       = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptProfile   = pl_get_api_latest(ptApiRegistry, plProfileI);
+    gptLog       = pl_get_api_latest(ptApiRegistry, plLogI);
+    gptAsset     = pl_get_api_latest(ptApiRegistry, plAssetI);
+    gptVfs       = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptTransform = pl_get_api_latest(ptApiRegistry, plTransformI);
+    gptJson = pl_get_api_latest(ptApiRegistry, plJsonI);
+    #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
