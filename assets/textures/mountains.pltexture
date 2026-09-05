@@ -1,0 +1,10 @@
+{    
+    "file_format": "pltexture", 
+    "version": 1, 
+    "type": "2d", 
+    "color_space": "linear", 
+    "format": "PL_FORMAT_R32G32B32A32_FLOAT", 
+    "generate_mips": false, 
+    "compress": false, 
+    "source": "/resources/core/textures/mountains.png"
+}

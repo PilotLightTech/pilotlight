@@ -9,16 +9,17 @@
         "bDrawAllBoundingBoxes": false,
         "bFrustumCulling": true,
         "bMSAA": false,
-        "szIndexBufferSize": 64000000,
-        "szVertexBufferSize": 64000000,
-        "szDataBufferSize": 64000000,
-        "szMaterialBufferSize": 8000000,
-        "szSkinBufferSize": 8000000
+        "szIndexBufferSize": 32000000,
+        "szVertexBufferSize": 32000000,
+        "szDataBufferSize": 32000000,
+        "szMaterialBufferSize": 2000000,
+        "szSkinBufferSize": 2000000,
+        "uShadowAtlasResolution": 4096
     },
     "debug": {
         "bWireframe": false,
-        "bShowProbes": true,
-        "bShowProbeRange": true,
+        "bShowProbes": false,
+        "bShowProbeRange": false,
         "bShowOrigin": false
     },
     "editor": {
@@ -31,11 +32,12 @@
     },
     "view": {
         "camera": {
+            "eProjectionType": "PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE",
             "tPosition": [-2.539, 4.003, 2.640],
             "fYFov": 1.04719755,
             "fNearZ": 0.1,
-            "fFarZ": 25.0,
-            "fPitch": -0.395,
+            "fFarZ": 75.0,
+            "fPitch": -0.295,
             "fYaw": 2.436
         },
         "renderer": {
@@ -56,7 +58,7 @@
                 "tFlags": [
                     "PL_RENDERER_SKY_FLAGS_SHADOWS"
                 ],
-                "acSkyboxPath": "/assets/core/environments/sky.hdr",
+                "acSkyboxPath": "/resources/core/environments/sky.hdr",
                 "uSkyboxResolution": 1024
             },
             "shadows": {
@@ -69,7 +71,7 @@
                 "fSlopeDepthBias": -10.750
             },
             "bloom": {
-                "active" : false,
+                "active" : true,
                 "fStrength": 0.05,
                 "fRadius": 1.5,
                 "uChainLength": 5
@@ -96,11 +98,11 @@
     },
     "assets": {
         "models": {
-            "humanoid":{
-                "path": "/assets/core/models/gltf/humanoid.gltf"
+            "helmet":{
+                "path": "/resources/core/models/gltf/DamagedHelmet.glb"
             },
             "floor":{
-                "path": "/assets/core/models/gltf/floor.gltf"
+                "path": "/resources/core/models/gltf/floor.gltf"
             }
         }
     },
@@ -108,25 +110,7 @@
         "probes": [
             {
                 "active": true,
-                "tPosition": [0.0, 3.0, 2.0],
-                "fRange": 30.0,
-                "uResolution": 128,
-                "uSamples": 1024,
-                "uInterval": 6,
-                "tFlags": ["PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY"]
-            },
-            {
-                "active": true,
-                "tPosition": [-3.0, 3.0, 3.0],
-                "fRange": 30.0,
-                "uResolution": 128,
-                "uSamples": 1024,
-                "uInterval": 6,
-                "tFlags": ["PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY"]
-            },
-            {
-                "active": true,
-                "tPosition": [3.0, 3.0, 3.0],
+                "tPosition": [0.0, 5.0, 0.0],
                 "fRange": 30.0,
                 "uResolution": 128,
                 "uSamples": 1024,
@@ -137,18 +121,12 @@
         "entities": [
             {
                 "active": true,
-                "model": "humanoid",
+                "model": "helmet",
                 "transform": {
                     "scale": [1.0, 1.0, 1.0],
-                    "translation": [0.0, 0.0, 0.0],
+                    "translation": [0.0, 3.0, 0.0],
                     "rotation": [0.0, 0.0, 0.0, 1.0]
-                },
-                "animations": [
-                    {
-                        "clip": "dance",
-                        "tFlags": ["PL_ANIMATION_FLAG_PLAYING", "PL_ANIMATION_FLAG_LOOPED"]
-                    }
-                ]
+                }
             },
             {
                 "active": true,
@@ -165,25 +143,11 @@
                 "active": false,
                 "name": "direction light",
                 "type": "directional",
-                "tDirection": [-0.425, -1.0, -0.384],
+                "tDirection": [0.425, -1.0, -0.384],
                 "tColor": [1.0, 1.0, 1.0],
-                "fIntensity": 10.0,
+                "fIntensity": 18.0,
+                "fShadowLambda": 0.6,
                 "uShadowResolution": 1024,
-                "tFlags": ["PL_LIGHT_FLAG_CAST_SHADOW", "PL_LIGHT_FLAG_VISUALIZER"]
-            },
-            {
-                "active": true,
-                "name": "spot light 0",
-                "type": "spot",
-                "tPosition": [0.0, 3.27, -1.5],
-                "tDirection": [0.0, -0.390, 0.368],
-                "tColor": [1.0, 0.0, 1.0],
-                "fIntensity": 20.0,
-                "fRange": 10.0,
-                "fInnerConeAngle": 0.0,
-                "fOuterConeAngle": 0.392699,
-                "fRadius": 0.025,
-                "uShadowResolution": 512,
                 "tFlags": ["PL_LIGHT_FLAG_CAST_SHADOW", "PL_LIGHT_FLAG_VISUALIZER"]
             }
         ]

@@ -1,0 +1,26 @@
+{
+    "format": "plterrain",
+    "version": 1,
+
+    "meters_per_pixel": 20.0,
+    "tile_size": 4096,
+    "grid": {
+        "columns": 1,
+        "rows": 1
+    },
+    "tiles": [
+        {
+            "center": [0.0, 0.0, 0.0],
+
+            "heightmap": "/assets/textures/mountains.pltexture",
+
+            "min_height": -40.0,
+            "max_height": 2000.0,
+
+            "generation": {
+                "tree_depth": 6,
+                "max_base_error": 3.0
+            }
+        }
+    ]
+}

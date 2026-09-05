@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 from urllib.request import urlretrieve
 from zipfile import ZipFile
 
@@ -29,7 +30,7 @@ def download_zip(url, filename, description):
     print("Download finished")
     print("Extracting")
     zip = ZipFile(filename, 'r')
-    zip.extractall("../assets/")
+    zip.extractall("../resources/")
     zip.close()
     os.remove(filename)
 
@@ -47,10 +48,20 @@ if len(sys.argv) > 1:
         else:
             target_directory = sys.argv[i]
 
+def rename_with_retry(src, dst):
+    for i in range(10):
+        try:
+            os.rename(src, dst)
+            return
+        except PermissionError:
+            if i == 9:
+                raise
+            time.sleep(0.25)
+
 if development_assets:
-    download_zip('https://github.com/PilotLightTech/pilotlight-assets/archive/refs/heads/master.zip', '../assets/pilotlight-assets.zip', "test assets")
-    os.rename('../assets/pilotlight-assets-master', '../assets/development')
+    download_zip('https://github.com/PilotLightTech/pilotlight-assets/archive/refs/heads/master.zip', '../resources/pilotlight-assets.zip', "test assets")
+    rename_with_retry('../resources/pilotlight-assets-master', '../resources/development')
 
 if gltf_assets:
-    download_zip('https://github.com/KhronosGroup/glTF-Sample-Assets/archive/refs/heads/main.zip', '../assets/gltf-sample-assets.zip', "sample gltf assets")
-    os.rename('../assets/glTF-Sample-Assets-main', '../assets/gltf-samples')
+    download_zip('https://github.com/KhronosGroup/glTF-Sample-Assets/archive/refs/heads/main.zip', '../resources/gltf-sample-assets.zip', "sample gltf assets")
+    rename_with_retry('../resources/glTF-Sample-Assets-main', '../resources/gltf-samples')

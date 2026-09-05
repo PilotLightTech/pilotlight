@@ -1,0 +1,191 @@
+{
+    "version": 1,
+    "format": "pilot_light_scene",
+    "app": {
+        "bContinuousBVH": false,
+        "bShowBVH": false,
+        "bShowDebugLights": true,
+        "bPhysicsDebugDraw": false,
+        "bDrawAllBoundingBoxes": false,
+        "bFrustumCulling": true,
+        "bMSAA": false,
+        "szIndexBufferSize": 64000000,
+        "szVertexBufferSize": 64000000,
+        "szDataBufferSize": 64000000,
+        "szMaterialBufferSize": 8000000,
+        "szSkinBufferSize": 8000000
+    },
+    "debug": {
+        "bWireframe": false,
+        "bShowProbes": true,
+        "bShowProbeRange": true,
+        "bShowOrigin": false
+    },
+    "editor": {
+        "bShowSelectedBoundingBox": false,
+        "bShowGrid": false,
+        "fGridCellSize": 0.025,
+        "fGridMinPixelsBetweenCells": 2.0,
+        "tGridColorThin": [0.5, 0.5, 0.5, 1.0],
+        "tGridColorThick": [0.75, 0.75, 0.75, 1.0]
+    },
+    "view": {
+        "camera": {
+            "tPosition": [-2.539, 4.003, 2.640],
+            "fYFov": 1.04719755,
+            "fNearZ": 0.1,
+            "fFarZ": 25.0,
+            "fPitch": -0.395,
+            "fYaw": 2.436
+        },
+        "renderer": {
+            "lighting": {
+                "tFlags": [
+                    "PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED",
+                    "PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING",
+                    "PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS"
+                ]
+            },
+            "sky": {
+                "tSunColor": [1.0, 0.95, 0.85],
+                "tSunDirection": [0.425, -1.0, -0.384],
+                "fSunIntensity": 1.0,
+                "uShadowCascadeCount": 4,
+                "uShadowResolution": 2048,
+                "tMode": "PL_RENDERER_SKY_MODE_SKYBOX",
+                "tFlags": [
+                    "PL_RENDERER_SKY_FLAGS_SHADOWS"
+                ],
+                "acSkyboxPath": "/resources/core/environments/sky.hdr",
+                "uSkyboxResolution": 1024
+            },
+            "shadows": {
+                "tFlags": [
+                    "PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT",
+                    "PL_RENDERER_SHADOW_FLAGS_PCF"
+                ],
+                "fMaxShadowRange": 100.0,
+                "fConstantDepthBias": -1.250,
+                "fSlopeDepthBias": -10.750
+            },
+            "bloom": {
+                "active" : false,
+                "fStrength": 0.05,
+                "fRadius": 1.5,
+                "uChainLength": 5
+            },
+            "fog": {
+                "active" : false,
+                "tMode": "PL_RENDERER_FOG_MODE_EXPONENTIAL",
+                "fStart": 1.0,
+                "fCutOffDistance": 1000.0,
+                "tColor": [1.0, 1.0, 1.0],
+                "fDensity": 0.1,
+                "fHeight": 0.0,
+                "fMaxOpacity": 0.1,
+                "fHeightFalloff": 0.1
+            },
+            "tonemap": {
+                "tMode": "PL_TONEMAP_MODE_KHRONOS_PBR_NEUTRAL",
+                "fExposure": 1.0,
+                "fBrightness": 0.0,
+                "fContrast": 1.0,
+                "fSaturation": 1.0
+            }
+        }
+    },
+    "assets": {
+        "models": {
+            "humanoid":{
+                "path": "/resources/core/models/gltf/humanoid.gltf"
+            },
+            "floor":{
+                "path": "/resources/core/models/gltf/floor.gltf"
+            }
+        }
+    },
+    "scene": {
+        "probes": [
+            {
+                "active": true,
+                "tPosition": [0.0, 3.0, 2.0],
+                "fRange": 30.0,
+                "uResolution": 128,
+                "uSamples": 1024,
+                "uInterval": 6,
+                "tFlags": ["PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY"]
+            },
+            {
+                "active": true,
+                "tPosition": [-3.0, 3.0, 3.0],
+                "fRange": 30.0,
+                "uResolution": 128,
+                "uSamples": 1024,
+                "uInterval": 6,
+                "tFlags": ["PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY"]
+            },
+            {
+                "active": true,
+                "tPosition": [3.0, 3.0, 3.0],
+                "fRange": 30.0,
+                "uResolution": 128,
+                "uSamples": 1024,
+                "uInterval": 6,
+                "tFlags": ["PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY"]
+            }
+        ],
+        "entities": [
+            {
+                "active": true,
+                "model": "humanoid",
+                "transform": {
+                    "scale": [1.0, 1.0, 1.0],
+                    "translation": [0.0, 0.0, 0.0],
+                    "rotation": [0.0, 0.0, 0.0, 1.0]
+                },
+                "animations": [
+                    {
+                        "clip": "dance",
+                        "tFlags": ["PL_ANIMATION_FLAG_PLAYING", "PL_ANIMATION_FLAG_LOOPED"]
+                    }
+                ]
+            },
+            {
+                "active": true,
+                "model": "floor",
+                "transform": {
+                    "scale": [1.0, 1.0, 1.0],
+                    "translation": [0.0, 0.0, 0.0],
+                    "rotation": [0.0, 0.0, 0.0, 1.0]
+                }
+            }
+        ],
+        "lights": [
+            {
+                "active": false,
+                "name": "direction light",
+                "type": "directional",
+                "tDirection": [-0.425, -1.0, -0.384],
+                "tColor": [1.0, 1.0, 1.0],
+                "fIntensity": 10.0,
+                "uShadowResolution": 1024,
+                "tFlags": ["PL_LIGHT_FLAG_CAST_SHADOW", "PL_LIGHT_FLAG_VISUALIZER"]
+            },
+            {
+                "active": true,
+                "name": "spot light 0",
+                "type": "spot",
+                "tPosition": [0.0, 3.27, -1.5],
+                "tDirection": [0.0, -0.390, 0.368],
+                "tColor": [1.0, 0.0, 1.0],
+                "fIntensity": 20.0,
+                "fRange": 10.0,
+                "fInnerConeAngle": 0.0,
+                "fOuterConeAngle": 0.392699,
+                "fRadius": 0.025,
+                "uShadowResolution": 512,
+                "tFlags": ["PL_LIGHT_FLAG_CAST_SHADOW", "PL_LIGHT_FLAG_VISUALIZER"]
+            }
+        ]
+    }
+}

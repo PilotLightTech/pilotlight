@@ -1,0 +1,58 @@
+{    
+    "format": "plscene", 
+    "version": 1, 
+    "environment": "/assets/environments/realistic.plenvironment",
+    "renderer": "/assets/settings/terrain.plrenderer",
+    "entities": [
+        {            
+            "id": 1, 
+            "tag": {
+                "name": "terrain"
+            },
+            "terrain": {                
+                "terrain": "/assets/terrains/mountains.plterrain"
+            }
+        },
+        {
+            "id": 3,
+            "tag": {
+                "name": "probe 0"
+            },
+            "transform": {                
+                "translation": [0.0, 5.0, 0.0], 
+                "rotation": [0.0, 0.0, 0.0, 1.0], 
+                "scale": [1.0, 1.0, 1.0]
+            },
+            "probe": {
+                "range": 30.0,
+                "resolution": 128,
+                "samples": 128,
+                "interval": 1,
+                "include_sky": true,
+                "realtime": false
+            }
+        },
+        {
+            "id": 4,
+            "tag": {
+                "name": "camera"
+            },
+            "camera": {
+                "projection": "perspective",
+                "depth_mode": "reverse",
+                "yfov": 1.04719755,
+                "near": 0.1,
+                "far": 100000.0,
+                "pitch": -0.325,
+                "yaw": 2.569,
+                "roll": 0.0,
+                "position": [-7964, 69, 1504]
+            },
+            "script": {
+                "file": "pl_script_camera",
+                "playing": true,
+                "reloadable": true
+            }
+        }
+    ]
+}

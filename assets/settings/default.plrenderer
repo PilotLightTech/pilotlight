@@ -1,0 +1,55 @@
+{
+    "format": "plrenderer",
+    "version": 1,
+
+    "lighting": {
+        "image_based": true,
+        "normal_mapping": true,
+        "punctual_lights": true,
+        "shadows": true
+    },
+
+    "sky": {
+        "sky_lut_resolution": [200, 100],
+        "transmission_lut_resolution": [256, 256],
+        "multiscatter_lut_resolution": [64, 64],
+        "aerial_lut_resolution": [128, 128, 32]
+    },
+
+    "shadows": {
+        "max_range": 150.0,
+        "cascade_count": 4,
+        "resolution": 2048,
+        "pcf": true,
+        "multiviewport": true,
+        "constant_bias": -1.25,
+        "slope_bias": -1.75
+    },
+
+    "bloom": {
+        "enabled": false,
+        "strength": 0.05,
+        "radius": 1.5,
+        "chain_length": 5
+    },
+
+    "fog": {
+        "enabled": false,
+        "mode": "exponential",
+        "start": 1.0,
+        "cutoff_distance": 1000.0,
+        "color": [1.0, 1.0, 1.0],
+        "density": 0.1,
+        "height": 0.0,
+        "max_opacity": 0.1,
+        "height_falloff": 0.1
+    },
+
+    "tonemap": {
+        "mode": "pbr_neutral",
+        "exposure": 1.0,
+        "brightness": 0.0,
+        "contrast": 1.0,
+        "saturation": 1.0
+    }
+}

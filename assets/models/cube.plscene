@@ -1,0 +1,26 @@
+{    
+    "format": "plscene", 
+    "version": 1, 
+    "entities": [           
+        {            
+            "id": 117117117117, 
+            "tag": {                
+                "name": "cube"
+            }, 
+            "transform": {                
+                "translation": [ 0, 5, 5 ], 
+                "rotation": [ 0, 0, 0, 1 ], 
+                "scale": [ 1, 1, 1 ]
+            }, 
+            "object": {                
+                "mesh": "/assets/meshes/cube.plmesh", 
+                "first_submesh": 0, 
+                "submesh_count": 1, 
+                "transform": 117117117117, 
+                "casts_shadow": true, 
+                "receives_shadow": true, 
+                "renderable": true
+            }
+        }
+    ]
+}

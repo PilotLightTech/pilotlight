@@ -1,0 +1,87 @@
+{    
+    "format": "plscene", 
+    "version": 1,
+    "environment": "/assets/environments/realistic.plenvironment",
+    "renderer": "/assets/settings/default.plrenderer",
+    "entities": [
+        {            
+            "id": 100, 
+            "tag": {
+                "name": "humanoid_scene_instance"
+            },
+            "scene_instance": {                
+                "scene": "/assets/models/humanoid_Scene.plscene"
+            }
+        },
+        {            
+            "id": 1, 
+            "tag": {                
+                "name": "floor"
+            }, 
+            "transform": {                
+                "translation": [ 0, 0, 0 ], 
+                "rotation": [ 0, 0, 0, 1 ], 
+                "scale": [ 10, 1, 10 ]
+            }, 
+            "object": {                
+                "mesh": "/assets/meshes/plane.plmesh", 
+                "first_submesh": 0, 
+                "submesh_count": 1, 
+                "transform": 1, 
+                "casts_shadow": true, 
+                "receives_shadow": true, 
+                "renderable": true
+            }
+        },
+        {            
+            "id": 2, 
+            "tag": {                
+                "name": "camera"
+            }, 
+            "script": {                
+                "file": "pl_script_camera", 
+                "playing": true, 
+                "play_once": false, 
+                "reloadable": true
+            }, 
+            "camera": {                
+                "projection": "perspective", 
+                "position": [ -15.285712119784206, 4.0030000000000001, 8.0529188444931066 ], 
+                "near": 0.100000001, 
+                "far": 75, 
+                "pitch": -0.294999987, 
+                "yaw": 2.09100151, 
+                "roll": 0, 
+                "yfov": 1.04719698
+            }
+        },
+        {            
+            "id": 3, 
+            "tag": {                
+                "name": "probe 0"
+            }, 
+            "transform": {                
+                "translation": [ 0, 5, 0 ], 
+                "rotation": [ 0, 0, 0, 1 ], 
+                "scale": [ 1, 1, 1 ]
+            }, 
+            "object": {                
+                "mesh": "/assets/meshes/probe.plmesh", 
+                "first_submesh": 0, 
+                "submesh_count": 1, 
+                "transform": 0, 
+                "casts_shadow": false, 
+                "receives_shadow": true, 
+                "renderable": true
+            }, 
+            "probe": {                
+                "resolution": 128, 
+                "samples": 128, 
+                "interval": 1, 
+                "range": 30, 
+                "realtime": false, 
+                "include_sky": true
+            }
+        }
+    ]
+}

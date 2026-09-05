@@ -1,0 +1,37 @@
+{    
+    "format": "plenvironment", 
+    "version": 1, 
+    "sun": {
+        "color": [1.0, 0.95, 0.85],
+        "direction": [0.425, -1.0, -0.384],
+        "intensity": 3.0,
+        "cast_shadows": true
+    },
+    "sky":{
+        "mode": "realistic",
+        "realistic": {
+            "atmosphere_scale": 0.001,
+
+            "sun_radius": 0.00465,
+            "planet_radius": 6371.0,
+            "atmosphere_height": 100.0,
+
+            "mie_scattering": 0.006,
+            "mie_extinction": 0.00666,
+            "mie_exponent": 0.76,
+
+            "rayleigh_scattering": [0.0058, 0.0135, 0.0331],
+            "rayleigh_extinction": [0.0058, 0.0135, 0.0331],
+            "ozone_extinction": [0.00065, 0.00188, 0.00008],
+
+            "multiscatter": true,
+
+            "aerial_perspective": {
+                "enabled": true,
+                "max_distance": 10.0,
+                "depth_exponent": 2.0,
+                "samples_per_slice": 8
+            }
+        }
+    }
+}

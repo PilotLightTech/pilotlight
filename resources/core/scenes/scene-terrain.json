@@ -1,6 +1,7 @@
 {
     "version": 1,
     "format": "pilot_light_scene",
+    "dependencies": ["../resources/gltf-samples"],
     "app": {
         "bContinuousBVH": false,
         "bShowBVH": false,
@@ -9,17 +10,15 @@
         "bDrawAllBoundingBoxes": false,
         "bFrustumCulling": true,
         "bMSAA": false,
-        "szIndexBufferSize": 32000000,
-        "szVertexBufferSize": 32000000,
-        "szDataBufferSize": 32000000,
-        "szMaterialBufferSize": 2000000,
-        "szSkinBufferSize": 2000000,
-        "uShadowAtlasResolution": 4096
+        "szIndexBufferSize": 64000000,
+        "szVertexBufferSize": 64000000,
+        "szDataBufferSize": 64000000,
+        "szMaterialBufferSize": 8000000,
+        "szSkinBufferSize": 8000000
     },
     "debug": {
         "bWireframe": false,
-        "bShowProbes": false,
-        "bShowProbeRange": false,
+        "bShowProbes": true,
         "bShowOrigin": false
     },
     "editor": {
@@ -32,13 +31,12 @@
     },
     "view": {
         "camera": {
-            "eProjectionType": "PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE",
-            "tPosition": [-2.539, 4.003, 2.640],
+            "tPosition": [-7964, 69, 1504],
             "fYFov": 1.04719755,
             "fNearZ": 0.1,
-            "fFarZ": 75.0,
-            "fPitch": -0.295,
-            "fYaw": 2.436
+            "fFarZ": 100000.0,
+            "fPitch": -0.325,
+            "fYaw": 2.569
         },
         "renderer": {
             "lighting": {
@@ -48,30 +46,47 @@
                     "PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS"
                 ]
             },
-            "sky": {
-                "tSunColor": [1.0, 0.95, 0.85],
-                "tSunDirection": [0.425, -1.0, -0.384],
-                "fSunIntensity": 1.0,
-                "uShadowCascadeCount": 4,
-                "uShadowResolution": 2048,
-                "tMode": "PL_RENDERER_SKY_MODE_SKYBOX",
-                "tFlags": [
-                    "PL_RENDERER_SKY_FLAGS_SHADOWS"
-                ],
-                "acSkyboxPath": "/assets/core/environments/sky.hdr",
-                "uSkyboxResolution": 1024
-            },
             "shadows": {
                 "tFlags": [
                     "PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT",
                     "PL_RENDERER_SHADOW_FLAGS_PCF"
                 ],
-                "fMaxShadowRange": 100.0,
+                "fMaxShadowRange": 100000.0,
                 "fConstantDepthBias": -1.250,
-                "fSlopeDepthBias": -10.750
+                "fSlopeDepthBias": -1.750
+            },
+            "sky": {
+                "tSunColor": [1.0, 0.95, 0.85],
+                "tSunDirection": [0.425, -1.0, -0.384],
+                "fSunIntensity": 3.0,
+                "uShadowCascadeCount": 4,
+                "uShadowResolution": 2048,
+                "fAtmosphereConversion": 0.001,
+                "fSunRadius": 0.00465,
+                "fPlanetRadius": 6371.0,
+                "fAtmosphereHeight": 100.0,
+                "fScatteringMieGround": 0.006,
+                "fExtinctionMieGround": 0.00666,
+                "fMieScatteringExponent": 0.76,
+                "fMaxAerialDistance": 10.0,
+                "fAerialDepthExponent": 2.0,
+                "uAerialSamplesPerSlice": 8,
+                "tOzoneExtinction": [0.00065, 0.00188, 0.00008],
+                "tExtinctionRayleighGround": [0.0058, 0.0135, 0.0331],
+                "tScatteringRayleighGround": [0.0058, 0.0135, 0.0331],
+                "tTransmissionLutResolution": [256, 256],
+                "tSkyLutResolution": [200, 100],
+                "tMultiscatterLutResolution": [64, 64],
+                "tAerialLutResolution": [128, 128, 32],
+                "tMode": "PL_RENDERER_SKY_MODE_REALISTIC",
+                "tFlags": [
+                    "PL_RENDERER_SKY_FLAGS_MULTISCATTER",
+                    "PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE",
+                    "PL_RENDERER_SKY_FLAGS_SHADOWS"
+                ]
             },
             "bloom": {
-                "active" : true,
+                "active" : false,
                 "fStrength": 0.05,
                 "fRadius": 1.5,
                 "uChainLength": 5
@@ -99,18 +114,15 @@
     "assets": {
         "models": {
             "helmet":{
-                "path": "/assets/core/models/gltf/DamagedHelmet.glb"
-            },
-            "floor":{
-                "path": "/assets/core/models/gltf/floor.gltf"
+                "path": "/resources/core/models/gltf/DamagedHelmet.glb"
             }
         }
     },
     "scene": {
         "probes": [
             {
-                "active": true,
-                "tPosition": [0.0, 5.0, 0.0],
+                "active": false ,
+                "tPosition": [-7956, 70, 1495],
                 "fRange": 30.0,
                 "uResolution": 128,
                 "uSamples": 1024,
@@ -118,37 +130,32 @@
                 "tFlags": ["PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY"]
             }
         ],
+        "terrain": {
+            "fMetersPerPixel" : 20.0,
+            "uHorizontalTiles" : 1,
+            "uVerticalTiles" : 1,
+            "uSize" : 4096,
+            "tiles": [
+                {
+                    "iTreeDepth": 6,
+                    "fMaxHeight": 2000.0,
+                    "fMinHeight": -40.0,
+                    "fMaxBaseError": 3.0,
+                    "tCenter": [0, 0, 0],
+                    "acOutputFile" : "/cache/terrain/mountains.chu",
+                    "acHeightMapFile" : "/resources/core/textures/mountains.png"
+                }
+            ]
+        },
         "entities": [
             {
-                "active": true,
+                "active": false,
                 "model": "helmet",
                 "transform": {
                     "scale": [1.0, 1.0, 1.0],
-                    "translation": [0.0, 3.0, 0.0],
+                    "translation": [-7956, 68, 1495],
                     "rotation": [0.0, 0.0, 0.0, 1.0]
                 }
-            },
-            {
-                "active": true,
-                "model": "floor",
-                "transform": {
-                    "scale": [1.0, 1.0, 1.0],
-                    "translation": [0.0, 0.0, 0.0],
-                    "rotation": [0.0, 0.0, 0.0, 1.0]
-                }
-            }
-        ],
-        "lights": [
-            {
-                "active": false,
-                "name": "direction light",
-                "type": "directional",
-                "tDirection": [0.425, -1.0, -0.384],
-                "tColor": [1.0, 1.0, 1.0],
-                "fIntensity": 18.0,
-                "fShadowLambda": 0.6,
-                "uShadowResolution": 1024,
-                "tFlags": ["PL_LIGHT_FLAG_CAST_SHADOW", "PL_LIGHT_FLAG_VISUALIZER"]
             }
         ]
     }

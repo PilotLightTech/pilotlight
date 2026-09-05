@@ -1,0 +1,18 @@
+{    
+    "format": "plmaterial", 
+    "version": 1, 
+    "model": "pbr_metallic_roughness", 
+    "base_color": [
+        1.0000000, 1.0000000, 1.0000000, 1.0000000
+    ], 
+    "metalness": 1.000000, 
+    "roughness": 0.000000, 
+    "ior": 1.500000, 
+    "normal_map_strength": 1.000000, 
+    "occlusion_strength": 1.000000, 
+    "double_sided": false, 
+    "alpha": {        
+        "mode": "opaque", 
+        "cutoff": 0.500000
+    }
+}
