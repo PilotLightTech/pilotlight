@@ -1699,7 +1699,6 @@ pl_graphics_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 void
 pl_graphics_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
-    int a = 5;
 }
 
 void
