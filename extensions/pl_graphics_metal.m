@@ -1192,6 +1192,7 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         ptShader->tDesc.pcDebugName = "unnamed shader";
 
     plMetalShader* ptMetalShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
+    ptMetalShader->tFillMode = ptDescription->tGraphicsState.bWireframe ? MTLTriangleFillModeLines : MTLTriangleFillModeFill;
 
     if(ptShader->tDesc.tFragmentShader.pcEntryFunc == NULL)
         ptShader->tDesc.tFragmentShader.pcEntryFunc = "fragment_main";
