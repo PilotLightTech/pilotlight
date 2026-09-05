@@ -166,7 +166,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_shader_cpu_ext.so" ] || [ -n "$(find "../out/libpl_shader_cpu_ext.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_shader_cpu_ext.so" ] || [ -n "$(find "../out/libpl_shader_cpu_ext.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_shader_cpu_ext.so" ]; then
 echo
@@ -256,7 +256,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_graphics_cpu_ext.so" ] || [ -n "$(find "../out/libpl_graphics_cpu_ext.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_graphics_cpu_ext.so" ] || [ -n "$(find "../out/libpl_graphics_cpu_ext.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_graphics_cpu_ext.so" ]; then
 echo
@@ -346,7 +346,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_platform_ext.so" ] || [ -n "$(find "../out/libpl_platform_ext.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_platform_ext.so" ] || [ -n "$(find "../out/libpl_platform_ext.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_platform_ext.so" ]; then
 echo
@@ -443,7 +443,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_draw_2d_frag.so" ] || [ -n "$(find "../out/libpl_draw_2d_frag.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_draw_2d_frag.so" ] || [ -n "$(find "../out/libpl_draw_2d_frag.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_draw_2d_frag.so" ]; then
 echo
@@ -499,7 +499,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_draw_2d_sdf_frag.so" ] || [ -n "$(find "../out/libpl_draw_2d_sdf_frag.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_draw_2d_sdf_frag.so" ] || [ -n "$(find "../out/libpl_draw_2d_sdf_frag.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_draw_2d_sdf_frag.so" ]; then
 echo
@@ -555,7 +555,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_draw_2d_vert.so" ] || [ -n "$(find "../out/libpl_draw_2d_vert.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_draw_2d_vert.so" ] || [ -n "$(find "../out/libpl_draw_2d_vert.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_draw_2d_vert.so" ]; then
 echo
@@ -881,7 +881,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_shader_cpu_ext.so" ] || [ -n "$(find "../out/libpl_shader_cpu_ext.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_shader_cpu_ext.so" ] || [ -n "$(find "../out/libpl_shader_cpu_ext.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_shader_cpu_ext.so" ]; then
 echo
@@ -971,7 +971,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_graphics_cpu_ext.so" ] || [ -n "$(find "../out/libpl_graphics_cpu_ext.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_graphics_cpu_ext.so" ] || [ -n "$(find "../out/libpl_graphics_cpu_ext.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_graphics_cpu_ext.so" ]; then
 echo
@@ -1061,7 +1061,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_platform_ext.so" ] || [ -n "$(find "../out/libpl_platform_ext.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_platform_ext.so" ] || [ -n "$(find "../out/libpl_platform_ext.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_platform_ext.so" ]; then
 echo
@@ -1158,7 +1158,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_draw_2d_frag.so" ] || [ -n "$(find "../out/libpl_draw_2d_frag.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_draw_2d_frag.so" ] || [ -n "$(find "../out/libpl_draw_2d_frag.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_draw_2d_frag.so" ]; then
 echo
@@ -1214,7 +1214,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_draw_2d_sdf_frag.so" ] || [ -n "$(find "../out/libpl_draw_2d_sdf_frag.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_draw_2d_sdf_frag.so" ] || [ -n "$(find "../out/libpl_draw_2d_sdf_frag.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_draw_2d_sdf_frag.so" ]; then
 echo
@@ -1270,7 +1270,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_draw_2d_vert.so" ] || [ -n "$(find "../out/libpl_draw_2d_vert.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_draw_2d_vert.so" ] || [ -n "$(find "../out/libpl_draw_2d_vert.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_draw_2d_vert.so" ]; then
 echo
@@ -1596,7 +1596,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_shader_cpu_ext.so" ] || [ -n "$(find "../out/libpl_shader_cpu_ext.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_shader_cpu_ext.so" ] || [ -n "$(find "../out/libpl_shader_cpu_ext.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_shader_cpu_ext.so" ]; then
 echo
@@ -1686,7 +1686,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_graphics_cpu_ext.so" ] || [ -n "$(find "../out/libpl_graphics_cpu_ext.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_graphics_cpu_ext.so" ] || [ -n "$(find "../out/libpl_graphics_cpu_ext.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_graphics_cpu_ext.so" ]; then
 echo
@@ -1776,7 +1776,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_platform_ext.so" ] || [ -n "$(find "../out/libpl_platform_ext.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_platform_ext.so" ] || [ -n "$(find "../out/libpl_platform_ext.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_platform_ext.so" ]; then
 echo
@@ -1873,7 +1873,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_draw_2d_frag.so" ] || [ -n "$(find "../out/libpl_draw_2d_frag.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_draw_2d_frag.so" ] || [ -n "$(find "../out/libpl_draw_2d_frag.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_draw_2d_frag.so" ]; then
 echo
@@ -1929,7 +1929,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_draw_2d_sdf_frag.so" ] || [ -n "$(find "../out/libpl_draw_2d_sdf_frag.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_draw_2d_sdf_frag.so" ] || [ -n "$(find "../out/libpl_draw_2d_sdf_frag.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_draw_2d_sdf_frag.so" ]; then
 echo
@@ -1985,7 +1985,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
-if [ ! -e "../out/libpl_draw_2d_vert.so" ] || [ -n "$(find "../out/libpl_draw_2d_vert.so" -mmin +10 -print -quit)" ]; then
+if [ ! -e "../out/libpl_draw_2d_vert.so" ] || [ -n "$(find "../out/libpl_draw_2d_vert.so" -mmin +30 -print -quit)" ]; then
 
 if [ -e "../out/libpl_draw_2d_vert.so" ]; then
 echo

@@ -106,8 +106,6 @@ else
     rm -f ../out/example_gfx_6_*.so
     rm -f ../out/example_basic_6.so
     rm -f ../out/example_basic_6_*.so
-    rm -f ../out/example_renderer_0.so
-    rm -f ../out/example_renderer_0_*.so
 
 
 fi
@@ -587,40 +585,6 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~ example_renderer_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
-PL_COMPILER_FLAGS="-std=c++14 -fPIC --debug -g "
-PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
-PL_STATIC_LINK_LIBRARIES="-ldearimguid "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="example_renderer_0.cpp "
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Target: example_renderer_0${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libexample_renderer_0.so"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
 # delete lock file(s)
 rm -f ../out/lock.tmp
 
@@ -683,8 +647,6 @@ else
     rm -f ../out/example_gfx_6_*.so
     rm -f ../out/example_basic_6.so
     rm -f ../out/example_basic_6_*.so
-    rm -f ../out/example_renderer_0.so
-    rm -f ../out/example_renderer_0_*.so
 
 
 fi
@@ -1148,40 +1110,6 @@ echo ${YELLOW}Target: example_basic_6${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
 gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libexample_basic_6.so"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~ example_renderer_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
-PL_COMPILER_FLAGS="-std=c++14 -fPIC "
-PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
-PL_STATIC_LINK_LIBRARIES="-ldearimgui "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="example_renderer_0.cpp "
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Target: example_renderer_0${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libexample_renderer_0.so"
 
 # check build status
 if [ $? -ne 0 ]

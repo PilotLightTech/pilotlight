@@ -113,7 +113,6 @@ with pl.project("pilotlight deploy"):
         "pl_tools_ext",
         "pl_renderer_ext",
         "pl_resource_ext",
-        "pl_model_loader_ext",
         "pl_ui_ext",
         "pl_ecs_tools_ext",
         "pl_camera_ext",
@@ -144,6 +143,15 @@ with pl.project("pilotlight deploy"):
         "pl_stage_ext",
         "pl_image_ops_ext",
         "pl_gjk_ext",
+        "pl_ik_ext",
+        "pl_transform_ext",
+        "pl_asset_ext",
+        "pl_gltf_ext",
+        "pl_skeleton_ext",
+        "pl_json_ext",
+        "pl_stl_ext",
+        "pl_scene_ext",
+        "pl_texture_ext",
     ]
 
     for extension in extensions:

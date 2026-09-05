@@ -186,7 +186,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_shader_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_shader_cpu_ext.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_shader_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_shader_cpu_ext.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_shader_cpu_ext.dylib" ]; then
 echo
@@ -293,7 +293,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_graphics_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_graphics_cpu_ext.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_graphics_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_graphics_cpu_ext.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_graphics_cpu_ext.dylib" ]; then
 echo
@@ -400,7 +400,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_platform_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_platform_ext.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_platform_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_platform_ext.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_platform_ext.dylib" ]; then
 echo
@@ -514,7 +514,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_draw_2d_frag.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_frag.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_draw_2d_frag.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_frag.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_draw_2d_frag.dylib" ]; then
 echo
@@ -579,7 +579,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_draw_2d_sdf_frag.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_sdf_frag.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_draw_2d_sdf_frag.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_sdf_frag.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_draw_2d_sdf_frag.dylib" ]; then
 echo
@@ -644,7 +644,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_draw_2d_vert.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_vert.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_draw_2d_vert.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_vert.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_draw_2d_vert.dylib" ]; then
 echo
@@ -1023,7 +1023,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_shader_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_shader_cpu_ext.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_shader_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_shader_cpu_ext.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_shader_cpu_ext.dylib" ]; then
 echo
@@ -1130,7 +1130,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_graphics_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_graphics_cpu_ext.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_graphics_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_graphics_cpu_ext.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_graphics_cpu_ext.dylib" ]; then
 echo
@@ -1237,7 +1237,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_platform_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_platform_ext.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_platform_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_platform_ext.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_platform_ext.dylib" ]; then
 echo
@@ -1351,7 +1351,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_draw_2d_frag.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_frag.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_draw_2d_frag.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_frag.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_draw_2d_frag.dylib" ]; then
 echo
@@ -1416,7 +1416,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_draw_2d_sdf_frag.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_sdf_frag.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_draw_2d_sdf_frag.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_sdf_frag.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_draw_2d_sdf_frag.dylib" ]; then
 echo
@@ -1481,7 +1481,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_draw_2d_vert.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_vert.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_draw_2d_vert.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_vert.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_draw_2d_vert.dylib" ]; then
 echo
@@ -1860,7 +1860,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_shader_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_shader_cpu_ext.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_shader_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_shader_cpu_ext.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_shader_cpu_ext.dylib" ]; then
 echo
@@ -1967,7 +1967,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_graphics_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_graphics_cpu_ext.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_graphics_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_graphics_cpu_ext.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_graphics_cpu_ext.dylib" ]; then
 echo
@@ -2074,7 +2074,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_platform_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_platform_ext.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_platform_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_platform_ext.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_platform_ext.dylib" ]; then
 echo
@@ -2188,7 +2188,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_draw_2d_frag.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_frag.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_draw_2d_frag.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_frag.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_draw_2d_frag.dylib" ]; then
 echo
@@ -2253,7 +2253,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_draw_2d_sdf_frag.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_sdf_frag.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_draw_2d_sdf_frag.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_sdf_frag.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_draw_2d_sdf_frag.dylib" ]; then
 echo
@@ -2318,7 +2318,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_draw_2d_vert.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_vert.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_draw_2d_vert.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_draw_2d_vert.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_draw_2d_vert.dylib" ]; then
 echo
@@ -2697,7 +2697,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_shader_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_shader_cpu_ext.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_shader_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_shader_cpu_ext.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_shader_cpu_ext.dylib" ]; then
 echo
@@ -2804,7 +2804,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_graphics_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_graphics_cpu_ext.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_graphics_cpu_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_graphics_cpu_ext.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_graphics_cpu_ext.dylib" ]; then
 echo
@@ -2911,7 +2911,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 # only build once
 # only build once
-if [ ! -e "../out/libpl_platform_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_platform_ext.dylib") )) -gt "600" ]; then
+if [ ! -e "../out/libpl_platform_ext.dylib" ] || [ $(($(date +%s) - $(stat -f %m "../out/libpl_platform_ext.dylib") )) -gt "1800" ]; then
 
 if [ -e "../out/libpl_platform_ext.dylib" ]; then
 echo

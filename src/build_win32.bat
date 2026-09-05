@@ -169,7 +169,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_shader_cpu_ext.dll" goto Build_pl_shader_cpu_ext
 
 :CacheCheck_pl_shader_cpu_ext
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_shader_cpu_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_shader_cpu_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -261,7 +261,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_graphics_cpu_ext.dll" goto Build_pl_graphics_cpu_ext
 
 :CacheCheck_pl_graphics_cpu_ext
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_graphics_cpu_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_graphics_cpu_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -352,7 +352,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_platform_ext.dll" goto Build_pl_platform_ext
 
 :CacheCheck_pl_platform_ext
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_platform_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_platform_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -455,7 +455,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_draw_2d_frag.dll" goto Build_pl_draw_2d_frag
 
 :CacheCheck_pl_draw_2d_frag
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_frag.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_frag.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -513,7 +513,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_draw_2d_sdf_frag.dll" goto Build_pl_draw_2d_sdf_frag
 
 :CacheCheck_pl_draw_2d_sdf_frag
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_sdf_frag.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_sdf_frag.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -571,7 +571,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_draw_2d_vert.dll" goto Build_pl_draw_2d_vert
 
 :CacheCheck_pl_draw_2d_vert
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_vert.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_vert.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -909,7 +909,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_shader_cpu_ext.dll" goto Build_pl_shader_cpu_ext
 
 :CacheCheck_pl_shader_cpu_ext
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_shader_cpu_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_shader_cpu_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -1000,7 +1000,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_graphics_cpu_ext.dll" goto Build_pl_graphics_cpu_ext
 
 :CacheCheck_pl_graphics_cpu_ext
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_graphics_cpu_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_graphics_cpu_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -1091,7 +1091,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_platform_ext.dll" goto Build_pl_platform_ext
 
 :CacheCheck_pl_platform_ext
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_platform_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_platform_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -1194,7 +1194,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_draw_2d_frag.dll" goto Build_pl_draw_2d_frag
 
 :CacheCheck_pl_draw_2d_frag
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_frag.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_frag.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -1252,7 +1252,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_draw_2d_sdf_frag.dll" goto Build_pl_draw_2d_sdf_frag
 
 :CacheCheck_pl_draw_2d_sdf_frag
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_sdf_frag.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_sdf_frag.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -1310,7 +1310,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_draw_2d_vert.dll" goto Build_pl_draw_2d_vert
 
 :CacheCheck_pl_draw_2d_vert
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_vert.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_vert.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -1649,7 +1649,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_shader_cpu_ext.dll" goto Build_pl_shader_cpu_ext
 
 :CacheCheck_pl_shader_cpu_ext
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_shader_cpu_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_shader_cpu_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -1741,7 +1741,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_graphics_cpu_ext.dll" goto Build_pl_graphics_cpu_ext
 
 :CacheCheck_pl_graphics_cpu_ext
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_graphics_cpu_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_graphics_cpu_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -1832,7 +1832,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_platform_ext.dll" goto Build_pl_platform_ext
 
 :CacheCheck_pl_platform_ext
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_platform_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_platform_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -1935,7 +1935,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_draw_2d_frag.dll" goto Build_pl_draw_2d_frag
 
 :CacheCheck_pl_draw_2d_frag
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_frag.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_frag.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -1993,7 +1993,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_draw_2d_sdf_frag.dll" goto Build_pl_draw_2d_sdf_frag
 
 :CacheCheck_pl_draw_2d_sdf_frag
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_sdf_frag.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_sdf_frag.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.
@@ -2051,7 +2051,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if not exist "..\out\pl_draw_2d_vert.dll" goto Build_pl_draw_2d_vert
 
 :CacheCheck_pl_draw_2d_vert
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_vert.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(10)) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_draw_2d_vert.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
 
 if %ERRORLEVEL% NEQ 0 (
 @echo.

@@ -526,16 +526,16 @@ string_intern_tests_0(void* pAppData)
 {
     plAppData* ptAppData = (plAppData*)pAppData;
 
-    const char* pcName0 = gptString->intern(ptAppData->ptStringRepo, "Jonathan");
-    const char* pcName1 = gptString->intern(ptAppData->ptStringRepo, "Jonathan");
-    const char* pcName2 = gptString->intern(ptAppData->ptStringRepo, "Jonathan");
+    const char* pcName0 = gptString->intern_ex("Jonathan", ptAppData->ptStringRepo);
+    const char* pcName1 = gptString->intern_ex("Jonathan", ptAppData->ptStringRepo);
+    const char* pcName2 = gptString->intern_ex("Jonathan", ptAppData->ptStringRepo);
 
     pl_test_expect_true(pcName0 == pcName1, NULL);
     pl_test_expect_true(pcName1 == pcName2, NULL);
 
-    gptString->remove(ptAppData->ptStringRepo, pcName0);
-    gptString->remove(ptAppData->ptStringRepo, pcName1);
-    gptString->remove(ptAppData->ptStringRepo, pcName2);
+    gptString->remove_ex(pcName0, ptAppData->ptStringRepo);
+    gptString->remove_ex(pcName1, ptAppData->ptStringRepo);
+    gptString->remove_ex(pcName2, ptAppData->ptStringRepo);
 }
 
 void

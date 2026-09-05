@@ -278,7 +278,7 @@ with pl.project("pilotlight"):
     # [SECTION] cpu shader extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_shader_cpu_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=10):
+    with pl.target("pl_shader_cpu_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=30):
 
         pl.add_source_files("../extensions/pl_shader_ext.c")
         pl.set_output_binary("pl_shader_cpu_ext")
@@ -456,7 +456,7 @@ with pl.project("pilotlight"):
     # [SECTION] cpu graphics extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_graphics_cpu_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=10):
+    with pl.target("pl_graphics_cpu_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=30):
 
         pl.add_source_files("../extensions/pl_graphics_ext.c")
         pl.set_output_binary("pl_graphics_cpu_ext")
@@ -557,7 +557,7 @@ with pl.project("pilotlight"):
     # [SECTION] platform extension
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_platform_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=10):
+    with pl.target("pl_platform_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=30):
     
         pl.set_output_binary("pl_platform_ext")
 
@@ -727,7 +727,7 @@ with pl.project("pilotlight"):
 
     for shader in shaders:
 
-        with pl.target(shader, pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=10):
+        with pl.target(shader, pl.TargetType.DYNAMIC_LIBRARY, cache=True, max_cache_age_mins=30):
 
             pl.add_source_files("../shaders/" + shader + ".cpp")
             pl.set_output_binary(shader)
