@@ -31,6 +31,7 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 typedef uint32_t plEcsTypeKey;
+typedef uint64_t plEntityId;
 
 typedef union _plEntity
 {
@@ -41,12 +42,6 @@ typedef union _plEntity
     };
     uint64_t uData;
 } plEntity;
-
-typedef struct _plPackedEntity
-{
-    plEntity                    tEntity;
-    struct _plComponentLibrary* ptLibrary;
-} plPackedEntity;
 
 #ifdef __cplusplus
 }

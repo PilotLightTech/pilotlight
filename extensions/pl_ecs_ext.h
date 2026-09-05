@@ -7,12 +7,12 @@ Index of this file:
 // [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] apis
+// [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] components
 // [SECTION] structs
-// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------
@@ -25,8 +25,24 @@ Index of this file:
         The provided implementation of this extension depends on the following
         APIs being available:
 
-        * plLogI (v1.x)
-        * plProfileI (v1.x)
+        * plLogI          (v2.x)
+        * plProfileI      (v2.x)
+        * plStringInternI (v3.x)
+        * plTimerI        (v1.1)
+        * plJsonI         (v1.x)
+
+    Pointer Lifetime:
+        Functions marked "can store" return values/pointers that remain valid
+        for the lifetime documented by that function.
+
+        Functions marked "do not store" return pointers into ECS-owned storage.
+        These pointers may be invalidated when components/entities are added,
+        removed, or when the component library is reset. (this restriction will
+        be removed soon)
+
+    Names vs. IDs:
+        Entity names are intended for human-readable lookup and are not stable IDs.
+        Entity IDs remain stable across serialization/deserialization.
 */
 
 //-----------------------------------------------------------------------------
@@ -44,7 +60,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plEcsI_version {2, 0, 0}
+#define plEcsI_version {3, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -64,13 +80,10 @@ typedef struct _plComponentDesc    plComponentDesc;    // describes a component
 typedef struct _plComponentLibrary plComponentLibrary; // opaque
 
 // ecs components
-typedef struct _plTagComponent       plTagComponent;
-typedef struct _plLayerComponent     plLayerComponent;
-typedef struct _plTransformComponent plTransformComponent;
-typedef struct _plHierarchyComponent plHierarchyComponent;
+typedef struct _plTagComponent plTagComponent;
 
-// flags
-typedef int plTransformFlags;
+// external
+typedef struct _plJsonObject plJsonObject; // pl_json_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -83,26 +96,45 @@ PL_API void pl_unload_ecs_ext(plApiRegistryI*, bool reload);
 //-------------------------------GENERAL---------------------------------------
 
 // system setup/shutdown
-PL_API void         pl_ecs_initialize     (plEcsInit);
-PL_API plEcsTypeKey pl_ecs_register_type  (plComponentDesc, const void* template_component); // can store
-PL_API void         pl_ecs_finalize       (void);
-PL_API void         pl_ecs_cleanup        (void);
-PL_API uint64_t     pl_ecs_get_log_channel(void);
+// initialize -> register component types -> finalize
+//
+// Component types must be registered before finalize(). After finalization,
+// component registration is no longer permitted.
+PL_API void                   pl_ecs_initialize     (plEcsInit);
+PL_API plEcsTypeKey           pl_ecs_register_type  (plComponentDesc, const void* template_component); // can store & template_component -> Default component value copied into newly added components
+PL_API void                   pl_ecs_finalize       (void);
+PL_API void                   pl_ecs_cleanup        (void);
+PL_API uint64_t               pl_ecs_get_log_channel(void);
 
 // libraries
-PL_API bool                pl_ecs_create_library       (plComponentLibrary**);
-PL_API void                pl_ecs_cleanup_library      (plComponentLibrary**);
-PL_API void                pl_ecs_reset_library        (plComponentLibrary*);
-PL_API void                pl_ecs_set_library_type_data(plComponentLibrary*, plEcsTypeKey, void*);
-PL_API void*               pl_ecs_get_library_type_data(plComponentLibrary*, plEcsTypeKey);
-PL_API plComponentLibrary* pl_ecs_get_default_library  (void);
+// Component libraries contain entities and component storage.
+// reset_library removes all entities/components but keeps the library usable.
+// cleanup_library destroys the library and sets the supplied pointer to NULL.
+PL_API bool                   pl_ecs_create_library       (plComponentLibrary**);
+PL_API void                   pl_ecs_cleanup_library      (plComponentLibrary**);
+PL_API void                   pl_ecs_reset_library        (plComponentLibrary*);
+PL_API const plComponentDesc* pl_ecs_get_type_description (plEcsTypeKey);
+PL_API uint32_t               pl_ecs_get_type_descriptions(const plComponentDesc**);
+
+// Associates extension-specific data with a component type in this library.
+// The ECS does not own or free this pointer.
+PL_API void  pl_ecs_set_library_type_data(plComponentLibrary*, plEcsTypeKey, void*);
+PL_API void* pl_ecs_get_library_type_data(plComponentLibrary*, plEcsTypeKey);
 
 // entities
-PL_API plEntity pl_ecs_create_entity     (plComponentLibrary*, const char* name);
-PL_API void     pl_ecs_remove_entity     (plComponentLibrary*, plEntity);
-PL_API bool     pl_ecs_is_entity_valid   (plComponentLibrary*, plEntity);
-PL_API plEntity pl_ecs_get_entity_by_name(plComponentLibrary*, const char* name);
-PL_API plEntity pl_ecs_get_current_entity(plComponentLibrary*, plEntity);
+PL_API plEntity   pl_ecs_create_entity        (plComponentLibrary*, const char* name);
+PL_API void       pl_ecs_remove_entity        (plComponentLibrary*, plEntity);
+PL_API bool       pl_ecs_is_entity_valid      (plComponentLibrary*, plEntity);
+PL_API plEntity   pl_ecs_get_entity_by_name   (plComponentLibrary*, const char* name);
+PL_API plEntity   pl_ecs_get_current_entity   (plComponentLibrary*, plEntity);
+PL_API plEntity   pl_ecs_create_entity_with_id(plComponentLibrary*, const char* name, plEntityId);
+PL_API plEntityId pl_ecs_get_entity_id        (plComponentLibrary*, plEntity);
+PL_API plEntity   pl_ecs_get_entity_by_id     (plComponentLibrary*, plEntityId);
+PL_API void       pl_ecs_set_entity_name      (plComponentLibrary*, plEntity, const char* name);
+
+// If entities is NULL, writes the required entity count to count.
+// Otherwise writes up to *count entities and updates *count with the number written.
+PL_API void pl_ecs_get_entities(plComponentLibrary*, plEntity*, uint32_t*);
 
 // components
 PL_API void*    pl_ecs_add_component (plComponentLibrary*, plEcsTypeKey, plEntity); // do not store
@@ -111,26 +143,16 @@ PL_API bool     pl_ecs_has_component (plComponentLibrary*, plEcsTypeKey, plEntit
 PL_API size_t   pl_ecs_get_index     (plComponentLibrary*, plEcsTypeKey, plEntity);
 PL_API uint32_t pl_ecs_get_components(plComponentLibrary*, plEcsTypeKey, void**, const plEntity**); // do not store
 
+// utilities
+
+// generates an unique ID if using library (will ignore path & seed) or will create a hash
+// based on path + seed (should be unique but can't be guaranteed)
+PL_API plEntityId pl_ecs_generate_id(plComponentLibrary*, const char* path, uint64_t seed);
+
 //----------------------------CORE COMPONENTS----------------------------------
 
 // component types (can store)
-PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_tag      (void);
-PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_layer    (void);
-PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_transform(void);
-PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_hierarchy(void);
-
-// transforms
-//   - do NOT store out parameter; use it immediately
-PL_API plEntity pl_ecs_create_transform(plComponentLibrary*, const char* name, plTransformComponent**);
-
-// hierarchy
-PL_API void   pl_ecs_attach_component        (plComponentLibrary*, plEntity, plEntity tParent);
-PL_API void   pl_ecs_deattach_component      (plComponentLibrary*, plEntity);
-PL_API plMat4 pl_ecs_compute_parent_transform(plComponentLibrary*, plEntity);
-
-// systems
-PL_API void pl_ecs_run_transform_update_system(plComponentLibrary*);
-PL_API void pl_ecs_run_hierarchy_update_system(plComponentLibrary*);
+PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_tag(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -142,26 +164,46 @@ typedef struct _plEcsI
     //-------------------------------GENERAL---------------------------------------
 
     // system setup/shutdown
+    // initialize -> register component types -> finalize
+    //
+    // Component types must be registered before finalize(). After finalization,
+    // component registration is no longer permitted.
     void         (*initialize)     (plEcsInit);
-    plEcsTypeKey (*register_type)  (plComponentDesc, const void* template_component); // can store
+    plEcsTypeKey (*register_type)  (plComponentDesc, const void* template_component); // can store & template_component -> Default component value copied into newly added components
     void         (*finalize)       (void);
     void         (*cleanup)        (void);
     uint64_t     (*get_log_channel)(void);
-    
+
     // libraries
-    bool                (*create_library)       (plComponentLibrary**);
-    void                (*cleanup_library)      (plComponentLibrary**);
-    void                (*reset_library)        (plComponentLibrary*);
-    void                (*set_library_type_data)(plComponentLibrary*, plEcsTypeKey, void*);
-    void*               (*get_library_type_data)(plComponentLibrary*, plEcsTypeKey);
-    plComponentLibrary* (*get_default_library)  (void);
+    // Component libraries contain entities and component storage.
+    // reset_library removes all entities/components but keeps the library usable.
+    // cleanup_library destroys the library and sets the supplied pointer to NULL.
+    bool                   (*create_library)       (plComponentLibrary**);
+    void                   (*cleanup_library)      (plComponentLibrary**);
+    void                   (*reset_library)        (plComponentLibrary*);
+    const plComponentDesc* (*get_type_description) (plEcsTypeKey tTypeKey);
+    uint32_t               (*get_type_descriptions)(const plComponentDesc**);
+
+    // Associates extension-specific data with a component type in this library.
+    // The ECS does not own or free this pointer.
+    void  (*set_library_type_data)(plComponentLibrary*, plEcsTypeKey, void*);
+    void* (*get_library_type_data)(plComponentLibrary*, plEcsTypeKey);
     
     // entities
-    plEntity (*create_entity)     (plComponentLibrary*, const char* name);
-    void     (*remove_entity)     (plComponentLibrary*, plEntity);
-    bool     (*is_entity_valid)   (plComponentLibrary*, plEntity);
-    plEntity (*get_entity_by_name)(plComponentLibrary*, const char* name);
-    plEntity (*get_current_entity)(plComponentLibrary*, plEntity);
+    plEntity  (*create_entity)        (plComponentLibrary*, const char* name);
+    plEntity  (*create_entity_with_id)(plComponentLibrary*, const char* name, plEntityId);
+    void      (*remove_entity)        (plComponentLibrary*, plEntity);
+    bool      (*is_entity_valid)      (plComponentLibrary*, plEntity);
+    plEntity  (*get_entity_by_name)   (plComponentLibrary*, const char* name);
+    plEntity  (*get_current_entity)   (plComponentLibrary*, plEntity);
+    plEntityId(*get_entity_id)        (plComponentLibrary*, plEntity);
+    plEntity  (*get_entity_by_id)     (plComponentLibrary*, plEntityId);
+    void      (*set_entity_name)      (plComponentLibrary*, plEntity, const char* name);
+
+
+    // If entities is NULL, writes the required entity count to count.
+    // Otherwise writes up to *count entities and updates *count with the number written.
+    void (*get_entities)(plComponentLibrary*, plEntity*, uint32_t*);
 
     // components
     void*    (*add_component) (plComponentLibrary*, plEcsTypeKey, plEntity); // do not store
@@ -170,26 +212,16 @@ typedef struct _plEcsI
     size_t   (*get_index)     (plComponentLibrary*, plEcsTypeKey, plEntity);
     uint32_t (*get_components)(plComponentLibrary*, plEcsTypeKey, void**, const plEntity**); // do not store
 
+    // utilities
+
+    // generates an unique ID if using library (will ignore path & seed) or will create a hash
+    // based on path + seed (should be unique but can't be guaranteed)
+    plEntityId (*generate_id)(plComponentLibrary*, const char* path, uint64_t seed);
+
     //----------------------------CORE COMPONENTS----------------------------------
 
     // component types (can store)
-    plEcsTypeKey (*get_ecs_type_key_tag)      (void);
-    plEcsTypeKey (*get_ecs_type_key_layer)    (void);
-    plEcsTypeKey (*get_ecs_type_key_transform)(void);
-    plEcsTypeKey (*get_ecs_type_key_hierarchy)(void);
-
-    // transforms
-    //   - do NOT store out parameter; use it immediately
-    plEntity (*create_transform)(plComponentLibrary*, const char* name, plTransformComponent**);
-
-    // hierarchy
-    void   (*attach_component)        (plComponentLibrary*, plEntity, plEntity tParent);
-    void   (*deattach_component)      (plComponentLibrary*, plEntity);
-    plMat4 (*compute_parent_transform)(plComponentLibrary*, plEntity);
-
-    // systems
-    void (*run_transform_update_system)(plComponentLibrary*);
-    void (*run_hierarchy_update_system)(plComponentLibrary*);
+    plEcsTypeKey (*get_ecs_type_key_tag)(void);
 
 } plEcsI;
 
@@ -199,30 +231,8 @@ typedef struct _plEcsI
 
 typedef struct _plTagComponent
 {
-    char acName[128];
+    const char* pcName;
 } plTagComponent;
-
-typedef struct _plLayerComponent
-{
-    uint32_t uLayerMask;
-
-    // [INTERNAL]
-    uint32_t _uPropagationMask;
-} plLayerComponent;
-
-typedef struct _plHierarchyComponent
-{
-    plEntity tParent;
-} plHierarchyComponent;
-
-typedef struct _plTransformComponent
-{
-    plVec3           tScale;
-    plVec4           tRotation;
-    plVec3           tTranslation;
-    plMat4           tWorld;
-    plTransformFlags eFlags;
-} plTransformComponent;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -236,27 +246,25 @@ typedef struct _plEcsInit
 
 typedef struct _plComponentDesc
 {
-    const char* pcName;
-    size_t      szSize;
+    const char* pcDisplayName; // human-readable name, e.g. "Transform"
+    size_t      szSize;        // component size
 
-    // optional callbacks
+    // serialization
+    const char* pcName; // stable serialized component name, e.g. "transform"
+    void (*serialize)  (void*, plJsonObject*);
+    void (*deserialize)(plJsonObject*, void*);
+
+    // optional callbacks, called once per component library
     void (*init)   (plComponentLibrary*);
     void (*cleanup)(plComponentLibrary*);
     void (*reset)  (plComponentLibrary*);
 
+    // populated after registration
+    plEcsTypeKey tTypeKey;
+
     // [INTERNAL]
-    const void*  _pTemplate;
+    void* _pTemplate;
 } plComponentDesc;
-
-//-----------------------------------------------------------------------------
-// [SECTION] enums
-//-----------------------------------------------------------------------------
-
-enum _plTransformFlags
-{
-    PL_TRANSFORM_FLAGS_NONE  = 0,
-    PL_TRANSFORM_FLAGS_DIRTY = 1 << 0,
-};
 
 #ifdef __cplusplus
 }
