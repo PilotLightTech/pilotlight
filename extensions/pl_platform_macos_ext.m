@@ -2220,36 +2220,48 @@ pl_virtual_memory_get_page_size(void)
 }
 
 void*
-pl_virtual_memory_alloc(void* pAddress, size_t szSize)
+pl_virtual_memory_alloc(size_t szSize)
 {
-    void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    return pResult;
+    void* pResult = mmap(NULL, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    return pResult == MAP_FAILED ? NULL : pResult;
 }
 
 void*
-pl_virtual_memory_reserve(void* pAddress, size_t szSize)
+pl_virtual_memory_reserve(size_t szSize)
 {
-    void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    return pResult;
+    void* pResult = mmap(NULL, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    return pResult == MAP_FAILED ? NULL : pResult;
 }
 
 void*
 pl_virtual_memory_commit(void* pAddress, size_t szSize)
 {
-    mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
+    if(mprotect(pAddress, szSize, PROT_READ | PROT_WRITE) != 0)
+    {
+        PL_ASSERT(false);
+        return NULL;
+    }
+
     return pAddress;
 }
 
 void
 pl_virtual_memory_free(void* pAddress, size_t szSize)
 {
-    munmap(pAddress, szSize);
+    if(munmap(pAddress, szSize) != 0)
+    {
+        PL_ASSERT(false);
+    }
 }
 
 void
-pl_virtual_memory_uncommit(void* pAddress, size_t szSize)
+pl_virtual_memory_decommit(void* pAddress, size_t szSize)
 {
-    mprotect(pAddress, szSize, PROT_NONE);
+    int iResult = madvise(pAddress, szSize, MADV_FREE);
+    PL_ASSERT(iResult == 0);
+
+    iResult = mprotect(pAddress, szSize, PROT_NONE);
+    PL_ASSERT(iResult == 0);
 }
 
 #include "pl_platform_ext.c"

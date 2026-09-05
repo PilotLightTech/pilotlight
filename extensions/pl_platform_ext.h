@@ -39,12 +39,12 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plTimerI_version         {1, 0, 0}
+#define plTimerI_version         {1, 1, 0}
 #define plAtomicsI_version       {2, 0, 0}
 #define plFileI_version          {2, 0, 0}
 #define plNetworkI_version       {1, 0, 0}
 #define plThreadsI_version       {1, 0, 1}
-#define plVirtualMemoryI_version {1, 0, 0}
+#define plVirtualMemoryI_version {2, 0, 0}
 #define plWindowI_version        {2, 1, 0}
 
 //-----------------------------------------------------------------------------
@@ -275,17 +275,18 @@ PL_API plNetworkResult pl_network_send_socket_data(plSocket*, void* data, size_t
 //-------------------------virtual memory api----------------------------------
 
 // Notes
-//   - committed memory does not necessarily mean the memory has been mapped to physical
-//     memory. This is happens when the memory is actually touched. Even so, on Windows
-//     you can not commit more memmory then you have in your page file.
-//   - uncommitted memory does not necessarily mean the memory will be immediately
-//     evicted. It is up to the OS.
+//   - Committing memory makes the address range accessible, but physical pages
+//     may not be allocated until the memory is touched.
+//   - Decommitting memory makes the address range inaccessible and allows the
+//     OS to reclaim its physical backing. The virtual address range remains
+//     reserved.
+//   - All addresses and sizes passed to commit/decommit must be page aligned.
 
 PL_API size_t pl_virtual_memory_get_page_size(void);                  // returns memory page size
-PL_API void*  pl_virtual_memory_alloc        (void* address, size_t); // reserves & commits a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
-PL_API void*  pl_virtual_memory_reserve      (void* address, size_t); // reserves a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
+PL_API void*  pl_virtual_memory_alloc        (size_t);                // reserves & commits a block of memory. szSize must be a multiple of memory page size.
+PL_API void*  pl_virtual_memory_reserve      (size_t);                // reserves a block of memory. szSize must be a multiple of memory page size.
 PL_API void*  pl_virtual_memory_commit       (void* address, size_t); // commits a block of reserved memory. szSize must be a multiple of memory page size.
-PL_API void   pl_virtual_memory_uncommit     (void* address, size_t); // uncommits a block of committed memory.
+PL_API void   pl_virtual_memory_decommit     (void* address, size_t); // uncommits a block of committed memory.
 PL_API void   pl_virtual_memory_free         (void* address, size_t); // frees a block of previously reserved/committed memory. Must be the starting address returned from "reserve()" or "alloc()"
 
 //-----------------------------------------------------------------------------
@@ -452,17 +453,18 @@ typedef struct _plVirtualMemoryI
 {
 
     // Notes
-    //   - committed memory does not necessarily mean the memory has been mapped to physical
-    //     memory. This is happens when the memory is actually touched. Even so, on Windows
-    //     you can not commit more memmory then you have in your page file.
-    //   - uncommitted memory does not necessarily mean the memory will be immediately
-    //     evicted. It is up to the OS.
+    //   - Committing memory makes the address range accessible, but physical pages
+    //     may not be allocated until the memory is touched.
+    //   - Decommitting memory makes the address range inaccessible and allows the
+    //     OS to reclaim its physical backing. The virtual address range remains
+    //     reserved.
+    //   - All addresses and sizes passed to commit/decommit must be page aligned.
 
     size_t (*get_page_size)(void);                  // returns memory page size
-    void*  (*alloc)        (void* address, size_t); // reserves & commits a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
-    void*  (*reserve)      (void* address, size_t); // reserves a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
+    void*  (*alloc)        (size_t);                // reserves & commits a block of memory. szSize must be a multiple of memory page size.
+    void*  (*reserve)      (size_t);                // reserves a block of memory. szSize must be a multiple of memory page size.
     void*  (*commit)       (void* address, size_t); // commits a block of reserved memory. szSize must be a multiple of memory page size.
-    void   (*uncommit)     (void* address, size_t); // uncommits a block of committed memory.
+    void   (*decommit)     (void* address, size_t); // uncommits a block of committed memory.
     void   (*free)         (void* address, size_t); // frees a block of previously reserved/committed memory. Must be the starting address returned from "reserve()" or "alloc()"
     
 } plVirtualMemoryI;

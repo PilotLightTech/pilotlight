@@ -1220,24 +1220,24 @@ pl_virtual_memory_get_page_size(void)
 }
 
 void*
-pl_virtual_memory_alloc(void* pAddress, size_t szSize)
+pl_virtual_memory_alloc(size_t szSize)
 {
     #ifdef PL_PLATFORM_WINDOWS
-    return VirtualAlloc(pAddress, szSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    return VirtualAlloc(NULL, szSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     #else
-    void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    return pResult;
+    void* pResult = mmap(NULL, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    return pResult == MAP_FAILED ? NULL : pResult;
     #endif
 }
 
 void*
-pl_virtual_memory_reserve(void* pAddress, size_t szSize)
+pl_virtual_memory_reserve(size_t szSize)
 {
     #ifdef PL_PLATFORM_WINDOWS
-    return VirtualAlloc(pAddress, szSize, MEM_RESERVE, PAGE_READWRITE);
+    return VirtualAlloc(NULL, szSize, MEM_RESERVE, PAGE_NOACCESS);
     #else
-    void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    return pResult;
+    void* pResult = mmap(NULL, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    return pResult == MAP_FAILED ? NULL : pResult;
     #endif
 }
 
@@ -1247,7 +1247,12 @@ pl_virtual_memory_commit(void* pAddress, size_t szSize)
     #ifdef PL_PLATFORM_WINDOWS
     return VirtualAlloc(pAddress, szSize, MEM_COMMIT, PAGE_READWRITE);
     #else
-    mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
+    if(mprotect(pAddress, szSize, PROT_READ | PROT_WRITE) != 0)
+    {
+        PL_ASSERT(false);
+        return NULL;
+    }
+
     return pAddress;
     #endif
 }
@@ -1256,29 +1261,40 @@ void
 pl_virtual_memory_free(void* pAddress, size_t szSize)
 {
     #ifdef PL_PLATFORM_WINDOWS
-    BOOL bResult = VirtualFree(pAddress, szSize, MEM_RELEASE);
-    if(bResult)
+    BOOL bResult = VirtualFree(pAddress, 0, MEM_RELEASE);
+    if(!bResult)
     {
         printf("VirtualFree failed : %d\n", GetLastError());
         PL_ASSERT(false);
     };
     #else
-    munmap(pAddress, szSize);
+    if(munmap(pAddress, szSize) != 0)
+    {
+        PL_ASSERT(false);
+    }
     #endif
 }
 
 void
-pl_virtual_memory_uncommit(void* pAddress, size_t szSize)
+pl_virtual_memory_decommit(void* pAddress, size_t szSize)
 {
     #ifdef PL_PLATFORM_WINDOWS
     BOOL bResult = VirtualFree(pAddress, szSize, MEM_DECOMMIT);
-    if(bResult)
+    if(!bResult)
     {
         printf("VirtualFree failed : %d\n", GetLastError());
         PL_ASSERT(false);
     };
     #else
-    mprotect(pAddress, szSize, PROT_NONE);
+    #ifdef PL_PLATFORM_APPLE
+    int iResult = madvise(pAddress, szSize, MADV_FREE);
+    #else
+    int iResult = madvise(pAddress, szSize, MADV_DONTNEED);
+    #endif
+    PL_ASSERT(iResult == 0);
+
+    iResult = mprotect(pAddress, szSize, PROT_NONE);
+    PL_ASSERT(iResult == 0);
     #endif
 }
 

@@ -108,7 +108,7 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .alloc         = pl_virtual_memory_alloc,
         .reserve       = pl_virtual_memory_reserve,
         .commit        = pl_virtual_memory_commit,
-        .uncommit      = pl_virtual_memory_uncommit,
+        .decommit      = pl_virtual_memory_decommit,
         .free          = pl_virtual_memory_free,
     };
 

@@ -1741,15 +1741,15 @@ pl_virtual_memory_get_page_size(void)
 }
 
 void*
-pl_virtual_memory_alloc(void* pAddress, size_t szSize)
+pl_virtual_memory_alloc(size_t szSize)
 {
-    return VirtualAlloc(pAddress, szSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    return VirtualAlloc(NULL, szSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 }
 
 void*
-pl_virtual_memory_reserve(void* pAddress, size_t szSize)
+pl_virtual_memory_reserve(size_t szSize)
 {
-    return VirtualAlloc(pAddress, szSize, MEM_RESERVE, PAGE_READWRITE);
+    return VirtualAlloc(NULL, szSize, MEM_RESERVE, PAGE_NOACCESS);
 }
 
 void*
@@ -1761,8 +1761,8 @@ pl_virtual_memory_commit(void* pAddress, size_t szSize)
 void
 pl_virtual_memory_free(void* pAddress, size_t szSize)
 {
-    BOOL bResult = VirtualFree(pAddress, szSize, MEM_RELEASE);
-    if(bResult)
+    BOOL bResult = VirtualFree(pAddress, 0, MEM_RELEASE);
+    if(!bResult)
     {
         printf("VirtualFree failed : %d\n", GetLastError());
         PL_ASSERT(false);
@@ -1770,10 +1770,10 @@ pl_virtual_memory_free(void* pAddress, size_t szSize)
 }
 
 void
-pl_virtual_memory_uncommit(void* pAddress, size_t szSize)
+pl_virtual_memory_decommit(void* pAddress, size_t szSize)
 {
     BOOL bResult = VirtualFree(pAddress, szSize, MEM_DECOMMIT);
-    if(bResult)
+    if(!bResult)
     {
         printf("VirtualFree failed : %d\n", GetLastError());
         PL_ASSERT(false);
