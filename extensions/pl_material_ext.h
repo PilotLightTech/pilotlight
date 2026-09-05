@@ -8,13 +8,11 @@ Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] includes
-// [SECTION] defines
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] enums
 // [SECTION] structs
-// [SECTION] components
 */
 
 //-----------------------------------------------------------------------------
@@ -27,7 +25,9 @@ Index of this file:
         The provided implementation of this extension depends on the following
         APIs being available:
 
-        * plEcsI (v1.x)
+        * plVfsI   (v2.1)
+        * plAssetI (v1.x)
+        * plJsonI  (v1.x)
 */
 
 //-----------------------------------------------------------------------------
@@ -45,40 +45,38 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plMaterialI_version {0, 1, 0}
+#define plMaterialI_version {0, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <stdbool.h> // bool
 #include "pl.inc"
-#include "pl_ecs_ext.inl"      // plEntity
-#include "pl_resource_ext.inl" // plResourceHandle
-#include "pl_math.h"           // plVec3, plMat4
-
-//-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#ifndef PL_MAX_PATH_LENGTH
-    #define PL_MAX_PATH_LENGTH 1024
-#endif
+#include "pl_asset_ext.inl" // plAssetHandle
+#include "pl_math.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
-// ecs components
-typedef struct _plMaterialComponent plMaterialComponent;
+// basic types
+typedef struct _plMaterial                    plMaterial;
+typedef struct _plMaterialTexture             plMaterialTexture;
+typedef struct _plMaterialClearcoat           plMaterialClearcoat;
+typedef struct _plMaterialSheen               plMaterialSheen;
+typedef struct _plMaterialIridescence         plMaterialIridescence;
+typedef struct _plMaterialDispersion          plMaterialDispersion;
+typedef struct _plMaterialDiffuseTransmission plMaterialDiffuseTransmission;
+typedef struct _plMaterialTransmission        plMaterialTransmission;
+typedef struct _plMaterialVolume              plMaterialVolume;
+typedef struct _plMaterialAnisotropy          plMaterialAnisotropy;
 
 // enums & flags
-typedef int plShaderType;
-typedef int plMaterialFlags;
-typedef int plTextureSlot;
-typedef int plAlphaMode;
-
-// external
-typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
+typedef int plMaterialModel;       // -> enum _plMaterialModel       // Enum: (PL_MATERIAL_MODEL_XXXX)
+typedef int plMaterialFlags;       // -> enum _plMaterialFlags       // Flag: (PL_MATERIAL_FLAG_XXXX)
+typedef int plMaterialTextureSlot; // -> enum _plMaterialTextureSlot // Enum: (PL_MATERIAL_TEXTURE_SLOT_XXXX)
+typedef int plMaterialAlphaMode;   // -> enum _plMaterialAlphaMode   // Enum: (PL_MATERIAL_ALPHA_MODE_XXXX)
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -88,14 +86,12 @@ typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 PL_API void pl_load_material_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_material_ext(plApiRegistryI*, bool reload);
 
-// system setup/shutdown/etc
-PL_API void         pl_material_register_ecs_system(void);
+// basic api
+PL_API void pl_material_init(plMaterial*); // constructor
 
-// do NOT store out parameter; use it immediately
-PL_API plEntity     pl_material_create(plComponentLibrary*, const char* name, plMaterialComponent**);
-
-// ecs types
-PL_API plEcsTypeKey pl_material_get_ecs_type_key(void);
+// asset system
+PL_API void           pl_material_register_asset_types(void);
+PL_API plAssetTypeKey pl_material_get_asset_type_key  (void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -103,122 +99,163 @@ PL_API plEcsTypeKey pl_material_get_ecs_type_key(void);
 
 typedef struct _plMaterialI
 {
-    void         (*register_ecs_system)(void);
-    plEntity     (*create)             (plComponentLibrary*, const char* name, plMaterialComponent**);
-    plEcsTypeKey (*get_ecs_type_key)   (void);
+    // basic
+    void (*init)(plMaterial*); // constructor
+
+    // asset
+    void           (*register_asset_types)(void);
+    plAssetTypeKey (*get_asset_type_key)  (void);
 } plMaterialI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
-enum _plAlphaMode
+enum _plMaterialAlphaMode
 {
-    PL_MATERIAL_ALPHA_MODE_OPAQUE,
+    PL_MATERIAL_ALPHA_MODE_OPAQUE = 0,
     PL_MATERIAL_ALPHA_MODE_MASK,
     PL_MATERIAL_ALPHA_MODE_BLEND
 };
 
-enum _plTextureSlot
+enum _plMaterialTextureSlot
 {
-    PL_TEXTURE_SLOT_BASE_COLOR_MAP = 0,
-    PL_TEXTURE_SLOT_NORMAL_MAP,
-    PL_TEXTURE_SLOT_EMISSIVE_MAP,
-    PL_TEXTURE_SLOT_OCCLUSION_MAP,
-    PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP,
-    PL_TEXTURE_SLOT_CLEARCOAT_MAP,
-    PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP,
-    PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP,
-    PL_TEXTURE_SLOT_SHEEN_COLOR_MAP,
-    PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP,
-    PL_TEXTURE_SLOT_IRIDESCENCE_MAP,
-    PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP,
-    PL_TEXTURE_SLOT_ANISOTROPY_MAP,
-    PL_TEXTURE_SLOT_TRANSMISSION_MAP,
-    PL_TEXTURE_SLOT_THICKNESS_MAP,
-    PL_TEXTURE_SLOT_DIFFUSE_TRANSMISSION_MAP,
-    PL_TEXTURE_SLOT_DIFFUSE_TRANSMISSION_COLOR_MAP,
+    PL_MATERIAL_TEXTURE_SLOT_BASE_COLOR = 0,
+    PL_MATERIAL_TEXTURE_SLOT_NORMAL,
+    PL_MATERIAL_TEXTURE_SLOT_EMISSIVE,
+    PL_MATERIAL_TEXTURE_SLOT_OCCLUSION,
+    PL_MATERIAL_TEXTURE_SLOT_METAL_ROUGHNESS,
+    PL_MATERIAL_TEXTURE_SLOT_CLEARCOAT,
+    PL_MATERIAL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS,
+    PL_MATERIAL_TEXTURE_SLOT_CLEARCOAT_NORMAL,
+    PL_MATERIAL_TEXTURE_SLOT_SHEEN_COLOR,
+    PL_MATERIAL_TEXTURE_SLOT_SHEEN_ROUGHNESS,
+    PL_MATERIAL_TEXTURE_SLOT_IRIDESCENCE,
+    PL_MATERIAL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS,
+    PL_MATERIAL_TEXTURE_SLOT_ANISOTROPY,
+    PL_MATERIAL_TEXTURE_SLOT_TRANSMISSION,
+    PL_MATERIAL_TEXTURE_SLOT_THICKNESS,
+    PL_MATERIAL_TEXTURE_SLOT_DIFFUSE_TRANSMISSION,
+    PL_MATERIAL_TEXTURE_SLOT_DIFFUSE_TRANSMISSION_COLOR,
     
-    PL_TEXTURE_SLOT_COUNT
+    PL_MATERIAL_TEXTURE_SLOT_COUNT
 };
 
-enum _plShaderType
+enum _plMaterialModel
 {
-    PL_SHADER_TYPE_PBR,
-    PL_SHADER_TYPE_PBR_ADVANCED,
-    
-    PL_SHADER_TYPE_COUNT
+    PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS = 0,
+
+    PL_MATERIAL_MODEL_COUNT
 };
 
 enum _plMaterialFlags
 {
     PL_MATERIAL_FLAG_NONE                = 0,
 
-    PL_MATERIAL_FLAG_METALLIC_ROUGHNESS   = 1 << 0,
-    PL_MATERIAL_FLAG_CLEARCOAT            = 1 << 1,
-    PL_MATERIAL_FLAG_SHEEN                = 1 << 2,
-    PL_MATERIAL_FLAG_IRIDESCENCE          = 1 << 3,
-    PL_MATERIAL_FLAG_ANISOTROPY           = 1 << 4,
-    PL_MATERIAL_FLAG_TRANSMISSION         = 1 << 5,
-    PL_MATERIAL_FLAG_VOLUME               = 1 << 6,
-    PL_MATERIAL_FLAG_DISPERSION           = 1 << 7,
-    PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION = 1 << 8,
+    PL_MATERIAL_FLAG_CLEARCOAT            = 1 << 0,
+    PL_MATERIAL_FLAG_SHEEN                = 1 << 1,
+    PL_MATERIAL_FLAG_IRIDESCENCE          = 1 << 2,
+    PL_MATERIAL_FLAG_ANISOTROPY           = 1 << 3,
+    PL_MATERIAL_FLAG_TRANSMISSION         = 1 << 4,
+    PL_MATERIAL_FLAG_VOLUME               = 1 << 5,
+    PL_MATERIAL_FLAG_DISPERSION           = 1 << 6,
+    PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION = 1 << 7,
 
     PL_MATERIAL_FLAG_DOUBLE_SIDED         = 1 << 20,
-    PL_MATERIAL_FLAG_OUTLINE              = 1 << 21,
-    PL_MATERIAL_FLAG_CAST_SHADOW          = 1 << 22,
-    PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW  = 1 << 23
 };
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plTextureMap
+typedef struct _plMaterialClearcoat
 {
-    char             acName[PL_MAX_PATH_LENGTH];
-    plResourceHandle tResource;
-    uint32_t         uUVSet;
-    plMat4           tTransform;
-} plTextureMap;
+    float fFactor;            // default: 0.0f
+    float fRoughness;         // default: 0.0f
+    float fNormalMapStrength; // default: 1.0f
+} plMaterialClearcoat;
 
-//-----------------------------------------------------------------------------
-// [SECTION] components
-//-----------------------------------------------------------------------------
-
-typedef struct _plMaterialComponent
+typedef struct _plMaterialSheen
 {
-    plMaterialFlags tFlags;                    // default: PL_MATERIAL_FLAG_CAST_SHADOW | PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW | PL_MATERIAL_FLAG_METALLIC_ROUGHNESS
-    plShaderType    tShaderType;               // default: PL_SHADER_TYPE_PBR
-    plAlphaMode     tAlphaMode;                // default: PL_BLEND_MODE_OPAQUE
-    plVec4          tBaseColor;                // default: {1.0f, 1.0f, 1.0f, 1.0f}
-    plVec4          tEmissiveColor;            // default: {0.0f, 0.0f, 0.0f, 0.0f}
-    float           fAlphaCutoff;              // default: 0.5f
-    float           fRoughness;                // default: 1.0f
-    float           fMetalness;                // default: 1.0f
-    float           fClearcoat;                // default: 0.0f
-    float           fClearcoatRoughness;       // default: 0.0f
-    float           fSheenRoughness;           // default: 0.0f
-    float           fNormalMapStrength;        // default: 1.0f
-    float           fEmissiveStrength;         // default: 1.0f
-    float           fOcclusionStrength;        // default: 1.0f
-    plVec3          tSheenColor;               // default: {1.0f, 1.0f, 1.0f, 1.0f}
-    float           fIridescenceFactor;        // default: 0.0f
-    float           fIridescenceIor;           // default: 0.0f
-    float           fIridescenceThicknessMax;  // default: 0.0f
-    float           fIridescenceThicknessMin;  // default: 0.0f
-    float           fAnisotropyRotation;       // default: 0.0f
-    float           fAnisotropyStrength;       // default: 0.0f
-    float           fIor;                      // default: 1.5f
-    float           fDispersion;               // default: 0.0f
-    float           fThickness;                // default: 0.0f
-    float           fAttenuationDistance;      // default: 0.0f
-    plVec3          tAttenuationColor;         // default: {0.0f, 0.0f, 0.0f}
-    float           fTransmissionFactor;       // default: 0.0f
-    float           fDiffuseTransmission;      // default: 0.0f
-    plVec3          tDiffuseTransmissionColor; // default: {0.0f, 0.0f, 0.0f}
-    plTextureMap    atTextureMaps[PL_TEXTURE_SLOT_COUNT];
-} plMaterialComponent;
+    plVec3 tColor;     // default: {0.0f, 0.0f, 0.0f}
+    float  fRoughness; // default: 0.0f
+} plMaterialSheen;
+
+typedef struct _plMaterialIridescence
+{
+    float fFactor;        // default: 0.0f
+    float fIor;           // default: 1.3f
+    float fThicknessMax;  // default: 400.0f
+    float fThicknessMin;  // default: 100.0f
+} plMaterialIridescence;
+
+typedef struct _plMaterialDispersion
+{
+    float fDispersion; // default: 0.0f
+} plMaterialDispersion;
+
+typedef struct _plMaterialDiffuseTransmission
+{
+    float  fFactor; // default: 0.0f
+    plVec3 tColor;  // default: {1.0f, 1.0f, 1.0f}
+} plMaterialDiffuseTransmission;
+
+typedef struct _plMaterialTransmission
+{
+    float fFactor; // default: 0.0f
+} plMaterialTransmission;
+
+typedef struct _plMaterialVolume
+{
+    float  fThickness;           // default: 0.0f
+    float  fAttenuationDistance; // default: 100000.0f
+    plVec3 tAttenuationColor;    // default: {1.0f, 1.0f, 1.0f}
+} plMaterialVolume;
+
+typedef struct _plMaterialAnisotropy
+{
+    float fStrength; // default: 0.0f
+    float fRotation; // default: 0.0f
+} plMaterialAnisotropy;
+
+typedef struct _plMaterialTexture
+{
+    plAssetHandle tTexture;
+    uint32_t      uUVSet;
+    plVec2        tOffset;
+    plVec2        tScale;
+    float         fRotation;
+} plMaterialTexture;
+
+typedef struct _plMaterial
+{
+    plMaterialModel     eMaterialModel; // default: PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS
+    plMaterialFlags     eFlags;         // default: PL_MATERIAL_FLAG_NONE
+    plMaterialAlphaMode eAlphaMode;     // default: PL_MATERIAL_ALPHA_MODE_BLEND
+
+    // base material
+    plVec4 tBaseColor;         // default: {1.0f, 1.0f, 1.0f, 1.0f}
+    plVec3 tEmissiveColor;     // default: {0.0f, 0.0f, 0.0f}
+    float  fMetalness;         // default: 1.0f
+    float  fRoughness;         // default: 1.0f
+    float  fNormalMapStrength; // default: 1.0f
+    float  fOcclusionStrength; // default: 1.0f
+    float  fEmissiveStrength;  // default: 0.0f
+    float  fAlphaCutoff;       // default: 0.5f
+    float  fIor;               // default: 1.5f
+    
+    // advanced materials
+    plMaterialClearcoat           tClearcoat;
+    plMaterialAnisotropy          tAnisotropy;
+    plMaterialSheen               tSheen;
+    plMaterialIridescence         tIridescence;
+    plMaterialDispersion          tDispersion;
+    plMaterialTransmission        tTransmission;
+    plMaterialDiffuseTransmission tDiffuseTransmission;
+    plMaterialVolume              tVolume;
+
+    plMaterialTexture atTextures[PL_MATERIAL_TEXTURE_SLOT_COUNT];
+} plMaterial;
 
 #ifdef __cplusplus
 }
