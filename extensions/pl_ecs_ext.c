@@ -9,6 +9,7 @@ Index of this file:
 // [SECTION] global data
 // [SECTION] internal api
 // [SECTION] public api implementations
+// [SECTION] internal api implementations
 // [SECTION] extension loading
 // [SECTION] unity build
 */
@@ -30,6 +31,8 @@ Index of this file:
 #include "pl_string_intern_ext.h"
 #include "pl_platform_ext.h"
 #include "pl_json_ext.h"
+#include "pl_asset_ext.h"
+#include "pl_vfs_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -51,7 +54,9 @@ Index of this file:
     static const plTimerI*        gptTimer   = NULL;
     static const plJsonI*         gptJson    = NULL;
     static const plIOI*           gptIOI     = NULL;
+    static const plVfsI*          gptVfs     = NULL;
     static plIO*                  gptIO      = NULL;
+    static const plAssetI*        gptAsset   = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -60,21 +65,26 @@ Index of this file:
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plComponentManagerData
+{
+    plEcsLibraryDataCleanup tCleanup;
+    void* pInternal;
+} plComponentManagerData;
+
 typedef struct _plComponentManager
 {
-    plComponentLibrary* ptParentLibrary;
-    plEntity*           sbtEntities; // aligned with pComponents
-    uint32_t            uCount;
-    uint32_t            uCapacity;
-    size_t              szSize;
-    void*               pComponents; // aligned with sbtEntites
-    void*               pInternal;
+    plHashMap              tHashmap; // map entity -> index in sbtEntities/pComponents
+    plEntity*              sbtEntities; // aligned with pComponents
+    uint32_t               uCapacity;
+    void*                  pComponents; // aligned with sbtEntites
+    plComponentManagerData tUserManagerData;
 } plComponentManager;
 
 typedef struct _plEntityData
 {
-    uint32_t uGeneration;
+    uint32_t   uGeneration;
     plEntityId tId;
+    bool       bNotOwned;
 } plEntityData;
 
 typedef struct _plComponentLibrary
@@ -83,8 +93,7 @@ typedef struct _plComponentLibrary
     plHashMap           _tIdHashmap;
     plEntityData*       _sbtEntityData;
     uint32_t*           _sbtEntityFreeIndices;
-    plHashMap*          _atHashmaps; // map entity -> index in sbtEntities/pComponents
-    plComponentManager* _sbtManagers; // just for internal convenience
+    plComponentManager* _atManagers; // just for internal convenience
 } plComponentLibrary;
 
 typedef struct _plEcsContext
@@ -93,7 +102,9 @@ typedef struct _plEcsContext
     uint64_t         uLogChannel;
     plComponentDesc* sbtComponentDescriptions;
     plEcsTypeKey     tTagComponentType;
+    plEcsTypeKey     tLibraryComponentType;
     uint64_t         uRandomSeed;
+    plAssetTypeKey   tAssetTypeKey;
 } plEcsContext;
 
 //-----------------------------------------------------------------------------
@@ -106,14 +117,36 @@ static plEcsContext* gptEcsCtx = NULL;
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
+// tag component stuff
+static void pl__ecs_tag_destroy    (void*, const plComponentLibrary*);
+static void pl__ecs_tag_serialize  (void*, const plComponentLibrary*, plEntityId, plJsonObject*);
+static void pl__ecs_tag_deserialize(plJsonObject*, plComponentLibrary*, plEntityId, void*);
+static void pl__ecs_tag_clone      (const void*, plComponentLibrary*, void*, plComponentLibrary*);
+
+// library component stuff
+static void pl__ecs_library_clone      (const void*, plComponentLibrary*, void*, plComponentLibrary*);
+static void pl__ecs_library_destroy    (void*, const plComponentLibrary*);
+static void pl__ecs_library_resolve    (plComponentLibrary*, plEntityId, plHashMap64*, void*);
+static void pl__ecs_library_serialize  (void*, const plComponentLibrary*, plEntityId, plJsonObject*);
+static void pl__ecs_library_deserialize(plJsonObject*, plComponentLibrary*, plEntityId, void*);
+
+// library asset stuff
+static bool pl__ecs_asset_serialize  (const char*, const void*, plAssetEncoding);
+static bool pl__ecs_asset_deserialize(const char*, void*);
+static void pl__ecs_destroy          (void* pLibrary);
+
+// library helpers
+static void pl__ecs_resolve_components  (plComponentLibrary*, plEntity, plHashMap64*);
+static void pl__scene_ecs_add_components(plJsonObject*, plComponentLibrary*, plEntity);
+
 static inline bool
-pl_ecs_has_entity(plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity tEntity)
+pl_ecs_has_entity(const plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity tEntity)
 {
     if(!pl_ecs_is_entity_valid(ptLibrary, tEntity))
         return false;
 
     PL_ASSERT(tEntity.uIndex != UINT32_MAX);
-    return pl_hm_has_key(&ptLibrary->_atHashmaps[tType], tEntity.uIndex);
+    return pl_hm_has_key(&ptLibrary->_atManagers[tType].tHashmap, tEntity.uIndex);
 }
 
 static inline uint64_t
@@ -137,48 +170,129 @@ pl__generate_entity_id(plComponentLibrary* ptLibrary)
 
     return ulId;
 }
-
-static void
-pl__ecs_tag_cleanup(plComponentLibrary* ptLibrary)
-{
-    plTagComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = pl_ecs_get_components(ptLibrary, gptEcsCtx->tTagComponentType, (void**)&ptComponents, NULL);
-    for(uint32_t i = 0; i < uComponentCount; i++)
-    {
-        gptString->remove(ptComponents[i].pcName);
-    }
-}
-
-static void
-pl__ecs_tag_serialize(void* pComponent, plJsonObject* ptJson)
-{
-    plTagComponent* ptComponent = pComponent;
-    gptJson->add_string_member(ptJson, "name", ptComponent->pcName);
-}
-
-static void
-pl__ecs_tag_deserialize(plJsonObject* ptJson, void* pComponent)
-{
-    plTagComponent* ptComponent = pComponent;
-    char acName[256] = {0};
-    gptJson->string_member(ptJson, "name", acName, 256);
-    ptComponent->pcName = gptString->intern(acName);
-    
-}
  
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-void
-pl_ecs_set_entity_name(plComponentLibrary* ptLibrary, plEntity tEntity, const char* pcName)
+bool
+pl_ecs_merge_library(plComponentLibrary* ptLibrary, plComponentLibrary* ptPatch)
 {
-    const uint32_t uComponentTypeCount = pl_sb_size(gptEcsCtx->sbtComponentDescriptions);
-    plTagComponent* ptTagComponent = pl_ecs_get_component(ptLibrary, gptEcsCtx->tTagComponentType, tEntity);
-    pl_hm_remove_str(&ptLibrary->_atHashmaps[uComponentTypeCount], ptTagComponent->pcName);
-    gptString->remove(ptTagComponent->pcName);
-    pl_hm_insert_str(&ptLibrary->_atHashmaps[uComponentTypeCount], pcName, tEntity.uIndex);
-    gptString->intern(pcName);
+    uint32_t uPatchEntityCount = 0;
+    plEntity* atPatchEntities = NULL;
+    pl_ecs_get_entities(ptPatch, atPatchEntities, &uPatchEntityCount);
+    atPatchEntities = PL_ALLOC(uPatchEntityCount * sizeof(plEntity));
+    pl_ecs_get_entities(ptPatch, atPatchEntities, &uPatchEntityCount);
+
+    const plComponentDesc* atCompDescs = NULL;
+    uint32_t uComponentDescCount = pl_ecs_get_type_descriptions(&atCompDescs);
+
+    for(uint32_t uEntityIndex = 0; uEntityIndex < uPatchEntityCount; uEntityIndex++)
+    {
+        plEntity tPatchEntity = atPatchEntities[uEntityIndex];
+        plEntityId tEntityId = pl_ecs_get_entity_id(ptPatch, tPatchEntity);
+        plEntity tDestEntity = pl_ecs_get_entity_by_id(ptLibrary, tEntityId);
+
+        // if(ptPatch->_sbtEntityData[tPatchEntity.uIndex].bNotOwned)
+        //     continue;
+
+        bool bEntityExists = pl_ecs_is_entity_valid(ptLibrary, tDestEntity);
+
+        if(!bEntityExists)
+        {
+            plTagComponent* ptTag = pl_ecs_get_component(ptPatch, gptEcsCtx->tTagComponentType, tPatchEntity);
+            tDestEntity = pl_ecs_create_entity_with_id(ptLibrary, ptTag ? ptTag->pcName : NULL, tEntityId);
+        }
+        ptLibrary->_sbtEntityData[tDestEntity.uIndex].bNotOwned = ptPatch->_sbtEntityData[tPatchEntity.uIndex].bNotOwned;
+
+        for(uint32_t uCompIndex = 0; uCompIndex < uComponentDescCount; uCompIndex++)
+        {
+            const plComponentDesc* ptCompDesc = &atCompDescs[uCompIndex];
+
+            void* pComponentECSData = pl_ecs_get_component(ptPatch, ptCompDesc->tTypeKey, tPatchEntity);
+            if(pComponentECSData == NULL)
+                continue;
+
+            void* pDestComponentECSData = pl_ecs_get_component(ptLibrary, ptCompDesc->tTypeKey, tDestEntity);
+
+            if(pDestComponentECSData == NULL) // adding
+                pDestComponentECSData = pl_ecs_add_component(ptLibrary, ptCompDesc->tTypeKey, tDestEntity);
+            else if(ptCompDesc->destroy)
+            {
+                ptCompDesc->destroy(pDestComponentECSData, ptLibrary);
+            }
+
+            if(ptCompDesc->clone)
+            {
+                ptCompDesc->clone(pComponentECSData, ptPatch, pDestComponentECSData, ptLibrary);
+            }
+            else
+            {
+                memcpy(pDestComponentECSData, pComponentECSData, ptCompDesc->szSize);
+            }  
+        }
+    }
+
+    PL_FREE(atPatchEntities);
+    return true;
+}
+
+bool
+pl_ecs_clone_library_into(plComponentLibrary* ptLibrary, plComponentLibrary* ptSource, plHashMap64* ptEntityLookup)
+{
+    uint32_t uSourceEntityCount = 0;
+    plEntity* atSourceEntities = NULL;
+    pl_ecs_get_entities(ptSource, atSourceEntities, &uSourceEntityCount);
+    atSourceEntities = PL_ALLOC(uSourceEntityCount * sizeof(plEntity));
+    pl_ecs_get_entities(ptSource, atSourceEntities, &uSourceEntityCount);
+
+    const plComponentDesc* atCompDescs = NULL;
+    uint32_t uComponentDescCount = pl_ecs_get_type_descriptions(&atCompDescs);
+
+    for(uint32_t uEntityIndex = 0; uEntityIndex < uSourceEntityCount; uEntityIndex++)
+    {
+        plEntity tSourceEntity = atSourceEntities[uEntityIndex];
+
+        if(ptSource->_sbtEntityData[tSourceEntity.uIndex].bNotOwned)
+            continue;
+
+        plEntityId tSourceEntityId = pl_ecs_get_entity_id(ptSource, tSourceEntity);
+        plTagComponent* ptTagComp = pl_ecs_get_component(ptSource, gptEcsCtx->tTagComponentType, tSourceEntity);
+
+        plEntity tNewEntity = pl_ecs_create_entity(ptLibrary, ptTagComp ? ptTagComp->pcName : NULL);
+        plEntityId tNewEntityId = pl_ecs_get_entity_id(ptLibrary, tNewEntity);
+
+        if(ptEntityLookup)
+        {
+            pl_hm_insert(ptEntityLookup, tSourceEntityId, pl_ecs_get_entity_id(ptLibrary, tNewEntity));
+        }
+
+        for(uint32_t uCompIndex = 0; uCompIndex < uComponentDescCount; uCompIndex++)
+        {
+            const plComponentDesc* ptCompDesc = &atCompDescs[uCompIndex];
+
+            // if(ptCompDesc->tTypeKey == gptEcsCtx->tTagComponentType)
+            //     continue;
+
+            void* pComponentECSData = pl_ecs_get_component(ptSource, ptCompDesc->tTypeKey, tSourceEntity);
+            if(pComponentECSData == NULL)
+                continue;
+
+            void* pDestComponentECSData = pl_ecs_add_component(ptLibrary, ptCompDesc->tTypeKey, tNewEntity);
+            if(ptCompDesc->clone)
+            {
+                ptCompDesc->clone(pComponentECSData, ptSource, pDestComponentECSData, ptLibrary);
+            }
+            else
+            {
+                memcpy(pDestComponentECSData, pComponentECSData, ptCompDesc->szSize);
+            }  
+        }
+        ptLibrary->_sbtEntityData[tNewEntity.uIndex].bNotOwned = true;
+    }
+
+    PL_FREE(atSourceEntities);
+    return true;
 }
 
 plEntityId
@@ -239,13 +353,22 @@ void
 pl_ecs_initialize(plEcsInit tInit)
 {
     gptEcsCtx->tTagComponentType = pl_ecs_register_type((plComponentDesc){
-        .pcDisplayName = "Tag",
         .pcName        = "tag",
         .szSize        = sizeof(plTagComponent),
-        .cleanup       = pl__ecs_tag_cleanup,
-        .reset         = pl__ecs_tag_cleanup,
+        .destroy       = pl__ecs_tag_destroy,
+        .clone         = pl__ecs_tag_clone,
         .serialize     = pl__ecs_tag_serialize,
         .deserialize   = pl__ecs_tag_deserialize,
+    }, NULL);
+
+    gptEcsCtx->tLibraryComponentType = pl_ecs_register_type((plComponentDesc){
+        .pcName        = "library",
+        .szSize        = sizeof(plLibraryComponent),
+        .destroy       = pl__ecs_library_destroy,
+        .serialize     = pl__ecs_library_serialize,
+        .deserialize   = pl__ecs_library_deserialize,
+        .resolve       = pl__ecs_library_resolve,
+        .clone         = pl__ecs_library_clone,
     }, NULL);
 
     int iProcessId = 67; // TODO: add helper for actual process id
@@ -258,44 +381,48 @@ pl_ecs_get_ecs_type_key_tag(void)
     return gptEcsCtx->tTagComponentType;
 }
 
-bool
-pl_ecs_create_library(plComponentLibrary** pptLibrary)
+plEcsTypeKey
+pl_ecs_get_ecs_type_key_library(void)
+{
+    return gptEcsCtx->tLibraryComponentType;
+}
+
+plComponentLibrary*
+pl_ecs_create_library(void)
 {
 
     PL_ASSERT(gptEcsCtx->bFinalized && "ECS not finalized");
     if(!gptEcsCtx->bFinalized)
-        return false;
+        return NULL;
 
     plComponentLibrary* ptLibrary = PL_ALLOC(sizeof(plComponentLibrary));
     memset(ptLibrary, 0, sizeof(plComponentLibrary));
-    *pptLibrary = ptLibrary;
+    pl_ecs_init_library(ptLibrary);
+    return ptLibrary;
+}
 
+void
+pl_ecs_destroy_library(plComponentLibrary* ptLibrary)
+{
+    pl_ecs_cleanup_library(ptLibrary);
+    PL_FREE(ptLibrary);
+}
+
+void
+pl_ecs_init_library(plComponentLibrary* ptLibrary)
+{
     const uint32_t uComponentTypeCount = pl_sb_size(gptEcsCtx->sbtComponentDescriptions);
 
-    ptLibrary->_atHashmaps = PL_ALLOC(sizeof(plHashMap64) * (uComponentTypeCount + 1));
-    memset(ptLibrary->_atHashmaps, 0, sizeof(plHashMap64) * (uComponentTypeCount + 1));
-
-    pl_sb_resize(ptLibrary->_sbtManagers, pl_sb_size(gptEcsCtx->sbtComponentDescriptions));
-
-    // initialize component managers
-
-    for(uint32_t i = 0; i < uComponentTypeCount; i++)
-    {
-        ptLibrary->_sbtManagers[i].szSize = gptEcsCtx->sbtComponentDescriptions[i].szSize;
-        ptLibrary->_sbtManagers[i].ptParentLibrary = ptLibrary;
-        if(gptEcsCtx->sbtComponentDescriptions[i].init)
-            gptEcsCtx->sbtComponentDescriptions[i].init(ptLibrary);
-    }
+    ptLibrary->_atManagers = PL_ALLOC(pl_sb_size(gptEcsCtx->sbtComponentDescriptions) * sizeof(plComponentManager));
+    memset(ptLibrary->_atManagers, 0, pl_sb_size(gptEcsCtx->sbtComponentDescriptions) * sizeof(plComponentManager));
 
     plEntityData tEntityData = {
-        .tId = UINT64_MAX,
+        .tId         = UINT64_MAX,
         .uGeneration = UINT32_MAX-1
     };
     pl_sb_push(ptLibrary->_sbtEntityData, tEntityData);
 
     PL_LOG_INFO_API(gptLog, gptEcsCtx->uLogChannel, "initialized component library");
-
-    return true;
 }
 
 void
@@ -306,73 +433,60 @@ pl_ecs_finalize(void)
 
 
 void
-pl_ecs_set_library_type_data(plComponentLibrary* ptLibrary, plEcsTypeKey tType, void* pData)
+pl_ecs_set_library_type_data(plComponentLibrary* ptLibrary, plEcsTypeKey tType, void* pData, plEcsLibraryDataCleanup tCleanup)
 {
-    ptLibrary->_sbtManagers[tType].pInternal = pData;
+    ptLibrary->_atManagers[tType].tUserManagerData.pInternal = pData;
+    ptLibrary->_atManagers[tType].tUserManagerData.tCleanup = tCleanup;
 }
 
 void*
 pl_ecs_get_library_type_data(plComponentLibrary* ptLibrary, plEcsTypeKey tType)
 {
-    return ptLibrary->_sbtManagers[tType].pInternal;
+    return ptLibrary->_atManagers[tType].tUserManagerData.pInternal;
 }
 
 void
-pl_ecs_reset_library(plComponentLibrary* ptLibrary)
+pl_ecs_cleanup_library(plComponentLibrary* ptLibrary)
 {
-
     const uint32_t uComponentTypeCount = pl_sb_size(gptEcsCtx->sbtComponentDescriptions);
     for(uint32_t i = 0; i < uComponentTypeCount; i++)
     {
-        if(gptEcsCtx->sbtComponentDescriptions[i].reset)
-            gptEcsCtx->sbtComponentDescriptions[i].reset(ptLibrary);
-
-        ptLibrary->_sbtManagers[i].uCount = 0;
-        pl_sb_reset(ptLibrary->_sbtManagers[i].sbtEntities);
-        pl_hm_free(&ptLibrary->_atHashmaps[i]);
-    }
-    pl_hm_free(&ptLibrary->_tIdHashmap);
-    pl_hm_free(&ptLibrary->_atHashmaps[uComponentTypeCount]);
-    // general
-    pl_sb_reset(ptLibrary->_sbtEntityFreeIndices);
-    pl_sb_reset(ptLibrary->_sbtEntityData);
-    plEntityData tEntityData = {
-        .uGeneration = UINT32_MAX-1
-    };
-    pl_sb_push(ptLibrary->_sbtEntityData, tEntityData);
-}
-
-void
-pl_ecs_cleanup_library(plComponentLibrary** pptLibrary)
-{
-    plComponentLibrary* ptLibrary = *pptLibrary;
-    const uint32_t uComponentTypeCount = pl_sb_size(gptEcsCtx->sbtComponentDescriptions);
-    for(uint32_t i = 0; i < uComponentTypeCount; i++)
-    {
-        if(gptEcsCtx->sbtComponentDescriptions[i].cleanup)
-            gptEcsCtx->sbtComponentDescriptions[i].cleanup(ptLibrary);
-
-        ptLibrary->_sbtManagers[i].uCount = 0;
-        ptLibrary->_sbtManagers[i].uCapacity = 0;
-        if(ptLibrary->_sbtManagers[i].pComponents)
+        if(gptEcsCtx->sbtComponentDescriptions[i].destroy)
         {
-            PL_FREE(ptLibrary->_sbtManagers[i].pComponents);
-            ptLibrary->_sbtManagers[i].pComponents = NULL;
+            for(uint32_t j = 0; j < pl_sb_size(ptLibrary->_atManagers[i].sbtEntities); j++)
+            {
+                gptEcsCtx->sbtComponentDescriptions[i].destroy(
+                    &((uint8_t*)ptLibrary->_atManagers[i].pComponents)[j * gptEcsCtx->sbtComponentDescriptions[i].szSize],
+                    ptLibrary);
+                memset(
+                    &((uint8_t*)ptLibrary->_atManagers[i].pComponents)[j * gptEcsCtx->sbtComponentDescriptions[i].szSize],
+                0, gptEcsCtx->sbtComponentDescriptions[i].szSize);
+            }
         }
-        pl_sb_free(ptLibrary->_sbtManagers[i].sbtEntities);
-        pl_hm_free(&ptLibrary->_atHashmaps[i]);
+
+        if(ptLibrary->_atManagers[i].tUserManagerData.pInternal && ptLibrary->_atManagers[i].tUserManagerData.tCleanup)
+        {
+            ptLibrary->_atManagers[i].tUserManagerData.tCleanup(ptLibrary->_atManagers[i].tUserManagerData.pInternal);
+            ptLibrary->_atManagers[i].tUserManagerData.pInternal = NULL;
+            ptLibrary->_atManagers[i].tUserManagerData.tCleanup = NULL;
+        }
+
+        ptLibrary->_atManagers[i].uCapacity = 0;
+        if(ptLibrary->_atManagers[i].pComponents)
+        {
+            PL_FREE(ptLibrary->_atManagers[i].pComponents);
+            ptLibrary->_atManagers[i].pComponents = NULL;
+        }
+        pl_sb_free(ptLibrary->_atManagers[i].sbtEntities);
+        pl_hm_free(&ptLibrary->_atManagers[i].tHashmap);
     }
-    pl_hm_free(&ptLibrary->_atHashmaps[uComponentTypeCount]);
 
     // general
-    pl_sb_free(ptLibrary->_sbtManagers);
+    PL_FREE(ptLibrary->_atManagers);
+    ptLibrary->_atManagers = NULL;
     pl_sb_free(ptLibrary->_sbtEntityFreeIndices);
     pl_sb_free(ptLibrary->_sbtEntityData);
     pl_hm_free(&ptLibrary->_tIdHashmap);
-    PL_FREE(ptLibrary->_atHashmaps);
-
-    PL_FREE(ptLibrary);
-    *pptLibrary = NULL;
 }
 
 void
@@ -390,25 +504,12 @@ pl_ecs_cleanup(void)
 }
 
 bool
-pl_ecs_is_entity_valid(plComponentLibrary* ptLibrary, plEntity tEntity)
+pl_ecs_is_entity_valid(const plComponentLibrary* ptLibrary, plEntity tEntity)
 {
     if(tEntity.uIndex == UINT32_MAX || tEntity.uIndex >= pl_sb_size(ptLibrary->_sbtEntityData))
         return false;
     const plEntityData* ptData = &ptLibrary->_sbtEntityData[tEntity.uIndex];
     return ptData->tId != 0 && ptData->uGeneration == tEntity.uGeneration;
-}
-
-plEntity
-pl_ecs_get_entity_by_name(plComponentLibrary* ptLibrary, const char* pcName)
-{
-    const uint64_t ulHash = pl_hm_hash_str(pcName, 0);
-    uint64_t uIndex = 0;
-    const uint32_t uComponentTypeCount = pl_sb_size(gptEcsCtx->sbtComponentDescriptions);
-    if(pl_hm_has_key_ex(&ptLibrary->_atHashmaps[uComponentTypeCount], ulHash, &uIndex))
-    {
-        return (plEntity){.uIndex = (uint32_t)uIndex, .uGeneration = ptLibrary->_sbtEntityData[uIndex].uGeneration};
-    }
-    return (plEntity){UINT32_MAX, UINT32_MAX};
 }
 
 plEntity
@@ -421,22 +522,22 @@ pl_ecs_get_current_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
 }
 
 size_t
-pl_ecs_get_index(plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity tEntity)
+pl_ecs_get_index(const plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity tEntity)
 { 
     if(!pl_ecs_is_entity_valid(ptLibrary, tEntity))
-        return false;
+        return SIZE_MAX;
 
-    size_t szIndex = pl_hm_lookup(&ptLibrary->_atHashmaps[tType], (uint64_t)tEntity.uIndex);
+    size_t szIndex = pl_hm_lookup(&ptLibrary->_atManagers[tType].tHashmap, (uint64_t)tEntity.uIndex);
     return szIndex;
 }
 
 void*
-pl_ecs_get_component(plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity tEntity)
+pl_ecs_get_component(const plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity tEntity)
 {
     if(tEntity.uIndex >= pl_sb_size(ptLibrary->_sbtEntityData))
         return NULL;
 
-    plComponentManager* ptManager = &ptLibrary->_sbtManagers[tType];
+    plComponentManager* ptManager = &ptLibrary->_atManagers[tType];
 
     if(ptLibrary->_sbtEntityData[tEntity.uIndex].uGeneration != tEntity.uGeneration)
         return NULL;
@@ -451,7 +552,7 @@ pl_ecs_get_component(plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity
 }
 
 void
-pl_ecs_get_entities(plComponentLibrary* ptLibrary, plEntity* atEntitesOut, uint32_t* puEntityCount)
+pl_ecs_get_entities(const plComponentLibrary* ptLibrary, plEntity* atEntitesOut, uint32_t* puEntityCount)
 {
     if(puEntityCount)
     {
@@ -487,29 +588,29 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
     const uint32_t uComponentTypeCount = pl_sb_size(gptEcsCtx->sbtComponentDescriptions);
     pl_sb_push(ptLibrary->_sbtEntityFreeIndices, tEntity.uIndex);
 
-    // remove from tag hashmap
-    plTagComponent* ptTag = pl_ecs_get_component(ptLibrary, gptEcsCtx->tTagComponentType, tEntity);
-    if(ptTag)
-    {
-        pl_hm_remove_str(&ptLibrary->_atHashmaps[uComponentTypeCount], ptTag->pcName);
-        gptString->remove(ptTag->pcName);
-    }
-
     ptLibrary->_sbtEntityData[tEntity.uIndex].uGeneration++;
     ptLibrary->_sbtEntityData[tEntity.uIndex].tId = 0;
 
     // remove from individual managers
     for(uint32_t i = 0; i < uComponentTypeCount; i++)
     {
-        if(pl_hm_has_key(&ptLibrary->_atHashmaps[i], tEntity.uIndex))
+        if(pl_hm_has_key(&ptLibrary->_atManagers[i].tHashmap, tEntity.uIndex))
         {
-            plComponentManager* ptManager = &ptLibrary->_sbtManagers[i];
+            plComponentManager* ptManager = &ptLibrary->_atManagers[i];
+            size_t szCompSize = gptEcsCtx->sbtComponentDescriptions[i].szSize;
+
+            const uint64_t uRemovedIndex = pl_hm_lookup(&ptLibrary->_atManagers[i].tHashmap, tEntity.uIndex);
+
+            if(gptEcsCtx->sbtComponentDescriptions[i].destroy)
+            {
+                void* pComponent = &((char*)ptManager->pComponents)[szCompSize * uRemovedIndex];
+                gptEcsCtx->sbtComponentDescriptions[i].destroy(pComponent, ptLibrary);
+            }
 
             // index of component being removed
-            pl_hm_remove(&ptLibrary->_atHashmaps[i], tEntity.uIndex);
-            const uint64_t uRemovedIndex = pl_hm_get_free_index(&ptLibrary->_atHashmaps[i]);
+            pl_hm_remove(&ptLibrary->_atManagers[i].tHashmap, tEntity.uIndex);
 
-            const uint64_t uLastIndex = ptManager->uCount - 1;
+            const uint64_t uLastIndex = pl_sb_size(ptManager->sbtEntities) - 1;
 
             // move last component/entity into the hole
             if(uRemovedIndex != uLastIndex)
@@ -517,32 +618,33 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
                 const plEntity tLastEntity = ptManager->sbtEntities[uLastIndex];
 
                 // update last entity's hashmap entry to point at the hole
-                pl_hm_remove(&ptLibrary->_atHashmaps[i], tLastEntity.uIndex);
-                pl_hm_get_free_index(&ptLibrary->_atHashmaps[i]); // burn old slot
-                pl_hm_insert(&ptLibrary->_atHashmaps[i], tLastEntity.uIndex, uRemovedIndex);
+                pl_hm_remove(&ptLibrary->_atManagers[i].tHashmap, tLastEntity.uIndex);
+                pl_hm_get_free_index(&ptLibrary->_atManagers[i].tHashmap); // burn old slot
+                pl_hm_insert(&ptLibrary->_atManagers[i].tHashmap, tLastEntity.uIndex, uRemovedIndex);
 
                 // move component data
-                memmove(&((char*)ptManager->pComponents)[ptManager->szSize * uRemovedIndex],
-                    &((char*)ptManager->pComponents)[ptManager->szSize * uLastIndex],
-                    ptManager->szSize);
+                
+                memmove(
+                    &((char*)ptManager->pComponents)[szCompSize * uRemovedIndex],
+                    &((char*)ptManager->pComponents)[szCompSize * uLastIndex],
+                    szCompSize);
             }
 
             pl_sb_del_swap(ptManager->sbtEntities, uRemovedIndex);
-            ptManager->uCount--;
         }
     }
 }
 
 bool
-pl_ecs_has_component(plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity tEntity)
+pl_ecs_has_component(const plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity tEntity)
 {
     return pl_ecs_has_entity(ptLibrary, tType, tEntity);
 }
 
 uint32_t
-pl_ecs_get_components(plComponentLibrary* ptLibrary, plEcsTypeKey tType, void** ppComponentsOut, const plEntity** pptEntitiesOut)
+pl_ecs_get_components(const plComponentLibrary* ptLibrary, plEcsTypeKey tType, void** ppComponentsOut, const plEntity** pptEntitiesOut)
 {
-    plComponentManager* ptManager = &ptLibrary->_sbtManagers[tType];
+    plComponentManager* ptManager = &ptLibrary->_atManagers[tType];
     
     if(ppComponentsOut)
     {
@@ -554,7 +656,7 @@ pl_ecs_get_components(plComponentLibrary* ptLibrary, plEcsTypeKey tType, void** 
         *pptEntitiesOut = ptManager->sbtEntities;
     }
 
-    return ptManager->uCount;
+    return pl_sb_size(ptManager->sbtEntities);
 }
 
 void*
@@ -563,16 +665,16 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity
     if(tEntity.uIndex >= pl_sb_size(ptLibrary->_sbtEntityData))
         return NULL;
 
-    plComponentManager* ptManager = &ptLibrary->_sbtManagers[tType];
+    plComponentManager* ptManager = &ptLibrary->_atManagers[tType];
 
-    if(ptManager->ptParentLibrary->_sbtEntityData[tEntity.uIndex].uGeneration != tEntity.uGeneration)
+    if(ptLibrary->_sbtEntityData[tEntity.uIndex].uGeneration != tEntity.uGeneration)
         return NULL;
 
     void* pExistingComponent = pl_ecs_get_component(ptLibrary, tType, tEntity);
     if(pExistingComponent)
         return pExistingComponent;
 
-    uint64_t uComponentIndex = pl_hm_get_free_index(&ptLibrary->_atHashmaps[tType]);
+    uint64_t uComponentIndex = pl_hm_get_free_index(&ptManager->tHashmap);
     bool bAddSlot = false; // can't add component with SB without correct type
     if(uComponentIndex == UINT64_MAX)
     {
@@ -580,41 +682,41 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity
         pl_sb_add(ptManager->sbtEntities);
         bAddSlot = true;
     }
-    pl_hm_insert(&ptLibrary->_atHashmaps[tType], (uint64_t)tEntity.uIndex, uComponentIndex);
+    pl_hm_insert(&ptManager->tHashmap, (uint64_t)tEntity.uIndex, uComponentIndex);
 
     ptManager->sbtEntities[uComponentIndex] = tEntity;
 
+    size_t szCompSize = gptEcsCtx->sbtComponentDescriptions[tType].szSize;
     
     if(bAddSlot)
     {
-        ptManager->uCount++;
         if(ptManager->uCapacity == 0) // first allocation
         {
             ptManager->uCapacity = 16;
-            ptManager->pComponents = PL_ALLOC(ptManager->szSize * ptManager->uCapacity);
-            memset(ptManager->pComponents, 0, ptManager->szSize * ptManager->uCapacity);
+            ptManager->pComponents = PL_ALLOC(szCompSize * ptManager->uCapacity);
+            memset(ptManager->pComponents, 0, szCompSize * ptManager->uCapacity);
         }
 
-        if(ptManager->uCount > ptManager->uCapacity) // need to grow
+        if(pl_sb_size(ptManager->sbtEntities) > ptManager->uCapacity) // need to grow
         {
             void* pOldComponents = ptManager->pComponents;
-            ptManager->pComponents = PL_ALLOC(ptManager->szSize * ptManager->uCapacity * 2);
-            memset(ptManager->pComponents, 0, ptManager->szSize * ptManager->uCapacity * 2);
-            memcpy(ptManager->pComponents, pOldComponents, ptManager->szSize * ptManager->uCapacity);
+            ptManager->pComponents = PL_ALLOC(szCompSize * ptManager->uCapacity * 2);
+            memset(ptManager->pComponents, 0, szCompSize * ptManager->uCapacity * 2);
+            memcpy(ptManager->pComponents, pOldComponents, szCompSize * ptManager->uCapacity);
             PL_FREE(pOldComponents);
             ptManager->uCapacity *= 2;
         }
     }
-    char* pNewComponent = &((char*)ptManager->pComponents)[ptManager->szSize * uComponentIndex];
+    char* pNewComponent = &((char*)ptManager->pComponents)[szCompSize * uComponentIndex];
     if(gptEcsCtx->sbtComponentDescriptions[tType]._pTemplate)
-        memcpy(pNewComponent, gptEcsCtx->sbtComponentDescriptions[tType]._pTemplate, ptManager->szSize);
+        memcpy(pNewComponent, gptEcsCtx->sbtComponentDescriptions[tType]._pTemplate, szCompSize);
     else
-        memset(pNewComponent, 0, ptManager->szSize);
+        memset(pNewComponent, 0, szCompSize);
     return pNewComponent;
 }
 
 plEntityId
-pl_ecs_get_entity_id(plComponentLibrary* ptLibrary, plEntity tEntity)
+pl_ecs_get_entity_id(const plComponentLibrary* ptLibrary, plEntity tEntity)
 {
     if(tEntity.uIndex >= pl_sb_size(ptLibrary->_sbtEntityData))
         return UINT64_MAX;
@@ -626,7 +728,7 @@ pl_ecs_get_entity_id(plComponentLibrary* ptLibrary, plEntity tEntity)
 }
 
 plEntity
-pl_ecs_get_entity_by_id(plComponentLibrary* ptLibrary, plEntityId tId)
+pl_ecs_get_entity_by_id(const plComponentLibrary* ptLibrary, plEntityId tId)
 {
     if(pl_hm_has_key(&ptLibrary->_tIdHashmap, tId))
     {
@@ -669,24 +771,22 @@ pl_ecs_create_entity_with_id(plComponentLibrary* ptLibrary, const char* pcName, 
 
     const uint32_t uComponentTypeCount = pl_sb_size(gptEcsCtx->sbtComponentDescriptions);
 
-    char acBuffer[128] = {0};
-    if(pcName == NULL)
-    {
-        pl_sprintf(acBuffer, "No Name: %llu", tId);
-    }
-
-    plTagComponent* ptTag = pl_ecs_add_component(ptLibrary, gptEcsCtx->tTagComponentType, tNewEntity);
-    if(pcName)
-        ptTag->pcName = gptString->intern(pcName);
-    else
-        ptTag->pcName = gptString->intern(acBuffer);
+    // char acBuffer[128] = {0};
+    // if(pcName == NULL)
+    // {
+    //     pl_sprintf(acBuffer, "No Name: %llu", tId);
+    // }
 
     if(pcName)
     {
-        pl_hm_insert_str(&ptLibrary->_atHashmaps[uComponentTypeCount], ptTag->pcName, tNewEntity.uIndex);
+        plTagComponent* ptTag = pl_ecs_add_component(ptLibrary, gptEcsCtx->tTagComponentType, tNewEntity);
+        if(pcName)
+            ptTag->pcName = gptString->intern(pcName);
     }
+    // else
+    //     ptTag->pcName = gptString->intern(acBuffer);
 
-    PL_LOG_DEBUG_API_F(gptLog, gptEcsCtx->uLogChannel, "created entity: %s, %llu", ptTag->pcName, tId);
+    // PL_LOG_DEBUG_API_F(gptLog, gptEcsCtx->uLogChannel, "created entity: %s, %llu", ptTag->pcName, tId);
 
     pl_hm_insert(&ptLibrary->_tIdHashmap, tId, tNewEntity.uData);
 
@@ -705,6 +805,496 @@ pl_ecs_get_log_channel(void)
     return gptEcsCtx->uLogChannel;
 }
 
+void
+pl_ecs_register_asset_types(void)
+{
+    static const plAssetTypeDesc tDesc = {
+        .pcName          = "Component Library",
+        .pcFileExtension = "plscene",
+        .szSize          = sizeof(plComponentLibrary),
+        .serialize       = pl__ecs_asset_serialize,
+        .deserialize     = pl__ecs_asset_deserialize,
+        .cleanup         = pl__ecs_destroy
+    };
+    gptEcsCtx->tAssetTypeKey = gptAsset->register_type(tDesc);
+}
+
+plAssetTypeKey
+pl_ecs_get_asset_type_key(void)
+{
+    return gptEcsCtx->tAssetTypeKey;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api implementations
+//-----------------------------------------------------------------------------
+
+static bool
+pl__ecs_asset_serialize(const char* pcName, const void* pLibrary, plAssetEncoding eEncoding)
+{
+    if(eEncoding == PL_ASSET_ENCODING_BINARY)
+        return false;
+
+    const plComponentLibrary* ptLibrary = pLibrary;
+
+    plJsonObject* ptRoot = gptJson->new_root_object("root");
+    gptJson->add_string_member(ptRoot, "format", "plscene");
+    gptJson->add_uint32_member(ptRoot, "version", 1);
+
+    const plComponentDesc* atCompDescs = NULL;
+    uint32_t uComponentDescCount = pl_ecs_get_type_descriptions(&atCompDescs);
+
+    uint32_t uEntityCount = 0;
+    pl_ecs_get_entities(ptLibrary, NULL, &uEntityCount);
+    plEntity* atEntities = PL_ALLOC(uEntityCount * sizeof(plEntity));
+    pl_ecs_get_entities(ptLibrary, atEntities, &uEntityCount);
+
+    uint32_t uOwnedEntityCount = 0;
+    for(uint32_t uEntityIndex = 0; uEntityIndex < uEntityCount; uEntityIndex++)
+    {
+        plEntity tEntity = atEntities[uEntityIndex];
+
+        if(ptLibrary->_sbtEntityData[tEntity.uIndex].bNotOwned)
+            continue;
+        uOwnedEntityCount++;
+    }
+    
+    plJsonObject* ptJsonEntities = gptJson->add_member_array(ptRoot, "entities", uOwnedEntityCount);
+
+    uint32_t uCurrentEntityIndex = 0;
+    for(uint32_t uEntityIndex = 0; uEntityIndex < uEntityCount; uEntityIndex++)
+    {
+        
+        plEntity tEntity = atEntities[uEntityIndex];
+
+        if(ptLibrary->_sbtEntityData[tEntity.uIndex].bNotOwned)
+            continue;
+
+        plJsonObject* ptJsonNode = gptJson->member_by_index(ptJsonEntities, uCurrentEntityIndex);
+        uCurrentEntityIndex++;
+
+        plEntityId tEntityId = pl_ecs_get_entity_id(ptLibrary, tEntity);
+
+        gptJson->add_uint64_member(ptJsonNode, "id", tEntityId);
+
+        for(uint32_t uComponentIndex = 0; uComponentIndex < uComponentDescCount; uComponentIndex++)
+        {
+            const plComponentDesc* ptDesc = &atCompDescs[uComponentIndex];
+
+            if(pl_ecs_has_component(ptLibrary, ptDesc->tTypeKey, tEntity))
+            {
+                plJsonObject* ptJsonComponent = gptJson->add_member(ptJsonNode, ptDesc->pcName);
+                void* pComponent = pl_ecs_get_component(ptLibrary, ptDesc->tTypeKey, tEntity);
+                if(ptDesc->serialize)
+                {
+                    ptDesc->serialize(pComponent, ptLibrary, tEntityId, ptJsonComponent);
+                }
+                else
+                {
+                    PL_ASSERT(false && "Component needs serialization implemented");
+                }
+            }
+        }
+    }
+
+    PL_FREE(atEntities);
+
+    uint32_t uBufferSize = 0;
+    gptJson->write(ptRoot, NULL, &uBufferSize);
+    char* pcBuffer = PL_ALLOC(uBufferSize);
+    memset(pcBuffer, 0, uBufferSize);
+    gptJson->write(ptRoot, pcBuffer, &uBufferSize);
+    
+    gptVfs->register_file(pcName, false);
+    plVfsFileHandle tFileHandle = gptVfs->open_file(pcName, PL_VFS_FILE_MODE_WRITE);
+    gptVfs->write_file(tFileHandle, pcBuffer, uBufferSize);
+    gptVfs->close_file(tFileHandle);
+
+    PL_FREE(pcBuffer);
+    gptJson->unload(&ptRoot);
+    return true;
+}
+
+static void
+pl__scene_ecs_add_components(plJsonObject* ptJsonNode, plComponentLibrary* ptLibrary, plEntity tEntity)
+{
+    const plComponentDesc* atCompDescs = NULL;
+    uint32_t uComponentDescCount = pl_ecs_get_type_descriptions(&atCompDescs);
+
+    for(uint32_t uCompIndex = 0; uCompIndex < uComponentDescCount; uCompIndex++)
+    {
+        const plComponentDesc* ptCompDesc = &atCompDescs[uCompIndex];
+
+        // if(ptCompDesc->tTypeKey == gptEcsCtx->tTagComponentType)
+        //     continue;
+
+        plJsonObject* ptJsonComponent = gptJson->member(ptJsonNode, ptCompDesc->pcName);
+        if(ptJsonComponent)
+        {
+            void* pComponentECSData = pl_ecs_add_component(ptLibrary, ptCompDesc->tTypeKey, tEntity);
+            if(ptCompDesc->deserialize)
+            {
+                ptCompDesc->deserialize(ptJsonComponent, ptLibrary, pl_ecs_get_entity_id(ptLibrary, tEntity), pComponentECSData);   
+            }
+            else
+            {
+                PL_ASSERT(false && "Component needs deserialization implemented");
+            }
+        }
+    }
+}
+
+static void
+pl__ecs_resolve_components(plComponentLibrary* ptLibrary, plEntity tEntity, plHashMap64* ptHash)
+{
+    plEntityId tEntityId = pl_ecs_get_entity_id(ptLibrary, tEntity);
+
+    const plComponentDesc* atCompDescs = NULL;
+    uint32_t uComponentDescCount = pl_ecs_get_type_descriptions(&atCompDescs);
+
+    for(uint32_t uCompIndex = 0; uCompIndex < uComponentDescCount; uCompIndex++)
+    {
+        const plComponentDesc* ptCompDesc = &atCompDescs[uCompIndex];
+        void* pComponentECSData = pl_ecs_get_component(ptLibrary, ptCompDesc->tTypeKey, tEntity);
+
+        if(pComponentECSData == NULL)
+            continue;
+
+        if(ptCompDesc->resolve)
+        {
+            ptCompDesc->resolve(ptLibrary, tEntityId, ptHash, pComponentECSData);
+        }
+    }
+}
+
+static bool
+pl__ecs_asset_deserialize(const char* pcName, void* pLibrary)
+{
+    if(!gptVfs->does_file_exist(pcName))
+        return false;
+
+    plComponentLibrary* ptLibrary = pLibrary;
+    pl_ecs_init_library(ptLibrary);
+
+    char acTempBuffer0[1024] = {0};
+
+    size_t szJsonFileSize = gptVfs->get_file_size_str(pcName);
+    uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
+    memset(puFileBuffer, 0, szJsonFileSize + 1);
+
+    plVfsFileHandle tFileHandle = gptVfs->open_file(pcName, PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tFileHandle, puFileBuffer, &szJsonFileSize);
+    gptVfs->close_file(tFileHandle);
+
+    plJsonObject* ptRoot = NULL;
+    gptJson->load((const char*)puFileBuffer, &ptRoot);
+
+    uint32_t uVersion = gptJson->uint32_member(ptRoot, "version", 0);
+
+    // strncpy(acTempBuffer0, "/assets/environments/realistic.plenvironment", 1024);
+    // if(gptJson->member_exist(ptRoot, "environment"))
+    // {
+    //     gptJson->string_member(ptRoot, "environment", acTempBuffer0, 1024);
+    //     ptScene->tEnvironment = gptAsset->load(acTempBuffer0);
+    // }
+
+    // strncpy(acTempBuffer0, "/assets/settings/basic.renderer", 1024);
+    // if(gptJson->member_exist(ptRoot, "renderer"))
+    // {
+    //     gptJson->string_member(ptRoot, "renderer", acTempBuffer0, 1024);
+    //     ptScene->tRendererSettings = gptAsset->load(acTempBuffer0);
+    // }
+
+    const plComponentDesc* atCompDescs = NULL;
+    uint32_t uComponentDescCount = pl_ecs_get_type_descriptions(&atCompDescs);
+
+    uint32_t uEntityCount = 0;
+    plJsonObject* atJsonNodes = gptJson->array_member(ptRoot, "entities", &uEntityCount);
+
+    // create all entities
+    plEntity* atEntities = PL_ALLOC(uEntityCount * sizeof(plEntity));
+    for(uint32_t i = 0; i < uEntityCount; i++)
+    {
+        plJsonObject* ptJsonNode = gptJson->member_by_index(atJsonNodes, i);
+        plJsonType tJsonType = gptJson->get_type(gptJson->member(ptJsonNode, "id"));
+        uint64_t uId = gptJson->uint64_member(ptJsonNode, "id", 0);
+
+        char acName[256] = {0};
+        plJsonObject* ptJsonTag = gptJson->member(ptJsonNode, "tag");
+        if(ptJsonTag)
+        {
+            gptJson->string_member(ptJsonTag, "name", acName, 256);
+        }
+        atEntities[i] = pl_ecs_create_entity_with_id(ptLibrary, acName, uId);
+    }
+
+    // add entity components
+    for(uint32_t uEntityIndex = 0; uEntityIndex < uEntityCount; uEntityIndex++)
+    {
+        plJsonObject* ptJsonNode = gptJson->member_by_index(atJsonNodes, uEntityIndex);
+
+        plEntity tEntity = atEntities[uEntityIndex];
+        pl__scene_ecs_add_components(ptJsonNode, ptLibrary, tEntity);
+    }
+
+    // resolve references & add all components
+    for(uint32_t uEntityIndex = 0; uEntityIndex < uEntityCount; uEntityIndex++)
+    {
+        plJsonObject* ptJsonNode = gptJson->member_by_index(atJsonNodes, uEntityIndex);
+        plEntity tEntity = atEntities[uEntityIndex];
+        pl__ecs_resolve_components(ptLibrary, tEntity, NULL);
+    }
+
+    PL_FREE(atEntities);
+    PL_FREE(puFileBuffer);
+    gptJson->unload(&ptRoot);
+    return true;
+}
+
+static void
+pl__ecs_destroy(void* pLibrary)
+{
+    plComponentLibrary* ptLibrary = pLibrary;
+    pl_ecs_cleanup_library(ptLibrary);
+}
+
+static void
+pl__ecs_tag_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
+{
+    plTagComponent* ptComponent = pComponent;
+    gptJson->add_string_member(ptJson, "name", ptComponent->pcName);
+}
+
+static void
+pl__ecs_tag_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
+{
+    plTagComponent* ptComponent = pComponent;
+    char acName[256] = {0};
+    gptJson->string_member(ptJson, "name", acName, 256);
+    ptComponent->pcName = gptString->intern(acName);
+}
+
+static void
+pl__ecs_tag_destroy(void* pComponent, const plComponentLibrary* ptLibrary)
+{
+    plTagComponent* ptComponent = pComponent;
+    gptString->remove(ptComponent->pcName);
+}
+
+static void
+pl__ecs_tag_clone(const void* pSrc, plComponentLibrary* ptSrcLib, void* Dest, plComponentLibrary* ptDestLib)
+{
+    const plTagComponent* ptSrcComponent = pSrc;
+    plTagComponent* ptDestComponent = Dest;
+    ptDestComponent->pcName = gptString->intern(ptSrcComponent->pcName);
+}
+
+static void
+pl__ecs_library_clone(const void* pSource, plComponentLibrary* ptSourceLibrary, void* pDestination, plComponentLibrary* ptDestLibrary)
+{
+    const plLibraryComponent* ptSrc = pSource;
+    plLibraryComponent* ptDst = pDestination;
+
+    ptDst->tSourceLibrary = ptSrc->tSourceLibrary;
+
+    ptDst->_ptLibrary = pl_ecs_create_library();
+    pl_ecs_merge_library(ptDst->_ptLibrary, gptAsset->get_data(ptDst->tSourceLibrary));
+
+    // do NOT copy owned runtime pointers directly
+    // ptDst->ptLibrary = NULL;
+    ptDst->_ptPatchLibrary = NULL;
+    ptDst->_ptPatchHash = NULL;
+}
+
+static void
+pl__ecs_library_destroy(void* pComponent, const plComponentLibrary* ptLibrary)
+{
+    plLibraryComponent* ptComponent = pComponent;
+
+    if(ptComponent->_ptPatchHash)
+    {
+        pl_hm_free(ptComponent->_ptPatchHash);
+        PL_FREE(ptComponent->_ptPatchHash);
+        ptComponent->_ptPatchHash = NULL;
+    }
+    if(ptComponent->_ptPatchLibrary)
+    {
+        pl_ecs_destroy_library(ptComponent->_ptPatchLibrary);
+        ptComponent->_ptPatchLibrary = NULL;  
+    }
+    if(ptComponent->_ptLibrary)
+    {
+        pl_ecs_destroy_library(ptComponent->_ptLibrary);
+        ptComponent->_ptLibrary = NULL;  
+    }
+}
+
+static void
+pl__ecs_library_resolve(plComponentLibrary* ptLibrary, plEntityId tEntityId, plHashMap64* ptHashmap, void* pComponent)
+{
+    plLibraryComponent* ptComponent = pComponent;
+    plComponentLibrary* ptSrcLibrary = ptComponent->_ptLibrary;
+
+    plHashMap64 tHashmap = {0};
+    pl_ecs_clone_library_into(ptLibrary, ptSrcLibrary, &tHashmap);
+
+    uint32_t uSourceEntityCount = 0;
+    plEntity* atSourceEntities = NULL;
+    pl_ecs_get_entities(ptSrcLibrary, atSourceEntities, &uSourceEntityCount);
+    atSourceEntities = PL_ALLOC(uSourceEntityCount * sizeof(plEntity));
+    pl_ecs_get_entities(ptSrcLibrary, atSourceEntities, &uSourceEntityCount);
+
+    if(uSourceEntityCount > 0)
+    {
+        ptComponent->_ptPatchHash = PL_ALLOC(sizeof(plHashMap64));
+        memset(ptComponent->_ptPatchHash, 0, sizeof(plHashMap64));
+    }
+
+    for(uint32_t uEntityIndex = 0; uEntityIndex < uSourceEntityCount; uEntityIndex++)
+    {
+        plEntity tEntity = atSourceEntities[uEntityIndex];
+        plEntityId tOldEntityId = pl_ecs_get_entity_id(ptSrcLibrary, tEntity);
+        plEntityId tNewEntityId = pl_hm_lookup(&tHashmap, tOldEntityId);
+        plEntity tNewEntity = pl_ecs_get_entity_by_id(ptLibrary, tNewEntityId);
+        pl__ecs_resolve_components(ptLibrary, tNewEntity, &tHashmap);
+        pl_hm_insert(ptComponent->_ptPatchHash, tOldEntityId, tNewEntityId);
+    }
+
+    pl_hm_free(&tHashmap);
+    PL_FREE(atSourceEntities);
+
+    pl_ecs_destroy_library(ptComponent->_ptLibrary);
+    ptComponent->_ptLibrary = NULL;
+}
+
+static void
+pl__ecs_library_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
+{
+    plLibraryComponent* ptComponent = pComponent;
+    gptJson->add_string_member(ptJson, "library", gptAsset->get_path(ptComponent->tSourceLibrary));
+
+    if(ptComponent->_ptPatchLibrary)
+    {
+        // get patch entities
+        uint32_t uSourceEntityCount = 0;
+        plEntity* atSourceEntities = NULL;
+        pl_ecs_get_entities(ptComponent->_ptPatchLibrary, atSourceEntities, &uSourceEntityCount);
+        atSourceEntities = PL_ALLOC(uSourceEntityCount * sizeof(plEntity));
+        pl_ecs_get_entities(ptComponent->_ptPatchLibrary, atSourceEntities, &uSourceEntityCount);
+
+        const plComponentDesc* atCompDescs = NULL;
+        uint32_t uComponentDescCount = pl_ecs_get_type_descriptions(&atCompDescs);
+
+        plJsonObject* ptPatches = gptJson->add_member_array(ptJson, "patches", uSourceEntityCount);
+
+        for(uint32_t uEntityIndex = 0; uEntityIndex < uSourceEntityCount; uEntityIndex++)
+        {
+            plJsonObject* ptJsonNode = gptJson->member_by_index(ptPatches, uEntityIndex);
+
+            plEntity tSourceEntity = atSourceEntities[uEntityIndex];
+            plEntityId tPatchEntityId = pl_ecs_get_entity_id(ptComponent->_ptPatchLibrary, tSourceEntity);
+
+            plEntityId tActiveId = pl_hm_lookup(ptComponent->_ptPatchHash, tPatchEntityId);
+            plEntity tActiveEntity = pl_ecs_get_entity_by_id(ptLibrary, tActiveId);
+
+            gptJson->add_uint64_member(ptJsonNode, "id", tPatchEntityId);
+
+            for(uint32_t uComponentIndex = 0; uComponentIndex < uComponentDescCount; uComponentIndex++)
+            {
+                const plComponentDesc* ptDesc = &atCompDescs[uComponentIndex];
+
+                if(pl_ecs_has_component(ptComponent->_ptPatchLibrary, ptDesc->tTypeKey, tSourceEntity))
+                {
+                    plJsonObject* ptJsonComponent = gptJson->add_member(ptJsonNode, ptDesc->pcName);
+                    void* pPatchComponent = pl_ecs_get_component(ptLibrary, ptDesc->tTypeKey, tActiveEntity);
+                    if(ptDesc->serialize)
+                    {
+                        ptDesc->serialize(pPatchComponent, ptLibrary, tActiveId, ptJsonComponent);
+                    }
+                    else
+                    {
+                        PL_ASSERT(false && "Component needs serialization implemented");
+                    }
+                }
+            }
+        }
+
+        PL_FREE(atSourceEntities);
+    }
+}
+
+static void
+pl__ecs_library_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
+{
+    plLibraryComponent* ptComponent = pComponent;
+
+    char acTempBuffer0[1024] = {0};
+    gptJson->string_member(ptJson, "library", acTempBuffer0, 1024);
+
+    ptComponent->tSourceLibrary = gptAsset->load(acTempBuffer0); // let it map the data
+    plComponentLibrary* ptSourceLibrary = gptAsset->get_data(ptComponent->tSourceLibrary);
+
+    ptComponent->_ptLibrary = pl_ecs_create_library();
+    pl_ecs_merge_library(ptComponent->_ptLibrary, ptSourceLibrary);
+
+    uint32_t uPatchCount = 0;
+    plJsonObject* ptPatches = gptJson->array_member(ptJson, "patches", &uPatchCount);
+    if(ptPatches)
+    {
+        ptComponent->_ptPatchLibrary = pl_ecs_create_library();
+
+        const plComponentDesc* atCompDescs = NULL;
+        uint32_t uComponentDescCount = pl_ecs_get_type_descriptions(&atCompDescs);
+
+        // create all entities
+        plEntity* atEntities = PL_ALLOC(uPatchCount * sizeof(plEntity));
+        for(uint32_t i = 0; i < uPatchCount; i++)
+        {
+            plJsonObject* ptJsonNode = gptJson->member_by_index(ptPatches, i);
+            plJsonType tJsonType = gptJson->get_type(gptJson->member(ptJsonNode, "id"));
+            uint64_t uId = gptJson->uint64_member(ptJsonNode, "id", 0);
+
+            char acName[256] = {0};
+            plJsonObject* ptJsonTag = gptJson->member(ptJsonNode, "tag");
+            if(ptJsonTag)
+            {
+                gptJson->string_member(ptJsonTag, "name", acName, 256);
+            }
+            else
+            {
+                plEntity tEntity = pl_ecs_get_entity_by_id(ptComponent->_ptLibrary, uId);
+                plTagComponent* ptTagComponent = pl_ecs_get_component(ptComponent->_ptLibrary, gptEcsCtx->tTagComponentType, tEntity);
+                if(ptTagComponent)
+                {
+                    strncpy(acName, ptTagComponent->pcName, 256);
+                }
+            }
+            atEntities[i] = pl_ecs_create_entity_with_id(ptComponent->_ptPatchLibrary, acName, uId);
+        }
+
+        // add entity components
+        for(uint32_t uEntityIndex = 0; uEntityIndex < uPatchCount; uEntityIndex++)
+        {
+            plJsonObject* ptJsonNode = gptJson->member_by_index(ptPatches, uEntityIndex);
+
+            plEntity tEntity = atEntities[uEntityIndex];
+            pl__scene_ecs_add_components(ptJsonNode, ptComponent->_ptPatchLibrary, tEntity);
+        }
+
+        // resolve references & add all components
+        for(uint32_t uEntityIndex = 0; uEntityIndex < uPatchCount; uEntityIndex++)
+        {
+            plJsonObject* ptJsonNode = gptJson->member_by_index(ptPatches, uEntityIndex);
+            plEntity tEntity = atEntities[uEntityIndex];
+            pl__ecs_resolve_components(ptComponent->_ptPatchLibrary, tEntity, NULL);
+        }
+
+        PL_FREE(atEntities);
+
+        pl_ecs_merge_library(ptComponent->_ptLibrary, ptComponent->_ptPatchLibrary);
+    }
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -713,35 +1303,39 @@ void
 pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plEcsI tApi = {
-        .initialize            = pl_ecs_initialize,
-        .finalize              = pl_ecs_finalize,
-        .cleanup               = pl_ecs_cleanup,
-        .create_library        = pl_ecs_create_library,
-        .cleanup_library       = pl_ecs_cleanup_library,
-        .reset_library         = pl_ecs_reset_library,
-        .register_type         = pl_ecs_register_type,
-        .remove_entity         = pl_ecs_remove_entity,
-        .get_entity_by_name    = pl_ecs_get_entity_by_name,
-        .get_current_entity    = pl_ecs_get_current_entity,
-        .is_entity_valid       = pl_ecs_is_entity_valid,
-        .has_component         = pl_ecs_has_component,
-        .get_index             = pl_ecs_get_index,
-        .get_components        = pl_ecs_get_components,
-        .get_log_channel       = pl_ecs_get_log_channel,
-        .get_component         = pl_ecs_get_component,
-        .add_component         = pl_ecs_add_component,
-        .set_library_type_data = pl_ecs_set_library_type_data,
-        .get_library_type_data = pl_ecs_get_library_type_data,
-        .create_entity         = pl_ecs_create_entity,
-        .create_entity_with_id = pl_ecs_create_entity_with_id,
-        .get_ecs_type_key_tag  = pl_ecs_get_ecs_type_key_tag,
-        .get_entity_id         = pl_ecs_get_entity_id,
-        .get_entity_by_id      = pl_ecs_get_entity_by_id,
-        .get_type_description  = pl_ecs_get_type_description,
-        .get_entities          = pl_ecs_get_entities,
-        .generate_id           = pl_ecs_generate_id,
-        .set_entity_name       = pl_ecs_set_entity_name,
-        .get_type_descriptions = pl_ecs_get_type_descriptions
+        .initialize                = pl_ecs_initialize,
+        .finalize                  = pl_ecs_finalize,
+        .cleanup                   = pl_ecs_cleanup,
+        .destroy_library           = pl_ecs_destroy_library,
+        .create_library            = pl_ecs_create_library,
+        .init_library              = pl_ecs_init_library,
+        .cleanup_library           = pl_ecs_cleanup_library,
+        .register_type             = pl_ecs_register_type,
+        .remove_entity             = pl_ecs_remove_entity,
+        .get_current_entity        = pl_ecs_get_current_entity,
+        .is_entity_valid           = pl_ecs_is_entity_valid,
+        .has_component             = pl_ecs_has_component,
+        .get_index                 = pl_ecs_get_index,
+        .get_components            = pl_ecs_get_components,
+        .get_log_channel           = pl_ecs_get_log_channel,
+        .get_component             = pl_ecs_get_component,
+        .add_component             = pl_ecs_add_component,
+        .set_library_type_data     = pl_ecs_set_library_type_data,
+        .get_library_type_data     = pl_ecs_get_library_type_data,
+        .create_entity             = pl_ecs_create_entity,
+        .create_entity_with_id     = pl_ecs_create_entity_with_id,
+        .get_ecs_type_key_tag      = pl_ecs_get_ecs_type_key_tag,
+        .get_ecs_type_key_library  = pl_ecs_get_ecs_type_key_library,
+        .get_entity_id             = pl_ecs_get_entity_id,
+        .get_entity_by_id          = pl_ecs_get_entity_by_id,
+        .get_type_description      = pl_ecs_get_type_description,
+        .get_entities              = pl_ecs_get_entities,
+        .generate_id               = pl_ecs_generate_id,
+        .clone_library_into        = pl_ecs_clone_library_into,
+        .merge_library             = pl_ecs_merge_library,
+        .register_asset_types      = pl_ecs_register_asset_types,
+        .get_asset_type_key        = pl_ecs_get_asset_type_key,
+        .get_type_descriptions     = pl_ecs_get_type_descriptions,
     };
     pl_set_api(ptApiRegistry, plEcsI, &tApi);
 
@@ -753,6 +1347,8 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptIOI     = pl_get_api_latest(ptApiRegistry, plIOI);
     gptTimer   = pl_get_api_latest(ptApiRegistry, plTimerI);
     gptJson    = pl_get_api_latest(ptApiRegistry, plJsonI);
+    gptAsset   = pl_get_api_latest(ptApiRegistry, plAssetI);
+    gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
     gptIO = gptIOI->get_io();
     #endif
 

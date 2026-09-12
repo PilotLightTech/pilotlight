@@ -38,7 +38,6 @@ Index of this file:
 #include "pl_skeleton_ext.h"
 #include "pl_string_intern_ext.h"
 #include "pl_texture_ext.h"
-#include "pl_scene_ext.h"
 
 // shaders
 #include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
@@ -60,7 +59,6 @@ Index of this file:
     static const plEcsI*         gptEcs         = NULL;
     static const plAnimationI*   gptAnimation   = NULL;
     static const plRendererI*    gptRenderer    = NULL;
-    static const plRendererEcsI* gptRendererEcs = NULL;
     static const plMeshI*        gptMesh        = NULL;
     static const plVfsI*         gptVfs         = NULL;
     static const plMaterialI*    gptMaterial    = NULL;
@@ -70,7 +68,6 @@ Index of this file:
     static const plSkeletonI*    gptSkeleton    = NULL;
     static const plStringInternI* gptString     = NULL;
     static const plTextureI*      gptTexture    = NULL;
-    static const plSceneI*        gptScene    = NULL;
 #endif
 
 #define CGLTF_MALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
@@ -562,8 +559,8 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
             const cgltf_scene* ptGScene = &ptGltfData->scenes[i];
 
             // count scene nodes
-            plScene tScene = {0};
-            gptEcs->create_library(&tScene.ptLibrary);
+            plComponentLibrary* ptLibrary = gptEcs->create_library();
+            
 
             // first create all entities
             for(size_t szNodeIndex = 0; szNodeIndex < ptGltfData->nodes_count; szNodeIndex++)
@@ -572,31 +569,31 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
                 pl__gltf_blah(acFileNameOnly, ptNode);
                 plEntityId tEntityId = gptEcs->generate_id(NULL, gptGltfCtx->sbcPathBuffer, 0);
                 pl_sb_reset(gptGltfCtx->sbcPathBuffer);
-                gptEcs->create_entity_with_id(tScene.ptLibrary, ptNode->name, tEntityId);
+                gptEcs->create_entity_with_id(ptLibrary, ptNode->name, tEntityId);
             }
 
             uint32_t uEntityCount = 0;
-            gptEcs->get_entities(tScene.ptLibrary, NULL, &uEntityCount);
+            gptEcs->get_entities(ptLibrary, NULL, &uEntityCount);
             plEntity* atEntities = PL_ALLOC(uEntityCount * sizeof(plEntity));
-            gptEcs->get_entities(tScene.ptLibrary, atEntities, &uEntityCount);
+            gptEcs->get_entities(ptLibrary, atEntities, &uEntityCount);
 
             for(size_t szNodeIndex = 0; szNodeIndex < ptGltfData->nodes_count; szNodeIndex++)
             {
                 const cgltf_node* ptNode = &ptGltfData->nodes[szNodeIndex];
                 plEntity tEntity = atEntities[szNodeIndex];
-                plEntityId tEntityId = gptEcs->get_entity_id(tScene.ptLibrary, tEntity);
+                plEntityId tEntityId = gptEcs->get_entity_id(ptLibrary, tEntity);
                 
                 if(ptNode->parent)
                 {
                     pl__gltf_blah(acFileNameOnly, ptNode->parent);
                     plEntityId tParentId = gptEcs->generate_id(NULL, gptGltfCtx->sbcPathBuffer, 0);
                     pl_sb_reset(gptGltfCtx->sbcPathBuffer);
-                    plEntity tParentEntity = gptEcs->get_entity_by_id(tScene.ptLibrary, tParentId);
-                    gptTransform->attach_component(tScene.ptLibrary, tEntity, tParentEntity);
+                    plEntity tParentEntity = gptEcs->get_entity_by_id(ptLibrary, tParentId);
+                    gptTransform->attach_component(ptLibrary, tEntity, tParentEntity);
                 }
 
                 // TODO: find nearest transform
-                plTransformComponent* ptTransform = gptEcs->add_component(tScene.ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
+                plTransformComponent* ptTransform = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
                 ptTransform->tScale = (plVec3){1.0f, 1.0f, 1.0f};
                 ptTransform->tRotation = (plVec4){0.0f, 0.0f, 0.0f, 1.0f};
                 if(ptNode->has_rotation)    memcpy(ptTransform->tRotation.d, ptNode->rotation, sizeof(plVec4));
@@ -613,7 +610,7 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
                 if(ptNode->mesh)
                 {
 
-                    plObjectComponent* ptObject = gptEcs->add_component(tScene.ptLibrary, gptRendererEcs->get_ecs_type_key_object(), tEntity);
+                    plObjectComponent* ptObject = gptEcs->add_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), tEntity);
 
                     char acBuffer[512] = {0};
                     const cgltf_mesh* ptGltfMesh = ptNode->mesh;
@@ -637,7 +634,7 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
 
                 if(ptNode->skin)
                 {
-                    plSkinComponent* ptSkinComp = gptEcs->add_component(tScene.ptLibrary, gptSkeleton->get_ecs_type_key_skin(), tEntity);
+                    plSkinComponent* ptSkinComp = gptEcs->add_component(ptLibrary, gptSkeleton->get_ecs_type_key_skin(), tEntity);
 
                     if(ptNode->skin->name)
                     {
@@ -675,9 +672,9 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
                 ptrdiff_t tAnimationIndex = ptGltfAnimation - ptGltfData->animations;
 
                 plEntityId tEntityId = gptEcs->generate_id(NULL, ptGltfAnimation->name, 0);
-                plEntity tEntity = gptEcs->create_entity_with_id(tScene.ptLibrary, ptGltfAnimation->name, tEntityId);
+                plEntity tEntity = gptEcs->create_entity_with_id(ptLibrary, ptGltfAnimation->name, tEntityId);
 
-                plAnimationComponent* ptAnimation = gptEcs->add_component(tScene.ptLibrary, gptAnimation->get_ecs_type_key_animation(), tEntity);
+                plAnimationComponent* ptAnimation = gptEcs->add_component(ptLibrary, gptAnimation->get_ecs_type_key_animation(), tEntity);
 
                 ptAnimation->fSpeed = 1.0f;
                 ptAnimation->fBlendAmount = 1.0f;
@@ -708,10 +705,10 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
             }
 
             plAssetDesc tAssetDesc = {
-                .tType = gptScene->get_asset_type_key(),
+                .tType = gptEcs->get_asset_type_key(),
                 .pcPath = acTempBuffer
             };
-            plAssetHandle tAsset = gptAsset->create(&tAssetDesc, &tScene);
+            plAssetHandle tAsset = gptAsset->create(&tAssetDesc, ptLibrary);
             gptAsset->save(tAsset, PL_ASSET_ENCODING_AUTO);
             if(ptResults)
             {
@@ -1901,7 +1898,7 @@ void
 pl_load_gltf_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plGltfI tApi = {
-        .import                = pl_gltf_import
+        .import = pl_gltf_import
     };
     pl_set_api(ptApiRegistry, plGltfI, &tApi);
 
@@ -1913,13 +1910,11 @@ pl_load_gltf_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptMesh        = pl_get_api_latest(ptApiRegistry, plMeshI);
         gptVfs         = pl_get_api_latest(ptApiRegistry, plVfsI);
         gptMaterial    = pl_get_api_latest(ptApiRegistry, plMaterialI);
-        gptRendererEcs = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
         gptAsset       = pl_get_api_latest(ptApiRegistry, plAssetI);
         gptImage       = pl_get_api_latest(ptApiRegistry, plImageI);
         gptTransform   = pl_get_api_latest(ptApiRegistry, plTransformI);
         gptSkeleton    = pl_get_api_latest(ptApiRegistry, plSkeletonI);
         gptString      = pl_get_api_latest(ptApiRegistry, plStringInternI);
-        gptScene       = pl_get_api_latest(ptApiRegistry, plSceneI);
         gptTexture     = pl_get_api_latest(ptApiRegistry, plTextureI);
     #endif
 

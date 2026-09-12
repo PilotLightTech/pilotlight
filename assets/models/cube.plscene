@@ -5,7 +5,7 @@
         {            
             "id": 117117117117, 
             "tag": {                
-                "name": "cube"
+                "name": "Cube"
             }, 
             "transform": {                
                 "translation": [ 0, 5, 5 ], 

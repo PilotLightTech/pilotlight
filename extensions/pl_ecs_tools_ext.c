@@ -42,8 +42,8 @@ static const plMemoryI*   gptMemory = NULL;
 static const plEcsI*      gptEcs      = NULL;
 static const plAnimationI*  gptAnimation = NULL;
 static const plUiI*       gptUI       = NULL;
-static const plRendererEcsI* gptRendererEcs = NULL;
 static const plRendererEditorI* gptRendererEditor = NULL;
+static const plRendererI* gptRenderer = NULL;
 static const plPhysicsI*  gptPhysics = NULL;
 static const plCameraI*   gptCamera = NULL;
 static const plCameraEcsI*   gptCameraEcs = NULL;
@@ -144,14 +144,14 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
         // const plEcsTypeKey tTransformComponentType = gptAnimation->get_ecs_type_key_transform();
 
         const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
-        const plEcsTypeKey tObjectComponentType = gptRendererEcs->get_ecs_type_key_object();
+        const plEcsTypeKey tObjectComponentType = gptRenderer->get_ecs_type_key_object();
         const plEcsTypeKey tHierarchyComponentType = gptTransform->get_ecs_type_key_hierarchy();
         const plEcsTypeKey tSkinComponentType = gptSkeleton->get_ecs_type_key_skin();
         const plEcsTypeKey tCameraComponentType = gptCameraEcs->get_ecs_type_key();
         const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
         const plEcsTypeKey tInverseKinematicsComponentType = gptIk->get_ecs_type_key();
-        const plEcsTypeKey tLightComponentType = gptRendererEcs->get_ecs_type_key_light();
-        const plEcsTypeKey tEnvironmentProbeComponentType = gptRendererEcs->get_ecs_type_key_environment_probe();
+        const plEcsTypeKey tLightComponentType = gptRenderer->get_ecs_type_key_light();
+        const plEcsTypeKey tEnvironmentProbeComponentType = gptRenderer->get_ecs_type_key_environment_probe();
         const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
         const plEcsTypeKey tScriptComponentType = gptScript->get_ecs_type_key();
         const plEcsTypeKey tRigidBodyComponentType = gptPhysics->get_ecs_type_key_rigid_body_physics();
@@ -246,6 +246,7 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                             ptRigidComp ? PL_ICON_FA_BOXES_STACKED : "",
                             ptForceField ? PL_ICON_FA_WIND : "",
                             ptTags[i].pcName);
+                        gptUI->push_id_uint(i);
                         if(gptUI->selectable(atBuffer, &bSelected, 0))
                         {
                             if(bSelected)
@@ -261,6 +262,7 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                                 bResult = true;
                             }
                         }
+                        gptUI->pop_id();
                     }
                 }
             }
@@ -304,6 +306,8 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                             ptRigidComp ? PL_ICON_FA_BOXES_STACKED : "",
                             ptForceField ? PL_ICON_FA_WIND : "",
                             ptTags[i].pcName);
+
+                        gptUI->push_id_uint(i);
                         if(gptUI->selectable(atBuffer, &bSelected, 0))
                         {
                             if(bSelected)
@@ -319,6 +323,7 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                                 bResult = true;
                             }
                         }
+                        gptUI->pop_id();
                     }
                 }
             }
@@ -798,8 +803,8 @@ pl_load_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     #ifndef PL_UNITY_BUILD
         gptMemory         = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptRendererEcs    = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
         gptRendererEditor = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
+        gptRenderer       = pl_get_api_latest(ptApiRegistry, plRendererI);
         gptUI             = pl_get_api_latest(ptApiRegistry, plUiI);
         gptEcs            = pl_get_api_latest(ptApiRegistry, plEcsI);
         gptPhysics        = pl_get_api_latest(ptApiRegistry, plPhysicsI);

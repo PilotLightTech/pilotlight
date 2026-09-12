@@ -55,12 +55,14 @@ Index of this file:
     #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
     #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
-
-    #ifndef PL_JSON_ALLOC
-        #define PL_JSON_ALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
-        #define PL_JSON_FREE(x)  gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 #endif
+
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -84,23 +86,41 @@ static plSkeletonContext* gptSkeletonCtx = NULL;
 //-----------------------------------------------------------------------------
 
 static void
-pl__renderer_skin_cleanup(plComponentLibrary* ptLibrary)
+pl__ecs_skin_clone(const void* pSrc, plComponentLibrary* ptSrcLib, void* Dest, plComponentLibrary* ptDestLib)
 {
-    plSkinComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = gptEcs->get_components(ptLibrary, gptSkeletonCtx->tSkinComponentType, (void**)&ptComponents, NULL);
-    for(uint32_t i = 0; i < uComponentCount; i++)
-    {
-        PL_FREE(ptComponents[i]._atTextureData);
-        PL_FREE(ptComponents[i]._atJoints);
-        // PL_FREE(ptComponents[i].atInverseBindMatrices); // same allocation as "atJoints"
-        ptComponents[i]._atTextureData = NULL;
-        ptComponents[i]._atJoints = NULL;
-        ptComponents[i]._uJointCount = 0;
-    }
+    const plSkinComponent* ptSrcComponent = pSrc;
+    plSkinComponent* ptDestComponent = Dest;
+    *ptDestComponent = *ptSrcComponent;
+
+    plSkin* ptSkin = gptAsset->get_data(ptSrcComponent->tSkin);
+
+    ptDestComponent->_atJoints = PL_ALLOC(sizeof(plEntity) * ptSkin->uJointCount);
+    ptDestComponent->_atTextureData = PL_ALLOC(sizeof(plMat4) * ptSkin->uJointCount * 2);
+
+    memcpy(ptDestComponent->_atJoints, ptSrcComponent->_atJoints, ptSkin->uJointCount * sizeof(plEntity));
+    memcpy(ptDestComponent->_atTextureData, ptSrcComponent->_atTextureData, 2 * ptSkin->uJointCount * sizeof(plMat4));
 }
 
 static void
-pl__ecs_skin_serialize(void* pComponent, plJsonObject* ptJson)
+pl__renderer_skin_destroy(void* pComponent, const plComponentLibrary* ptLibrary)
+{
+    plSkinComponent* ptComponent = pComponent;
+    if(ptComponent->_atTextureData)
+    {
+        PL_FREE(ptComponent->_atTextureData);
+    }
+    if(ptComponent->_atJoints)
+    {
+        PL_FREE(ptComponent->_atJoints);
+    }
+    // PL_FREE(ptComponents[i].atInverseBindMatrices); // same allocation as "atJoints"
+    ptComponent->_atTextureData = NULL;
+    ptComponent->_atJoints = NULL;
+    ptComponent->_uJointCount = 0;
+}
+
+static void
+pl__ecs_skin_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
 {
     plSkinComponent* ptComponent = pComponent;
 
@@ -111,7 +131,7 @@ pl__ecs_skin_serialize(void* pComponent, plJsonObject* ptJson)
 }
 
 static void
-pl__ecs_skin_deserialize(plJsonObject* ptJson, void* pComponent)
+pl__ecs_skin_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plSkinComponent* ptComponent = pComponent;
 
@@ -120,17 +140,47 @@ pl__ecs_skin_deserialize(plJsonObject* ptJson, void* pComponent)
     ptComponent->tSkin = gptAsset->load(acTempBuffer0);
 }
 
+static void
+pl__ecs_skin_resolve(plComponentLibrary* ptLibrary, plEntityId tEntityId, plHashMap64* ptHashmap, void* pComponent)
+{
+    plSkinComponent* ptComponent = pComponent;
+
+    plSkin* ptSkin = gptAsset->get_data(ptComponent->tSkin);
+
+    plEntity* atJoints = PL_ALLOC(sizeof(plEntity) * ptSkin->uJointCount);
+
+    if(ptHashmap)
+    {
+        for(uint32_t i = 0; i < ptSkin->uJointCount; i++)
+        {
+            atJoints[i] = gptEcs->get_entity_by_id(ptLibrary, pl_hm_lookup(ptHashmap, ptSkin->atJoints[i]));
+        }
+    }
+    else
+    {
+        for(uint32_t i = 0; i < ptSkin->uJointCount; i++)
+        {
+            atJoints[i] = gptEcs->get_entity_by_id(ptLibrary, ptSkin->atJoints[i]);
+        }
+    }
+
+    plEntity tEntity = gptEcs->get_entity_by_id(ptLibrary, tEntityId);
+    const bool bResult = pl_skeleton_ecs_bind_skin(ptLibrary, tEntity, atJoints, ptSkin->uJointCount);
+    PL_ASSERT(bResult);
+    PL_FREE(atJoints);
+}
+
 void
 pl_skeleton_ecs_register_system(void)
 {
     const plComponentDesc tSkinDesc = {
-        .pcDisplayName  = "Skin",
         .pcName  = "skin",
         .szSize  = sizeof(plSkinComponent),
-        .cleanup = pl__renderer_skin_cleanup,
-        .reset   = pl__renderer_skin_cleanup,
+        .destroy = pl__renderer_skin_destroy,
+        .clone = pl__ecs_skin_clone,
         .serialize = pl__ecs_skin_serialize,
         .deserialize = pl__ecs_skin_deserialize,
+        .resolve = pl__ecs_skin_resolve,
     };
 
     gptSkeletonCtx->tSkinComponentType = gptEcs->register_type(tSkinDesc, NULL);

@@ -72,7 +72,6 @@ Index of this file:
 #include "pl_material_ext.h"
 #include "pl_asset_ext.h"
 #include "pl_stl_ext.h"
-#include "pl_scene_ext.h"
 #include "pl_skeleton_ext.h"
 #include "pl_texture_ext.h"
 #include "pl_json_ext.h"
@@ -149,7 +148,6 @@ Index of this file:
     static const plCollisionI*        gptCollision     = NULL;
     static const plAssetI*            gptAsset         = NULL;
     static const plStlI*              gptStl           = NULL;
-    static const plSceneI*            gptScene         = NULL;
     static const plSkeletonI*         gptSkeleton      = NULL;
     static const plTextureI*          gptTexture       = NULL;
     
@@ -641,6 +639,8 @@ typedef struct _plRefRendererData
     plEcsTypeKey tEnvironmentProbeComponentType;
     plEcsTypeKey tObjectComponentType;
     plEcsTypeKey tTerrainComponentType;
+    plEcsTypeKey tEnvironmentComponentType;
+    plEcsTypeKey tRendererComponentType;
 
     // misc
     plBufferHandle tReadbackBuffer;
@@ -741,5 +741,10 @@ static void     pl__renderer_probe_update_bindgroups     (plRenderScene*, plEnvi
 static uint32_t pl__renderer_probe_data_pack_index       (plRenderScene*, uint32_t res);
 static void     pl__renderer_probe_update_all            (plRenderScene*);
 static void     pl__renderer_probe_create_environment_map(plRenderScene*, plEnvironmentProbeData*);
+
+// ecs helpers
+static bool pl__renderer_add_drawable_objects_to_scene(plRenderScene*, uint32_t count, const plEntity* objects);
+static void pl__renderer_add_probes_to_scene          (plRenderScene*, uint32_t count, const plEntity* probes);
+static void pl__renderer_add_lights_to_scene          (plRenderScene*, uint32_t count, const plEntity* lights);
 
 #endif // PL_RENDERER_INTERNAL_H

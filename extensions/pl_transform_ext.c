@@ -121,31 +121,18 @@ pl__visit_hierarchy(plComponentLibrary* ptLibrary, plHierarchyComponent* ptCompo
             // If it does, it must be processed before us.
             // If it doesn't, then it is simply a root as far as the
             // hierarchy traversal is concerned.
-            const size_t szParentHierarchyIndex =
-                gptEcs->get_index(
-                    ptLibrary,
-                    gptTransformCtx->tHierarchyComponentType,
-                    tParent);
+            const size_t szParentHierarchyIndex = gptEcs->get_index(ptLibrary, gptTransformCtx->tHierarchyComponentType, tParent);
 
             if(szParentHierarchyIndex != SIZE_MAX)
             {
-                if(!pl__visit_hierarchy(
-                    ptLibrary,
-                    ptComponents,
-                    ptEntities,
-                    auVisitState,
-                    (uint32_t)szParentHierarchyIndex,
-                    psbtTraversalOrder))
+                if(!pl__visit_hierarchy(ptLibrary, ptComponents, ptEntities, auVisitState, (uint32_t)szParentHierarchyIndex, psbtTraversalOrder))
                 {
                     return false;
                 }
             }
 
             // Parent is now guaranteed to have been evaluated before child.
-            pl_sb_push(*psbtTraversalOrder, ((plHierarchyTraversalEntry){
-                .tEntity = tEntity,
-                .tParent = tParent
-            }));
+            pl_sb_push(*psbtTraversalOrder, ((plHierarchyTraversalEntry){.tEntity = tEntity, .tParent = tParent}));
         }
         else
         {
@@ -196,31 +183,15 @@ pl__rebuild_hierarchy_order(plComponentLibrary* ptLibrary)
 //-----------------------------------------------------------------------------
 
 static void
-pl__ecs_hierarchy_init(plComponentLibrary* ptLibrary)
+pl__ecs_hierarchy_cleanup(void* pData)
 {
-    void* pData = PL_ALLOC(sizeof(plComponentLibraryHierarchyData));
-    memset(pData, 0, sizeof(plComponentLibraryHierarchyData));
-    gptEcs->set_library_type_data(ptLibrary, gptTransformCtx->tHierarchyComponentType, pData);
-}
-
-static void
-pl__ecs_hierarchy_cleanup(plComponentLibrary* ptLibrary)
-{
-    plComponentLibraryHierarchyData* ptData = gptEcs->get_library_type_data(ptLibrary, gptTransformCtx->tHierarchyComponentType);
+    plComponentLibraryHierarchyData* ptData = pData;
     pl_sb_free(ptData->sbtTraversalOrder);
     PL_FREE(ptData);
-    gptEcs->set_library_type_data(ptLibrary, gptTransformCtx->tHierarchyComponentType, NULL);
 }
 
 static void
-pl__ecs_hierarchy_reset(plComponentLibrary* ptLibrary)
-{
-    plComponentLibraryHierarchyData* ptData = gptEcs->get_library_type_data(ptLibrary, gptTransformCtx->tHierarchyComponentType);
-    pl_sb_reset(ptData->sbtTraversalOrder);
-}
-
-static void
-pl__ecs_transform_serialize(void* pComponent, plJsonObject* ptJson)
+pl__ecs_transform_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
 {
     plTransformComponent* ptTransform = pComponent;
     gptJson->add_float_array(ptJson, "translation", ptTransform->tTranslation.d, 3);
@@ -229,7 +200,7 @@ pl__ecs_transform_serialize(void* pComponent, plJsonObject* ptJson)
 }
 
 static void
-pl__ecs_transform_deserialize(plJsonObject* ptJson, void* pComponent)
+pl__ecs_transform_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plTransformComponent* ptTransform = pComponent;
     gptJson->float_array_member(ptJson, "translation", ptTransform->tTranslation.d, NULL);
@@ -239,14 +210,14 @@ pl__ecs_transform_deserialize(plJsonObject* ptJson, void* pComponent)
 }
 
 static void
-pl__ecs_hierarchy_serialize(void* pComponent, plJsonObject* ptJson)
+pl__ecs_hierarchy_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
 {
     plHierarchyComponent* ptComponent = pComponent;
     gptJson->add_uint64_member(ptJson, "parent", ptComponent->tParentId);
 }
 
 static void
-pl__ecs_hierarchy_deserialize(plJsonObject* ptJson, void* pComponent)
+pl__ecs_hierarchy_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plHierarchyComponent* ptComponent = pComponent;
     char acTempBuffer0[1024] = {0};
@@ -260,11 +231,25 @@ pl__ecs_hierarchy_deserialize(plJsonObject* ptJson, void* pComponent)
     }
 }
 
+static void
+pl__ecs_hierarchy_resolve(plComponentLibrary* ptLibrary, plEntityId tEntityId, plHashMap64* ptHashmap, void* pComponent)
+{
+    plHierarchyComponent* ptComponent = pComponent;
+    if(ptHashmap)
+    {
+        plEntityId tOldParentID = ptComponent->tParentId;
+        ptComponent->tParentId = pl_hm_lookup(ptHashmap, tOldParentID);
+    }
+    plEntity tParent = gptEcs->get_entity_by_id(ptLibrary, ptComponent->tParentId);
+    plEntity tEntity = gptEcs->get_entity_by_id(ptLibrary, tEntityId);
+    pl_transform_attach_component(ptLibrary, tEntity, tParent);
+
+}
+
 void
 pl_transform_register_ecs_components(void)
 {
     const plComponentDesc tTransformDesc = {
-        .pcDisplayName = "Transform",
         .pcName        = "transform",
         .szSize        = sizeof(plTransformComponent),
         .serialize     = pl__ecs_transform_serialize,
@@ -280,14 +265,11 @@ pl_transform_register_ecs_components(void)
     gptTransformCtx->tTransformComponentType = gptEcs->register_type(tTransformDesc, &tTransformComponentDefault);
 
     const plComponentDesc tHierarchyDesc = {
-        .pcDisplayName = "Hierarchy",
         .pcName        = "hierarchy",
         .szSize        = sizeof(plHierarchyComponent),
-        .init          = pl__ecs_hierarchy_init,
-        .cleanup       = pl__ecs_hierarchy_cleanup,
-        .reset         = pl__ecs_hierarchy_reset,
         .serialize     = pl__ecs_hierarchy_serialize,
         .deserialize   = pl__ecs_hierarchy_deserialize,
+        .resolve       = pl__ecs_hierarchy_resolve
     };
     gptTransformCtx->tHierarchyComponentType = gptEcs->register_type(tHierarchyDesc, NULL);
 }
@@ -367,7 +349,15 @@ pl_transform_attach_component(plComponentLibrary* ptLibrary, plEntity tEntity, p
     }
     ptHierarchyComponent->tParent = tParent;
     ptHierarchyComponent->tParentId = gptEcs->get_entity_id(ptLibrary, tParent);
+
     plComponentLibraryHierarchyData* ptData = gptEcs->get_library_type_data(ptLibrary, gptTransformCtx->tHierarchyComponentType);
+    if(ptData == NULL) // lazily created
+    {
+        void* pData = PL_ALLOC(sizeof(plComponentLibraryHierarchyData));
+        memset(pData, 0, sizeof(plComponentLibraryHierarchyData));
+        gptEcs->set_library_type_data(ptLibrary, gptTransformCtx->tHierarchyComponentType, pData, pl__ecs_hierarchy_cleanup);
+        ptData = gptEcs->get_library_type_data(ptLibrary, gptTransformCtx->tHierarchyComponentType);
+    }
     ptData->bDirty = true;
 }
 
@@ -417,6 +407,14 @@ pl_transform_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     plComponentLibraryHierarchyData* ptData = gptEcs->get_library_type_data(ptLibrary, gptTransformCtx->tHierarchyComponentType);
+    if(ptData == NULL) // lazily created
+    {
+        void* pData = PL_ALLOC(sizeof(plComponentLibraryHierarchyData));
+        memset(pData, 0, sizeof(plComponentLibraryHierarchyData));
+        gptEcs->set_library_type_data(ptLibrary, gptTransformCtx->tHierarchyComponentType, pData, pl__ecs_hierarchy_cleanup);
+        ptData = gptEcs->get_library_type_data(ptLibrary, gptTransformCtx->tHierarchyComponentType);
+    }
+
     if(ptData->bDirty)
     {
         pl__rebuild_hierarchy_order(ptLibrary);

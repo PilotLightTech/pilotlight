@@ -116,17 +116,32 @@ pl_animation_get_ecs_type_key_humanoid(void)
 }
 
 static void
-pl__ecs_animation_cleanup(plComponentLibrary* ptLibrary)
+pl__ecs_animation_clone(const void* pSrc, plComponentLibrary* ptSrcLib, void* Dest, plComponentLibrary* ptDestLib)
 {
-    plAnimationComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = gptEcs->get_components(ptLibrary, gptAnimationCtx->tAnimationComponentType, (void**)&ptComponents, NULL);
-    for(uint32_t i = 0; i < uComponentCount; i++)
+    const plAnimationComponent* ptSrcComponent = pSrc;
+    plAnimationComponent* ptDestComponent = Dest;
+    *ptDestComponent = *ptSrcComponent;
+
+    ptDestComponent->atTargets = NULL;
+    ptDestComponent->atTargetIds = PL_ALLOC(ptSrcComponent->uTargetCount * sizeof(plEntityId));
+    memcpy(ptDestComponent->atTargetIds, ptSrcComponent->atTargetIds, ptSrcComponent->uTargetCount * sizeof(plEntityId));
+}
+
+static void
+pl__ecs_animation_destroy(void* pComponent, const plComponentLibrary* ptLibrary)
+{
+    plAnimationComponent* ptComponent = pComponent;
+    if(ptComponent->atTargets)
     {
-        PL_FREE(ptComponents[i].atTargets);
-        PL_FREE(ptComponents[i].atTargetIds);
-        ptComponents[i].atTargets = NULL;
-        ptComponents[i].uTargetCount = 0;
+        PL_FREE(ptComponent->atTargets);
     }
+    if(ptComponent->atTargetIds)
+    {
+        PL_FREE(ptComponent->atTargetIds);
+    }
+    ptComponent->atTargets = NULL;
+    ptComponent->atTargetIds = NULL;
+    ptComponent->uTargetCount = 0;
 }
 
 plEntity
@@ -595,7 +610,7 @@ pl__animation_deserialize(const char* pcName, void* pAnimation)
 }
 
 static void
-pl__ecs_animation_serialize(void* pComponent, plJsonObject* ptJson)
+pl__ecs_animation_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
 {
     plAnimationComponent* ptComponent = pComponent;
     gptJson->add_string_member(ptJson, "animation", gptAsset->get_path(ptComponent->tAnimation));
@@ -607,7 +622,7 @@ pl__ecs_animation_serialize(void* pComponent, plJsonObject* ptJson)
 }
 
 static void
-pl__ecs_animation_deserialize(plJsonObject* ptJson, void* pComponent)
+pl__ecs_animation_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plAnimationComponent* ptComponent = pComponent;
     if(gptJson->bool_member(ptJson, "playing", false)) ptComponent->tFlags |= PL_ANIMATION_FLAG_PLAYING;
@@ -624,7 +639,27 @@ pl__ecs_animation_deserialize(plJsonObject* ptJson, void* pComponent)
     // animation target scene references
     ptComponent->atTargetIds = PL_ALLOC(ptComponent->uTargetCount * sizeof(plEntityId));
     gptJson->uint64_array_member(ptJson, "targets", ptComponent->atTargetIds, &ptComponent->uTargetCount);
+}
 
+static void
+pl__ecs_animation_resolve(plComponentLibrary* ptLibrary, plEntityId tEntityId, plHashMap64* ptHashmap, void* pComponent)
+{
+    plAnimationComponent* ptComponent = pComponent;
+    ptComponent->atTargets = PL_ALLOC(sizeof(plEntity) * ptComponent->uTargetCount);
+    if(ptHashmap)
+    {
+        for(uint32_t i = 0; i < ptComponent->uTargetCount; i++)
+        {
+            ptComponent->atTargets[i] = gptEcs->get_entity_by_id(ptLibrary, pl_hm_lookup(ptHashmap, ptComponent->atTargetIds[i]));
+        }
+    }
+    else
+    {
+        for(uint32_t i = 0; i < ptComponent->uTargetCount; i++)
+        {
+            ptComponent->atTargets[i] = gptEcs->get_entity_by_id(ptLibrary, ptComponent->atTargetIds[i]);
+        }
+    }
 }
 
 void
@@ -635,13 +670,13 @@ pl_animation_register_ecs_components(void)
     gptAnimationCtx->tHierarchyComponentType = gptTransform->get_ecs_type_key_hierarchy();
 
     const plComponentDesc tAnimationDesc = {
-        .pcDisplayName  = "Animation",
         .pcName  = "animation",
         .szSize  = sizeof(plAnimationComponent),
-        .cleanup = pl__ecs_animation_cleanup,
-        .reset   = pl__ecs_animation_cleanup,
+        .destroy = pl__ecs_animation_destroy,
+        .clone = pl__ecs_animation_clone,
         .serialize = pl__ecs_animation_serialize,
         .deserialize = pl__ecs_animation_deserialize,
+        .resolve = pl__ecs_animation_resolve,
     };
 
     static const plAnimationComponent tAnimationComponentDefault = {
@@ -651,7 +686,6 @@ pl_animation_register_ecs_components(void)
     gptAnimationCtx->tAnimationComponentType = gptEcs->register_type(tAnimationDesc, &tAnimationComponentDefault);
 
     const plComponentDesc tHumanoidDesc = {
-        .pcDisplayName = "Humanoid",
         .pcName = "humanoid",
         .szSize = sizeof(plHumanoidComponent)
     };

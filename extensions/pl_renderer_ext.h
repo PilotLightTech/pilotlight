@@ -67,7 +67,6 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 #define plRendererI_version        {0, 3, 0}
-#define plRendererEcsI_version     {0, 1, 0}
 #define plRendererDebugI_version   {0, 1, 0}
 #define plRendererEditorI_version  {0, 1, 0}
 
@@ -125,6 +124,8 @@ typedef struct _plObjectComponent           plObjectComponent;
 typedef struct _plLightComponent            plLightComponent;
 typedef struct _plEnvironmentProbeComponent plEnvironmentProbeComponent;
 typedef struct _plTerrainComponent          plTerrainComponent;
+typedef struct _plEnvironmentComponent      plEnvironmentComponent;
+typedef struct _plRendererComponent         plRendererComponent;
 
 // enums & flags
 typedef int plLightFlags;
@@ -155,7 +156,7 @@ typedef union  plRenderPassHandle     plRenderPassHandle;   // pl_graphics_ext.h
 typedef union  plBindGroupHandle      plBindGroupHandle;    // pl_graphics_ext.h
 typedef struct _plComponentLibrary    plComponentLibrary;   // pl_ecs_ext.h
 typedef struct _plCamera              plCamera;             // pl_camera_ext.h
-typedef struct _plTerrainAsset  plTerrainAsset; // pl_terrain_ext.h
+typedef struct _plTerrainAsset        plTerrainAsset; // pl_terrain_ext.h
 typedef void* plTextureId;                                 // pl_ui_ext.h
 
 // external enums & flags
@@ -184,6 +185,7 @@ PL_API plRenderScene*             pl_renderer_create_scene (const plSceneDesc*);
 PL_API void                 pl_renderer_destroy_scene(plRenderScene*);
 PL_API plRenderSceneFlags pl_renderer_get_scene_flags(const plRenderScene*);
 PL_API void                 pl_renderer_set_scene_flags(plRenderScene*, plRenderSceneFlags);
+PL_API void                 pl_renderer_load_component_library(plRenderScene*, plComponentLibrary*);
 
 // views
 PL_API plView*           pl_renderer_create_view     (plRenderScene*, const plViewDesc*);
@@ -209,11 +211,33 @@ PL_API void          pl_renderer_set_environment(plRenderScene*, plAssetHandle);
 
 PL_API plTerrainRuntimeOptions* pl_renderer_get_terrain_options(plRenderScene*);
 
+// materials
+PL_API void pl_renderer_add_materials_to_scene(plRenderScene*, uint32_t count, const plAssetHandle* materials);
+PL_API void pl_renderer_update_scene_materials(plRenderScene*, uint32_t count, const plAssetHandle* materials);
+
 //---------------------------ASSET INTEGRATION---------------------------------
 
 PL_API void           pl_renderer_register_asset_types(void);
 PL_API plAssetTypeKey pl_renderer_get_asset_type_key_environment(void);
 PL_API plAssetTypeKey pl_renderer_get_asset_type_key_settings(void);
+
+//----------------------------ECS INTEGRATION----------------------------------
+
+// system setup/shutdown/etc
+PL_API void pl_renderer_register_ecs_components(void);
+
+// systems
+PL_API void pl_renderer_run_object_update_system           (plComponentLibrary*);
+PL_API void pl_renderer_run_light_update_system            (plComponentLibrary*);
+PL_API void pl_renderer_run_environment_probe_update_system(plComponentLibrary*);
+
+// ecs types
+PL_API plEcsTypeKey pl_renderer_get_type_key_object           (void);
+PL_API plEcsTypeKey pl_renderer_get_type_key_light            (void);
+PL_API plEcsTypeKey pl_renderer_get_type_key_environment_probe(void);
+PL_API plEcsTypeKey pl_renderer_get_type_key_terrain          (void);
+PL_API plEcsTypeKey pl_renderer_get_type_key_environment      (void);
+PL_API plEcsTypeKey pl_renderer_get_type_key_renderer         (void);
 
 //---------------------------------editor--------------------------------------
 
@@ -254,41 +278,6 @@ PL_API void pl_renderer_debug_set_scene_options (plRenderScene*, const plRendere
 PL_API void pl_renderer_debug_get_view_options(plView*, plRendererDebugViewOptions* out);
 PL_API void pl_renderer_debug_set_view_options(plView*, const plRendererDebugViewOptions*);
 
-//----------------------------ECS INTEGRATION----------------------------------
-
-// system setup/shutdown/etc
-PL_API void pl_renderer_ecs_register_ecs_components(void);
-
-// entity helpers (creates entity and necessary components)
-//   - do NOT store out parameter; use it immediately
-PL_API plEntity pl_renderer_ecs_create_object           (plComponentLibrary*, const char* name, plObjectComponent**);
-PL_API plEntity pl_renderer_ecs_create_directional_light(plComponentLibrary*, const char* name, plVec3 dir, plLightComponent**);
-PL_API plEntity pl_renderer_ecs_create_point_light      (plComponentLibrary*, const char* name, plVec3 pos, plLightComponent**);
-PL_API plEntity pl_renderer_ecs_create_spot_light       (plComponentLibrary*, const char* name, plVec3 pos, plVec3 dir, plLightComponent**);
-PL_API plEntity pl_renderer_ecs_create_environment_probe(plComponentLibrary*, const char* name, plVec3 pos, plEnvironmentProbeComponent**);
-
-// object helpers
-PL_API plEntity pl_renderer_ecs_copy_object(plComponentLibrary*, const char* name, plEntity originalObject, plObjectComponent**);
-
-// systems
-PL_API void pl_renderer_ecs_run_object_update_system           (plComponentLibrary*);
-PL_API void pl_renderer_ecs_run_light_update_system            (plComponentLibrary*);
-PL_API void pl_renderer_ecs_run_environment_probe_update_system(plComponentLibrary*);
-
-// ecs types
-PL_API plEcsTypeKey pl_renderer_ecs_get_type_key_object           (void);
-PL_API plEcsTypeKey pl_renderer_ecs_get_type_key_light            (void);
-PL_API plEcsTypeKey pl_renderer_ecs_get_type_key_environment_probe(void);
-PL_API plEcsTypeKey pl_renderer_ecs_get_type_key_terrain          (void);
-
-// scene interaction
-PL_API bool pl_renderer_ecs_add_drawable_objects_to_scene(plRenderScene*, uint32_t count, const plEntity* objects);
-PL_API void pl_renderer_ecs_add_probes_to_scene          (plRenderScene*, uint32_t count, const plEntity* probes);
-PL_API void pl_renderer_ecs_add_lights_to_scene          (plRenderScene*, uint32_t count, const plEntity* lights);
-PL_API void pl_renderer_ecs_add_terrain_to_scene         (plRenderScene*, plEntity);
-PL_API void pl_renderer_ecs_add_materials_to_scene       (plRenderScene*, uint32_t count, const plAssetHandle* materials);
-PL_API void pl_renderer_ecs_update_scene_materials       (plRenderScene*, uint32_t count, const plAssetHandle* materials);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
@@ -300,10 +289,11 @@ typedef struct _plRendererI
     void (*cleanup)   (void);
 
     // scenes
-    plRenderScene*             (*create_scene)   (const plSceneDesc*);
+    plRenderScene*       (*create_scene)   (const plSceneDesc*);
     void                 (*destroy_scene)  (plRenderScene*);
-    plRenderSceneFlags (*get_scene_flags)(const plRenderScene*);
+    plRenderSceneFlags   (*get_scene_flags)(const plRenderScene*);
     void                 (*set_scene_flags)(plRenderScene*, plRenderSceneFlags);
+    void                 (*load_component_library)(plRenderScene*, plComponentLibrary*);
 
     // views
     plView*           (*create_view)               (plRenderScene*, const plViewDesc*);
@@ -329,44 +319,31 @@ typedef struct _plRendererI
 
     plTerrainRuntimeOptions* (*get_terrain_options)(plRenderScene*);
 
+    // materials
+    void (*add_materials_to_scene)(plRenderScene*, uint32_t count, const plAssetHandle* materials);
+    void (*update_scene_materials)(plRenderScene*, uint32_t count, const plAssetHandle* materials);
+
     // assets
     void           (*register_asset_types)(void);
     plAssetTypeKey (*get_asset_type_key_environment)(void);
     plAssetTypeKey (*get_asset_type_key_settings)(void);
-} plRendererI;
 
-typedef struct _plRendererEcsI
-{
+    // ecs
     void (*register_ecs_components)(void);
     
-    // create entities for scene
-    plEntity (*create_object)           (plComponentLibrary*, const char* name, plObjectComponent**);
-    plEntity (*create_directional_light)(plComponentLibrary*, const char* name, plVec3 dir, plLightComponent**);
-    plEntity (*create_point_light)      (plComponentLibrary*, const char* name, plVec3 pos, plLightComponent**);
-    plEntity (*create_spot_light)       (plComponentLibrary*, const char* name, plVec3 pos, plVec3 dir, plLightComponent**);
-    plEntity (*create_environment_probe)(plComponentLibrary*, const char* name, plVec3 pos, plEnvironmentProbeComponent**);
-
-    // "constructing" scenes
-    bool (*add_drawable_objects_to_scene)(plRenderScene*, uint32_t count, const plEntity* objects);
-    void (*add_probes_to_scene)          (plRenderScene*, uint32_t count, const plEntity* probes);
-    void (*add_lights_to_scene)          (plRenderScene*, uint32_t count, const plEntity* lights);
-    void (*add_terrain_to_scene)         (plRenderScene*, plEntity);
-    void (*add_materials_to_scene)       (plRenderScene*, uint32_t count, const plAssetHandle* materials);
-
     // ecs system updates
     void (*run_object_update_system)           (plComponentLibrary*);
     void (*run_light_update_system)            (plComponentLibrary*);
     void (*run_environment_probe_update_system)(plComponentLibrary*);
 
     // editor helpers really
-    plEntity     (*copy_object)                       (plComponentLibrary*, const char* name, plEntity originalObject, plObjectComponent**);
     plEcsTypeKey (*get_ecs_type_key_object)           (void);
     plEcsTypeKey (*get_ecs_type_key_light)            (void);
     plEcsTypeKey (*get_ecs_type_key_environment_probe)(void);
     plEcsTypeKey (*get_ecs_type_key_terrain)          (void);
-    void         (*update_scene_materials)            (plRenderScene*, uint32_t count, const plAssetHandle* materials);
-
-} plRendererEcsI;
+    plEcsTypeKey (*get_ecs_type_key_environment)      (void);
+    plEcsTypeKey (*get_ecs_type_key_renderer)         (void);
+} plRendererI;
 
 typedef struct _plRendererDebugI
 {
@@ -414,13 +391,12 @@ typedef struct _plRendererSettings
 
 typedef struct _plSceneDesc
 {
-    plComponentLibrary* ptComponentLibrary;
-    size_t              szIndexBufferSize;      // default: 64000000
-    size_t              szVertexBufferSize;     // default: 64000000
-    size_t              szDataBufferSize;       // default: 64000000
-    size_t              szMaterialBufferSize;   // default:  8000000
-    size_t              szSkinBufferSize;       // default:  8000000
-    uint32_t            uShadowAtlasResolution; // default:    4096
+    size_t   szIndexBufferSize;      // default: 64000000
+    size_t   szVertexBufferSize;     // default: 64000000
+    size_t   szDataBufferSize;       // default: 64000000
+    size_t   szMaterialBufferSize;   // default:  8000000
+    size_t   szSkinBufferSize;       // default:  8000000
+    uint32_t uShadowAtlasResolution; // default:    4096
 } plSceneDesc;
 
 typedef struct _plViewDesc
@@ -732,6 +708,16 @@ typedef struct _plTerrainComponent
 {
     plAssetHandle tTerrain;
 } plTerrainComponent;
+
+typedef struct _plEnvironmentComponent
+{
+    plAssetHandle tEnvironment;
+} plEnvironmentComponent;
+
+typedef struct _plRendererComponent
+{
+    plAssetHandle tRenderer;
+} plRendererComponent;
 
 typedef struct _plEnvironmentProbeComponent
 {

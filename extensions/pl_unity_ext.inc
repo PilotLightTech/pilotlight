@@ -75,13 +75,11 @@ static const struct _plAudioI*             gptAudio            = 0;
 static const struct _plStageI*             gptStage            = 0;
 static const struct _plGjkI*               gptGjk              = 0;
 static const struct _plRendererI*          gptRenderer         = 0;
-static const struct _plRendererEcsI*       gptRendererEcs      = 0;
 static const struct _plRendererDebugI*     gptRendererDebug    = 0;
 static const struct _plRendererEditorI*    gptRendererEditor   = 0;
 static const struct _plIkI*                gptIk               = 0;
 static const struct _plGltfI*              gptGltf             = 0;
 static const struct _plSkeletonI*          gptSkeleton         = 0;
-static const struct _plSceneI*             gptScene            = 0;
 static const struct _plTextureI*           gptTexture          = 0;
 static const struct _plStlI*               gptStl              = 0;
 

@@ -81,7 +81,6 @@ extension_headers = [
     "pl_skeleton_ext.h",
     "pl_gltf_ext.h",
     "pl_stl_ext.h",
-    "pl_scene_ext.h",
     "pl_asset_ext.h",
 ]
 
@@ -140,7 +139,6 @@ extensions = [
     "pl_skeleton_ext",
     "pl_gltf_ext",
     "pl_stl_ext",
-    "pl_scene_ext",
     "pl_ui_ext"
 ]
 

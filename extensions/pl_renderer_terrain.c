@@ -196,6 +196,7 @@ pl__renderer_terrain_destroy(plTerrain* ptTerrain)
 
     for(uint32_t i = 0; i < pl_sb_size(ptTerrain->sbtChunkFiles); i++)
     {
+        gptTerrain->unload_chunk_file(&ptTerrain->sbtChunkFiles[i].tFile);
         PL_FREE(ptTerrain->sbtChunkFiles[i].tFile.atChunks);
         ptTerrain->sbtChunkFiles[i].tFile.atChunks = NULL;
         ptTerrain->sbtChunkFiles[i].tFile.uChunkCount = 0;

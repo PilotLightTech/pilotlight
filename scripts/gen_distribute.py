@@ -150,7 +150,6 @@ with pl.project("pilotlight deploy"):
         "pl_skeleton_ext",
         "pl_json_ext",
         "pl_stl_ext",
-        "pl_scene_ext",
         "pl_texture_ext",
     ]
 

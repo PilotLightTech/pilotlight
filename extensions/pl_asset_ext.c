@@ -237,23 +237,23 @@ pl_asset_create(const plAssetDesc* ptDesc, const void* pData)
     tNewAsset.uIndex      = (uint32_t)uIndex;
     tNewAsset.uGeneration = gptAssetCtx->sbtAssetGenerations[uIndex];
 
-    if(pData)
-    {
-        plAssetRegisteredType* ptType = &gptAssetCtx->sbtTypeDescriptions[ptDesc->tType];
+    plAssetRegisteredType* ptType = &gptAssetCtx->sbtTypeDescriptions[ptDesc->tType];
 
-        if(ptAsset->uDataIndex == UINT32_MAX)
+    if(ptAsset->uDataIndex == UINT32_MAX)
+    {
+        if(pl_sb_size(ptType->sbtFreeSlots) > 0)
         {
-            if(pl_sb_size(ptType->sbtFreeSlots) > 0)
-            {
-                ptAsset->uDataIndex = pl_sb_pop(ptType->sbtFreeSlots);
-            }
-            else
-            {
-                ptAsset->uDataIndex = ptType->uCount++;
-                pl__ensure_asset_capacity(ptType, ptAsset->uDataIndex);
-            }
-            memcpy(&((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize], pData, ptType->tDesc.szSize);
+            ptAsset->uDataIndex = pl_sb_pop(ptType->sbtFreeSlots);
         }
+        else
+        {
+            ptAsset->uDataIndex = ptType->uCount++;
+            pl__ensure_asset_capacity(ptType, ptAsset->uDataIndex);
+        }
+        if(pData)
+            memcpy(&((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize], pData, ptType->tDesc.szSize);
+        else
+            memset(&((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize], 0, ptType->tDesc.szSize);
     }
     return tNewAsset;
 }

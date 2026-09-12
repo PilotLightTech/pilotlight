@@ -72,7 +72,6 @@ Index of this file:
 #include "pl_asset_ext.c"
 #include "pl_gltf_ext.c"
 #include "pl_skeleton_ext.c"
-#include "pl_scene_ext.c"
 #include "pl_texture_ext.c"
 #include "pl_stl_ext.c"
 
@@ -371,7 +370,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptStage             = pl_get_api_latest(ptApiRegistry, plStageI);
     gptGjk               = pl_get_api_latest(ptApiRegistry, plGjkI);
     gptRenderer          = pl_get_api_latest(ptApiRegistry, plRendererI);
-    gptRendererEcs       = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
     gptRendererDebug     = pl_get_api_latest(ptApiRegistry, plRendererDebugI);
     gptRendererEditor    = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
     gptShader            = pl_get_api_latest(ptApiRegistry, plShaderI);
@@ -380,7 +378,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptAsset             = pl_get_api_latest(ptApiRegistry, plAssetI);
     gptGltf              = pl_get_api_latest(ptApiRegistry, plGltfI);
     gptSkeleton          = pl_get_api_latest(ptApiRegistry, plSkeletonI);
-    gptScene             = pl_get_api_latest(ptApiRegistry, plSceneI);
     gptTexture           = pl_get_api_latest(ptApiRegistry, plTextureI);
     gptTimer             = pl_get_api_latest(ptApiRegistry, plTimerI);
     gptJson              = pl_get_api_latest(ptApiRegistry, plJsonI);
@@ -436,7 +433,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_asset_ext(ptApiRegistry, bReload);
     pl_load_gltf_ext(ptApiRegistry, bReload);
     pl_load_skeleton_ext(ptApiRegistry, bReload);
-    pl_load_scene_ext(ptApiRegistry, bReload);
     pl_load_texture_ext(ptApiRegistry, bReload);
     pl_load_json_ext(ptApiRegistry, bReload);
     pl_load_stl_ext(ptApiRegistry, bReload);
@@ -448,7 +444,6 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_stl_ext(ptApiRegistry, bReload);
     pl_unload_json_ext(ptApiRegistry, bReload);
     pl_unload_texture_ext(ptApiRegistry, bReload);
-    pl_unload_scene_ext(ptApiRegistry, bReload);
     pl_unload_skeleton_ext(ptApiRegistry, bReload);
     pl_unload_gltf_ext(ptApiRegistry, bReload);
     pl_unload_asset_ext(ptApiRegistry, bReload);

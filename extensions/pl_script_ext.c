@@ -125,7 +125,7 @@ pl_script_load(plComponentLibrary* ptLibrary, plEntity tEntity)
 }
 
 static void
-pl__ecs_script_serialize(void* pComponent, plJsonObject* ptJson)
+pl__ecs_script_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
 {
     plScriptComponent* ptComponent = pComponent;
     gptJson->add_string_member(ptJson, "file", ptComponent->pcPath);
@@ -135,7 +135,7 @@ pl__ecs_script_serialize(void* pComponent, plJsonObject* ptJson)
 }
 
 static void
-pl__ecs_script_deserialize(plJsonObject* ptJson, void* pComponent)
+pl__ecs_script_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plScriptComponent* ptComponent = pComponent;
     char acTempBuffer0[1024] = {0};
@@ -146,16 +146,24 @@ pl__ecs_script_deserialize(plJsonObject* ptJson, void* pComponent)
     if(gptJson->bool_member(ptJson, "reloadable", false)) ptComponent->tFlags |= PL_SCRIPT_FLAG_RELOADABLE;
 }
 
+static void
+pl__ecs_script_resolve(plComponentLibrary* ptLibrary, plEntityId tEntityId, plHashMap64* ptHashmap, void* pComponent)
+{
+    plScriptComponent* ptComponent = pComponent;
+    plEntity tEntity = gptEcs->get_entity_by_id(ptLibrary, tEntityId);
+    pl_script_load(ptLibrary, tEntity);
+}
+
 void
 pl_script_register_ecs_components(void)
 {
 
     const plComponentDesc tScriptDesc = {
-        .pcDisplayName = "Script",
         .pcName = "script",
         .szSize = sizeof(plScriptComponent),
         .serialize = pl__ecs_script_serialize,
         .deserialize = pl__ecs_script_deserialize,
+        .resolve = pl__ecs_script_resolve,
     };
     gptScriptCtx->tComponentType = gptEcs->register_type(tScriptDesc, NULL);
 }

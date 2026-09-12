@@ -75,7 +75,6 @@ Index of this file:
 #include "pl_script_ext.h"
 #include "pl_asset_ext.h"
 #include "pl_ik_ext.h"
-#include "pl_scene_ext.h"
 #include "pl_skeleton_ext.h"
 #include "pl_texture_ext.h"
 #include "pl_terrain_ext.h"
@@ -132,13 +131,11 @@ const plDateTimeI*          gptDateTime         = nullptr;
 const plCompressI*          gptCompress         = nullptr;
 const plMaterialI*          gptMaterial         = nullptr;
 const plScriptI*            gptScript           = nullptr;
-const plRendererEcsI*       gptRendererEcs      = nullptr;
 const plRendererDebugI*     gptRendererDebug    = nullptr;
 const plRendererEditorI*    gptRendererEditor   = nullptr;
 const plAssetI*             gptAsset            = nullptr;
 const plTransformI*         gptTransform        = nullptr;
 const plIkI*                gptIk               = nullptr;
-const plSceneI*             gptScene            = nullptr;
 const plSkeletonI*          gptSkeleton         = nullptr;
 const plTextureI*           gptTexture          = nullptr;
 const plTerrainI*           gptTerrain          = nullptr;

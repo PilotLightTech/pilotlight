@@ -435,6 +435,13 @@ pl_terrain_load_chunk_file(const char* pcPath, plTerrainChunkFile* ptFile, uint3
     return true;
 }
 
+void
+pl_terrain_unload_chunk_file(plTerrainChunkFile* ptFile)
+{
+    PL_FREE(ptFile->atChunks);
+    ptFile->atChunks = NULL;
+}
+
 static void
 pl__chlod_read_chunk(plTerrainChunkFile* ptFileOut, int iRecurseCount, FILE* ptDataFile, uint32_t* puCurrentChunk)
 {
@@ -486,6 +493,21 @@ pl__terrain_serialize(const char* pcName, const void* pTerrain, plAssetEncoding 
     return false;
 }
 
+static void
+pl__terrain_cleanup(void* pTerrain)
+{
+    plTerrainAsset* ptTerrain = pTerrain;
+
+    // for(uint32_t i = 0; i < ptTerrain->uTileCount; i++)
+    // {
+    //     plTerrainProcessTileInfo* ptTile = &ptTerrain->atTiles[i];
+    //     ptTile->
+    // }
+
+    PL_FREE(ptTerrain->atTiles);
+    ptTerrain->atTiles = NULL;
+}
+
 static bool
 pl__terrain_deserialize(const char* pcName, void* pTerrain)
 {
@@ -515,7 +537,7 @@ pl__terrain_deserialize(const char* pcName, void* pTerrain)
 
         plJsonObject* ptRoot = NULL;
         gptJson->load((const char*)puFileBuffer, &ptRoot);
-
+        
         ptTerrain->fMetersPerPixel = gptJson->float_member(ptRoot, "meters_per_pixel", 1.0f);
         ptTerrain->uSize = gptJson->uint32_member(ptRoot, "tile_size", 4096);
 
@@ -550,6 +572,7 @@ pl__terrain_deserialize(const char* pcName, void* pTerrain)
         }
 
         PL_FREE(puFileBuffer);
+        gptJson->unload(&ptRoot);
     }
 
     gptVfs->close_file(tFileHandle);
@@ -1451,6 +1474,7 @@ pl_terrain_register_asset_type(void)
         .pcFileExtension = "plterrain",
         .szSize          = sizeof(plTerrainAsset),
         .serialize       = pl__terrain_serialize,
+        .cleanup         = pl__terrain_cleanup,
         .deserialize     = pl__terrain_deserialize,
     };
     gptTerrainCtx->tAssetTypeKey = gptAsset->register_type(tDesc);
@@ -1472,6 +1496,7 @@ pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plTerrainI tApi = {
         .process         = pl_terrain_process,
         .load_chunk_file = pl_terrain_load_chunk_file,
+        .unload_chunk_file = pl_terrain_unload_chunk_file,
         .register_asset_types = pl_terrain_register_asset_type,
         .get_asset_type_key = pl_terrain_get_asset_type_key
     };

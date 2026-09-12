@@ -149,7 +149,7 @@ pl__quat_from_mat3_basis(plVec3 right, plVec3 up, plVec3 forward)
 }
 
 static void
-pl__ecs_camera_serialize(void* pComponent, plJsonObject* ptJson)
+pl__ecs_camera_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
 {
     plCamera* ptComponent = pComponent;
 
@@ -183,7 +183,7 @@ pl__ecs_camera_serialize(void* pComponent, plJsonObject* ptJson)
 }
 
 static void
-pl__ecs_camera_deserialize(plJsonObject* ptJson, void* pComponent)
+pl__ecs_camera_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plCamera* ptComponent = pComponent;
 
@@ -219,6 +219,11 @@ pl__ecs_camera_deserialize(plJsonObject* ptJson, void* pComponent)
     ptComponent->fPitch = gptJson->float_member(ptJson, "pitch", 0.0f);
     ptComponent->fYaw = gptJson->float_member(ptJson, "yaw", 0.0f);
     gptJson->double_array_member(ptJson, "position", ptComponent->tPosition.d, NULL);
+
+    pl_camera_set_position(ptComponent, ptComponent->tPosition);
+    pl_camera_set_euler(ptComponent, ptComponent->fPitch, ptComponent->fYaw, ptComponent->fRoll);
+    ptComponent->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_ALL;
+    pl_camera_update(ptComponent);
 }
 
 //-----------------------------------------------------------------------------
@@ -679,7 +684,6 @@ void
 pl_camera_ecs_register_ecs_components(void)
 {
     static const plComponentDesc tDesc = {
-        .pcDisplayName = "Camera",
         .pcName        = "camera",
         .szSize        = sizeof(plCamera),
         .serialize     = pl__ecs_camera_serialize,

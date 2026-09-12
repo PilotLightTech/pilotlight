@@ -190,18 +190,17 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptAnimation->register_asset_types();
     gptMesh->register_asset_types();
     gptSkeleton->register_asset_types();
-    gptScene->register_asset_types();
+    gptEcs->register_asset_types();
     gptTerrain->register_asset_types();
     gptRenderer->register_asset_types();
     gptAsset->finalize();
 
     // initialize ecs component library
     gptEcs->initialize({});
-    gptScene->register_ecs_components();
     gptIk->register_ecs_components();
     gptSkeleton->register_ecs_components();
     gptTransform->register_ecs_components();
-    gptRendererEcs->register_ecs_components();
+    gptRenderer->register_ecs_components();
     gptScript->register_ecs_components();
     gptAnimation->register_ecs_components();
     gptCameraEcs->register_ecs_components();
@@ -367,7 +366,7 @@ pl_app_shutdown(plAppData* ptAppData)
     // if(ptAppData->tTestWorld.ptScene)
     //     gptScene->serialize("/assets/scenes/helmet.plscene", gptEcs->get_default_library());
 
-    gptAsset->cleanup();
+    
 
     gptDearImGui->cleanup();
 
@@ -392,7 +391,9 @@ pl_app_shutdown(plAppData* ptAppData)
     }
     //     gptRenderer->unload_test_world(&ptAppData->tTestWorld);
 
+    gptAsset->cleanup();
     gptEcs->cleanup();
+    
     gptRenderer->cleanup();
     gptShaderVariant->cleanup();
     gptStarter->cleanup();
@@ -480,8 +481,8 @@ pl_app_update(plAppData* ptAppData)
 
     if(ptAppData->ptScene)
     {
-        plScene* ptScene = (plScene*)gptAsset->get_data(ptAppData->tSceneHandle);
-        plCamera* ptCamera = (plCamera*)gptEcs->get_component(ptScene->ptLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera);
+        plComponentLibrary* ptLibrary = (plComponentLibrary*)gptAsset->get_data(ptAppData->tSceneHandle);
+        plCamera* ptCamera = (plCamera*)gptEcs->get_component(ptLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera);
 
         if(ptAppData->tMode == PL_SANDBOX_MODE_EDITOR)
             gptCamera->set_viewport(ptCamera, (ptIO->tMainViewportSize.x * ptAppData->tView0Scale.x), (ptIO->tMainViewportSize.y * ptAppData->tView0Scale.y));
@@ -519,17 +520,17 @@ pl_app_update(plAppData* ptAppData)
 
         // run ecs system
         PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Run ECS");
-        gptScript->run_update_system(ptScene->ptLibrary);
-        gptAnimation->run_animation_update_system(ptScene->ptLibrary, ptIO->fDeltaTime);
-        gptPhysics->update(ptIO->fDeltaTime, ptScene->ptLibrary);
-        gptTransform->run_transform_update_system(ptScene->ptLibrary);
-        gptTransform->run_hierarchy_update_system(ptScene->ptLibrary);
-        gptRendererEcs->run_light_update_system(ptScene->ptLibrary);
-        gptCameraEcs->run_ecs(ptScene->ptLibrary);
-        gptIk->run_ecs_update_system(ptScene->ptLibrary);
-        gptSkeleton->run_skin_update_system(ptScene->ptLibrary);
-        gptRendererEcs->run_object_update_system(ptScene->ptLibrary);
-        gptRendererEcs->run_environment_probe_update_system(ptScene->ptLibrary); // run after object update
+        gptScript->run_update_system(ptLibrary);
+        gptAnimation->run_animation_update_system(ptLibrary, ptIO->fDeltaTime);
+        gptPhysics->update(ptIO->fDeltaTime, ptLibrary);
+        gptTransform->run_transform_update_system(ptLibrary);
+        gptTransform->run_hierarchy_update_system(ptLibrary);
+        gptRenderer->run_light_update_system(ptLibrary);
+        gptCameraEcs->run_ecs(ptLibrary);
+        gptIk->run_ecs_update_system(ptLibrary);
+        gptSkeleton->run_skin_update_system(ptLibrary);
+        gptRenderer->run_object_update_system(ptLibrary);
+        gptRenderer->run_environment_probe_update_system(ptLibrary); // run after object update
         PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 
         if(ptAppData->tMode != PL_SANDBOX_MODE_GAME)
@@ -548,8 +549,8 @@ pl_app_update(plAppData* ptAppData)
                     gptScreenLog->add_message_ex(565168477883, 5.0, PL_COLOR_32_RED, 1.0f, "Selected Entity {%u, %u}", tNextEntity.uIndex, tNextEntity.uGeneration);
                     gptRendererEditor->outline_entities(ptAppData->ptScene, 1, &tNextEntity);
                     ptAppData->tSelectedEntity = tNextEntity;
-                    gptPhysics->set_angular_velocity(ptScene->ptLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
-                    gptPhysics->set_linear_velocity(ptScene->ptLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
+                    gptPhysics->set_angular_velocity(ptLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
+                    gptPhysics->set_linear_velocity(ptLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
                 }
 
             }
@@ -559,7 +560,7 @@ pl_app_update(plAppData* ptAppData)
 
             if(ptAppData->bShowEntityWindow)
             {
-                if(gptEcsTools->show_window(ptScene->ptLibrary, &ptAppData->tSelectedEntity, ptAppData->ptScene, &ptAppData->bShowEntityWindow))
+                if(gptEcsTools->show_window(ptLibrary, &ptAppData->tSelectedEntity, ptAppData->ptScene, &ptAppData->bShowEntityWindow))
                 {
                     if(ptAppData->tSelectedEntity.uData == UINT64_MAX)
                     {
@@ -572,16 +573,16 @@ pl_app_update(plAppData* ptAppData)
                 }
             }
 
-            if(gptEcs->is_entity_valid(ptScene->ptLibrary, ptAppData->tSelectedEntity))
+            if(gptEcs->is_entity_valid(ptLibrary, ptAppData->tSelectedEntity))
             {
                 plDrawList3D* ptGizmoDrawlist =  gptRendererEditor->get_gizmo_drawlist(ptAppData->ptView);
-                plObjectComponent* ptSelectedObject = (plObjectComponent*)gptEcs->get_component(ptScene->ptLibrary, gptRendererEcs->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
-                plTransformComponent* ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptScene->ptLibrary, gptTransform->get_ecs_type_key_transform(), ptAppData->tSelectedEntity);
+                plObjectComponent* ptSelectedObject = (plObjectComponent*)gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
+                plTransformComponent* ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), ptAppData->tSelectedEntity);
                 plTransformComponent* ptParentTransform = nullptr;
-                plHierarchyComponent* ptHierarchyComp = (plHierarchyComponent*)gptEcs->get_component(ptScene->ptLibrary, gptTransform->get_ecs_type_key_hierarchy(), ptAppData->tSelectedEntity);
+                plHierarchyComponent* ptHierarchyComp = (plHierarchyComponent*)gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_hierarchy(), ptAppData->tSelectedEntity);
                 if(ptHierarchyComp)
                 {
-                    ptParentTransform = (plTransformComponent*)gptEcs->get_component(ptScene->ptLibrary, gptTransform->get_ecs_type_key_transform(), ptHierarchyComp->tParent);
+                    ptParentTransform = (plTransformComponent*)gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), ptHierarchyComp->tParent);
                 }
                 if(ptSelectedTransform)
                 {
@@ -589,7 +590,7 @@ pl_app_update(plAppData* ptAppData)
                 }
                 else if(ptSelectedObject)
                 {
-                    ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptScene->ptLibrary, gptTransform->get_ecs_type_key_transform(), ptSelectedObject->tTransform);
+                    ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), ptSelectedObject->tTransform);
                     gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, ptAppData->tView0Offset, ptAppData->tView0Scale);
                 }
             }
@@ -597,14 +598,14 @@ pl_app_update(plAppData* ptAppData)
             if(ptAppData->bPhysicsDebugDraw)
             {
                 plDrawList3D* ptDrawlist = gptRendererDebug->get_drawlist(ptAppData->ptView);
-                gptPhysics->draw(ptScene->ptLibrary, ptDrawlist);
+                gptPhysics->draw(ptLibrary, ptDrawlist);
             }
 
             // debug rendering
             if(ptAppData->bShowDebugLights)
             {
                 plLightComponent* ptLights = nullptr;
-                const uint32_t uLightCount = gptEcs->get_components(ptScene->ptLibrary, gptRendererEcs->get_ecs_type_key_light(), (void**)&ptLights, nullptr);
+                const uint32_t uLightCount = gptEcs->get_components(ptLibrary, gptRenderer->get_ecs_type_key_light(), (void**)&ptLights, nullptr);
                 gptRendererDebug->draw_lights(ptAppData->ptView, ptLights, uLightCount);
                 // gptRendererDebug->draw_lights(ptAppData->ptSecondaryView, ptLights, uLightCount);
             }
@@ -831,10 +832,9 @@ pl__show_editor_window(plAppData* ptAppData)
                             pl_sprintf(ptAppData->acCurrentScene, "%s", ptAppData->sbtSceneFilesCore[n].acTemplate);
 
                             ptAppData->tSceneHandle = gptAsset->load(ptAppData->acCurrentScene);
-                            plScene* ptScene = (plScene*)gptAsset->get_data(ptAppData->tSceneHandle);
+                            plComponentLibrary* ptLibrary = (plComponentLibrary*)gptAsset->get_data(ptAppData->tSceneHandle);
 
                             plSceneDesc tSceneInit = {};
-                            tSceneInit.ptComponentLibrary = ptScene->ptLibrary;
 
                             ptAppData->ptScene = gptRenderer->create_scene(&tSceneInit);
                             plViewDesc tViewDesc = PL_ZERO_INIT;
@@ -842,40 +842,22 @@ pl__show_editor_window(plAppData* ptAppData)
                             tViewDesc.uHeight = (uint32_t)ptIO->tMainViewportSize.y;
                             ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, &tViewDesc);
                             
-                            gptRenderer->set_settings(ptAppData->ptScene, ptScene->tRendererSettings);
-                            gptRenderer->set_environment(ptAppData->ptScene, ptScene->tEnvironment);
+                            gptRenderer->load_component_library(ptAppData->ptScene, ptLibrary);
 
                             const plEntity* ptCameraEntities = nullptr;
-                            uint32_t uCameraCount = gptEcs->get_components(ptScene->ptLibrary, gptCameraEcs->get_ecs_type_key(), NULL, &ptCameraEntities);
+                            uint32_t uCameraCount = gptEcs->get_components(ptLibrary, gptCameraEcs->get_ecs_type_key(), NULL, &ptCameraEntities);
                             if(uCameraCount > 0)
                             {
                                 ptAppData->tMainCamera = ptCameraEntities[0];
                             }
 
-                            const plEntity* ptProbeEntities = nullptr;
-                            uint32_t uProbeCount = gptEcs->get_components(ptScene->ptLibrary, gptRendererEcs->get_ecs_type_key_environment_probe(), NULL, &ptProbeEntities);
-                            gptRendererEcs->add_probes_to_scene(ptAppData->ptScene, uProbeCount, ptProbeEntities);
-
-                            const plEntity* ptLightEntities = nullptr;
-                            uint32_t uLightCount = gptEcs->get_components(ptScene->ptLibrary, gptRendererEcs->get_ecs_type_key_light(), NULL, &ptLightEntities);
-                            gptRendererEcs->add_lights_to_scene(ptAppData->ptScene, uLightCount, ptLightEntities);
-
-                            const plEntity* ptObjectEntities = nullptr;
-                            uint32_t uObjectCount = gptEcs->get_components(ptScene->ptLibrary, gptRendererEcs->get_ecs_type_key_object(), NULL, &ptObjectEntities);
-                            gptRendererEcs->add_drawable_objects_to_scene(ptAppData->ptScene, uObjectCount, ptObjectEntities);
-
                             const plEntity* ptTerrainEntities = nullptr;
-                            uint32_t uTerrainCount = gptEcs->get_components(ptScene->ptLibrary, gptRendererEcs->get_ecs_type_key_terrain(), NULL, &ptTerrainEntities);
+                            uint32_t uTerrainCount = gptEcs->get_components(ptLibrary, gptRenderer->get_ecs_type_key_terrain(), NULL, &ptTerrainEntities);
                             if(uTerrainCount > 0)
                             {
-                                gptRendererEcs->add_terrain_to_scene(ptAppData->ptScene, ptTerrainEntities[0]);
                                 ptAppData->bHasTerrain = true;
                             }
 
-                            // TODO: figure out why we are having to do this
-                            gptRendererEditor->reload_scene_shaders(ptAppData->ptScene);
-
-                            gptRendererEditor->rebuild_scene_bvh(ptAppData->ptScene);
                             bLoadScene = true;
                         }
                     }
@@ -891,9 +873,16 @@ pl__show_editor_window(plAppData* ptAppData)
     if(bSceneExists)
     {
         plTerrainRuntimeOptions* ptTerrainOptions = gptRenderer->get_terrain_options(ptAppData->ptScene);
-        plScene* ptSceneAsset = (plScene*)gptAsset->get_data(ptAppData->tSceneHandle);
-        plRenderEnvironment* ptEnvironment = (plRenderEnvironment*)gptAsset->get_data(ptSceneAsset->tEnvironment);
-        plRenderSettings* ptSettings = (plRenderSettings*)gptAsset->get_data(ptSceneAsset->tRendererSettings);
+        plComponentLibrary* ptLibrary = (plComponentLibrary*)gptAsset->get_data(ptAppData->tSceneHandle);
+
+        const plEntity* ptRendererEntities = nullptr;
+        uint32_t uEnvironmentCount = gptEcs->get_components(ptLibrary, gptRenderer->get_ecs_type_key_environment(), NULL, &ptRendererEntities);
+        plEnvironmentComponent* ptEnvironmentComp = (plEnvironmentComponent*)gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_environment(), ptRendererEntities[0]);
+        plRendererComponent* ptRendererComp = (plRendererComponent*)gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_renderer(), ptRendererEntities[0]);
+
+
+        plRenderEnvironment* ptEnvironment = (plRenderEnvironment*)gptAsset->get_data(ptEnvironmentComp->tEnvironment);
+        plRenderSettings* ptSettings = (plRenderSettings*)gptAsset->get_data(ptRendererComp->tRenderer);
 
         if(ImGui::Begin("Pilot Light", nullptr, ImGuiWindowFlags_None))
         {
@@ -987,10 +976,10 @@ pl__show_editor_window(plAppData* ptAppData)
                 }
                 ImGui::SameLine();
 
-                // if(ImGui::Button("Save"))
-                // {
-                //     gptAsset->save(ptAppData->tSceneHandle, PL_ASSET_ENCODING_TEXT);
-                // }
+                if(ImGui::Button("Save"))
+                {
+                    gptAsset->save(ptAppData->tSceneHandle, PL_ASSET_ENCODING_TEXT);
+                }
 
                 ImGui::Checkbox("Dynamic BVH", &ptAppData->bContinuousBVH);
                 if((ImGui::Button("Build BVH") || ptAppData->bContinuousBVH))
@@ -1028,8 +1017,6 @@ pl__show_editor_window(plAppData* ptAppData)
 
             if(ImGui::CollapsingHeader(ICON_FA_CLOUD_SUN " Sky Options"))
             {
-
-
                 bool bProbesDirty = false;
                 if(ImGui::RadioButton("Method: None", &ptEnvironment->eMode, PL_RENDERER_SKY_MODE_NONE)) bProbesDirty = true;
                 if(ImGui::RadioButton("Method: Skybox", &ptEnvironment->eMode, PL_RENDERER_SKY_MODE_SKYBOX)) bProbesDirty = true;
@@ -1132,28 +1119,28 @@ pl__show_editor_window(plAppData* ptAppData)
                         // };
                         // bool abCombo[24] = {0};
                         // abCombo[uComboSelect] = true;
-                        if(ImGui::BeginCombo("Environment", ptAppData->sbtSceneEnvironments[ptAppData->iSelectedEnvironment].acName))
-                        {
-                            for(uint32_t i = 0; i < pl_sb_size(ptAppData->sbtSceneEnvironments); i++)
-                            {
-                                if(ImGui::Selectable(ptAppData->sbtSceneEnvironments[i].acName, i == ptAppData->iSelectedEnvironment, 0))
-                                {
-                                    if(i == 0)
-                                    {
-                                        ptEnvironment->eMode = PL_RENDERER_SKY_MODE_NONE;
-                                        bProbesDirty = true;
-                                    }
-                                    // else
-                                    // {
-                                    //     ptAppData->iSelectedEnvironment = i;
-                                    //     ptEnvironment->uSkyboxResolution = 1024;
-                                    //     ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY;
-                                    //     strncpy(ptSettings->tSky.acSkyboxPath, ptAppData->sbtSceneEnvironments[i].acPath, 256);
-                                    // }
-                                }
-                            }
-                            ImGui::EndCombo();
-                        }
+                        // if(ImGui::BeginCombo("Environment", ptAppData->sbtSceneEnvironments[ptAppData->iSelectedEnvironment].acName))
+                        // {
+                        //     for(uint32_t i = 0; i < pl_sb_size(ptAppData->sbtSceneEnvironments); i++)
+                        //     {
+                        //         if(ImGui::Selectable(ptAppData->sbtSceneEnvironments[i].acName, i == ptAppData->iSelectedEnvironment, 0))
+                        //         {
+                        //             if(i == 0)
+                        //             {
+                        //                 ptEnvironment->eMode = PL_RENDERER_SKY_MODE_NONE;
+                        //                 bProbesDirty = true;
+                        //             }
+                        //             // else
+                        //             // {
+                        //             //     ptAppData->iSelectedEnvironment = i;
+                        //             //     ptEnvironment->uSkyboxResolution = 1024;
+                        //             //     ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY;
+                        //             //     strncpy(ptSettings->tSky.acSkyboxPath, ptAppData->sbtSceneEnvironments[i].acPath, 256);
+                        //             // }
+                        //         }
+                        //     }
+                        //     ImGui::EndCombo();
+                        // }
                     }
 
                     if(ptEnvironment->eMode == PL_RENDERER_SKY_MODE_REALISTIC)
@@ -1238,9 +1225,8 @@ pl__show_editor_window(plAppData* ptAppData)
 
             if(ImGui::CollapsingHeader(ICON_FA_FILE_IMAGE " Post Process"))
             {
-
-                plScene* ptSceneAsset = (plScene*)gptAsset->get_data(ptAppData->tSceneHandle);
-                plRenderSettings* ptSettings = (plRenderSettings*)gptAsset->get_data(ptSceneAsset->tRendererSettings);
+                // plScene* ptSceneAsset = (plScene*)gptAsset->get_data(ptAppData->tSceneHandle);
+                // plRenderSettings* ptSettings = (plRenderSettings*)gptAsset->get_data(ptSceneAsset->tRendererSettings);
 
                 static const char* apcTonemapText[] = {
                     "None",
@@ -1296,6 +1282,7 @@ pl__show_editor_window(plAppData* ptAppData)
                 }
                 else
                     ptSettings->tFog.tFlags &= ~PL_RENDERER_FOG_FLAGS_ACTIVE;
+
             }
 
             if(ImGui::CollapsingHeader(ICON_FA_BOXES_STACKED " Physics", 0))
@@ -1443,12 +1430,10 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptMaterial         = pl_get_api_latest(ptApiRegistry, plMaterialI);
     gptScript           = pl_get_api_latest(ptApiRegistry, plScriptI);
     gptRendererDebug    = pl_get_api_latest(ptApiRegistry, plRendererDebugI);
-    gptRendererEcs      = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
     gptRendererEditor   = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
     gptAsset            = pl_get_api_latest(ptApiRegistry, plAssetI);
     gptTransform        = pl_get_api_latest(ptApiRegistry, plTransformI);
     gptIk               = pl_get_api_latest(ptApiRegistry, plIkI);
-    gptScene            = pl_get_api_latest(ptApiRegistry, plSceneI);
     gptSkeleton         = pl_get_api_latest(ptApiRegistry, plSkeletonI);
     gptTexture          = pl_get_api_latest(ptApiRegistry, plTextureI);
     gptTerrain          = pl_get_api_latest(ptApiRegistry, plTerrainI);

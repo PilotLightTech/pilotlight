@@ -75,20 +75,11 @@ static plIkContext* gptIkCtx = NULL;
 //-----------------------------------------------------------------------------
 
 static void
-pl__ecs_ik_init(plComponentLibrary* ptLibrary)
+pl__ecs_ik_cleanup(void* pData)
 {
-    void* pData = PL_ALLOC(sizeof(plComponentLibraryData));
-    memset(pData, 0, sizeof(plComponentLibraryData));
-    gptEcs->set_library_type_data(ptLibrary, gptIkCtx->tInverseKinematicsComponentType, pData);
-}
-
-static void
-pl__ecs_ik_cleanup(plComponentLibrary* ptLibrary)
-{
-    plComponentLibraryData* ptData = gptEcs->get_library_type_data(ptLibrary, gptIkCtx->tInverseKinematicsComponentType);
+    plComponentLibraryData* ptData = pData;
     pl_sb_free(ptData->sbtTransformsCopy);
     PL_FREE(ptData);
-    gptEcs->set_library_type_data(ptLibrary, gptIkCtx->tInverseKinematicsComponentType, NULL);
 }
 
 static void
@@ -128,9 +119,17 @@ pl_ik_run_update_system(plComponentLibrary* ptLibrary)
     const uint32_t uTransformCount = gptEcs->get_components(ptLibrary, gptIkCtx->tTransformComponentType, (void**)&ptTransforms, NULL);
 
     plComponentLibraryData* ptData = gptEcs->get_library_type_data(ptLibrary, gptIkCtx->tInverseKinematicsComponentType);
+    if(ptData == NULL) // lazily create
+    {
+        void* pData = PL_ALLOC(sizeof(plComponentLibraryData));
+        memset(pData, 0, sizeof(plComponentLibraryData));
+        gptEcs->set_library_type_data(ptLibrary, gptIkCtx->tInverseKinematicsComponentType, pData, pl__ecs_ik_cleanup);
+        ptData = pData;
+    }
+
     pl_sb_resize(ptData->sbtTransformsCopy, uTransformCount);
     memcpy(ptData->sbtTransformsCopy, ptTransforms, uTransformCount * sizeof(plTransformComponent));
-    gptEcs->set_library_type_data(ptLibrary, gptIkCtx->tInverseKinematicsComponentType, ptData);
+    gptEcs->set_library_type_data(ptLibrary, gptIkCtx->tInverseKinematicsComponentType, ptData, pl__ecs_ik_cleanup);
     
     bool bRecomputeHierarchy = false;
     for(uint32_t i = 0; i < uComponentCount; i++)
@@ -285,10 +284,7 @@ pl_ik_register_ecs_components(void)
 
     const plComponentDesc tIKDesc = {
         .pcName = "inverse_kinematics",
-        .szSize = sizeof(plInverseKinematicsComponent),
-        .init   = pl__ecs_ik_init,
-        .cleanup = pl__ecs_ik_cleanup,
-        .reset = pl__ecs_ik_reset
+        .szSize = sizeof(plInverseKinematicsComponent)
     };
 
     static const plInverseKinematicsComponent tIkComponentDefault = {

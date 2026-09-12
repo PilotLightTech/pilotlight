@@ -22,19 +22,18 @@
 void
 pl__show_entity_components(plAppData* ptAppData, plRenderScene* ptScene, plEntity tEntity)
 {
-    plScene* ptSceneAsset = (plScene*)gptAsset->get_data(ptAppData->tSceneHandle);
-    if(ptSceneAsset == nullptr)
+    plComponentLibrary* ptLibrary = (plComponentLibrary*)gptAsset->get_data(ptAppData->tSceneHandle);
+    if(ptLibrary == nullptr)
         return;
-    plComponentLibrary* ptLibrary = ptSceneAsset->ptLibrary;
     const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
-    const plEcsTypeKey tObjectComponentType = gptRendererEcs->get_ecs_type_key_object();
+    const plEcsTypeKey tObjectComponentType = gptRenderer->get_ecs_type_key_object();
     const plEcsTypeKey tHierarchyComponentType = gptTransform->get_ecs_type_key_hierarchy();
     const plEcsTypeKey tSkinComponentType = gptSkeleton->get_ecs_type_key_skin();
     const plEcsTypeKey tCameraComponentType = gptCameraEcs->get_ecs_type_key();
     const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
     const plEcsTypeKey tInverseKinematicsComponentType = gptIk->get_ecs_type_key();
-    const plEcsTypeKey tLightComponentType = gptRendererEcs->get_ecs_type_key_light();
-    const plEcsTypeKey tEnvironmentProbeComponentType = gptRendererEcs->get_ecs_type_key_environment_probe();
+    const plEcsTypeKey tLightComponentType = gptRenderer->get_ecs_type_key_light();
+    const plEcsTypeKey tEnvironmentProbeComponentType = gptRenderer->get_ecs_type_key_environment_probe();
     const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
     const plEcsTypeKey tScriptComponentType = gptScript->get_ecs_type_key();
     const plEcsTypeKey tRigidBodyComponentType = gptPhysics->get_ecs_type_key_rigid_body_physics();

@@ -1,22 +1,63 @@
 {    
     "format": "plscene", 
     "version": 1, 
-    "environment": "/assets/environments/skybox.plenvironment", 
-    "renderer": "/assets/settings/default.plrenderer", 
     "entities": [
         {            
+            "id": 117118, 
+            "tag": {                
+                "name": "settings"
+            }, 
+            "environment": {                
+                "environment": "/assets/environments/skybox.plenvironment"
+            }, 
+            "renderer": {                
+                "renderer": "/assets/settings/default.plrenderer"
+            }
+        },
+        {            
             "id": 1546354, 
-            "tag": {
-                "name": "cube_scene_instance"
-            },
-            "scene_instance": {                
-                "scene": "/assets/models/cube.plscene"
+            "tag": {                
+                "name": "cube_library_instance"
+            }, 
+            "library": {                
+                "library": "/assets/models/cube.plscene", 
+                "patches": [ {                        
+                        "id": 117117117117, 
+                        "tag": {                            
+                            "name": "Cube 0"
+                        }, 
+                        "transform": {                            
+                            "translation": [ -0.91582489, 1.21072984, -8.49267197 ], 
+                            "rotation": [ 0, -0.239859477, 0, 0.970807612 ], 
+                            "scale": [ 1, 1, 1 ]
+                        }
+                    } ]
+            }
+        },
+        {            
+            "id": 15463577, 
+            "tag": {                
+                "name": "cube_library_instance_2"
+            }, 
+            "library": {                
+                "library": "/assets/models/cube.plscene", 
+                "patches": [ {                        
+                        "id": 117117117117, 
+                        "tag": {                            
+                            "name": "Cube 1"
+                        }, 
+                        "transform": {                            
+                            "translation": [ 10, 2.78390455, -5.32497358 ], 
+                            "rotation": [ 0, 0, 0, 1 ], 
+                            "scale": [ 1, 1, 1 ]
+                        }
+                    } ]
             }
         },
         {            
             "id": 434, 
             "tag": {                
-                "name": "damaged_helmet"
+                "name": "Damaged Helmet"
             }, 
             "transform": {                
                 "translation": [ 0, 3, 0 ], 
@@ -36,7 +77,7 @@
         {            
             "id": 1, 
             "tag": {                
-                "name": "floor"
+                "name": "Floor"
             }, 
             "transform": {                
                 "translation": [ 0, 0, 0 ], 
@@ -56,7 +97,7 @@
         {            
             "id": 2, 
             "tag": {                
-                "name": "camera"
+                "name": "Main Camera"
             }, 
             "script": {                
                 "file": "pl_script_camera", 
@@ -66,11 +107,11 @@
             }, 
             "camera": {                
                 "projection": "perspective", 
-                "position": [ -15.285712119784206, 4.0030000000000001, 8.0529188444931066 ], 
+                "position": [ -4.5115824237248159, 4.8302014847174393, 4.2992954429215757 ], 
                 "near": 0.100000001, 
                 "far": 75, 
-                "pitch": -0.294999987, 
-                "yaw": 2.09100151, 
+                "pitch": -0.34499988, 
+                "yaw": 2.32099986, 
                 "roll": 0, 
                 "yfov": 1.04719698
             }
@@ -78,7 +119,7 @@
         {            
             "id": 3, 
             "tag": {                
-                "name": "probe 0"
+                "name": "Probe 0"
             }, 
             "transform": {                
                 "translation": [ 0, 5, 0 ], 
@@ -102,5 +143,6 @@
                 "realtime": false, 
                 "include_sky": true
             }
-        } ]
+        }
+    ]
 }

@@ -114,14 +114,12 @@ the API is complete. It just means we won't break what currently exists.
 * Stage               v0.2.0 (pl_stage_ext.h)
 * Renderer            v0.3.0 (pl_renderer_ext.h)
 * Renderer Terrain    v0.1.0 (pl_renderer_ext.h)
-* Renderer Ecs        v0.1.0 (pl_renderer_ext.h)
 * Renderer Debug      v0.1.0 (pl_renderer_ext.h)
 * Renderer Editor     v0.1.0 (pl_renderer_ext.h)
 * Gltf Importer       v0.1.0 (pl_gltf_ext.h)
 * Stl Importer        v0.1.0  (pl_stl_ext.h)
 * Texture             v0.1.0 (pl_texture_ext.h)
 * Skeleton            v0.1.0 (pl_skeleton_ext.h)
-* Scene               v0.1.0 (pl_scene_ext.h)
 
 ## Placeholder APIs
 * Voxel Ops           v0.0.0 (pl_voxel_ext.h)

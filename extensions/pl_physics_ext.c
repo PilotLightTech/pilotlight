@@ -326,7 +326,6 @@ void
 pl_physics_register_ecs_components(void)
 {
     const plComponentDesc tRigidBodyDesc = {
-        .pcDisplayName = "Rigid Body Physics",
         .pcName        = "rigid_body",
         .szSize        = sizeof(plRigidBodyPhysicsComponent)
     };
@@ -346,7 +345,6 @@ pl_physics_register_ecs_components(void)
     gptPhysicsCtx->tRigidBodyPhysicsComponentType = gptEcs->register_type(tRigidBodyDesc, &tRigidBodyComponentDefault);
 
     const plComponentDesc tForceFieldDesc = {
-        .pcDisplayName = "Force Field",
         .pcName        = "force_field",
         .szSize        = sizeof(plForceFieldComponent)
     };
