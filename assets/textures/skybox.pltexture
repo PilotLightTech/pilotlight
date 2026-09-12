@@ -6,5 +6,5 @@
     "format": "PL_FORMAT_R32G32B32A32_FLOAT", 
     "generate_mips": false, 
     "compress": false, 
-    "source": "/resources/core/environments/sky.hdr"
+    "source": "/resources/sky.hdr"
 }

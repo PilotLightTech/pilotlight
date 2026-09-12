@@ -209,9 +209,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     if(!gptVfs->does_file_exist("/assets/models/humanoid_Scene.plscene"))
     {
-        gptStl->import("/resources/core/models/stl/cube.stl");
-        gptGltf->import("/resources/core/models/gltf/DamagedHelmet.glb", nullptr);
-        gptGltf->import("/resources/core/models/gltf/humanoid.gltf", nullptr);
+        gptStl->import("/resources/cube.stl");
+        gptGltf->import("/resources/DamagedHelmet.glb", nullptr);
+        gptGltf->import("/resources/humanoid.gltf", nullptr);
     }
 
     // gptGltf->import("/resources/gltf-samples/Models/Sponza/glTF/sponza.gltf", nullptr);
@@ -290,7 +290,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tFontConfig0.uVOverSampling = 1;
     tFontConfig0.ptRanges = &tFontRange;
     tFontConfig0.uRangeCount = 1;
-    ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig0, "/resources/core/fonts/Cousine-Regular.ttf");
+    ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig0, "/resources/Cousine-Regular.ttf");
 
     plFontRange tIconRange = PL_ZERO_INIT;
     tIconRange.iFirstCodePoint = ICON_MIN_FA;
@@ -304,7 +304,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tFontConfig1.ptMergeFont    = ptAppData->tDefaultFont;
     tFontConfig1.ptRanges       = &tIconRange;
     tFontConfig1.uRangeCount    = 1;
-    gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig1, "/resources/core/fonts/fa-solid-900.otf");
+    gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig1, "/resources/fa-solid-900.otf");
     gptStarter->set_default_font(ptAppData->tDefaultFont);
     gptUI->set_default_font(ptAppData->tDefaultFont);
 
@@ -333,11 +333,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ImGuiIO& tImGuiIO = ImGui::GetIO();
     tImGuiIO.IniFilename = nullptr;
     ImGui::LoadIniSettingsFromDisk("../sandbox/pl_imgui.ini");
-    tImGuiIO.Fonts->AddFontFromFileTTF("../resources/core/fonts/Cousine-Regular.ttf", 16.0f);
+    tImGuiIO.Fonts->AddFontFromFileTTF("../resources/Cousine-Regular.ttf", 16.0f);
     auto tImGuiFontConfig = ImFontConfig();
     tImGuiFontConfig.MergeMode = true;
     static ImWchar atFontRanges[] = {ICON_MIN_FA, ICON_MAX_16_FA};
-    tImGuiIO.FontDefault = tImGuiIO.Fonts->AddFontFromFileTTF("../resources/core/fonts/fa-solid-900.otf", 16.0f, &tImGuiFontConfig, atFontRanges);
+    tImGuiIO.FontDefault = tImGuiIO.Fonts->AddFontFromFileTTF("../resources/fa-solid-900.otf", 16.0f, &tImGuiFontConfig, atFontRanges);
 
     const char* acTempWarning = "WARNING\n"
     "    ASSET SYSTEM\n"
@@ -1480,29 +1480,29 @@ pl__refresh_files(plAppData* ptAppData)
         gptFile->cleanup_directory_info(&tDirectoryInfo);
     }
 
-    {
-        plDirectoryInfo tDirectoryInfo = {0};
-        gptFile->get_directory_info("../resources/core/environments/", &tDirectoryInfo);
-        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
-        {
-            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
-            {
-                char acExtensionBuffer[16] = {0};
-                char acFileNameOnly[PL_MAX_PATH_LENGTH] = {0};
-                pl_str_get_file_extension(tDirectoryInfo.sbtEntries[i].acName, acExtensionBuffer, 16);
-                // if(pl_str_equal("json", acExtensionBuffer))
-                {
-                    pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
-                    char acFullPath[PL_MAX_PATH_LENGTH] = {0};
-                    pl_sprintf(acFullPath, "../resources/core/environments/%s.hdr", acFileNameOnly);
-                    pl_sb_add(ptAppData->sbtSceneEnvironments);
-                    strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acName, acFileNameOnly, PL_MAX_PATH_LENGTH);
-                    strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acPath, acFullPath, PL_MAX_PATH_LENGTH);
-                }
-            }
-        }
-        gptFile->cleanup_directory_info(&tDirectoryInfo);
-    }
+    // {
+    //     plDirectoryInfo tDirectoryInfo = {0};
+    //     gptFile->get_directory_info("../resources/core/environments/", &tDirectoryInfo);
+    //     for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
+    //     {
+    //         if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+    //         {
+    //             char acExtensionBuffer[16] = {0};
+    //             char acFileNameOnly[PL_MAX_PATH_LENGTH] = {0};
+    //             pl_str_get_file_extension(tDirectoryInfo.sbtEntries[i].acName, acExtensionBuffer, 16);
+    //             // if(pl_str_equal("json", acExtensionBuffer))
+    //             {
+    //                 pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
+    //                 char acFullPath[PL_MAX_PATH_LENGTH] = {0};
+    //                 pl_sprintf(acFullPath, "../resources/core/environments/%s.hdr", acFileNameOnly);
+    //                 pl_sb_add(ptAppData->sbtSceneEnvironments);
+    //                 strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acName, acFileNameOnly, PL_MAX_PATH_LENGTH);
+    //                 strncpy(pl_sb_back(ptAppData->sbtSceneEnvironments).acPath, acFullPath, PL_MAX_PATH_LENGTH);
+    //             }
+    //         }
+    //     }
+    //     gptFile->cleanup_directory_info(&tDirectoryInfo);
+    // }
 }
 
 //-----------------------------------------------------------------------------

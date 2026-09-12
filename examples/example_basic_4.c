@@ -196,7 +196,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uRangeCount    = 1,
         .ptRanges       = &tRange
     };
-    ptAppData->ptCousineBitmapFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig0, "../resources/core/fonts/Cousine-Regular.ttf");
+    ptAppData->ptCousineBitmapFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig0, "../resources/Cousine-Regular.ttf");
 
     // adding previous font but as a signed distance field (SDF)
     plFontConfig tFontConfig1 = {
@@ -209,7 +209,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uRangeCount    = 1,
         .ptRanges       = &tRange
     };
-    ptAppData->ptCousineSDFFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig1, "../resources/core/fonts/Cousine-Regular.ttf");
+    ptAppData->ptCousineSDFFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig1, "../resources/Cousine-Regular.ttf");
 
     // register our app drawlist
     ptAppData->ptDrawlist = gptDraw->request_2d_drawlist();

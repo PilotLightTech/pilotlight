@@ -206,7 +206,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     int iImageWidth = 0;
     int iImageHeight = 0;
     int _unused;
-    unsigned char* pucImageData = gptImage->load_from_file("../resources/core/textures/sprite_map.png", &iImageWidth, &iImageHeight, &_unused, 4);
+    unsigned char* pucImageData = gptImage->load_from_file("../resources/sprite_map.png", &iImageWidth, &iImageHeight, &_unused, 4);
 
     // create textures
     const plTextureDesc tOriginalTextureDesc = {

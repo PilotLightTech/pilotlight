@@ -451,34 +451,37 @@ pl_ecs_cleanup_library(plComponentLibrary* ptLibrary)
     const uint32_t uComponentTypeCount = pl_sb_size(gptEcsCtx->sbtComponentDescriptions);
     for(uint32_t i = 0; i < uComponentTypeCount; i++)
     {
-        if(gptEcsCtx->sbtComponentDescriptions[i].destroy)
+        if(ptLibrary->_atManagers)
         {
-            for(uint32_t j = 0; j < pl_sb_size(ptLibrary->_atManagers[i].sbtEntities); j++)
+            if(gptEcsCtx->sbtComponentDescriptions[i].destroy)
             {
-                gptEcsCtx->sbtComponentDescriptions[i].destroy(
-                    &((uint8_t*)ptLibrary->_atManagers[i].pComponents)[j * gptEcsCtx->sbtComponentDescriptions[i].szSize],
-                    ptLibrary);
-                memset(
-                    &((uint8_t*)ptLibrary->_atManagers[i].pComponents)[j * gptEcsCtx->sbtComponentDescriptions[i].szSize],
-                0, gptEcsCtx->sbtComponentDescriptions[i].szSize);
+                for(uint32_t j = 0; j < pl_sb_size(ptLibrary->_atManagers[i].sbtEntities); j++)
+                {
+                    gptEcsCtx->sbtComponentDescriptions[i].destroy(
+                        &((uint8_t*)ptLibrary->_atManagers[i].pComponents)[j * gptEcsCtx->sbtComponentDescriptions[i].szSize],
+                        ptLibrary);
+                    memset(
+                        &((uint8_t*)ptLibrary->_atManagers[i].pComponents)[j * gptEcsCtx->sbtComponentDescriptions[i].szSize],
+                    0, gptEcsCtx->sbtComponentDescriptions[i].szSize);
+                }
             }
-        }
 
-        if(ptLibrary->_atManagers[i].tUserManagerData.pInternal && ptLibrary->_atManagers[i].tUserManagerData.tCleanup)
-        {
-            ptLibrary->_atManagers[i].tUserManagerData.tCleanup(ptLibrary->_atManagers[i].tUserManagerData.pInternal);
-            ptLibrary->_atManagers[i].tUserManagerData.pInternal = NULL;
-            ptLibrary->_atManagers[i].tUserManagerData.tCleanup = NULL;
-        }
+            if(ptLibrary->_atManagers[i].tUserManagerData.pInternal && ptLibrary->_atManagers[i].tUserManagerData.tCleanup)
+            {
+                ptLibrary->_atManagers[i].tUserManagerData.tCleanup(ptLibrary->_atManagers[i].tUserManagerData.pInternal);
+                ptLibrary->_atManagers[i].tUserManagerData.pInternal = NULL;
+                ptLibrary->_atManagers[i].tUserManagerData.tCleanup = NULL;
+            }
 
-        ptLibrary->_atManagers[i].uCapacity = 0;
-        if(ptLibrary->_atManagers[i].pComponents)
-        {
-            PL_FREE(ptLibrary->_atManagers[i].pComponents);
-            ptLibrary->_atManagers[i].pComponents = NULL;
+            ptLibrary->_atManagers[i].uCapacity = 0;
+            if(ptLibrary->_atManagers[i].pComponents)
+            {
+                PL_FREE(ptLibrary->_atManagers[i].pComponents);
+                ptLibrary->_atManagers[i].pComponents = NULL;
+            }
+            pl_sb_free(ptLibrary->_atManagers[i].sbtEntities);
+            pl_hm_free(&ptLibrary->_atManagers[i].tHashmap);
         }
-        pl_sb_free(ptLibrary->_atManagers[i].sbtEntities);
-        pl_hm_free(&ptLibrary->_atManagers[i].tHashmap);
     }
 
     // general
