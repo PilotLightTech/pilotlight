@@ -72,7 +72,6 @@ static const plSkeletonI* gptSkeleton = NULL;
 #define PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT "\xef\x81\x87"	// U+f047
 #define PL_ICON_FA_CUBE "\xef\x86\xb2"	// U+f1b2
 #define PL_ICON_FA_GHOST "\xef\x9b\xa2"	// U+f6e2
-#define PL_ICON_FA_PALETTE "\xef\x94\xbf"	// U+f53f
 #define PL_ICON_FA_MAP "\xef\x89\xb9"	// U+f279
 #define PL_ICON_FA_CAMERA "\xef\x80\xb0"	// U+f030
 #define PL_ICON_FA_PLAY "\xef\x81\x8b"	// U+f04b
@@ -83,6 +82,57 @@ static const plSkeletonI* gptSkeleton = NULL;
 #define PL_ICON_FA_CODE "\xef\x84\xa1"	// U+f121
 #define PL_ICON_FA_BOXES_STACKED "\xef\x91\xa8"	// U+f468
 #define PL_ICON_FA_WIND "\xef\x9c\xae"	// U+f72e
+#define PL_ICON_FA_FILM "\xef\x80\x88"	// U+f008
+#define PL_ICON_FA_CLOUD_SUN "\xef\x9b\x84"	// U+f6c4
+#define PL_ICON_FA_FOLDER_OPEN "\xef\x81\xbc"	// U+f07c
+#define PL_ICON_FA_USER_INJURED "\xef\x9c\xa8"	// U+f728
+#define PL_ICON_FA_GLOBE "\xef\x82\xac"	// U+f0ac
+
+#define PL_ICON_FA_PALETTE "\xef\x94\xbf"	// U+f53f
+
+// transform     -> PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT
+// camera        -> PL_ICON_FA_CAMERA
+// probe         -> PL_ICON_FA_MAP_PIN
+// hierarchy     -> PL_ICON_FA_SITEMAP
+// object        -> PL_ICON_FA_GHOST
+// skin          -> PL_ICON_FA_USER_INJURED
+// animation     -> PL_ICON_FA_PLAY
+// ik            -> PL_ICON_FA_DRAW_POLYGON
+// light         -> PL_ICON_FA_LIGHTBULB
+// humanoid      -> PL_ICON_FA_PERSON
+// script        -> PL_ICON_FA_CODE
+// rigid body    -> PL_ICON_FA_BOXES_STACKED
+// force field   -> PL_ICON_FA_WIND
+
+// environment   -> PL_ICON_FA_CLOUD_SUN
+// library       -> PL_ICON_FA_FOLDER_OPEN
+// terrain -> PL_ICON_FA_GLOBE
+// renderer -> PL_ICON_FA_HAMMER
+
+
+// bone
+// skin maybe buffer
+
+static const char* apcComponentNames[] = {
+    "None",
+    PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT " Transform",
+    PL_ICON_FA_GHOST " Object",
+    PL_ICON_FA_SITEMAP " Hierarchy",
+    PL_ICON_FA_USER_INJURED " Skin",
+    PL_ICON_FA_CAMERA " Camera",
+    PL_ICON_FA_PLAY " Animation",
+    PL_ICON_FA_DRAW_POLYGON " Inverse Kinematics",
+    PL_ICON_FA_LIGHTBULB " Light",
+    PL_ICON_FA_MAP_PIN " Environment Probe",
+    PL_ICON_FA_PERSON " Humanoid",
+    PL_ICON_FA_CODE " Script",
+    PL_ICON_FA_BOXES_STACKED " Rigid Body Physics",
+    PL_ICON_FA_WIND " Force Field",
+    PL_ICON_FA_CLOUD_SUN " Environment",
+    PL_ICON_FA_FILM " Renderer",
+    PL_ICON_FA_GLOBE " Terrain",
+    PL_ICON_FA_FOLDER_OPEN " Library",
+};
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -91,6 +141,7 @@ static const plSkeletonI* gptSkeleton = NULL;
 typedef struct _plEcsToolsContext
 {
     plUiTextFilter tFilter;
+    char* sbcBuffer;
 } plEcsToolsContext;
 
 //-----------------------------------------------------------------------------
@@ -102,6 +153,89 @@ static plEcsToolsContext* gptEcsToolsCtx = NULL;
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
+
+static bool
+pl__ecs_tools_blah(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, plEntity tEntity, const char* pcName)
+{
+    bool bSelected = ptSelectedEntity->uData == tEntity.uData;
+
+    const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
+    const plEcsTypeKey tObjectComponentType = gptRenderer->get_ecs_type_key_object();
+    const plEcsTypeKey tHierarchyComponentType = gptTransform->get_ecs_type_key_hierarchy();
+    const plEcsTypeKey tSkinComponentType = gptSkeleton->get_ecs_type_key_skin();
+    const plEcsTypeKey tCameraComponentType = gptCameraEcs->get_ecs_type_key();
+    const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
+    const plEcsTypeKey tInverseKinematicsComponentType = gptIk->get_ecs_type_key();
+    const plEcsTypeKey tLightComponentType = gptRenderer->get_ecs_type_key_light();
+    const plEcsTypeKey tEnvironmentProbeComponentType = gptRenderer->get_ecs_type_key_environment_probe();
+    const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
+    const plEcsTypeKey tScriptComponentType = gptScript->get_ecs_type_key();
+    const plEcsTypeKey tRigidBodyComponentType = gptPhysics->get_ecs_type_key_rigid_body_physics();
+    const plEcsTypeKey tForceFieldComponentType = gptPhysics->get_ecs_type_key_force_field();
+    const plEcsTypeKey tEnvironmentComponentType = gptRenderer->get_ecs_type_key_environment();
+    const plEcsTypeKey tRendererComponentType = gptRenderer->get_ecs_type_key_renderer();
+    const plEcsTypeKey tTerrainComponentType = gptRenderer->get_ecs_type_key_terrain();
+
+    bool bResult = false;
+    plTagComponent*               ptTagComp           = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), tEntity);
+    plLibraryComponent*           ptLibraryComp       = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_library(), tEntity);
+    plTransformComponent*         ptTransformComp     = gptEcs->get_component(ptLibrary, tTransformComponentType, tEntity);
+    plObjectComponent*            ptObjectComp        = gptEcs->get_component(ptLibrary, tObjectComponentType, tEntity);
+    plHierarchyComponent*         ptHierarchyComp     = gptEcs->get_component(ptLibrary, tHierarchyComponentType, tEntity);
+    plSkinComponent*              ptSkinComp          = gptEcs->get_component(ptLibrary, tSkinComponentType, tEntity);
+    plCamera*                     ptCameraComp        = gptEcs->get_component(ptLibrary, tCameraComponentType, tEntity);
+    plAnimationComponent*         ptAnimationComp     = gptEcs->get_component(ptLibrary, tAnimationComponentType, tEntity);
+    plInverseKinematicsComponent* ptIKComp            = gptEcs->get_component(ptLibrary, tInverseKinematicsComponentType, tEntity);
+    plLightComponent*             ptLightComp         = gptEcs->get_component(ptLibrary, tLightComponentType, tEntity);
+    plEnvironmentProbeComponent*  ptProbeComp         = gptEcs->get_component(ptLibrary, tEnvironmentProbeComponentType, tEntity);
+    plHumanoidComponent*          ptHumanComp         = gptEcs->get_component(ptLibrary, tHumanoidComponentType, tEntity);
+    plScriptComponent*            ptScriptComp        = gptEcs->get_component(ptLibrary, tScriptComponentType, tEntity);
+    plRigidBodyPhysicsComponent*  ptRigidComp         = gptEcs->get_component(ptLibrary, tRigidBodyComponentType, tEntity);
+    plForceFieldComponent*        ptForceField        = gptEcs->get_component(ptLibrary, tForceFieldComponentType, tEntity);
+    plEnvironmentComponent*       ptEnvironment       = gptEcs->get_component(ptLibrary, tEnvironmentComponentType, tEntity);
+    plRendererComponent*          ptRenderer          = gptEcs->get_component(ptLibrary, tRendererComponentType, tEntity);
+    plTerrainComponent*           ptTerrain           = gptEcs->get_component(ptLibrary, tTerrainComponentType, tEntity);
+
+
+    pl_sb_reset(gptEcsToolsCtx->sbcBuffer);
+    if(ptHierarchyComp) { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_SITEMAP);                    pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptTransformComp) { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT);  pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptObjectComp)    { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_GHOST);                      pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptSkinComp)      { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_USER_INJURED);               pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptCameraComp)    { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_CAMERA);                     pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptAnimationComp) { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_PLAY);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptIKComp)        { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_DRAW_POLYGON);               pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptLightComp)     { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_LIGHTBULB);                  pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptProbeComp)     { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_MAP_PIN);                    pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptHumanComp)     { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_PERSON);                     pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptScriptComp)    { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_CODE);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptRigidComp)     { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_BOXES_STACKED);              pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptForceField)    { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_WIND);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptEnvironment)   { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_CLOUD_SUN);                  pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptRenderer)      { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_FILM);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptLibraryComp)   { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_FOLDER_OPEN);                pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptTerrain)       { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_GLOBE);                      pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, " %s", pcName);
+
+    // gptUI->push_id_uint(i);
+    if(gptUI->selectable(gptEcsToolsCtx->sbcBuffer, &bSelected, 0))
+    {
+        if(bSelected)
+        {
+            *ptSelectedEntity = tEntity;
+            if(ptSelectedEntity->uIndex != UINT32_MAX)
+                bResult = true;
+        }
+        else
+        {
+            ptSelectedEntity->uIndex = UINT32_MAX;
+            ptSelectedEntity->uGeneration = UINT32_MAX;
+            bResult = true;
+        }
+    }
+    // gptUI->pop_id();
+    return bResult;
+}
 
 bool
 pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, plRenderScene* ptScene, bool* pbShowWindow)
@@ -124,24 +258,6 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
         }
 
         static uint32_t uComponentFilter = 0;
-        static const char* apcComponentNames[] = {
-            "None",
-            PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT " Transform",
-            PL_ICON_FA_GHOST " Object",
-            PL_ICON_FA_SITEMAP " Hierarchy",
-            PL_ICON_FA_MAP " Skin",
-            PL_ICON_FA_CAMERA " Camera",
-            PL_ICON_FA_PLAY " Animation",
-            PL_ICON_FA_DRAW_POLYGON " Inverse Kinematics",
-            PL_ICON_FA_LIGHTBULB " Light",
-            PL_ICON_FA_MAP_PIN " Environment Probe",
-            PL_ICON_FA_PERSON " Humanoid",
-            PL_ICON_FA_CODE " Script",
-            PL_ICON_FA_BOXES_STACKED " Rigid Body Physics",
-            PL_ICON_FA_WIND " Force Field",
-        };
-
-        // const plEcsTypeKey tTransformComponentType = gptAnimation->get_ecs_type_key_transform();
 
         const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
         const plEcsTypeKey tObjectComponentType = gptRenderer->get_ecs_type_key_object();
@@ -156,6 +272,10 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
         const plEcsTypeKey tScriptComponentType = gptScript->get_ecs_type_key();
         const plEcsTypeKey tRigidBodyComponentType = gptPhysics->get_ecs_type_key_rigid_body_physics();
         const plEcsTypeKey tForceFieldComponentType = gptPhysics->get_ecs_type_key_force_field();
+        const plEcsTypeKey tEnvironmentComponentType = gptRenderer->get_ecs_type_key_environment();
+        const plEcsTypeKey tRendererComponentType = gptRenderer->get_ecs_type_key_renderer();
+        const plEcsTypeKey tTerrainComponentType = gptRenderer->get_ecs_type_key_terrain();
+        const plEcsTypeKey tLibraryComponentType = gptEcs->get_ecs_type_key_library();
 
         plEcsTypeKey atComponentTypes[] = {
             INT32_MAX,
@@ -171,14 +291,18 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
             tHumanoidComponentType,
             tScriptComponentType,
             tRigidBodyComponentType,
-            tForceFieldComponentType
+            tForceFieldComponentType,
+            tEnvironmentComponentType,
+            tRendererComponentType,
+            tTerrainComponentType,
+            tLibraryComponentType,
         };
 
-        bool abCombo[14] = {0};
+        bool abCombo[PL_ARRAYSIZE(atComponentTypes)] = {0};
         abCombo[uComponentFilter] = true;
         if(gptUI->begin_combo(PL_ICON_FA_FILTER, apcComponentNames[uComponentFilter], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
         {
-            for(uint32_t i = 0; i < 14; i++)
+            for(uint32_t i = 0; i < PL_ARRAYSIZE(atComponentTypes); i++)
             {
                 if(gptUI->selectable(apcComponentNames[i], &abCombo[i], 0))
                 {
@@ -208,21 +332,6 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                     {
                         bool bSelected = ptSelectedEntity->uData == ptEntities[i].uData;
 
-                        plTagComponent*               ptTagComp           = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptEntities[i]);
-                        plTransformComponent*         ptTransformComp     = gptEcs->get_component(ptLibrary, tTransformComponentType, ptEntities[i]);
-                        plObjectComponent*            ptObjectComp        = gptEcs->get_component(ptLibrary, tObjectComponentType, ptEntities[i]);
-                        plHierarchyComponent*         ptHierarchyComp     = gptEcs->get_component(ptLibrary, tHierarchyComponentType, ptEntities[i]);
-                        plSkinComponent*              ptSkinComp          = gptEcs->get_component(ptLibrary, tSkinComponentType, ptEntities[i]);
-                        plCamera*            ptCameraComp        = gptEcs->get_component(ptLibrary, tCameraComponentType, ptEntities[i]);
-                        plAnimationComponent*         ptAnimationComp     = gptEcs->get_component(ptLibrary, tAnimationComponentType, ptEntities[i]);
-                        plInverseKinematicsComponent* ptIKComp            = gptEcs->get_component(ptLibrary, tInverseKinematicsComponentType, ptEntities[i]);
-                        plLightComponent*             ptLightComp         = gptEcs->get_component(ptLibrary, tLightComponentType, ptEntities[i]);
-                        plEnvironmentProbeComponent*  ptProbeComp         = gptEcs->get_component(ptLibrary, tEnvironmentProbeComponentType, ptEntities[i]);
-                        plHumanoidComponent*          ptHumanComp         = gptEcs->get_component(ptLibrary, tHumanoidComponentType, ptEntities[i]);
-                        plScriptComponent*            ptScriptComp        = gptEcs->get_component(ptLibrary, tScriptComponentType, ptEntities[i]);
-                        plRigidBodyPhysicsComponent*  ptRigidComp         = gptEcs->get_component(ptLibrary, tRigidBodyComponentType, ptEntities[i]);
-                        plForceFieldComponent*        ptForceField        = gptEcs->get_component(ptLibrary, tForceFieldComponentType, ptEntities[i]);
-
                         if(uComponentFilter != 0)
                         {
                             void* pComponent = gptEcs->get_component(ptLibrary, atComponentTypes[uComponentFilter], ptEntities[i]);
@@ -230,38 +339,8 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                                 continue;
                         }
 
-                        char atBuffer[1024] = {0};
-                        pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s %s",
-                            ptHierarchyComp ? PL_ICON_FA_SITEMAP : "",
-                            ptTransformComp ? PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT : "",
-                            ptObjectComp ? PL_ICON_FA_GHOST : "",
-                            ptSkinComp ? PL_ICON_FA_MAP : "",
-                            ptCameraComp ? PL_ICON_FA_CAMERA : "",
-                            ptAnimationComp ? PL_ICON_FA_PLAY : "",
-                            ptIKComp ? PL_ICON_FA_DRAW_POLYGON : "",
-                            ptLightComp ? PL_ICON_FA_LIGHTBULB : "",
-                            ptProbeComp ? PL_ICON_FA_MAP_PIN : "",
-                            ptHumanComp ? PL_ICON_FA_PERSON : "",
-                            ptScriptComp ? PL_ICON_FA_CODE : "",
-                            ptRigidComp ? PL_ICON_FA_BOXES_STACKED : "",
-                            ptForceField ? PL_ICON_FA_WIND : "",
-                            ptTags[i].pcName);
                         gptUI->push_id_uint(i);
-                        if(gptUI->selectable(atBuffer, &bSelected, 0))
-                        {
-                            if(bSelected)
-                            {
-                                *ptSelectedEntity = ptEntities[i];
-                                if(ptSelectedEntity->uIndex != UINT32_MAX)
-                                    bResult = true;
-                            }
-                            else
-                            {
-                                ptSelectedEntity->uIndex = UINT32_MAX;
-                                ptSelectedEntity->uGeneration = UINT32_MAX;
-                                bResult = true;
-                            }
-                        }
+                        pl__ecs_tools_blah(ptLibrary, ptSelectedEntity, ptEntities[i], ptTags[i].pcName);
                         gptUI->pop_id();
                     }
                 }
@@ -273,56 +352,8 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                 {
                     for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
                     {
-                        bool bSelected = ptSelectedEntity->uData == ptEntities[i].uData;
-
-                        plTagComponent*               ptTagComp           = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptEntities[i]);
-                        plTransformComponent*         ptTransformComp     = gptEcs->get_component(ptLibrary, tTransformComponentType, ptEntities[i]);
-                        plObjectComponent*            ptObjectComp        = gptEcs->get_component(ptLibrary, tObjectComponentType, ptEntities[i]);
-                        plHierarchyComponent*         ptHierarchyComp     = gptEcs->get_component(ptLibrary, tHierarchyComponentType, ptEntities[i]);
-                        plSkinComponent*              ptSkinComp          = gptEcs->get_component(ptLibrary, tSkinComponentType, ptEntities[i]);
-                        plCamera*            ptCameraComp        = gptEcs->get_component(ptLibrary, tCameraComponentType, ptEntities[i]);
-                        plAnimationComponent*         ptAnimationComp     = gptEcs->get_component(ptLibrary, tAnimationComponentType, ptEntities[i]);
-                        plInverseKinematicsComponent* ptIKComp            = gptEcs->get_component(ptLibrary, tInverseKinematicsComponentType, ptEntities[i]);
-                        plLightComponent*             ptLightComp         = gptEcs->get_component(ptLibrary, tLightComponentType, ptEntities[i]);
-                        plEnvironmentProbeComponent*  ptProbeComp         = gptEcs->get_component(ptLibrary, tEnvironmentProbeComponentType, ptEntities[i]);
-                        plHumanoidComponent*          ptHumanComp         = gptEcs->get_component(ptLibrary, tHumanoidComponentType, ptEntities[i]);
-                        plScriptComponent*            ptScriptComp        = gptEcs->get_component(ptLibrary, tScriptComponentType, ptEntities[i]);
-                        plRigidBodyPhysicsComponent*  ptRigidComp         = gptEcs->get_component(ptLibrary, tRigidBodyComponentType, ptEntities[i]);
-                        plForceFieldComponent*        ptForceField        = gptEcs->get_component(ptLibrary, tForceFieldComponentType, ptEntities[i]);
-
-                        char atBuffer[1024] = {0};
-                        pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s %s",
-                            ptHierarchyComp ? PL_ICON_FA_SITEMAP : "",
-                            ptTransformComp ? PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT : "",
-                            ptObjectComp ? PL_ICON_FA_GHOST : "",
-                            ptSkinComp ? PL_ICON_FA_MAP : "",
-                            ptCameraComp ? PL_ICON_FA_CAMERA : "",
-                            ptAnimationComp ? PL_ICON_FA_PLAY : "",
-                            ptIKComp ? PL_ICON_FA_DRAW_POLYGON : "",
-                            ptLightComp ? PL_ICON_FA_LIGHTBULB : "",
-                            ptProbeComp ? PL_ICON_FA_MAP_PIN : "",
-                            ptHumanComp ? PL_ICON_FA_PERSON : "",
-                            ptScriptComp ? PL_ICON_FA_CODE : "",
-                            ptRigidComp ? PL_ICON_FA_BOXES_STACKED : "",
-                            ptForceField ? PL_ICON_FA_WIND : "",
-                            ptTags[i].pcName);
-
                         gptUI->push_id_uint(i);
-                        if(gptUI->selectable(atBuffer, &bSelected, 0))
-                        {
-                            if(bSelected)
-                            {
-                                *ptSelectedEntity = ptEntities[i];
-                                if(ptSelectedEntity->uIndex != UINT32_MAX)
-                                    bResult = true;
-                            }
-                            else
-                            {
-                                ptSelectedEntity->uIndex = UINT32_MAX;
-                                ptSelectedEntity->uGeneration = UINT32_MAX;
-                                bResult = true;
-                            }
-                        }
+                        pl__ecs_tools_blah(ptLibrary, ptSelectedEntity, ptEntities[i], ptTags[i].pcName);
                         gptUI->pop_id();
                     }
                 }
@@ -354,36 +385,44 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                 plScriptComponent*            ptScriptComp        = gptEcs->get_component(ptLibrary, tScriptComponentType, *ptSelectedEntity);
                 plRigidBodyPhysicsComponent*  ptRigidComp         = gptEcs->get_component(ptLibrary, tRigidBodyComponentType, *ptSelectedEntity);
                 plForceFieldComponent*        ptForceField        = gptEcs->get_component(ptLibrary, tForceFieldComponentType, *ptSelectedEntity);
+                plLibraryComponent*           ptLibraryComp       = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_library(), *ptSelectedEntity);
+                plEnvironmentComponent*       ptEnvironment       = gptEcs->get_component(ptLibrary, tEnvironmentComponentType, *ptSelectedEntity);
+                plRendererComponent*          ptRenderer          = gptEcs->get_component(ptLibrary, tRendererComponentType, *ptSelectedEntity);
+                plTerrainComponent*           ptTerrain           = gptEcs->get_component(ptLibrary, tTerrainComponentType, *ptSelectedEntity);
 
     
                 gptUI->text("ID: %llu", gptEcs->get_entity_id(ptLibrary, *ptSelectedEntity));
                 gptUI->text("Entity: {i-%u, g-%u}", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
                 
-
-                // if(ptTransformComp && ptRigidComp == NULL)
-                // {
-                //     gptUI->layout_dynamic(0.0f, 1);
-                //     if(gptUI->button("Add Rigid Body Component"))
-                //     {
-                //         plRigidBodyPhysicsComponent* ptRigid = gptEcs->add_component(ptLibrary, tRigidBodyComponentType, *ptSelectedEntity);
-                //         ptRigid->tFlags |= PL_RIGID_BODY_PHYSICS_FLAG_START_SLEEPING;
-                //         ptRigid->fMass = 10.0f;
-                //         ptRigid->tShape = PL_COLLISION_SHAPE_SPHERE;
-                        
-                //         ptRigid->tLocalOffset.x = 0.0f;
-                //         ptRigid->tLocalOffset.y = 0.0f;
-                //         ptRigid->tLocalOffset.z = 0.0f;
-                //         ptRigid->tExtents.x = 1.0f;
-                //         ptRigid->tExtents.y = 1.0f;
-                //         ptRigid->tExtents.z = 1.0f;
-                //     }
-                // }
-
                 gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
 
                 if(ptTagComp && gptUI->begin_collapsing_header("Tag", 0))
                 {
                     gptUI->text("Name: %s", ptTagComp->pcName);
+                    gptUI->end_collapsing_header();
+                }
+
+                if(ptLibraryComp && gptUI->begin_collapsing_header("Library", 0))
+                {
+                    gptUI->text("Library: %s", gptAsset->get_path(ptLibraryComp->tSourceLibrary));
+                    gptUI->end_collapsing_header();
+                }
+
+                if(ptEnvironment && gptUI->begin_collapsing_header("Environment", 0))
+                {
+                    gptUI->text("Environment: %s", gptAsset->get_path(ptEnvironment->tEnvironment));
+                    gptUI->end_collapsing_header();
+                }
+
+                if(ptRenderer && gptUI->begin_collapsing_header("Renderer", 0))
+                {
+                    gptUI->text("Renderer: %s", gptAsset->get_path(ptRenderer->tRenderer));
+                    gptUI->end_collapsing_header();
+                }
+
+                if(ptTerrain && gptUI->begin_collapsing_header("Terrain", 0))
+                {
+                    gptUI->text("Terrain: %s", gptAsset->get_path(ptTerrain->tTerrain));
                     gptUI->end_collapsing_header();
                 }
 
@@ -785,6 +824,7 @@ void
 pl_ecs_tools_cleanup(void)
 {
     gptUI->text_filter_cleanup(&gptEcsToolsCtx->tFilter);
+    pl_sb_free(gptEcsToolsCtx->sbcBuffer);
 }
 
 //-----------------------------------------------------------------------------

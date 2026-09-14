@@ -1198,27 +1198,30 @@ pl__show_editor_window(plAppData* ptAppData)
 
             if(ImGui::CollapsingHeader(ICON_FA_INDUSTRY " Terrain Options"))
             {
-                ImGui::SliderFloat("fTau", &ptTerrainOptions->fTau, 0.0f, 1.0f);
-
-                ImGui::CheckboxFlags("Wireframe", &ptTerrainOptions->tFlags, PL_TERRAIN_FLAGS_WIREFRAME);
-                ImGui::CheckboxFlags("Show Levels", &ptTerrainOptions->tFlags, PL_TERRAIN_FLAGS_SHOW_LEVELS);
-
-                ImGui::SliderFloat("fSlopeStart", &ptTerrainOptions->fSlopeStart, 0.0f, 1.0f);
-                ImGui::SliderFloat("fSlopeEnd", &ptTerrainOptions->fSlopeEnd, 0.0f, 1.0f);
-
-                ImGui::InputFloat("Terrain Depth Bias", &ptTerrainOptions->fTerrainShadowConstantDepthBias);
-                ImGui::InputFloat("Terrain Slope Depth Bias", &ptTerrainOptions->fTerrainShadowSlopeDepthBias);
-
-                for(uint32_t i = 0; i < PL_MAX_TERRAIN_ELEVATION_ZONES; i++)
+                if(ptTerrainOptions)
                 {
-                    if(ImGui::TreeNode(&ptTerrainOptions->atElevationZones[i], "Zone: %d", i))
+                    ImGui::SliderFloat("fTau", &ptTerrainOptions->fTau, 0.0f, 1.0f);
+
+                    ImGui::CheckboxFlags("Wireframe", &ptTerrainOptions->tFlags, PL_TERRAIN_FLAGS_WIREFRAME);
+                    ImGui::CheckboxFlags("Show Levels", &ptTerrainOptions->tFlags, PL_TERRAIN_FLAGS_SHOW_LEVELS);
+
+                    ImGui::SliderFloat("fSlopeStart", &ptTerrainOptions->fSlopeStart, 0.0f, 1.0f);
+                    ImGui::SliderFloat("fSlopeEnd", &ptTerrainOptions->fSlopeEnd, 0.0f, 1.0f);
+
+                    ImGui::InputFloat("Terrain Depth Bias", &ptTerrainOptions->fTerrainShadowConstantDepthBias);
+                    ImGui::InputFloat("Terrain Slope Depth Bias", &ptTerrainOptions->fTerrainShadowSlopeDepthBias);
+
+                    for(uint32_t i = 0; i < PL_MAX_TERRAIN_ELEVATION_ZONES; i++)
                     {
-                        ImGui::InputFloat("fMinElevation", &ptTerrainOptions->atElevationZones[i].fMinElevation);
-                        ImGui::InputFloat("fMaxElevation", &ptTerrainOptions->atElevationZones[i].fMaxElevation);
-                        ImGui::InputFloat("fBlendSize", &ptTerrainOptions->atElevationZones[i].fBlendSize);
-                        ImGui::ColorEdit4("Flat Material", ptTerrainOptions->atElevationZones[i].tFlatMaterial.tBaseColor.d);
-                        ImGui::ColorEdit4("Steep Material", ptTerrainOptions->atElevationZones[i].tSteepMaterial.tBaseColor.d);
-                        ImGui::TreePop();
+                        if(ImGui::TreeNode(&ptTerrainOptions->atElevationZones[i], "Zone: %d", i))
+                        {
+                            ImGui::InputFloat("fMinElevation", &ptTerrainOptions->atElevationZones[i].fMinElevation);
+                            ImGui::InputFloat("fMaxElevation", &ptTerrainOptions->atElevationZones[i].fMaxElevation);
+                            ImGui::InputFloat("fBlendSize", &ptTerrainOptions->atElevationZones[i].fBlendSize);
+                            ImGui::ColorEdit4("Flat Material", ptTerrainOptions->atElevationZones[i].tFlatMaterial.tBaseColor.d);
+                            ImGui::ColorEdit4("Steep Material", ptTerrainOptions->atElevationZones[i].tSteepMaterial.tBaseColor.d);
+                            ImGui::TreePop();
+                        }
                     }
                 }
             }
