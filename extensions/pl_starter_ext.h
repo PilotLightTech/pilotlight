@@ -109,122 +109,6 @@ typedef union plTextureHandle          plTextureHandle;        // pl_graphics_ex
 PL_API void pl_load_starter_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_starter_ext(plApiRegistryI*, bool reload);
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~high level API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-// initialize
-//   - this will setup extensions that are included in the init flags and handle
-//     other tasks related to setup
-PL_API void pl_starter_initialize(plStarterInit);
-
-// finalize
-//   - if you decide to handle any extension setup, calling this function after
-//     gives this extension a change to finish setup that relies on those
-//     extensions being initialized
-PL_API void pl_starter_finalize(void);
-
-// cleanup
-//   - just handles all the cleanup need by the managed extensions
-PL_API void pl_starter_cleanup(void);
-
-// begin frame
-//   - this absolutely must be called first inside "pl_app_update"
-//   - handles most of the "begin frame" calls & main swapchain stuff
-PL_API bool pl_starter_begin_frame(void);
-
-// end frame
-//   - this absolutely must be called last inside "pl_app_update"
-//   - handles most of the "end frame" calls & will call main
-//     pass begin/end if you don't
-PL_API void pl_starter_end_frame  (void);
-
-// main pass
-//   - if you need to submit your own work, use this
-//     and make sure to call "end_main_pass" before ending the frame
-PL_API plCommandBuffer* pl_starter_begin_main_pass(void);
-PL_API void             pl_starter_end_main_pass  (void);
-
-// resize
-//   - call inside "pl_app_resize" to have swapchain recreation handled
-PL_API void pl_starter_resize(void);
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~mid level API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-// command buffers
-//    - these command buffers are already in a recording state and
-//      syncronized with subsequent calls/main pass with the internal
-//      timeline semaphores. Use between "begin_frame" and before "begin_main_pass"
-//    - They do NOT block.
-PL_API plCommandBuffer* pl_starter_get_command_buffer(void);
-PL_API void             pl_starter_submit_command_buffer(plCommandBuffer*);
-
-// temporary command buffers
-//    - these command buffers are already in a recording state but are not
-//      syncronized.
-//    - these command buffers block when submitted and meant for setup work
-//      or resource loading 
-PL_API plCommandBuffer* pl_starter_get_temporary_command_buffer(void);
-PL_API void             pl_starter_submit_temporary_command_buffer(plCommandBuffer*);
-
-// raw command buffers
-//    - these command buffers serve the same purpose as the temporary
-//      command buffers but are NOT yet in a recording state.
-PL_API plCommandBuffer* pl_starter_get_raw_command_buffer(void);
-PL_API void             pl_starter_return_raw_command_buffer(plCommandBuffer*);
-
-// VSync/MSAA/Depth Buffering
-//    - active/deactive MSAA & depth buffers & vsync
-//    - this will recreate the swapchain, render pass layouts
-//      and render passes, so be sure to recreate any shaders
-//      you created using these.
-PL_API void pl_starter_activate_msaa          (void);
-PL_API void pl_starter_deactivate_msaa        (void);
-PL_API void pl_starter_activate_depth_buffer  (void);
-PL_API void pl_starter_deactivate_depth_buffer(void);
-PL_API void pl_starter_activate_vsync         (void);
-PL_API void pl_starter_deactivate_vsync       (void);
-
-// resource retrieval
-PL_API plDevice*                pl_starter_get_device                      (void);
-PL_API plSwapchain*             pl_starter_get_swapchain                   (void);
-PL_API plSurface*               pl_starter_get_surface                     (void);
-PL_API plCommandPool*           pl_starter_get_current_command_pool        (void);
-PL_API plTimelineSemaphore*     pl_starter_get_current_timeline_semaphore  (void);
-PL_API uint64_t                 pl_starter_get_current_timeline_value      (void);
-PL_API uint64_t                 pl_starter_increment_current_timeline_value(void);
-PL_API plTimelineSemaphore*     pl_starter_get_last_timeline_semaphore     (void);
-PL_API uint64_t                 pl_starter_get_last_timeline_value         (void);
-
-// resource setting
-PL_API void pl_starter_set_swapchain(plSwapchain*);
-
-// drawing resources
-//    - this extension maintains some draw layers you use
-//      and the default font
-PL_API void           pl_starter_set_default_font    (plFont*);
-PL_API plFont*        pl_starter_get_default_font    (void);
-PL_API plDrawLayer2D* pl_starter_get_foreground_layer(void);
-PL_API plDrawLayer2D* pl_starter_get_background_layer(void);
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~helper API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-// does the tedious process of enumerating and selecting a GPU by prioritizing
-// discrete, then integrated, then CPU.
-PL_API plDevice* pl_starter_create_device(plSurface*);
-
-// readback buffers
-PL_API void pl_starter_get_readback_buffer   (uint64_t size, plBufferHandle*, const char* name); // allocates/resizes
-PL_API void pl_starter_return_readback_buffer(plBufferHandle*);
-
-// staging buffers
-PL_API void pl_starter_get_staging_buffer   (uint64_t size, plBufferHandle*, const char* name); // allocates/resizes
-PL_API void pl_starter_return_staging_buffer(plBufferHandle*);
-
-// textures (local memory)
-PL_API void pl_starter_create_texture(const plTextureDesc*, const void* data, uint64_t size, plTextureHandle*); // data only for 2D textures for now
-
-// buffers (local memory)
-PL_API void pl_starter_create_buffer(const plBufferDesc*, const void* data, plBufferHandle*);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
@@ -235,42 +119,70 @@ typedef struct _plStarterI
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~high level API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // initialize
+    //   - this will setup extensions that are included in the init flags and handle
+    //     other tasks related to setup
     void (*initialize)(plStarterInit);
 
     // finalize
+    //   - if you decide to handle any extension setup, calling this function after
+    //     gives this extension a change to finish setup that relies on those
+    //     extensions being initialized
     void (*finalize)(void);
 
     // cleanup
+    //   - just handles all the cleanup need by the managed extensions
     void (*cleanup)(void);
 
     // begin frame
+    //   - this absolutely must be called first inside "pl_app_update"
+    //   - handles most of the "begin frame" calls & main swapchain stuff
     bool (*begin_frame)(void);
 
     // end frame
-    void (*end_frame)  (void);
+    //   - this absolutely must be called last inside "pl_app_update"
+    //   - handles most of the "end frame" calls & will call main
+    //     pass begin/end if you don't
+    void (*end_frame)(void);
 
     // main pass
+    //   - if you need to submit your own work, use this
+    //     and make sure to call "end_main_pass" before ending the frame
     plCommandBuffer* (*begin_main_pass)(void);
     void             (*end_main_pass)  (void);
 
     // resize
+    //   - call inside "pl_app_resize" to have swapchain recreation handled
     void (*resize)(void);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~mid level API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // command buffers
+    //    - these command buffers are already in a recording state and
+    //      syncronized with subsequent calls/main pass with the internal
+    //      timeline semaphores. Use between "begin_frame" and before "begin_main_pass"
+    //    - They do NOT block.
     plCommandBuffer* (*get_command_buffer)(void);
     void             (*submit_command_buffer)(plCommandBuffer*);
 
     // temporary command buffers
+    //    - these command buffers are already in a recording state but are not
+    //      syncronized.
+    //    - these command buffers block when submitted and meant for setup work
+    //      or resource loading 
     plCommandBuffer* (*get_temporary_command_buffer)(void);
     void             (*submit_temporary_command_buffer)(plCommandBuffer*);
 
     // raw command buffers
+    //    - these command buffers serve the same purpose as the temporary
+    //      command buffers but are NOT yet in a recording state.
     plCommandBuffer* (*get_raw_command_buffer)(void);
     void             (*return_raw_command_buffer)(plCommandBuffer*);
 
     // VSync/MSAA/Depth Buffering
+    //    - active/deactive MSAA & depth buffers & vsync
+    //    - this will recreate the swapchain, render pass layouts
+    //      and render passes, so be sure to recreate any shaders
+    //      you created using these.
     void (*activate_msaa)          (void);
     void (*deactivate_msaa)        (void);
     void (*activate_depth_buffer)  (void);
@@ -294,6 +206,8 @@ typedef struct _plStarterI
     void (*set_swapchain)(plSwapchain*);
 
     // drawing resources
+    //    - this extension maintains some draw layers you use
+    //      and the default font
     void           (*set_default_font)    (plFont*);
     plFont*        (*get_default_font)    (void);
     plDrawLayer2D* (*get_foreground_layer)(void);
@@ -301,6 +215,8 @@ typedef struct _plStarterI
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~helper API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    // does the tedious process of enumerating and selecting a GPU by prioritizing
+    // discrete, then integrated, then CPU.
     plDevice* (*create_device)(plSurface*);
 
     // readback buffer

@@ -327,9 +327,7 @@ static const plFontGlyph* pl__find_glyph(plFont* ptFont, uint32_t c);
     if (d2 > 0.0f) { float inv_len = 1.0f / sqrtf(d2); (VX) *= inv_len; (VY) *= inv_len; } } (void)0
 
 static inline void
-pl__add_3d_indexed_lines(
-    plDrawList3D* ptDrawlist, uint32_t uIndexCount, const plVec3* atPoints,
-    const uint32_t* auIndices, plDrawLineOptions tOptions)
+pl__add_3d_indexed_lines(plDrawList3D* ptDrawlist, uint32_t uIndexCount, const plVec3* atPoints,const uint32_t* auIndices, plDrawLineOptions tOptions)
 {
 
     const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbtLineVertexBuffer);
@@ -521,6 +519,8 @@ pl__format_info_equal(const plRenderAttachmentInfo* ptInfo0, const plRenderAttac
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
+
+plBindGroupHandle pl_draw_create_bind_group_for_texture(plTextureHandle);
 
 void
 pl_draw_initialize(const plDrawInit* ptInit)

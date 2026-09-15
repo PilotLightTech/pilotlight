@@ -75,34 +75,34 @@ typedef int plMeshBuilderFlags;
 PL_API void pl_load_mesh_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_mesh_ext(plApiRegistryI*, bool reload);
 
-PL_API void           pl_mesh_register_asset_types(void);
-PL_API plAssetTypeKey pl_mesh_get_asset_type_key  (void);
+// PL_API void           pl_mesh_register_asset_types(void);
+// PL_API plAssetTypeKey pl_mesh_get_asset_type_key  (void);
 
-// operations
-PL_API void pl_mesh_allocate            (plMesh*, const plSubmeshAllocationDesc*, uint32_t count);
-PL_API void pl_mesh_cleanup             (plMesh*);
-PL_API void pl_mesh_calculate_normals   (plMesh*);
-PL_API void pl_mesh_calculate_tangents  (plMesh*);
-PL_API void pl_mesh_calculate_bounds    (plMesh*);
+// // operations
+// PL_API void pl_mesh_allocate            (plMesh*, const plSubmeshAllocationDesc*, uint32_t count);
+// PL_API void pl_mesh_cleanup             (plMesh*);
+// PL_API void pl_mesh_calculate_normals   (plMesh*);
+// PL_API void pl_mesh_calculate_tangents  (plMesh*);
+// PL_API void pl_mesh_calculate_bounds    (plMesh*);
 
-// helpers
-PL_API void pl_mesh_create_sphere(float radius, uint32_t latitudeBands, uint32_t longitudeBands, plMesh*);
-PL_API void pl_mesh_create_cube  (plMesh*);
-PL_API void pl_mesh_create_plane (plMesh*);
+// // helpers
+// PL_API void pl_mesh_create_sphere(float radius, uint32_t latitudeBands, uint32_t longitudeBands, plMesh*);
+// PL_API void pl_mesh_create_cube  (plMesh*);
+// PL_API void pl_mesh_create_plane (plMesh*);
 
-//------------------------------mesh builder-----------------------------------
+// //------------------------------mesh builder-----------------------------------
 
-// setup/shutdown
-PL_API plMeshBuilder* pl_mesh_builder_create(plMeshBuilderOptions);
-PL_API void           pl_mesh_builder_cleanup(plMeshBuilder*);
+// // setup/shutdown
+// PL_API plMeshBuilder* pl_mesh_builder_create(plMeshBuilderOptions);
+// PL_API void           pl_mesh_builder_cleanup(plMeshBuilder*);
 
-// adding
-PL_API void pl_mesh_builder_add_triangle       (plMeshBuilder*, plVec3, plVec3, plVec3);
-PL_API void pl_mesh_builder_add_triangle_double(plMeshBuilder*, plVec3d, plVec3d, plVec3d);
+// // adding
+// PL_API void pl_mesh_builder_add_triangle       (plMeshBuilder*, plVec3, plVec3, plVec3);
+// PL_API void pl_mesh_builder_add_triangle_double(plMeshBuilder*, plVec3d, plVec3d, plVec3d);
 
-// commit
-PL_API void pl_mesh_builder_commit       (plMeshBuilder*, uint32_t* indexBuffer, plVec3* vertexBuffer, uint32_t* indexBufferCountOut, uint32_t* vertexBufferCountOut);
-PL_API void pl_mesh_builder_commit_double(plMeshBuilder*, uint32_t* indexBuffer, plVec3d* vertexBuffer, uint32_t* indexBufferCountOut, uint32_t* vertexBufferCountOut);
+// // commit
+// PL_API void pl_mesh_builder_commit       (plMeshBuilder*, uint32_t* indexBuffer, plVec3* vertexBuffer, uint32_t* indexBufferCountOut, uint32_t* vertexBufferCountOut);
+// PL_API void pl_mesh_builder_commit_double(plMeshBuilder*, uint32_t* indexBuffer, plVec3d* vertexBuffer, uint32_t* indexBufferCountOut, uint32_t* vertexBufferCountOut);
 
 
 //-----------------------------------------------------------------------------

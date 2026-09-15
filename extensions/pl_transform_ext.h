@@ -79,25 +79,25 @@ typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 PL_API void pl_load_transform_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_transform_ext(plApiRegistryI*, bool reload);
 
-// system setup/shutdown/etc
-PL_API void pl_transform_register_ecs_components(void);
+// // system setup/shutdown/etc
+// PL_API void pl_transform_register_ecs_components(void);
 
-// component types (can store)
-PL_API plEcsTypeKey pl_transform_get_ecs_type_key_transform(void);
-PL_API plEcsTypeKey pl_transform_get_ecs_type_key_hierarchy(void);
+// // component types (can store)
+// PL_API plEcsTypeKey pl_transform_get_ecs_type_key_transform(void);
+// PL_API plEcsTypeKey pl_transform_get_ecs_type_key_hierarchy(void);
 
-// transforms
-//   - do NOT store out parameter; use it immediately
-PL_API plEntity pl_transform_create_transform(plComponentLibrary*, const char* name, plTransformComponent**);
+// // transforms
+// //   - do NOT store out parameter; use it immediately
+// PL_API plEntity pl_transform_create_transform(plComponentLibrary*, const char* name, plTransformComponent**);
 
-// hierarchy
-PL_API void   pl_transform_attach_component        (plComponentLibrary*, plEntity, plEntity parent);
-PL_API void   pl_transform_detach_component        (plComponentLibrary*, plEntity);
-PL_API plMat4 pl_transform_compute_parent_transform(plComponentLibrary*, plEntity);
+// // hierarchy
+// PL_API void   pl_transform_attach_component        (plComponentLibrary*, plEntity, plEntity parent);
+// PL_API void   pl_transform_detach_component        (plComponentLibrary*, plEntity);
+// PL_API plMat4 pl_transform_compute_parent_transform(plComponentLibrary*, plEntity);
 
-// systems
-PL_API void pl_transform_run_transform_update_system(plComponentLibrary*);
-PL_API void pl_transform_run_hierarchy_update_system(plComponentLibrary*);
+// // systems
+// PL_API void pl_transform_run_transform_update_system(plComponentLibrary*);
+// PL_API void pl_transform_run_hierarchy_update_system(plComponentLibrary*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct

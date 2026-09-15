@@ -59,8 +59,6 @@ typedef plVec3 (*plGjkSupportFunc)(const void* pShape, plVec3 tDir);
 PL_API void pl_load_gjk_ext  (plApiRegistryI*, bool bReload);
 PL_API void pl_unload_gjk_ext(plApiRegistryI*, bool bReload);
 
-PL_API bool pl_gjk_pen(plGjkSupportFunc tFn1, const void* pShape1, plGjkSupportFunc tFn2, const void* pShape2, plGjkCollisionInfo* ptInfoOut);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

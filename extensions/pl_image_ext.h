@@ -53,30 +53,6 @@ typedef struct _plImageWriteInfo plImageWriteInfo;
 PL_API void pl_load_image_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_image_ext(plApiRegistryI*, bool reload);
 
-// query image info
-PL_API bool            pl_image_get_info          (const unsigned char* buffer, int length, plImageInfo* infoOut);
-PL_API bool            pl_image_get_info_from_file(const char* path, plImageInfo* infoOut);
-
-// reading LDR (HDR will be remapped through this interface)
-PL_API unsigned char*  pl_image_load                (const unsigned char* buffer, int length, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
-PL_API unsigned char*  pl_image_load_from_file      (const char* path, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
-PL_API unsigned short* pl_image_load_16bit          (const unsigned char* buffer, int length, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
-PL_API unsigned short* pl_image_load_16bit_from_file(const char* path, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
-PL_API void            pl_image_set_hdr_to_ldr_gamma  (float); // default 2.2f
-PL_API void            pl_image_set_hdr_to_ldr_scale  (float); // default 1.0f
-
-// reading HDR (LDR will be promoted to floating point values)
-PL_API float*          pl_image_load_hdr            (const unsigned char* buffer, int length, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
-PL_API float*          pl_image_load_hdr_from_file  (const char* path, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
-PL_API void            pl_image_set_ldr_to_hdr_gamma(float); // default 2.2f
-PL_API void            pl_image_set_ldr_to_hdr_scale(float); // default 1.0f
-
-// call when finished with memory
-PL_API void            pl_image_free(void* returnValueFromLoad);
-
-// writing to disk (currently supports png, jpg, bmp, hdr, tga)
-PL_API bool            pl_image_write(char const* filename, const void* data, const plImageWriteInfo*);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

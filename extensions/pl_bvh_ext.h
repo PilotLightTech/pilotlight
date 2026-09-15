@@ -73,19 +73,6 @@ typedef bool (*plBVHCallback)(uint32_t index, void* userData);
 PL_API void pl_load_bvh_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_bvh_ext(plApiRegistryI*, bool reload);
 
-// setup/shutdown
-PL_API void pl_bvh_cleanup              (plBVH*);
-
-// basic usage (stable)
-PL_API void pl_bvh_build                (plBVH*, const plAABB*, uint32_t count);
-
-// intersects (stable)
-PL_API void pl_bvh_intersects_aabb      (plBVH*, plAABB, plBVHCallback, void* userData);
-PL_API bool pl_bvh_intersects_aabb_first(plBVH*, plAABB, plBVHCallback, void* userData);
-
-// helpers
-PL_API bool pl_bvh_traverse             (plBVH*, plBVHNode** nodeOut, uint32_t* indexOut);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

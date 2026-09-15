@@ -66,7 +66,6 @@ Index of this file:
 #include "pl_camera_ext.h"
 #include "pl_bvh_ext.h"
 #include "pl_shader_variant_ext.h"
-#include "pl_gltf_ext.h"
 #include "pl_gjk_ext.h"
 #include "pl_script_ext.h"
 #include "pl_material_ext.h"
@@ -143,7 +142,6 @@ Index of this file:
     static const plFreeListI*         gptFreeList      = NULL;
     static const plImageOpsI*         gptImageOps      = NULL;
     static const plScriptI*           gptScript        = NULL;
-    static const plGltfI*             gptGltf          = NULL;
     static const plGjkI*              gptGjk           = NULL;
     static const plCollisionI*        gptCollision     = NULL;
     static const plAssetI*            gptAsset         = NULL;

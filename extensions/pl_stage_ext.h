@@ -59,15 +59,6 @@ typedef union plTextureHandle     plTextureHandle;   // pl_graphics_ext.h
 PL_API void pl_load_stage_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_stage_ext(plApiRegistryI*, bool reload);
 
-// setup/shutdown
-PL_API void pl_stage_initialize(plStageInit);
-PL_API void pl_stage_cleanup   (void);
-
-// staging
-PL_API void pl_stage_stage_buffer_upload (plBufferHandle, uint64_t offset, const void* data, uint64_t size);
-PL_API void pl_stage_stage_texture_upload(plTextureHandle, const plBufferImageCopy*, const void* data, uint64_t size, bool generateMips);
-PL_API void pl_stage_flush               (void);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

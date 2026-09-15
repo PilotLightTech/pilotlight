@@ -65,25 +65,6 @@ typedef struct _plComponentLibrary plComponentLibrary;   // pl_ecs_ext.h
 PL_API void pl_load_skeleton_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_skeleton_ext(plApiRegistryI*, bool reload);
 
-//---------------------------ASSET INTEGRATION---------------------------------
-
-PL_API void           pl_skeleton_register_asset_types(void);
-PL_API plAssetTypeKey pl_skeleton_get_asset_type_key_skeleton(void);
-PL_API plAssetTypeKey pl_skeleton_get_asset_type_key_skin(void);
-
-//----------------------------ECS INTEGRATION----------------------------------
-
-// system setup/shutdown/etc
-PL_API void pl_skeleton_ecs_register_system(void);
-
-// systems
-PL_API void pl_skeleton_ecs_run_skin_update_system (plComponentLibrary*);
-
-PL_API bool pl_skeleton_ecs_bind_skin(plComponentLibrary*, plEntity, const plEntity* joints, uint32_t jointCount);
-
-// ecs types
-PL_API plEcsTypeKey pl_skeleton_ecs_get_type_key_skin (void);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

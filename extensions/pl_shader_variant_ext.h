@@ -73,20 +73,6 @@ typedef struct _plRenderAttachmentInfo plRenderAttachmentInfo;                 /
 PL_API void pl_load_shader_variant_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_shader_variant_ext(plApiRegistryI*, bool reload);
 
-PL_API void                    pl_shader_variant_initialize(plShaderVariantInit);
-PL_API void                    pl_shader_variant_cleanup   (void);
-
-PL_API bool                    pl_shader_variant_load_manifest  (const char* path);
-PL_API bool                    pl_shader_variant_unload_manifest(const char* path);
-
-PL_API plShaderHandle          pl_shader_variant_get_shader                    (const char* name, const plGraphicsState*, const void* tempVtxConstantData, const void* tempFragConstantData, const plRenderAttachmentInfo*);
-PL_API plComputeShaderHandle   pl_shader_variant_get_compute_shader            (const char* name, const void* tempConstantData);
-PL_API plBindGroupLayoutHandle pl_shader_variant_get_compute_bind_group_layout (const char* name, uint32_t index);
-PL_API plBindGroupLayoutHandle pl_shader_variant_get_graphics_bind_group_layout(const char* name, uint32_t index);
-PL_API plBindGroupLayoutHandle pl_shader_variant_get_bind_group_layout         (const char* name);
-
-PL_API void                    pl_shader_variant_update_stats(void);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

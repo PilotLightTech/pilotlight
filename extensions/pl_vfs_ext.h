@@ -104,32 +104,6 @@ typedef union _plVfsFileHandle
 PL_API void pl_load_vfs_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_vfs_ext(plApiRegistryI*, bool reload);
 
-// mounting
-PL_API plVfsResult     pl_vfs_mount_directory(const char* directory, const char* physicalDirectory, plVfsMountFlags);
-PL_API plVfsResult     pl_vfs_mount_pak      (const char* directory, const char* pakFilePath, plVfsMountFlags);
-PL_API plVfsResult     pl_vfs_mount_memory   (const char* directory, plVfsMountFlags);
-
-// basic file usage
-PL_API bool            pl_vfs_does_file_exist(const char* file);
-PL_API size_t          pl_vfs_file_size_str  (const char* file);
-PL_API plVfsFileHandle pl_vfs_register_file  (const char* file, bool mustExist);
-PL_API plVfsFileHandle pl_vfs_open_file      (const char* file, plVfsFileMode);
-PL_API void            pl_vfs_close_file     (plVfsFileHandle);
-PL_API plVfsResult     pl_vfs_delete_file    (plVfsFileHandle);
-PL_API bool            pl_vfs_is_file_open   (plVfsFileHandle);
-PL_API const char*     pl_vfs_get_real_path  (plVfsFileHandle);
-PL_API bool            pl_vfs_is_file_valid  (plVfsFileHandle);
-PL_API size_t          pl_vfs_write_file     (plVfsFileHandle, const void*, size_t);
-PL_API plVfsResult     pl_vfs_read_file      (plVfsFileHandle, void*, size_t*);
-
-// stream usage
-PL_API size_t          pl_vfs_get_file_stream_position      (plVfsFileHandle);
-PL_API void            pl_vfs_reset_file_stream_position    (plVfsFileHandle);
-PL_API void            pl_vfs_set_file_stream_position      (plVfsFileHandle, size_t);
-PL_API void            pl_vfs_increment_file_stream_position(plVfsFileHandle, size_t);
-PL_API size_t          pl_vfs_read_file_stream              (plVfsFileHandle, size_t elementSize, size_t elementCount, void*);
-PL_API size_t          pl_vfs_write_file_stream             (plVfsFileHandle, size_t elementSize, size_t elementCount, void*);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

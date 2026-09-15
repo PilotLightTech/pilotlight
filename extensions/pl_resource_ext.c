@@ -1147,6 +1147,7 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
     #endif
 
+    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     if(bReload)

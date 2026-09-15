@@ -76,38 +76,6 @@ typedef int plLogChannelType;
 PL_API void pl_load_log_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_log_ext(plApiRegistryI*, bool reload);
 
-PL_API uint64_t pl_log_add_channel      (const char* name, plLogExtChannelInit);
-PL_API void     pl_log_set_level        (uint64_t channelId, uint64_t level);
-PL_API void     pl_log_clear_channel    (uint64_t channelId);
-PL_API void     pl_log_reset_channel    (uint64_t channelId);
-PL_API uint64_t pl_log_get_channel_id   (const char* name);
-PL_API bool     pl_log_get_channel_info (uint64_t channelId, plLogExtChannelInfo*);
-PL_API uint64_t pl_log_get_channel_count(void);
-
-PL_API void pl_log_custom(const char* pcPrefix, int iPrefixSize, uint64_t level, uint64_t channelId, const char* pcMessage);
-PL_API void pl_log_trace (uint64_t channelId, const char* pcMessage);
-PL_API void pl_log_debug (uint64_t channelId, const char* pcMessage);
-PL_API void pl_log_info  (uint64_t channelId, const char* pcMessage);
-PL_API void pl_log_warn  (uint64_t channelId, const char* pcMessage);
-PL_API void pl_log_error (uint64_t channelId, const char* pcMessage);
-PL_API void pl_log_fatal (uint64_t channelId, const char* pcMessage);
-
-PL_API void pl_log_custom_p(const char* prefix, int prefixSize, uint64_t level, uint64_t channelId, const char* format, ...);
-PL_API void pl_log_trace_p (uint64_t channelId, const char* format, ...);
-PL_API void pl_log_debug_p (uint64_t channelId, const char* format, ...);
-PL_API void pl_log_info_p  (uint64_t channelId, const char* format, ...);
-PL_API void pl_log_warn_p  (uint64_t channelId, const char* format, ...);
-PL_API void pl_log_error_p (uint64_t channelId, const char* format, ...);
-PL_API void pl_log_fatal_p (uint64_t channelId, const char* format, ...);
-
-PL_API void pl_log_custom_va(const char* prefix, int prefixSize, uint64_t level, uint64_t channelId, const char* format, va_list args);
-PL_API void pl_log_trace_va (uint64_t channelId, const char* format, va_list args);
-PL_API void pl_log_debug_va (uint64_t channelId, const char* format, va_list args);
-PL_API void pl_log_info_va  (uint64_t channelId, const char* format, va_list args);
-PL_API void pl_log_warn_va  (uint64_t channelId, const char* format, va_list args);
-PL_API void pl_log_error_va (uint64_t channelId, const char* format, va_list args);
-PL_API void pl_log_fatal_va (uint64_t channelId, const char* format, va_list args);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

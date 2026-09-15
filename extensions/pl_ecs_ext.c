@@ -139,6 +139,27 @@ static void pl__ecs_destroy          (void* pLibrary);
 static void pl__ecs_resolve_components  (plComponentLibrary*, plEntity, plHashMap64*);
 static void pl__scene_ecs_add_components(plJsonObject*, plComponentLibrary*, plEntity);
 
+// forward declarations
+void pl_ecs_get_entities(const plComponentLibrary*, plEntity*, uint32_t*);
+uint32_t pl_ecs_get_type_descriptions(const plComponentDesc**);
+plEntityId pl_ecs_get_entity_id        (const plComponentLibrary*, plEntity);
+plEntity   pl_ecs_get_entity_by_id     (const plComponentLibrary*, plEntityId);
+void*    pl_ecs_add_component (plComponentLibrary*, plEcsTypeKey, plEntity);
+plEntity   pl_ecs_create_entity_with_id(plComponentLibrary*, const char* name, plEntityId);
+void*    pl_ecs_get_component (const plComponentLibrary*, plEcsTypeKey, plEntity);
+plEntity   pl_ecs_create_entity        (plComponentLibrary*, const char* name);
+void pl_ecs_init_library   (plComponentLibrary*);
+void pl_ecs_cleanup_library(plComponentLibrary*);
+
+bool
+pl_ecs_is_entity_valid(const plComponentLibrary* ptLibrary, plEntity tEntity)
+{
+    if(tEntity.uIndex == UINT32_MAX || tEntity.uIndex >= pl_sb_size(ptLibrary->_sbtEntityData))
+        return false;
+    const plEntityData* ptData = &ptLibrary->_sbtEntityData[tEntity.uIndex];
+    return ptData->tId != 0 && ptData->uGeneration == tEntity.uGeneration;
+}
+
 static inline bool
 pl_ecs_has_entity(const plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity tEntity)
 {
@@ -504,15 +525,6 @@ pl_ecs_cleanup(void)
         }
     }
     pl_sb_free(gptEcsCtx->sbtComponentDescriptions);
-}
-
-bool
-pl_ecs_is_entity_valid(const plComponentLibrary* ptLibrary, plEntity tEntity)
-{
-    if(tEntity.uIndex == UINT32_MAX || tEntity.uIndex >= pl_sb_size(ptLibrary->_sbtEntityData))
-        return false;
-    const plEntityData* ptData = &ptLibrary->_sbtEntityData[tEntity.uIndex];
-    return ptData->tId != 0 && ptData->uGeneration == tEntity.uGeneration;
 }
 
 plEntity

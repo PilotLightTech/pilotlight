@@ -93,24 +93,6 @@ typedef struct _plShaderModule plShaderModule; // pl_graphics_ext.h
 PL_API void pl_load_shader_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_shader_ext(plApiRegistryI*, bool reload);
 
-// setup
-PL_API bool                   pl_shader_initialize (const plShaderOptions*);
-PL_API void                   pl_shader_cleanup    (void);
-
-// settings
-PL_API void                   pl_shader_set_options(const plShaderOptions*);
-PL_API const plShaderOptions* pl_shader_get_options(void);
-
-// load shader (compile if not already compiled)
-PL_API plShaderModule         pl_shader_load_glsl(const char* shader, const char* entryFunc, const char* file, plShaderOptions*);
-
-// compilation (pass null shader options to use default)
-PL_API plShaderModule         pl_shader_compile_glsl(const char* shader, const char* entryFunc, plShaderOptions*);
-
-// write/read on disk
-PL_API void                   pl_shader_write_to_disk (const char* shader, const plShaderModule*);
-PL_API plShaderModule         pl_shader_read_from_disk(const char* shader, const char* entryFunc);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

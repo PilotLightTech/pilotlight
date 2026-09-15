@@ -51,15 +51,6 @@ typedef struct _plStringRepository plStringRepository;
 PL_API void pl_load_string_intern_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_string_intern_ext(plApiRegistryI*, bool reload);
 
-PL_API plStringRepository* pl_string_intern_create_repository (void);
-PL_API void                pl_string_intern_destroy_repository(plStringRepository*);
-
-PL_API const char* pl_string_intern_intern   (const char* cString);
-PL_API const char* pl_string_intern_intern_ex(const char* cString, plStringRepository*);
-
-PL_API void pl_string_intern_remove(const char* cString);
-PL_API void pl_string_intern_remove_ex(const char* cString, plStringRepository*);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

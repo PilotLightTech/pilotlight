@@ -52,12 +52,6 @@ typedef struct _plFreeListNode plFreeListNode;
 PL_API void pl_load_freelist_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_freelist_ext(plApiRegistryI*, bool reload);
 
-PL_API void            pl_freelist_create (uint64_t size, uint64_t minSize, plFreeList* freelistOut);
-PL_API void            pl_freelist_cleanup(plFreeList* freelistOut);
-
-PL_API plFreeListNode* pl_freelist_get_node   (plFreeList*, uint64_t size);
-PL_API void            pl_freelist_return_node(plFreeList*, plFreeListNode*);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

@@ -91,24 +91,6 @@ typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 PL_API void pl_load_animation_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_animation_ext(plApiRegistryI*, bool reload);
 
-// system setup/shutdown/etc
-PL_API void pl_animation_register_ecs_components(void);
-
-// entity helpers (creates entity and necessary components)
-//   - do NOT store out parameter; use it immediately
-PL_API plEntity pl_animation_create(plComponentLibrary*, const char* name, uint32_t channelCount, plAnimationComponent**);
-
-// systems
-PL_API void pl_animation_run_animation_update_system(plComponentLibrary*, float deltaTime);
-
-// ecs types
-PL_API plEcsTypeKey pl_animation_get_ecs_type_key_animation(void);
-PL_API plEcsTypeKey pl_animation_get_ecs_type_key_humanoid (void);
-
-// asset types
-PL_API void           pl_animation_register_asset_type(void);
-PL_API plAssetTypeKey pl_animation_get_asset_type_key(void);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

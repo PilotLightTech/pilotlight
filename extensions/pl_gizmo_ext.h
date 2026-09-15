@@ -57,11 +57,6 @@ typedef struct _plDrawList3D         plDrawList3D;         // pl_draw_ext.h
 PL_API void pl_load_gizmo_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_gizmo_ext(plApiRegistryI*, bool reload);
 
-PL_API void pl_gizmo_set_mode (plGizmoMode);
-PL_API void pl_gizmo_next_mode(void);
-PL_API bool pl_gizmo_active   (void);
-PL_API void pl_gizmo_gizmo    (plDrawList3D*, plCamera*, plTransformComponent* selectedTransform, plTransformComponent* parentTransform, plVec2 viewOffset, plVec2 viewScale);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

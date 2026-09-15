@@ -60,6 +60,11 @@ static plCameraContext* gptCameraCtx = NULL;
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
+void pl_camera_init(plCamera*);
+void pl_camera_set_position(plCamera*, plVec3d);
+void pl_camera_set_euler(plCamera*, float pitch, float yaw, float roll);
+void pl_camera_update (plCamera*);
+
 static inline float
 pl__wrap_angle(float tTheta)
 {

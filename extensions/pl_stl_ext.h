@@ -61,8 +61,6 @@ extern "C" {
 PL_API void pl_load_stl_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_stl_ext(plApiRegistryI*, bool reload);
 
-PL_API plAssetHandle pl_stl_import(const char* pcPath);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

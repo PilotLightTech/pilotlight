@@ -88,6 +88,8 @@ static plTransformContext* gptTransformCtx = NULL;
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
+void   pl_transform_attach_component        (plComponentLibrary*, plEntity, plEntity parent);
+
 static bool
 pl__visit_hierarchy(plComponentLibrary* ptLibrary, plHierarchyComponent* ptComponents, const plEntity* ptEntities,
     uint8_t* auVisitState,uint32_t uIndex, plHierarchyTraversalEntry** psbtTraversalOrder)

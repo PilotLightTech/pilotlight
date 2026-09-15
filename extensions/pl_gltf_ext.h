@@ -75,9 +75,6 @@ typedef int plGltfImportFlags;
 PL_API void pl_load_gltf_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_gltf_ext(plApiRegistryI*, bool reload);
 
-// import
-PL_API bool pl_gltf_import(const char* path, const plGltfImportOptions*);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

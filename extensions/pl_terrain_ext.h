@@ -61,14 +61,6 @@ typedef struct _plFreeListNode plFreeListNode; // pl_freelist_ext.h
 PL_API void pl_load_terrain_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_terrain_ext(plApiRegistryI*, bool reload);
 
-PL_API void pl_terrain_process          (plTerrainAsset*);
-PL_API bool pl_terrain_load_chunk_file  (const char* path, plTerrainChunkFile* fileOut, uint32_t fileID);
-PL_API void pl_terrain_unload_chunk_file(plTerrainChunkFile*);
-
-// assets
-PL_API void           pl_terrain_register_asset_type(void);
-PL_API plAssetTypeKey pl_terrain_get_asset_type_key(void);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

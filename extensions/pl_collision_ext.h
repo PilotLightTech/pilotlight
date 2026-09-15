@@ -53,29 +53,6 @@ typedef struct _plCollisionInfo plCollisionInfo;
 PL_API void pl_load_collision_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_collision_ext(plApiRegistryI*, bool reload);
 
-// intersection
-PL_API bool pl_collision_intersect_ray_plane            (plVec3 point, plVec3 dir, const plPlane*, plVec3* intersectionPointOut);
-PL_API bool pl_collision_intersect_line_segment_plane   (plVec3 a, plVec3 b, const plPlane*, plVec3* intersectionPointOut);
-PL_API bool pl_collision_intersect_line_segment_cylinder(plVec3 a, plVec3 b, const plCylinder*, float*);
-
-// closest point
-PL_API plVec3 pl_collision_point_closest_point_plane       (plVec3, const plPlane*);
-PL_API plVec3 pl_collision_point_closest_point_line_segment(plVec3, plVec3, plVec3, float*);
-PL_API plVec3 pl_collision_point_closest_point_aabb        (plVec3, plAABB);
-
-// collision only
-PL_API bool pl_collision_aabb_aabb        (const plAABB*, const plAABB*);
-PL_API bool pl_collision_sphere_sphere    (const plSphere*, const plSphere*);
-PL_API bool pl_collision_box_box          (const plBox*, const plBox*);
-PL_API bool pl_collision_box_sphere       (const plBox*, const plSphere*);
-PL_API bool pl_collision_box_half_space   (const plBox*, const plPlane*);
-PL_API bool pl_collision_sphere_half_space(const plSphere*, const plPlane*);
-
-// collision & penetration
-PL_API bool pl_collision_pen_sphere_sphere(const plSphere*, const plSphere*, plCollisionInfo* infoOut);
-PL_API bool pl_collision_pen_box_box      (const plBox*, const plBox*, plCollisionInfo* infoOut);
-PL_API bool pl_collision_pen_box_sphere   (const plBox*, const plSphere*, plCollisionInfo* infoOut);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

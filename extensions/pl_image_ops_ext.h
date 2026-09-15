@@ -68,25 +68,6 @@ typedef int plTextureType; // pl_graphics_ext.h
 PL_API void pl_load_image_ops_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_image_ops_ext(plApiRegistryI*, bool reload);
 
-PL_API void pl_image_ops_initialize(plImageOpInit*, plImageOpData* dataOut);
-PL_API void pl_image_ops_cleanup   (plImageOpData*);
-
-// building operations
-PL_API void pl_image_ops_add       (plImageOpData*, int x, int y, uint32_t w, uint32_t h, uint8_t*);
-PL_API void pl_image_ops_add_region(plImageOpData*, int x, int y, uint32_t w, uint32_t h, plImageOpColor);
-
-// in-place place operations
-PL_API void pl_image_ops_square(plImageOpData*);
-
-// misc.
-PL_API uint8_t* pl_image_ops_extract        (plImageOpData* dataIn, int x, int y, uint32_t w, uint32_t h, uint64_t* sizeOut);
-PL_API void     pl_image_ops_cleanup_extract(uint8_t*);
-
-//-----------------------------MIPMAPPING--------------------------------------
-
-PL_API bool pl_image_ops_generate_mip_chain(const plMipMapCpuDesc*, plMipMapChain* chainOut);
-PL_API void pl_image_ops_free_mip_chain(plMipMapChain* chainOut);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

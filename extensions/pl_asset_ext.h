@@ -68,35 +68,6 @@ typedef int plAssetEncoding;
 PL_API void pl_load_asset_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_asset_ext(plApiRegistryI*, bool reload);
 
-// system
-PL_API void pl_asset_initialize(plAssetInit);
-PL_API void pl_asset_finalize  (void);
-PL_API void pl_asset_cleanup   (void);
-
-// Creates an asset and copies szSize bytes from data into asset-owned storage.
-// data may be NULL to create a zero-initialized asset.
-PL_API plAssetHandle pl_asset_create (const plAssetDesc*, const void*);
-PL_API void          pl_asset_destroy(plAssetHandle);
-
-// lookup
-PL_API plAssetHandle  pl_asset_find           (const char* path);
-PL_API bool           pl_asset_is_valid       (plAssetHandle);
-PL_API plAssetTypeKey pl_asset_get_type_key   (plAssetHandle);
-PL_API const char*    pl_asset_get_path       (plAssetHandle);
-PL_API const char*    pl_asset_get_source_path(plAssetHandle);
-
-// resource association
-PL_API void* pl_asset_get_data(plAssetHandle); // can be stored
-
-// serialization
-PL_API plAssetHandle pl_asset_load(const char* file);
-PL_API bool          pl_asset_save(plAssetHandle, plAssetEncoding);
-
-// type registration
-PL_API plAssetTypeKey         pl_asset_register_type(plAssetTypeDesc);
-PL_API const plAssetTypeDesc* pl_asset_get_type_description(plAssetTypeKey);
-PL_API uint32_t               pl_asset_get_type_descriptions(const plAssetTypeDesc**);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

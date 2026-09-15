@@ -83,15 +83,6 @@ typedef struct _plDateTime
 PL_API void pl_load_datetime_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_datetime_ext(plApiRegistryI*, bool reload);
 
-PL_API plDateTime  pl_datetime_now              (void);
-PL_API bool        pl_datetime_leap_year        (int);
-PL_API const char* pl_datetime_month_as_string  (plMonth);
-PL_API plMonth     pl_datetime_month_from_string(const char*);
-PL_API int         pl_datetime_day_of_year      (plMonth, int day, int year);
-PL_API plDay       pl_datetime_day_of_week      (plMonth, int day, int year);
-PL_API int         pl_datetime_days_in_month    (plMonth, int year);
-PL_API plDate      pl_datetime_day_of_year_date (int day);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

@@ -54,11 +54,8 @@ typedef int plFormat; // pl_graphics_ext.h
 //-----------------------------------------------------------------------------
 
 // extension loading/unloading
-PL_API void pl_load_asset_ext  (plApiRegistryI*, bool reload);
-PL_API void pl_unload_asset_ext(plApiRegistryI*, bool reload);
-
-PL_API void           pl_texture_register_asset_type(void);
-PL_API plAssetTypeKey pl_texture_get_asset_type_key(void);
+PL_API void pl_load_texture_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_texture_ext(plApiRegistryI*, bool reload);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct

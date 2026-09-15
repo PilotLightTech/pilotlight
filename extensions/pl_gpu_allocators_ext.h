@@ -71,21 +71,6 @@ typedef struct _plDevice plDevice;
 PL_API void pl_load_gpu_allocators_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_gpu_allocators_ext(plApiRegistryI*, bool reload);
 
-// allocators
-PL_API plDeviceMemoryAllocatorI* pl_gpu_allocators_get_local_dedicated_allocator       (plDevice*);
-PL_API plDeviceMemoryAllocatorI* pl_gpu_allocators_get_local_buddy_allocator           (plDevice*);
-PL_API plDeviceMemoryAllocatorI* pl_gpu_allocators_get_staging_uncached_allocator      (plDevice*);
-PL_API plDeviceMemoryAllocatorI* pl_gpu_allocators_get_staging_uncached_buddy_allocator(plDevice*);
-PL_API plDeviceMemoryAllocatorI* pl_gpu_allocators_get_staging_cached_allocator        (plDevice*);
-
-// misc
-PL_API size_t                   pl_gpu_allocators_get_buddy_block_size(void);
-PL_API void                     pl_gpu_allocators_cleanup(plDevice*);
-
-// for debug viewing
-PL_API plDeviceMemoryAllocation* pl_gpu_allocators_get_blocks(const plDeviceMemoryAllocatorI*, uint32_t* sizeOut);
-PL_API plDeviceAllocationRange*  pl_gpu_allocators_get_ranges(const plDeviceMemoryAllocatorI*, uint32_t* sizeOut);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

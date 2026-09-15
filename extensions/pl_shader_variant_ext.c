@@ -1274,6 +1274,7 @@ pl_load_shader_variant_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
         gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
         gptJson    = pl_get_api_latest(ptApiRegistry, plJsonI);
+        gptMemory  = pl_get_api_latest(ptApiRegistry, plMemoryI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

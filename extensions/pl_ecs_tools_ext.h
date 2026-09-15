@@ -54,10 +54,6 @@ typedef struct _plRenderScene      plRenderScene;      // pl_renderer_ext.h
 PL_API void pl_load_ecs_tools_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_ecs_tools_ext(plApiRegistryI*, bool reload);
 
-PL_API void pl_ecs_tools_initialize (void);
-PL_API void pl_ecs_tools_cleanup    (void);
-PL_API bool pl_ecs_tools_show_window(plComponentLibrary*, plEntity* selectedEntity, plRenderScene*, bool*);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

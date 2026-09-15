@@ -104,6 +104,8 @@ typedef struct _plMeshFileHeader
     uint64_t uFileSize;
 } plMeshFileHeader;
 
+void pl_mesh_allocate (plMesh*, const plSubmeshAllocationDesc*, uint32_t count);
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------

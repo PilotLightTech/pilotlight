@@ -91,10 +91,6 @@ typedef int plTextureType; // pl_graphics_ext.h
 PL_API void pl_load_dds_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_dds_ext(plApiRegistryI*, bool reload);
 
-PL_API uint32_t pl_dds_get_header_size(void);
-PL_API bool     pl_dds_read_info      (uint8_t*, plDdsReadInfo*);
-PL_API void     pl_dds_write_info     (uint8_t*, const plDdsWriteInfo*);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

@@ -89,51 +89,6 @@ typedef union  _plVec3             plVec3;             // pl_math.h
 PL_API void pl_load_physics_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_physics_ext(plApiRegistryI*, bool reload);
 
-// setup/shutdown
-PL_API void                    pl_physics_initialize(plPhysicsEngineSettings);
-PL_API void                    pl_physics_cleanup   (void);
-PL_API void                    pl_physics_reset     (void);
-
-// setttings
-PL_API void pl_physics_set_settings(plPhysicsEngineSettings);
-PL_API void pl_physics_get_settings(plPhysicsEngineSettings* out);
-
-// per frame
-PL_API void                    pl_physics_update(float deltaTime, plComponentLibrary*);
-PL_API void                    pl_physics_draw  (plComponentLibrary*, plDrawList3D*);
-
-// forces/torques/impulses
-PL_API void                    pl_physics_apply_force                (plComponentLibrary*, plEntity, plVec3);
-PL_API void                    pl_physics_apply_force_at_point       (plComponentLibrary*, plEntity, plVec3, plVec3 point);
-PL_API void                    pl_physics_apply_force_at_body_point  (plComponentLibrary*, plEntity, plVec3, plVec3 point);
-PL_API void                    pl_physics_apply_impulse              (plComponentLibrary*, plEntity, plVec3);
-PL_API void                    pl_physics_apply_impulse_at_point     (plComponentLibrary*, plEntity, plVec3, plVec3 point);
-PL_API void                    pl_physics_apply_impulse_at_body_point(plComponentLibrary*, plEntity, plVec3, plVec3 point);
-PL_API void                    pl_physics_apply_torque               (plComponentLibrary*, plEntity, plVec3);
-PL_API void                    pl_physics_apply_impulse_torque       (plComponentLibrary*, plEntity, plVec3);
-
-// velocities
-PL_API void                    pl_physics_set_linear_velocity  (plComponentLibrary*, plEntity, plVec3);
-PL_API void                    pl_physics_set_angular_velocity (plComponentLibrary*, plEntity, plVec3);
-
-// ops
-PL_API void                    pl_physics_wake_up_body(plComponentLibrary*, plEntity);
-PL_API void                    pl_physics_wake_up_all (void);
-PL_API void                    pl_physics_sleep_body  (plComponentLibrary*, plEntity);
-PL_API void                    pl_physics_sleep_all   (void);
-
-// misc.
-PL_API void                   pl_physics_create_rigid_body(plComponentLibrary*, plEntity);
-
-//----------------------------ECS INTEGRATION----------------------------------
-
-// system setup/shutdown/etc
-PL_API void                   pl_physics_register_ecs_components(void);
-
-// ecs types
-PL_API plEcsTypeKey           pl_physics_get_ecs_type_key_rigid_body_physics(void);
-PL_API plEcsTypeKey           pl_physics_get_ecs_type_key_force_field       (void);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

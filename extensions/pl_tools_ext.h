@@ -75,9 +75,6 @@ typedef struct _plDevice plDevice; // pl_graphics_ext.h
 PL_API void pl_load_tools_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_tools_ext(plApiRegistryI*, bool reload);
 
-PL_API void pl_tools_initialize(plToolsInit);
-PL_API void pl_tools_update    (void); // call after beginning ui frame
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
@@ -85,7 +82,7 @@ PL_API void pl_tools_update    (void); // call after beginning ui frame
 typedef struct _plToolsI
 {
     void (*initialize)(plToolsInit);
-    void (*update)    (void);
+    void (*update)    (void); // call after beginning ui frame
 } plToolsI;
 
 //-----------------------------------------------------------------------------

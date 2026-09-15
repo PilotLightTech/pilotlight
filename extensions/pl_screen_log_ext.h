@@ -74,47 +74,37 @@ typedef struct _plDrawList2D plDrawList2D; // pl_draw_ext.h
 PL_API void pl_load_screen_log_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_screen_log_ext(plApiRegistryI*, bool reload);
 
-// setup/shutdown
-PL_API void             pl_screen_log_initialize(plScreenLogSettings);
-PL_API void             pl_screen_log_cleanup   (void);
-
-// messages
-//   Displays on screen debug messages.
-//   If "timeToDisplay" is < 0, it will remain until cleared.
-//   Messages can be updated using the "key" parameter.
-//   - timeToDisplay  : time to display message
-//   - key            : key used to update previous message (default is 0 which is ignored)
-//   - color          : message color (default is white & if 0)
-//   - textScale      : text size multiplier (default is 1.0f)
-PL_API void             pl_screen_log_add_message   (double timeToDisplay, const char* message);
-PL_API void             pl_screen_log_add_message_ex(uint64_t key, double timeToDisplay, uint32_t color, float textScale, const char* format, ...);
-PL_API void             pl_screen_log_add_message_va(uint64_t key, double timeToDisplay, uint32_t color, float textScale, const char* format, va_list args);
-
-// clear all messages
-PL_API void             pl_screen_log_clear(void);
-
-// flags
-PL_API void             pl_screen_log_set_flags(plScreenLogFlags);
-PL_API plScreenLogFlags pl_screen_log_get_flags(void);
-
-// drawing
-PL_API plDrawList2D*    pl_screen_log_get_drawlist(float xPos, float yPos, float width, float height); // call once per frame
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plScreenLogI
 {
-    void             (*initialize)    (plScreenLogSettings);
-    void             (*cleanup)       (void);
-    void             (*add_message)   (double timeToDisplay, const char* message);
-    void             (*add_message_ex)(uint64_t key, double timeToDisplay, uint32_t color, float textScale, const char* format, ...);
-    void             (*add_message_va)(uint64_t key, double timeToDisplay, uint32_t color, float textScale, const char* format, va_list args);
-    void             (*clear)         (void);
-    void             (*set_flags)     (plScreenLogFlags);
-    plScreenLogFlags (*get_flags)     (void);
-    plDrawList2D*    (*get_drawlist)  (float xPos, float yPos, float width, float height); // call once per frame
+    // setup/shutdown
+    void (*initialize)(plScreenLogSettings);
+    void (*cleanup)   (void);
+
+    // messages
+    //   Displays on screen debug messages.
+    //   If "timeToDisplay" is < 0, it will remain until cleared.
+    //   Messages can be updated using the "key" parameter.
+    //   - timeToDisplay  : time to display message
+    //   - key            : key used to update previous message (default is 0 which is ignored)
+    //   - color          : message color (default is white & if 0)
+    //   - textScale      : text size multiplier (default is 1.0f)
+    void (*add_message)   (double timeToDisplay, const char* message);
+    void (*add_message_ex)(uint64_t key, double timeToDisplay, uint32_t color, float textScale, const char* format, ...);
+    void (*add_message_va)(uint64_t key, double timeToDisplay, uint32_t color, float textScale, const char* format, va_list args);
+    
+    // clear all messages
+    void (*clear)(void);
+
+    // flags
+    void             (*set_flags)(plScreenLogFlags);
+    plScreenLogFlags (*get_flags)(void);
+
+    // drawing
+    plDrawList2D* (*get_drawlist)(float xPos, float yPos, float width, float height); // call once per frame
 } plScreenLogI;
 
 //-----------------------------------------------------------------------------

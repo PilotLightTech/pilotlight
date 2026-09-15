@@ -3799,7 +3799,6 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptCollision        = pl_get_api_latest(ptApiRegistry, plCollisionI);
         gptImageOps         = pl_get_api_latest(ptApiRegistry, plImageOpsI);
         gptScript           = pl_get_api_latest(ptApiRegistry, plScriptI);
-        gptGltf             = pl_get_api_latest(ptApiRegistry, plGltfI);
         gptGjk              = pl_get_api_latest(ptApiRegistry, plGjkI);
         gptUI               = pl_get_api_latest(ptApiRegistry, plUiI);
         gptAsset            = pl_get_api_latest(ptApiRegistry, plAssetI);

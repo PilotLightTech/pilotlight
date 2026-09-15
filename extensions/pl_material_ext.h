@@ -86,13 +86,6 @@ typedef int plMaterialAlphaMode;   // -> enum _plMaterialAlphaMode   // Enum: (P
 PL_API void pl_load_material_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_material_ext(plApiRegistryI*, bool reload);
 
-// basic api
-PL_API void pl_material_init(plMaterial*); // constructor
-
-// asset system
-PL_API void           pl_material_register_asset_types(void);
-PL_API plAssetTypeKey pl_material_get_asset_type_key  (void);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

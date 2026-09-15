@@ -73,16 +73,14 @@ typedef int plDxtFlags; // -> enum _plDxtFlags // Flag: compression option flags
 PL_API void pl_load_dxt_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_dxt_ext(plApiRegistryI*, bool reload);
 
-// Notes
-//   - setting dataOut to NULL, will set sizeOut to required buffer size
-PL_API void pl_dxt_compress(const plDxtInfo*, uint8_t* dataOut, size_t* sizeOut);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plDxtI
 {
+    // Notes
+    //   - setting dataOut to NULL, will set sizeOut to required buffer size
     void (*compress)(const plDxtInfo*, uint8_t* dataOut, size_t* sizeOut);
 } plDxtI;
 

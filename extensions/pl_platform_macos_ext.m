@@ -586,6 +586,50 @@ pl_platform_new_frame(void* pPlatformData)
 }
 
 void
+pl_window_destroy(plWindow* ptWindow)
+{
+    if(!ptWindow)
+        return;
+
+    plWindowData* ptData = (plWindowData*)ptWindow->_pBackendData;
+
+    for(uint32_t i = 0; i < pl_sb_size(gsbtWindows); i++)
+    {
+        if(gsbtWindows[i] == ptWindow)
+        {
+            pl_sb_del(gsbtWindows, i);
+            break;
+        }
+    }
+
+    if(gptMainWindow == ptWindow)
+        gptMainWindow = pl_sb_size(gsbtWindows) > 0 ? gsbtWindows[0] : NULL;
+
+    if(ptData)
+    {
+        if(ptData->ptView)
+            ptData->ptView.windowData = NULL;
+
+        if(ptData->ptNativeWindow)
+        {
+            ptData->ptNativeWindow.delegate = nil;
+            [ptData->ptNativeWindow orderOut:nil];
+        }
+
+        [ptData->ptKeyResponder removeFromSuperview];
+        [ptData->ptInputContext release];
+        [ptData->ptKeyResponder release];
+        [ptData->ptNativeWindow release];
+        [ptData->ptViewController release];
+        [ptData->tDevice release];
+        free(ptData);
+    }
+
+    ptWindow->_pBackendData = NULL;
+    free(ptWindow);
+}
+
+void
 pl_platform_cleanup(void* ptPlatformData)
 {
     pl__remove_osx_event_monitor();
@@ -871,50 +915,6 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
 
     pl__mark_window_resize(ptData);
     return PL_WINDOW_RESULT_SUCCESS;
-}
-
-void
-pl_window_destroy(plWindow* ptWindow)
-{
-    if(!ptWindow)
-        return;
-
-    plWindowData* ptData = (plWindowData*)ptWindow->_pBackendData;
-
-    for(uint32_t i = 0; i < pl_sb_size(gsbtWindows); i++)
-    {
-        if(gsbtWindows[i] == ptWindow)
-        {
-            pl_sb_del(gsbtWindows, i);
-            break;
-        }
-    }
-
-    if(gptMainWindow == ptWindow)
-        gptMainWindow = pl_sb_size(gsbtWindows) > 0 ? gsbtWindows[0] : NULL;
-
-    if(ptData)
-    {
-        if(ptData->ptView)
-            ptData->ptView.windowData = NULL;
-
-        if(ptData->ptNativeWindow)
-        {
-            ptData->ptNativeWindow.delegate = nil;
-            [ptData->ptNativeWindow orderOut:nil];
-        }
-
-        [ptData->ptKeyResponder removeFromSuperview];
-        [ptData->ptInputContext release];
-        [ptData->ptKeyResponder release];
-        [ptData->ptNativeWindow release];
-        [ptData->ptViewController release];
-        [ptData->tDevice release];
-        free(ptData);
-    }
-
-    ptWindow->_pBackendData = NULL;
-    free(ptWindow);
 }
 
 void

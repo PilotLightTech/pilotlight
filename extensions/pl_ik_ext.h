@@ -72,15 +72,6 @@ typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 PL_API void pl_load_ik_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_ik_ext(plApiRegistryI*, bool reload);
 
-// system setup/shutdown/etc
-PL_API void pl_ik_register_ecs_components(void);
-
-// systems
-PL_API void pl_ik_run_update_system(plComponentLibrary*);
-
-// ecs types
-PL_API plEcsTypeKey pl_ik_get_ecs_type_key(void);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------

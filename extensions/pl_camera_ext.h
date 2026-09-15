@@ -85,47 +85,6 @@ typedef uint32_t                   plEcsTypeKey;       // pl_ecs_ext.h
 PL_API void pl_load_camera_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_camera_ext(plApiRegistryI*, bool reload);
 
-// lifecycle
-PL_API void pl_camera_init(plCamera*);
-
-// projection
-PL_API void pl_camera_set_perspective       (plCamera*, const plCameraPerspectiveDesc*);
-PL_API void pl_camera_set_orthographic      (plCamera*, const plCameraOrthographicDesc*);
-PL_API void pl_camera_set_viewport          (plCamera*, float width, float height);
-PL_API void pl_camera_set_orthographic_size (plCamera*, float width, float height);
-PL_API void pl_camera_set_y_fov             (plCamera*, float fov);
-PL_API void pl_camera_set_clip_planes       (plCamera*, float nearZ, float narZ);
-PL_API void pl_camera_set_depth_mode        (plCamera*, plCameraDepthMode);
-
-// pose
-PL_API void pl_camera_set_position (plCamera*, plVec3d);
-PL_API void pl_camera_set_rotation (plCamera*, plQuat);
-PL_API void pl_camera_set_transform(plCamera*, plVec3d position, plQuat rotation);
-
-// movement
-PL_API void pl_camera_translate      (plCamera*, plVec3d delta);
-PL_API void pl_camera_translate_local(plCamera*, plVec3d delta);
-PL_API void pl_camera_look_at        (plCamera*, plVec3d eye, plVec3d target, plVec3 up);
-
-// convenience controller helpers
-PL_API void pl_camera_rotate_euler_local(plCamera*, float pitch, float yaw, float roll);
-PL_API void pl_camera_set_euler         (plCamera*, float pitch, float yaw, float roll);
-PL_API void pl_camera_rotate_euler      (plCamera*, float pitch, float yaw, float roll);
-
-// derived data
-PL_API void pl_camera_update (plCamera*);
-
-//----------------------------ECS INTEGRATION----------------------------------
-
-// entity helpers
-PL_API plEntity pl_camera_ecs_create_perspective (plComponentLibrary*, const char* name, const plCameraPerspectiveDesc*, plCamera**);
-PL_API plEntity pl_camera_ecs_create_orthographic(plComponentLibrary*, const char* name, const plCameraOrthographicDesc*, plCamera**);
-
-// system setup/shutdown/etc
-PL_API void         pl_camera_ecs_register_ecs_components(void);
-PL_API void         pl_camera_ecs_run_ecs            (plComponentLibrary*);
-PL_API plEcsTypeKey pl_camera_ecs_get_ecs_type_key   (void);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
 //-----------------------------------------------------------------------------

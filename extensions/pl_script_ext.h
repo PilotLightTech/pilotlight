@@ -58,30 +58,23 @@ typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 PL_API void pl_load_script_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_script_ext(plApiRegistryI*, bool reload);
 
-// scripts
-PL_API plEntity     pl_script_create(plComponentLibrary*, const char* file, plScriptFlags, plScriptComponent**);
-PL_API void         pl_script_attach(plComponentLibrary*, const char* file, plScriptFlags, plEntity, plScriptComponent**);
-PL_API void         pl_script_load(plComponentLibrary*, plEntity);
-
-// system setup/shutdown/etc
-PL_API void         pl_script_register_ecs_components(void);
-PL_API void         pl_script_run_update_system  (plComponentLibrary*);
-
-// ecs types
-PL_API plEcsTypeKey pl_script_get_ecs_type_key(void);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plScriptI
 {
-    plEntity     (*create)             (plComponentLibrary*, const char* file, plScriptFlags, plScriptComponent**);
-    void         (*attach)             (plComponentLibrary*, const char* file, plScriptFlags, plEntity, plScriptComponent**);
-    void         (*load)               (plComponentLibrary*, plEntity);
-    void         (*register_ecs_components)(void);
-    void         (*run_update_system)  (plComponentLibrary*);
-    plEcsTypeKey (*get_ecs_type_key)   (void);
+    // scripts
+    plEntity (*create)(plComponentLibrary*, const char* file, plScriptFlags, plScriptComponent**);
+    void     (*attach)(plComponentLibrary*, const char* file, plScriptFlags, plEntity, plScriptComponent**);
+    void     (*load)  (plComponentLibrary*, plEntity);
+
+    // system setup/shutdown/etc
+    void (*register_ecs_components)(void);
+    void (*run_update_system)      (plComponentLibrary*);
+
+    // ecs types
+    plEcsTypeKey (*get_ecs_type_key)(void);
 
 } plScriptI;
 

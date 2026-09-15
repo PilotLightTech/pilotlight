@@ -80,6 +80,8 @@ static void pl__starter_deactivate_msaa(void);
 static void pl__starter_activate_depth_buffer(void);
 static void pl__starter_deactivate_depth_buffer(void);
 
+plDevice* pl_starter_create_device(plSurface*);
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------

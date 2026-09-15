@@ -236,6 +236,7 @@ pl_load_freelist_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .return_node = pl_freelist_return_node
     };
     pl_set_api(ptApiRegistry, plFreeListI, &tApi);
+    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
 }
 
 void

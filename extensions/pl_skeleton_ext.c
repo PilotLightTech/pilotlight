@@ -85,6 +85,8 @@ static plSkeletonContext* gptSkeletonCtx = NULL;
 // [SECTION] public api implementations
 //-----------------------------------------------------------------------------
 
+bool pl_skeleton_ecs_bind_skin(plComponentLibrary*, plEntity, const plEntity* joints, uint32_t jointCount);
+
 static void
 pl__ecs_skin_clone(const void* pSrc, plComponentLibrary* ptSrcLib, void* Dest, plComponentLibrary* ptDestLib)
 {
