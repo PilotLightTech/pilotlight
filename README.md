@@ -66,7 +66,6 @@ Information for developers can be found in the [wiki](https://github.com/PilotLi
 
 ## Folder Structure
 * <ins>assets</ins> - Contains Pilot Light native assets.
-* <ins>thirdparty</ins> - Contains any third party libraries.
 * <ins>docs</ins> - Contains documentation for the project.
 * <ins>examples</ins> - Contains small complete examples that utilize stable APIs & extensions
 * <ins>extensions</ins> - Contains extensions (most functionality is provided through these extensions).

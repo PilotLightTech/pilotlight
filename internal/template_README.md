@@ -14,19 +14,20 @@ TBD
 Build Instructions:
 
 1. Install Requirements for your platform listed [here](https://github.com/PilotLightTech/pilotlight/wiki/Building).
-2. Run platform build script located in the **src** directory.
+2. Run platform build scripts located in the **build** directory.
 3. Run **pilot_light** executable in **out** directory.
 
 
 ## Folder Structure
 * <ins>dependencies</ins> - Contains any third party libraries.
 * <ins>docs</ins> - Contains documentation for the project.
+* <ins>build</ins> - Build scripts.
 * <ins>scripts</ins> - Contains helper scripts for various things.
 * <ins>shaders</ins> - Contains shader code.
 * <ins>src</ins> - Contains source code for this project.
 * <ins>tests</ins> - Contains tests.
 * <ins>assets</ins> - Contains Pilot Light native assets.
-* <ins>assets</ins> - Contains raw resources.
+* <ins>resources</ins> - Contains raw resources.
 
 ## License
 TBD

@@ -8,8 +8,9 @@
 # [SECTION] extensions
 # [SECTION] ecs scripts
 # [SECTION] platform extension
+# [SECTION] imgui & implot
 # [SECTION] app
-# [SECTION] generate scripts
+# [SECTION] generate_scripts
 
 #-----------------------------------------------------------------------------
 # [SECTION] imports
@@ -49,13 +50,8 @@ with pl.project("pilotlight"):
     pl.set_output_directory(output_directory)
     pl.add_link_directories(output_directory)
     pl.add_include_directories(output_directory,
-                               "../src",
-                               "../shaders",
-                               "../dependencies/pilotlight/shaders",
-                               "../dependencies/pilotlight/include",
-                               "../dependencies/stb",
-                               "../dependencies/pilotlight/src",
-                               "../dependencies/cgltf")
+                               "../src", "../shaders", "extensions", "../dependencies/pilotlight/shaders",
+                               "../dependencies/pilotlight/include", "../dependencies/pilotlight/src")
 
     #-----------------------------------------------------------------------------
     # [SECTION] profiles
@@ -159,55 +155,107 @@ with pl.project("pilotlight"):
     # [SECTION] extensions
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_unity_ext", pl.TargetType.DYNAMIC_LIBRARY, cache=True):
+    extensions = [
+        "pl_profile_ext",
+        "pl_image_ext",
+        "pl_stats_ext",
+        "pl_rect_pack_ext",
+        "pl_string_intern_ext",
+        "pl_draw_ext",
+        "pl_job_ext",
+        "pl_log_ext",
+        "pl_gpu_allocators_ext",
+        "pl_ecs_ext",
+        "pl_tools_ext",
+        "pl_renderer_ext",
+        "pl_resource_ext",
+        "pl_ui_ext",
+        "pl_ecs_tools_ext",
+        "pl_camera_ext",
+        "pl_animation_ext",
+        "pl_gizmo_ext",
+        "pl_console_ext",
+        "pl_screen_log_ext",
+        "pl_starter_ext",
+        "pl_physics_ext",
+        "pl_collision_ext",
+        "pl_bvh_ext",
+        "pl_config_ext",
+        "pl_mesh_ext",
+        "pl_shader_variant_ext",
+        "pl_datetime_ext",
+        "pl_vfs_ext",
+        "pl_compress_ext",
+        "pl_dds_ext",
+        "pl_gltf_ext",
+        "pl_dxt_ext",
+        "pl_pak_ext",
+        "pl_script_ext",
+        "pl_material_ext",
+        "pl_terrain_ext",
+        "pl_voxel_ext",
+        "pl_path_ext",
+        "pl_audio_ext",
+        "pl_freelist_ext",
+        "pl_stage_ext",
+        "pl_image_ops_ext",
+        "pl_gjk_ext",
+        "pl_ik_ext",
+        "pl_transform_ext",
+        "pl_asset_ext",
+        "pl_skeleton_ext",
+        "pl_json_ext",
+        "pl_stl_ext",
+        "pl_texture_ext",
+    ]
 
-        pl.add_source_files("../dependencies/pilotlight/src/pl_unity_ext.c")
-        pl.set_output_binary("pl_unity_ext")
+    for extension in extensions:
 
-        with pl.configuration("debug"): 
+        with pl.target(extension, pl.TargetType.DYNAMIC_LIBRARY, cache=True):
 
-            # win32
-            with pl.platform("Windows"):
-
-                with pl.compiler("msvc"):
-                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
-                    pl.add_compiler_flags("-std:c11")
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries( "xcb", "X11", "X11-xcb",
-                                                    "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
-                    pl.add_linker_flags("-lstdc++")
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_compiler_flags("-Wno-deprecated-declarations")
-                    pl.add_linker_flags("-lstdc++")
-                    pl.add_link_directories("/usr/local/lib")
-
-        with pl.configuration("release"): 
+            pl.add_source_files("../dependencies/pilotlight/src/" + extension + ".c")
             
-            # win32
-            with pl.platform("Windows"):
+            # default config
+            with pl.configuration("debug"):
 
-                with pl.compiler("msvc"):
-                    pl.add_compiler_flags("-std:c11")
+                pl.set_output_binary(extension + "d")
 
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb",
-                                                    "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
-                    pl.add_linker_flags("-lstdc++")
+                # win32
+                with pl.platform("Windows"):
 
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_compiler_flags("-Wno-deprecated-declarations")
-                    pl.add_linker_flags("-lstdc++")
-                    pl.add_link_directories("/usr/local/lib")
+                    with pl.compiler("msvc"):
+                        pass
+
+                # linux
+                with pl.platform("Linux"):
+                    with pl.compiler("gcc"):
+                        pass
+
+                # macos
+                with pl.platform("Darwin"):
+                    with pl.compiler("clang"):
+                        pass
+
+            # release
+            with pl.configuration("release"):
+
+                pl.set_output_binary(extension)
+
+                # win32
+                with pl.platform("Windows"):
+
+                    with pl.compiler("msvc"):
+                        pass
+
+                # linux
+                with pl.platform("Linux"):
+                    with pl.compiler("gcc"):
+                        pass
+
+                # macos
+                with pl.platform("Darwin"):
+                    with pl.compiler("clang"):
+                        pass
                     
     #-----------------------------------------------------------------------------
     # [SECTION] ecs scripts
@@ -505,41 +553,14 @@ with pl.project("pilotlight"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_source_files("../dependencies/pilotlight/src/pl_platform_macos_ext.m")
-
-    #-----------------------------------------------------------------------------
-    # [SECTION] app
-    #-----------------------------------------------------------------------------
-
-    with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, reloadable=True):
-
-        pl.add_source_files("../src/app.c")
-        pl.set_output_binary("app")
-
-        def add_app():
-            
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pl.add_linker_flags("-noimplib")
-            
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes",
-                                                    "xcb-keysyms", "pthread")
-                    
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pass
-
-        with pl.configuration("debug"):   add_app()
-        with pl.configuration("release"): add_app()
-  
+         
 #-----------------------------------------------------------------------------
 # [SECTION] generate scripts
 #-----------------------------------------------------------------------------
 
 # where to output build scripts
-working_directory = os.path.dirname(os.path.abspath(__file__)) + "/../src"
+working_directory = os.path.dirname(os.path.abspath(__file__)) + "/../build"
 
-win32.generate_build(working_directory + '/' + "build_win32.bat")
-apple.generate_build(working_directory + '/' + "build_macos.sh")
-linux.generate_build(working_directory + '/' + "build_linux.sh")
+win32.generate_build(working_directory + '/' + "build_pilotlight_win32.bat")
+apple.generate_build(working_directory + '/' + "build_pilotlight_macos.sh")
+linux.generate_build(working_directory + '/' + "build_pilotlight_linux.sh")

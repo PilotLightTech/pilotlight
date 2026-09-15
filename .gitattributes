@@ -22,6 +22,3 @@
 *.png binary
 *.ttf binary
 *.lib binary
-
-# vendored code
-thirdparty/* linguist-vendored

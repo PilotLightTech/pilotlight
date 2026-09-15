@@ -12,10 +12,7 @@ scripts/__pycache__/
 
 # debug files
 src/*.pdb
-
-# build scripts
-src/build.bat
-src/build.sh
+build/*.pdb
 
 # misc
 .DS_Store
