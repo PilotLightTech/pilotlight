@@ -93,7 +93,7 @@
 
 :Build_pilot_light_test_c
 @set PL_DEFINES=-DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no 
 @set PL_SOURCES="main_lib_tests.c" 
@@ -135,7 +135,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pilot_light_test_cpp
 @set PL_DEFINES=-DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no 
 @set PL_SOURCES="main_lib_tests.cpp" 
@@ -177,7 +177,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_tests_c
 @set PL_DEFINES=-DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="app_tests.c" 
@@ -214,7 +214,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_tests_cpp
 @set PL_DEFINES=-DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="app_tests.cpp" 
@@ -304,7 +304,7 @@ goto ExitLabel
 
 :Build_pilot_light_test_c
 @set PL_DEFINES=-DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no 
 @set PL_SOURCES="main_lib_tests.c" 
@@ -346,7 +346,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pilot_light_test_cpp
 @set PL_DEFINES=-DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no 
 @set PL_SOURCES="main_lib_tests.cpp" 
@@ -388,7 +388,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_tests_c
 @set PL_DEFINES=-DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="app_tests.c" 
@@ -425,7 +425,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_tests_cpp
 @set PL_DEFINES=-DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="app_tests.cpp" 

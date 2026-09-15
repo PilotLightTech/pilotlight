@@ -96,10 +96,10 @@
 
 :Build_pl_unity_ext
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -nodefaultlib:MSVCRT 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -nodefaultlib:MSVCRT 
 @set PL_SOURCES="../extensions/pl_unity_ext.c" 
 
 :: run compiler (and linker)
@@ -129,10 +129,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pl_shader_ext
 @set PL_DEFINES=-DPL_VULKAN_BACKEND -DPL_PLATFORM_WINDOWS -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -nodefaultlib:MSVCRT 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -nodefaultlib:MSVCRT 
 @set PL_STATIC_LINK_LIBRARIES=shaderc_combined.lib spirv-cross-c.lib spirv-cross-core.lib spirv-cross-cpp.lib spirv-cross-glsl.lib spirv-cross-hlsl.lib spirv-cross-msl.lib spirv-cross-reflect.lib spirv-cross-util.lib 
 @set PL_SOURCES="../extensions/pl_shader_ext.c" 
 
@@ -186,10 +186,10 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_shader_cpu_ext
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_WINDOWS -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -nodefaultlib:MSVCRT 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -nodefaultlib:MSVCRT 
 @set PL_SOURCES="../extensions/pl_shader_ext.c" 
 
 :: run compiler (and linker)
@@ -221,10 +221,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pl_graphics_ext
 @set PL_DEFINES=-DPL_VULKAN_BACKEND -DPL_PLATFORM_WINDOWS -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -nodefaultlib:MSVCRT 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -nodefaultlib:MSVCRT 
 @set PL_STATIC_LINK_LIBRARIES=vulkan-1.lib shaderc_combined.lib spirv-cross-c.lib spirv-cross-core.lib spirv-cross-cpp.lib spirv-cross-glsl.lib spirv-cross-hlsl.lib spirv-cross-msl.lib spirv-cross-reflect.lib spirv-cross-util.lib 
 @set PL_SOURCES="../extensions/pl_graphics_ext.c" 
 
@@ -278,10 +278,10 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_graphics_cpu_ext
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_WINDOWS -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -nodefaultlib:MSVCRT 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -nodefaultlib:MSVCRT 
 @set PL_SOURCES="../extensions/pl_graphics_ext.c" 
 
 :: run compiler (and linker)
@@ -313,10 +313,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pl_script_camera
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -noimplib 
 @set PL_SOURCES="../extensions/pl_script_camera.c" 
 
 :: run compiler (and linker)
@@ -369,10 +369,10 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_platform_ext
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no 
 @set PL_STATIC_LINK_LIBRARIES=user32.lib Ole32.lib gdi32.lib 
 @set PL_SOURCES="../extensions/pl_platform_win32_ext.c" 
 
@@ -408,7 +408,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pilot_light
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
 @set PL_LINKER_FLAGS=-incremental:no 
@@ -445,6 +445,39 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Build_sandbox
+@set PL_DEFINES=-DPL_CONFIG_DEBUG -DPL_PLATFORM_WINDOWS -D_DEBUG -DPL_CONFIG_DEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no 
+@set PL_SOURCES="../sandbox/app.c" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mTarget: sandbox[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanupdebug
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+@del "..\out\*.obj"  > nul 2> nul
+
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_draw_2d_frag | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :: skip during hot reload
@@ -472,7 +505,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_draw_2d_frag
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -530,7 +563,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_draw_2d_sdf_frag
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -588,7 +621,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_draw_2d_vert
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -616,163 +649,6 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
 
 :Exit_pl_draw_2d_vert
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_imgui
-
-:: only build once
-@if exist "..\out\dearimguid.lib" goto CacheCheck_imgui
-@if not exist "..\out\dearimguid.lib" goto Build_imgui
-
-:CacheCheck_imgui
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\dearimguid.lib"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
-
-if %ERRORLEVEL% NEQ 0 (
-@echo.
-    @echo [1m[93mTarget: imgui[0m
-    @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-    @echo [1mCache: [92mValid[0m
-    goto Exit_imgui
-)
-@echo.
-@echo [1m[93mTarget: imgui[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1mCache: [91mExpired[0m
-@echo.
-
-:Build_imgui
-@set PL_DEFINES=-DPL_PLATFORM_WINDOWS 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -WX -Od -MDd -Zi -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo 
-
-:: run compiler only
-@echo.
-@echo [1m[93mTarget: imgui[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling...[0m
-
-:: each file must be compiled separately
-cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% ../thirdparty/imgui/imgui_unity.cpp -Fo"../out/"
-
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: if failed, skip linking
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug
-)
-
-:: link object files into a shared lib
-@echo [1m[36mLinking...[0m
-lib -nologo -OUT:"../out/dearimguid.lib" "../out/*.obj"
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_imgui
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_dear_imgui_ext
-
-:: only build once
-@if exist "..\out\pl_dear_imgui_ext.dll" goto CacheCheck_pl_dear_imgui_ext
-@if not exist "..\out\pl_dear_imgui_ext.dll" goto Build_pl_dear_imgui_ext
-
-:CacheCheck_pl_dear_imgui_ext
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_dear_imgui_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
-
-if %ERRORLEVEL% NEQ 0 (
-@echo.
-    @echo [1m[93mTarget: pl_dear_imgui_ext[0m
-    @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-    @echo [1mCache: [92mValid[0m
-    goto Exit_pl_dear_imgui_ext
-)
-@echo.
-@echo [1m[93mTarget: pl_dear_imgui_ext[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1mCache: [91mExpired[0m
-@echo.
-
-:Build_pl_dear_imgui_ext
-@set PL_DEFINES=-DPL_CONFIG_DEBUG -DPL_PLATFORM_WINDOWS 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -Od -MDd -Zi -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo -noexp 
-@set PL_STATIC_LINK_LIBRARIES=dearimguid.lib ucrtd.lib 
-@set PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mTarget: pl_dear_imgui_ext[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_dear_imgui_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_dear_imgui_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_pl_dear_imgui_ext
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:Build_sandbox
-@set PL_DEFINES=-DPL_CONFIG_DEBUG -DPL_PLATFORM_WINDOWS 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -Od -MDd -Zi -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo -noimplib -noexp 
-@set PL_STATIC_LINK_LIBRARIES=dearimguid.lib 
-@set PL_SOURCES="../sandbox/app.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mTarget: sandbox[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
 
 @del "..\out\*.obj"  > nul 2> nul
 
@@ -837,10 +713,10 @@ goto ExitLabel
 
 :Build_pl_unity_ext
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -nodefaultlib:MSVCRT 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -nodefaultlib:MSVCRT 
 @set PL_SOURCES="../extensions/pl_unity_ext.c" 
 
 :: run compiler (and linker)
@@ -870,10 +746,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pl_shader_ext
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_WINDOWS -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -nodefaultlib:MSVCRT 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -nodefaultlib:MSVCRT 
 @set PL_SOURCES="../extensions/pl_shader_ext.c" 
 
 :: run compiler (and linker)
@@ -926,10 +802,10 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_shader_cpu_ext
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_WINDOWS -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -nodefaultlib:MSVCRT 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -nodefaultlib:MSVCRT 
 @set PL_SOURCES="../extensions/pl_shader_ext.c" 
 
 :: run compiler (and linker)
@@ -961,10 +837,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pl_graphics_ext
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_WINDOWS -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -nodefaultlib:MSVCRT 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -nodefaultlib:MSVCRT 
 @set PL_SOURCES="../extensions/pl_graphics_ext.c" 
 
 :: run compiler (and linker)
@@ -1017,10 +893,10 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_graphics_cpu_ext
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_WINDOWS -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -nodefaultlib:MSVCRT 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -nodefaultlib:MSVCRT 
 @set PL_SOURCES="../extensions/pl_graphics_ext.c" 
 
 :: run compiler (and linker)
@@ -1052,10 +928,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pl_script_camera
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -noimplib 
 @set PL_SOURCES="../extensions/pl_script_camera.c" 
 
 :: run compiler (and linker)
@@ -1108,10 +984,10 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_platform_ext
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no 
 @set PL_STATIC_LINK_LIBRARIES=user32.lib Ole32.lib gdi32.lib 
 @set PL_SOURCES="../extensions/pl_platform_null_ext.c" 
 
@@ -1147,7 +1023,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pilot_light
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
 @set PL_LINKER_FLAGS=-incremental:no 
@@ -1184,6 +1060,39 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | test ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Build_sandbox
+@set PL_DEFINES=-DPL_CONFIG_TEST -DPL_CONFIG_DEBUG -DPL_PLATFORM_WINDOWS -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no 
+@set PL_SOURCES="../sandbox/app.c" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mTarget: sandbox[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanuptest
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+@del "..\out\*.obj"  > nul 2> nul
+
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_draw_2d_frag | test ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :: skip during hot reload
@@ -1211,7 +1120,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_draw_2d_frag
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -1269,7 +1178,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_draw_2d_sdf_frag
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -1327,7 +1236,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_draw_2d_vert
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -1355,163 +1264,6 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
 
 :Exit_pl_draw_2d_vert
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | test ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_imgui
-
-:: only build once
-@if exist "..\out\dearimguid.lib" goto CacheCheck_imgui
-@if not exist "..\out\dearimguid.lib" goto Build_imgui
-
-:CacheCheck_imgui
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\dearimguid.lib"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
-
-if %ERRORLEVEL% NEQ 0 (
-@echo.
-    @echo [1m[93mTarget: imgui[0m
-    @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-    @echo [1mCache: [92mValid[0m
-    goto Exit_imgui
-)
-@echo.
-@echo [1m[93mTarget: imgui[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1mCache: [91mExpired[0m
-@echo.
-
-:Build_imgui
-@set PL_DEFINES=-DPL_PLATFORM_WINDOWS 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -WX -Od -MDd -Zi -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo 
-
-:: run compiler only
-@echo.
-@echo [1m[93mTarget: imgui[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling...[0m
-
-:: each file must be compiled separately
-cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% ../thirdparty/imgui/imgui_unity.cpp -Fo"../out/"
-
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: if failed, skip linking
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuptest
-)
-
-:: link object files into a shared lib
-@echo [1m[36mLinking...[0m
-lib -nologo -OUT:"../out/dearimguid.lib" "../out/*.obj"
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_imgui
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | test ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_dear_imgui_ext
-
-:: only build once
-@if exist "..\out\pl_dear_imgui_ext.dll" goto CacheCheck_pl_dear_imgui_ext
-@if not exist "..\out\pl_dear_imgui_ext.dll" goto Build_pl_dear_imgui_ext
-
-:CacheCheck_pl_dear_imgui_ext
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_dear_imgui_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
-
-if %ERRORLEVEL% NEQ 0 (
-@echo.
-    @echo [1m[93mTarget: pl_dear_imgui_ext[0m
-    @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-    @echo [1mCache: [92mValid[0m
-    goto Exit_pl_dear_imgui_ext
-)
-@echo.
-@echo [1m[93mTarget: pl_dear_imgui_ext[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1mCache: [91mExpired[0m
-@echo.
-
-:Build_pl_dear_imgui_ext
-@set PL_DEFINES=-DPL_CONFIG_TEST -DPL_CONFIG_DEBUG -DPL_PLATFORM_WINDOWS 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -Od -MDd -Zi -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo -noexp 
-@set PL_STATIC_LINK_LIBRARIES=dearimguid.lib ucrtd.lib 
-@set PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mTarget: pl_dear_imgui_ext[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_dear_imgui_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_dear_imgui_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuptest
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_pl_dear_imgui_ext
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | test ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:Build_sandbox
-@set PL_DEFINES=-DPL_CONFIG_TEST -DPL_CONFIG_DEBUG -DPL_PLATFORM_WINDOWS 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -Od -MDd -Zi -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo -noimplib -noexp 
-@set PL_STATIC_LINK_LIBRARIES=dearimguid.lib 
-@set PL_SOURCES="../sandbox/app.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mTarget: sandbox[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuptest
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
 
 @del "..\out\*.obj"  > nul 2> nul
 
@@ -1576,10 +1328,10 @@ goto ExitLabel
 
 :Build_pl_unity_ext
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no 
 @set PL_SOURCES="../extensions/pl_unity_ext.c" 
 
 :: run compiler (and linker)
@@ -1609,10 +1361,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pl_shader_ext
 @set PL_DEFINES=-DPL_VULKAN_BACKEND -DPL_PLATFORM_WINDOWS -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no 
 @set PL_STATIC_LINK_LIBRARIES=shaderc_combined.lib spirv-cross-c.lib spirv-cross-core.lib spirv-cross-cpp.lib spirv-cross-glsl.lib spirv-cross-hlsl.lib spirv-cross-msl.lib spirv-cross-reflect.lib spirv-cross-util.lib 
 @set PL_SOURCES="../extensions/pl_shader_ext.c" 
 
@@ -1666,10 +1418,10 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_shader_cpu_ext
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_WINDOWS -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no 
 @set PL_SOURCES="../extensions/pl_shader_ext.c" 
 
 :: run compiler (and linker)
@@ -1701,10 +1453,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pl_graphics_ext
 @set PL_DEFINES=-DPL_VULKAN_BACKEND -DPL_PLATFORM_WINDOWS -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no 
 @set PL_STATIC_LINK_LIBRARIES=vulkan-1.lib shaderc_combined.lib spirv-cross-c.lib spirv-cross-core.lib spirv-cross-cpp.lib spirv-cross-glsl.lib spirv-cross-hlsl.lib spirv-cross-msl.lib spirv-cross-reflect.lib spirv-cross-util.lib 
 @set PL_SOURCES="../extensions/pl_graphics_ext.c" 
 
@@ -1758,10 +1510,10 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_graphics_cpu_ext
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_WINDOWS -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no 
 @set PL_SOURCES="../extensions/pl_graphics_ext.c" 
 
 :: run compiler (and linker)
@@ -1793,10 +1545,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pl_script_camera
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -noimplib 
 @set PL_SOURCES="../extensions/pl_script_camera.c" 
 
 :: run compiler (and linker)
@@ -1849,10 +1601,10 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_platform_ext
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
-@set PL_LINKER_FLAGS=-noexp -incremental:no 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no 
 @set PL_STATIC_LINK_LIBRARIES=ucrt.lib user32.lib Ole32.lib gdi32.lib 
 @set PL_SOURCES="../extensions/pl_platform_win32_ext.c" 
 
@@ -1888,7 +1640,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_pilot_light
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
 @set PL_LINKER_FLAGS=-incremental:no 
@@ -1925,6 +1677,39 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Build_sandbox
+@set PL_DEFINES=-DPL_PLATFORM_WINDOWS -DNDEBUG -DPL_CONFIG_RELEASE 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
+@set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no 
+@set PL_SOURCES="../sandbox/app.c" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mTarget: sandbox[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanuprelease
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+@del "..\out\*.obj"  > nul 2> nul
+
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_draw_2d_frag | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :: skip during hot reload
@@ -1952,7 +1737,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_draw_2d_frag
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -2010,7 +1795,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_draw_2d_sdf_frag
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -2068,7 +1853,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 :Build_pl_draw_2d_vert
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
@@ -2096,163 +1881,6 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
 
 :Exit_pl_draw_2d_vert
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_imgui
-
-:: only build once
-@if exist "..\out\dearimgui.lib" goto CacheCheck_imgui
-@if not exist "..\out\dearimgui.lib" goto Build_imgui
-
-:CacheCheck_imgui
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\dearimgui.lib"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
-
-if %ERRORLEVEL% NEQ 0 (
-@echo.
-    @echo [1m[93mTarget: imgui[0m
-    @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-    @echo [1mCache: [92mValid[0m
-    goto Exit_imgui
-)
-@echo.
-@echo [1m[93mTarget: imgui[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1mCache: [91mExpired[0m
-@echo.
-
-:Build_imgui
-@set PL_DEFINES=-DPL_PLATFORM_WINDOWS 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -WX -O2 -MD -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo 
-
-:: run compiler only
-@echo.
-@echo [1m[93mTarget: imgui[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling...[0m
-
-:: each file must be compiled separately
-cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% ../thirdparty/imgui/imgui_unity.cpp -Fo"../out/"
-
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: if failed, skip linking
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease
-)
-
-:: link object files into a shared lib
-@echo [1m[36mLinking...[0m
-lib -nologo -OUT:"../out/dearimgui.lib" "../out/*.obj"
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_imgui
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_dear_imgui_ext
-
-:: only build once
-@if exist "..\out\pl_dear_imgui_ext.dll" goto CacheCheck_pl_dear_imgui_ext
-@if not exist "..\out\pl_dear_imgui_ext.dll" goto Build_pl_dear_imgui_ext
-
-:CacheCheck_pl_dear_imgui_ext
-powershell -NoProfile -Command ^ "if ((Get-Date) - (Get-Item '"..\out\pl_dear_imgui_ext.dll"').LastWriteTime -gt [TimeSpan]::FromMinutes(30)) { exit 0 } else { exit 1 }"
-
-if %ERRORLEVEL% NEQ 0 (
-@echo.
-    @echo [1m[93mTarget: pl_dear_imgui_ext[0m
-    @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-    @echo [1mCache: [92mValid[0m
-    goto Exit_pl_dear_imgui_ext
-)
-@echo.
-@echo [1m[93mTarget: pl_dear_imgui_ext[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1mCache: [91mExpired[0m
-@echo.
-
-:Build_pl_dear_imgui_ext
-@set PL_DEFINES=-DPL_CONFIG_RELEASE -DPL_PLATFORM_WINDOWS 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -O2 -MD -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo -noexp 
-@set PL_STATIC_LINK_LIBRARIES=dearimgui.lib ucrt.lib 
-@set PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mTarget: pl_dear_imgui_ext[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_dear_imgui_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_dear_imgui_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-:Exit_pl_dear_imgui_ext
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:Build_sandbox
-@set PL_DEFINES=-DPL_CONFIG_RELEASE -DPL_PLATFORM_WINDOWS 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -O2 -MD -permissive 
-@set PL_LINKER_FLAGS=-incremental:no -nologo -noimplib -noexp 
-@set PL_STATIC_LINK_LIBRARIES=dearimgui.lib 
-@set PL_SOURCES="../sandbox/app.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mTarget: sandbox[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
 
 @del "..\out\*.obj"  > nul 2> nul
 

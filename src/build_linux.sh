@@ -96,7 +96,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_PLATFORM_LINUX -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -130,7 +130,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_VULKAN_BACKEND -DPL_PLATFORM_LINUX -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -176,7 +176,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_LINUX -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -220,7 +220,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_VULKAN_BACKEND -DPL_PLATFORM_LINUX -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -266,7 +266,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_LINUX -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -310,7 +310,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_PLATFORM_LINUX -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -356,7 +356,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_PLATFORM_LINUX -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g -std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -ldl -lm "
@@ -403,7 +403,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_PLATFORM_LINUX -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -437,6 +437,40 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_CONFIG_DEBUG -DPL_PLATFORM_LINUX -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../sandbox/app.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Target: sandbox${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libapp.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_draw_2d_frag | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
@@ -453,7 +487,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../src -I../shaders -I../libs -I../extensions "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../src -I../shaders -I../libs -I../extensions "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-std=c++14 -fPIC --debug -g "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
@@ -509,7 +543,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../src -I../shaders -I../libs -I../extensions "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../src -I../shaders -I../libs -I../extensions "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-std=c++14 -fPIC --debug -g "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
@@ -565,7 +599,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../src -I../shaders -I../libs -I../extensions "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../src -I../shaders -I../libs -I../extensions "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-std=c++14 -fPIC --debug -g "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
@@ -604,160 +638,6 @@ echo Cache: ${GREEN}Valid${NC}
 fi
 # hot reload skip
 fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-# only build once
-if [ ! -e "../out/libdearimguid.a" ] || [ -n "$(find "../out/libdearimguid.a" -mmin +30 -print -quit)" ]; then
-
-if [ -e "../out/libdearimguid.a" ]; then
-echo
-echo ${YELLOW}Target: imgui${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo Cache: ${RED}Expired${NC}
-fi
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_PLATFORM_LINUX "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
-PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
-# # run compiler only
-echo
-echo ${YELLOW}Target: imgui${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling...${NC}
-
-# each file must be compiled separately
-gcc -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../thirdparty/imgui/imgui_unity.cpp -o "./../out/imgui_unity.o"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-rm ./../out/*.o
-popd >/dev/null
-exit 1
-fi
-
-
-
-# combine object files into a static lib
-ar rcs ./../out/libdearimguid.a ./../out/*.o
-rm ./../out/*.o
-
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# only build once check
-elif [ -e "../out/libdearimguid.a" ]; then
-echo
-echo ${YELLOW}Target: imgui${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo Cache: ${GREEN}Valid${NC}
-fi
-# hot reload skip
-fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-# only build once
-if [ ! -e "../out/libpl_dear_imgui_ext.so" ] || [ -n "$(find "../out/libpl_dear_imgui_ext.so" -mmin +30 -print -quit)" ]; then
-
-if [ -e "../out/libpl_dear_imgui_ext.so" ]; then
-echo
-echo ${YELLOW}Target: pl_dear_imgui_ext${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo Cache: ${RED}Expired${NC}
-fi
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_DEBUG -DPL_PLATFORM_LINUX "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
-PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-ldearimguid "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp "
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Target: pl_dear_imgui_ext${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libpl_dear_imgui_ext.so"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# only build once check
-elif [ -e "../out/libpl_dear_imgui_ext.so" ]; then
-echo
-echo ${YELLOW}Target: pl_dear_imgui_ext${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo Cache: ${GREEN}Valid${NC}
-fi
-# hot reload skip
-fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_DEBUG -DPL_PLATFORM_LINUX "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
-PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-ldearimguid "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../sandbox/app.cpp "
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Target: sandbox${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libapp.so"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 # delete lock file(s)
 rm -f ../out/lock.tmp
@@ -811,7 +691,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_PLATFORM_LINUX -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -845,7 +725,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_LINUX -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -891,7 +771,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_LINUX -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -935,7 +815,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_LINUX -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -981,7 +861,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_LINUX -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -1025,7 +905,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_PLATFORM_LINUX -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -1071,7 +951,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_PLATFORM_LINUX -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g -std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -ldl -lm "
@@ -1118,7 +998,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_PLATFORM_LINUX -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -1152,6 +1032,40 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | test ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_CONFIG_TEST -DPL_CONFIG_DEBUG -DPL_PLATFORM_LINUX -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../sandbox/app.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Target: sandbox${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libapp.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_draw_2d_frag | test ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
@@ -1168,7 +1082,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../src -I../shaders -I../libs -I../extensions "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../src -I../shaders -I../libs -I../extensions "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-std=c++14 -fPIC --debug -g "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
@@ -1224,7 +1138,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../src -I../shaders -I../libs -I../extensions "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../src -I../shaders -I../libs -I../extensions "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-std=c++14 -fPIC --debug -g "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
@@ -1280,7 +1194,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../src -I../shaders -I../libs -I../extensions "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../src -I../shaders -I../libs -I../extensions "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-std=c++14 -fPIC --debug -g "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
@@ -1319,160 +1233,6 @@ echo Cache: ${GREEN}Valid${NC}
 fi
 # hot reload skip
 fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | test ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-# only build once
-if [ ! -e "../out/libdearimguid.a" ] || [ -n "$(find "../out/libdearimguid.a" -mmin +30 -print -quit)" ]; then
-
-if [ -e "../out/libdearimguid.a" ]; then
-echo
-echo ${YELLOW}Target: imgui${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo Cache: ${RED}Expired${NC}
-fi
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_PLATFORM_LINUX "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
-PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
-# # run compiler only
-echo
-echo ${YELLOW}Target: imgui${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling...${NC}
-
-# each file must be compiled separately
-gcc -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../thirdparty/imgui/imgui_unity.cpp -o "./../out/imgui_unity.o"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-rm ./../out/*.o
-popd >/dev/null
-exit 1
-fi
-
-
-
-# combine object files into a static lib
-ar rcs ./../out/libdearimguid.a ./../out/*.o
-rm ./../out/*.o
-
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# only build once check
-elif [ -e "../out/libdearimguid.a" ]; then
-echo
-echo ${YELLOW}Target: imgui${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo Cache: ${GREEN}Valid${NC}
-fi
-# hot reload skip
-fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | test ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-# only build once
-if [ ! -e "../out/libpl_dear_imgui_ext.so" ] || [ -n "$(find "../out/libpl_dear_imgui_ext.so" -mmin +30 -print -quit)" ]; then
-
-if [ -e "../out/libpl_dear_imgui_ext.so" ]; then
-echo
-echo ${YELLOW}Target: pl_dear_imgui_ext${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo Cache: ${RED}Expired${NC}
-fi
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_TEST -DPL_CONFIG_DEBUG -DPL_PLATFORM_LINUX "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
-PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-ldearimguid "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp "
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Target: pl_dear_imgui_ext${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libpl_dear_imgui_ext.so"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# only build once check
-elif [ -e "../out/libpl_dear_imgui_ext.so" ]; then
-echo
-echo ${YELLOW}Target: pl_dear_imgui_ext${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo Cache: ${GREEN}Valid${NC}
-fi
-# hot reload skip
-fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | test ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_TEST -DPL_CONFIG_DEBUG -DPL_PLATFORM_LINUX "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
-PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-ldearimguid "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../sandbox/app.cpp "
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Target: sandbox${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libapp.so"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 # delete lock file(s)
 rm -f ../out/lock.tmp
@@ -1526,7 +1286,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_PLATFORM_LINUX -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -1560,7 +1320,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_VULKAN_BACKEND -DPL_PLATFORM_LINUX -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -1606,7 +1366,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_LINUX -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -1650,7 +1410,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_VULKAN_BACKEND -DPL_PLATFORM_LINUX -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -1696,7 +1456,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_OFFLINE_SHADERS_ONLY -DPL_PLATFORM_LINUX -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -1740,7 +1500,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_PLATFORM_LINUX -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -1786,7 +1546,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_PLATFORM_LINUX -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC -std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm -ldl -lm "
@@ -1833,7 +1593,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_PLATFORM_LINUX -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -1867,6 +1627,40 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_PLATFORM_LINUX -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../sandbox/app.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Target: sandbox${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libapp.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_draw_2d_frag | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
@@ -1883,7 +1677,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../src -I../shaders -I../libs -I../extensions "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../src -I../shaders -I../libs -I../extensions "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-std=c++14 -fPIC "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
@@ -1939,7 +1733,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../src -I../shaders -I../libs -I../extensions "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../src -I../shaders -I../libs -I../extensions "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-std=c++14 -fPIC "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
@@ -1995,7 +1789,7 @@ echo Cache: ${RED}Expired${NC}
 fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../src -I../shaders -I../libs -I../extensions "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../src -I../shaders -I../libs -I../extensions "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-std=c++14 -fPIC "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
@@ -2034,160 +1828,6 @@ echo Cache: ${GREEN}Valid${NC}
 fi
 # hot reload skip
 fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-# only build once
-if [ ! -e "../out/libdearimgui.a" ] || [ -n "$(find "../out/libdearimgui.a" -mmin +30 -print -quit)" ]; then
-
-if [ -e "../out/libdearimgui.a" ]; then
-echo
-echo ${YELLOW}Target: imgui${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo Cache: ${RED}Expired${NC}
-fi
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_PLATFORM_LINUX "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
-PL_COMPILER_FLAGS="-fPIC -std=c++14 "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
-# # run compiler only
-echo
-echo ${YELLOW}Target: imgui${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling...${NC}
-
-# each file must be compiled separately
-gcc -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../thirdparty/imgui/imgui_unity.cpp -o "./../out/imgui_unity.o"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-rm ./../out/*.o
-popd >/dev/null
-exit 1
-fi
-
-
-
-# combine object files into a static lib
-ar rcs ./../out/libdearimgui.a ./../out/*.o
-rm ./../out/*.o
-
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# only build once check
-elif [ -e "../out/libdearimgui.a" ]; then
-echo
-echo ${YELLOW}Target: imgui${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo Cache: ${GREEN}Valid${NC}
-fi
-# hot reload skip
-fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-# only build once
-if [ ! -e "../out/libpl_dear_imgui_ext.so" ] || [ -n "$(find "../out/libpl_dear_imgui_ext.so" -mmin +30 -print -quit)" ]; then
-
-if [ -e "../out/libpl_dear_imgui_ext.so" ]; then
-echo
-echo ${YELLOW}Target: pl_dear_imgui_ext${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo Cache: ${RED}Expired${NC}
-fi
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_RELEASE -DPL_PLATFORM_LINUX "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
-PL_COMPILER_FLAGS="-fPIC -std=c++14 "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-ldearimgui "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp "
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Target: pl_dear_imgui_ext${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libpl_dear_imgui_ext.so"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# only build once check
-elif [ -e "../out/libpl_dear_imgui_ext.so" ]; then
-echo
-echo ${YELLOW}Target: pl_dear_imgui_ext${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo Cache: ${GREEN}Valid${NC}
-fi
-# hot reload skip
-fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ sandbox | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_RELEASE -DPL_PLATFORM_LINUX "
-PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
-PL_COMPILER_FLAGS="-fPIC -std=c++14 "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-ldearimgui "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../sandbox/app.cpp "
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Target: sandbox${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/libapp.so"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 # delete lock file(s)
 rm -f ../out/lock.tmp

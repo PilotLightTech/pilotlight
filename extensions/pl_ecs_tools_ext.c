@@ -66,8 +66,11 @@ static const plSkeletonI* gptSkeleton = NULL;
 #include "pl_ds.h"
 #endif
 
+#ifndef PL_ICON_FA_FILTER
+    #define PL_ICON_FA_FILTER "\xef\x82\xb0"	// U+f0b0
+#endif
+
 #define PL_ICON_FA_MAGNIFYING_GLASS "\xef\x80\x82"	// U+f002
-#define PL_ICON_FA_FILTER "\xef\x82\xb0"	// U+f0b0
 #define PL_ICON_FA_SITEMAP "\xef\x83\xa8"	// U+f0e8
 #define PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT "\xef\x81\x87"	// U+f047
 #define PL_ICON_FA_CUBE "\xef\x86\xb2"	// U+f1b2
@@ -411,6 +414,7 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                 if(ptEnvironment && gptUI->begin_collapsing_header("Environment", 0))
                 {
                     gptUI->text("Environment: %s", gptAsset->get_path(ptEnvironment->tEnvironment));
+                    
                     gptUI->end_collapsing_header();
                 }
 

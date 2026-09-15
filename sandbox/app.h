@@ -83,88 +83,73 @@ Index of this file:
 // shaders
 #include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
 
-// dear imgui
-#include "pl_dear_imgui_ext.h"
-#include "imgui.h"
-#include "implot.h"
-
 //-----------------------------------------------------------------------------
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
-const plWindowI*            gptWindows          = nullptr;
-const plStatsI*             gptStats            = nullptr;
-const plGraphicsI*          gptGfx              = nullptr;
-const plToolsI*             gptTools            = nullptr;
-const plEcsI*               gptEcs              = nullptr;
-const plCameraI*            gptCamera           = nullptr;
-const plCameraEcsI*         gptCameraEcs        = nullptr;
-const plRendererI*          gptRenderer         = nullptr;
-const plGltfI*              gptGltf             = nullptr;
-const plJobI*               gptJobs             = nullptr;
-const plDrawI*              gptDraw             = nullptr;
-const plUiI*                gptUI               = nullptr;
-const plIOI*                gptIO               = nullptr;
-const plShaderI*            gptShader           = nullptr;
-const plMemoryI*            gptMemory           = nullptr;
-const plNetworkI*           gptNetwork          = nullptr;
-const plStringInternI*      gptString           = nullptr;
-const plProfileI*           gptProfile          = nullptr;
-const plFileI*              gptFile             = nullptr;
-const plEcsToolsI*          gptEcsTools         = nullptr;
-const plGizmoI*             gptGizmo            = nullptr;
-const plConsoleI*           gptConsole          = nullptr;
-const plScreenLogI*         gptScreenLog        = nullptr;
-const plPhysicsI *          gptPhysics          = nullptr;
-const plCollisionI*         gptCollision        = nullptr;
-const plBVHI*               gptBvh              = nullptr;
-const plConfigI*            gptConfig           = nullptr;
-const plDearImGuiI*         gptDearImGui        = nullptr;
-const plResourceI*          gptResource         = nullptr;
-const plStarterI*           gptStarter          = nullptr;
-const plAnimationI*         gptAnimation        = nullptr;
-const plMeshI*              gptMesh             = nullptr;
-const plShaderVariantI*     gptShaderVariant    = nullptr;
-const plVfsI*               gptVfs              = nullptr;
-const plPakI*               gptPak              = nullptr;
-const plDateTimeI*          gptDateTime         = nullptr;
-const plCompressI*          gptCompress         = nullptr;
-const plMaterialI*          gptMaterial         = nullptr;
-const plScriptI*            gptScript           = nullptr;
-const plRendererDebugI*     gptRendererDebug    = nullptr;
-const plRendererEditorI*    gptRendererEditor   = nullptr;
-const plAssetI*             gptAsset            = nullptr;
-const plTransformI*         gptTransform        = nullptr;
-const plIkI*                gptIk               = nullptr;
-const plSkeletonI*          gptSkeleton         = nullptr;
-const plTextureI*           gptTexture          = nullptr;
-const plTerrainI*           gptTerrain          = nullptr;
-const plStlI*               gptStl              = nullptr;
+const plWindowI*            gptWindows          = NULL;
+const plStatsI*             gptStats            = NULL;
+const plGraphicsI*          gptGfx              = NULL;
+const plToolsI*             gptTools            = NULL;
+const plEcsI*               gptEcs              = NULL;
+const plCameraI*            gptCamera           = NULL;
+const plCameraEcsI*         gptCameraEcs        = NULL;
+const plRendererI*          gptRenderer         = NULL;
+const plGltfI*              gptGltf             = NULL;
+const plJobI*               gptJobs             = NULL;
+const plDrawI*              gptDraw             = NULL;
+const plUiI*                gptUI               = NULL;
+const plIOI*                gptIO               = NULL;
+const plShaderI*            gptShader           = NULL;
+const plMemoryI*            gptMemory           = NULL;
+const plNetworkI*           gptNetwork          = NULL;
+const plStringInternI*      gptString           = NULL;
+const plProfileI*           gptProfile          = NULL;
+const plFileI*              gptFile             = NULL;
+const plEcsToolsI*          gptEcsTools         = NULL;
+const plGizmoI*             gptGizmo            = NULL;
+const plConsoleI*           gptConsole          = NULL;
+const plScreenLogI*         gptScreenLog        = NULL;
+const plPhysicsI *          gptPhysics          = NULL;
+const plCollisionI*         gptCollision        = NULL;
+const plBVHI*               gptBvh              = NULL;
+const plConfigI*            gptConfig           = NULL;
+const plResourceI*          gptResource         = NULL;
+const plStarterI*           gptStarter          = NULL;
+const plAnimationI*         gptAnimation        = NULL;
+const plMeshI*              gptMesh             = NULL;
+const plShaderVariantI*     gptShaderVariant    = NULL;
+const plVfsI*               gptVfs              = NULL;
+const plPakI*               gptPak              = NULL;
+const plDateTimeI*          gptDateTime         = NULL;
+const plCompressI*          gptCompress         = NULL;
+const plMaterialI*          gptMaterial         = NULL;
+const plScriptI*            gptScript           = NULL;
+const plRendererDebugI*     gptRendererDebug    = NULL;
+const plRendererEditorI*    gptRendererEditor   = NULL;
+const plAssetI*             gptAsset            = NULL;
+const plTransformI*         gptTransform        = NULL;
+const plIkI*                gptIk               = NULL;
+const plSkeletonI*          gptSkeleton         = NULL;
+const plTextureI*           gptTexture          = NULL;
+const plTerrainI*           gptTerrain          = NULL;
+const plStlI*               gptStl              = NULL;
 
-#define PL_ALLOC(x)      gptMemory->tracked_realloc(nullptr, (x), __FILE__, __LINE__)
+#define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
 #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
-#define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(nullptr, (x), __FILE__, __LINE__)
-#define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(nullptr, (x), FILE, LINE)
+#define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
 #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 #include "pl_ds.h"
 
-#define PL_JSON_ALLOC(x) gptMemory->tracked_realloc(nullptr, (x), __FILE__, __LINE__)
+#define PL_JSON_ALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_JSON_FREE(x)  gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
-
-typedef int plSandboxMode;
-
-enum _plSandboxMode
-{
-    PL_SANDBOX_MODE_EDITOR = 0,
-    PL_SANDBOX_MODE_GAME_DEBUG,
-    PL_SANDBOX_MODE_GAME,
-};
 
 typedef struct _plSandboxSceneFile
 {
@@ -180,9 +165,6 @@ typedef struct _plSandboxEnvironment
 
 typedef struct _plAppData
 {
-
-    plSandboxMode tMode;
-
     // windows
     plWindow* ptWindow;
 
@@ -197,11 +179,8 @@ typedef struct _plAppData
     // ui options
     // bool bContinuousBVH;
 
-    // dear imgui ui windows
-    bool bShowImGuiDemo;
-    bool bShowPlotDemo;
-
     // pilot light ui windows
+    bool  bAttached;
     bool  bShowUiDemo;
     bool  bShowUiDebug;
     bool  bShowUiStyle;
@@ -211,6 +190,7 @@ typedef struct _plAppData
     bool* pbShowProfiling;
     bool* pbShowStats;
     bool* pbShowLogging;
+    bool* pbShowAssets;
 
     // scene
     plEntity tMainCamera;
@@ -233,15 +213,11 @@ typedef struct _plAppData
     // fonts
     plFont* tDefaultFont;
 
-    // test models
-    ImGuiTextFilter tFilter;
-
     // physics
     // bool bPhysicsDebugDraw;
 
     // misc
     char* sbcTempBuffer;
-    ImGuiTextFilter filter;
 
     // scene file info
     char acCurrentScene[PL_MAX_PATH_LENGTH];
@@ -267,8 +243,6 @@ typedef struct _plAppData
 
 void pl__show_editor_window(plAppData*);
 void pl__show_ui_demo_window(plAppData* ptAppData);
-void pl__show_entity_components(plAppData*, plRenderScene*, plEntity);
 
 void pl__load_apis(plApiRegistryI*);
 void pl__refresh_files(plAppData*);
-bool pl__verify_scene(plAppData*, const char*);

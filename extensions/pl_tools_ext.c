@@ -37,9 +37,15 @@ Index of this file:
 #include "pl_profile_ext.h"
 #include "pl_log_ext.h"
 #include "pl_console_ext.h"
+#include "pl_asset_ext.h"
+#include "pl_material_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
+#endif
+
+#ifndef PL_ICON_FA_FILTER
+    #define PL_ICON_FA_FILTER "\xef\x82\xb0"	// U+f0b0
 #endif
 
 //-----------------------------------------------------------------------------
@@ -72,12 +78,17 @@ typedef struct _plDebugContext
     plAllocationEntry* sbtActiveAllocations;
     plUiTextFilter     tMemoryFilter;
 
+    // asset data
+    plUiTextFilter tAssetFilter;
+    uint32_t       uSelectedAsset;
+
     // options
     bool bShowDeviceMemoryAnalyzer;
     bool bShowMemoryAllocations;
     bool bShowProfiling;
     bool bShowStats;
     bool bShowLogging;
+    bool bShowAssets;
 } plDebugContext;
 
 //-----------------------------------------------------------------------------
@@ -108,6 +119,8 @@ static plDebugContext* gptDebugCtx = NULL;
     static const plProfileI*       gptProfile       = NULL;
     static const plLogI*           gptLog           = NULL;
     static const plConsoleI*       gptConsole       = NULL;
+    static const plAssetI*         gptAsset         = NULL;
+    static const plMaterialI*      gptMaterial      = NULL;
 
     static plIO* gptIO = NULL;
 
@@ -124,6 +137,7 @@ static void pl__show_profiling         (bool* bValue);
 static void pl__show_statistics        (bool* bValue);
 static void pl__show_device_memory     (bool* bValue);
 static void pl__show_logging           (bool* bValue);
+static void pl__show_assets            (bool* bValue);
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
@@ -140,6 +154,7 @@ pl_tools_initialize(plToolsInit tInit)
         gptConsole->add_toggle_variable("t.ProfileTool", &gptDebugCtx->bShowProfiling, "shows profiling tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
         gptConsole->add_toggle_variable("t.MemoryAllocationTool", &gptDebugCtx->bShowMemoryAllocations, "shows memory tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
         gptConsole->add_toggle_variable("t.DeviceMemoryAnalyzerTool", &gptDebugCtx->bShowDeviceMemoryAnalyzer, "shows gpu memory tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+        gptConsole->add_toggle_variable("t.AssetTool", &gptDebugCtx->bShowAssets, "shows asset tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
     }
 }
 
@@ -180,6 +195,13 @@ pl_tools_update(void)
     {
         PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Logging");
         pl__show_logging(&gptDebugCtx->bShowLogging);
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    }
+
+    if(gptDebugCtx->bShowAssets)
+    {
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Assets");
+        pl__show_assets(&gptDebugCtx->bShowAssets);
         PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     }
 
@@ -1362,6 +1384,202 @@ pl__show_logging(bool* bValue)
     }
 }
 
+static void
+pl__show_assets(bool* bValue)
+{
+    const plAssetTypeDesc* ptAssetTypes = NULL;
+    uint32_t uAssetTypeCount = gptAsset->get_type_descriptions(&ptAssetTypes);
+
+    if(gptUI->begin_window("Assets", bValue, false))
+    {
+        const plVec2 tWindowSize = gptUI->get_window_size();
+
+        gptUI->layout_dynamic(0.0f, 2);
+        gptUI->text("Assets");
+        gptUI->text("Properties");
+        gptUI->layout_dynamic(0.0f, 1);
+        gptUI->separator();
+        gptUI->layout_dynamic(0.0f, 2);
+
+        uint32_t uAssetCount = 0;
+        const plAssetHandle* atAssetHandles = gptAsset->get_assets(&uAssetCount);
+
+        if(gptUI->input_text_hint("Asset Filter", "Filter (inc,-exc)", gptDebugCtx->tAssetFilter.acInputBuffer, 256, 0))
+        {
+            gptUI->text_filter_build(&gptDebugCtx->tAssetFilter);
+        }
+
+        if(gptUI->begin_combo(PL_ICON_FA_FILTER, "blah", PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
+        {
+            // for(uint32_t i = 0; i < PL_ARRAYSIZE(atComponentTypes); i++)
+            // {
+            //     if(gptUI->selectable(apcComponentNames[i], &abCombo[i], 0))
+            //     {
+            //         uComponentFilter = i;
+            //         gptUI->close_current_popup();
+            //     } 
+            // }
+            gptUI->end_combo();
+        }
+
+        gptUI->layout_dynamic(tWindowSize.y - 105.0f, 2);
+
+        if(gptUI->begin_child("Assets Left", 0, 0))
+        {
+            // gptUI->layout_template_begin(30.0f);
+            // gptUI->layout_template_push_static(150.0f);
+            // // gptUI->layout_template_push_variable(100.0f);
+            // // gptUI->layout_template_push_variable(50.0f);
+            // // gptUI->layout_template_push_variable(50.0f);
+            // gptUI->layout_template_end();
+            gptUI->layout_dynamic(0.0f, 1);
+
+            if(gptUI->text_filter_active(&gptDebugCtx->tAssetFilter))
+            {
+                for(uint32_t i = 0; i < uAssetCount; i++)
+                {
+                    size_t szUnused = 0;
+                    plAssetHandle tAssetHandle = atAssetHandles[i];
+                    const char* pcAssetPath = gptAsset->get_path(tAssetHandle);
+                    if(gptUI->text_filter_pass(&gptDebugCtx->tAssetFilter, pcAssetPath, NULL))
+                    {
+                        bool bPlaceHolder = gptDebugCtx->uSelectedAsset == i;
+                        if(gptUI->selectable(pcAssetPath, &bPlaceHolder, 0))
+                        {
+                            gptDebugCtx->uSelectedAsset = i;
+                        }
+                    }
+                } 
+            }
+            else
+            {
+                plUiClipper tClipper = {uAssetCount};
+                while(gptUI->step_clipper(&tClipper))
+                {
+                    for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
+                    {
+                        size_t szUnused = 0;
+                        plAssetHandle tAssetHandle = atAssetHandles[i];
+                        const char* pcAssetPath = gptAsset->get_path(tAssetHandle);
+                        bool bPlaceHolder = gptDebugCtx->uSelectedAsset == i;
+                        if(gptUI->selectable(pcAssetPath, &bPlaceHolder, 0))
+                        {
+                            gptDebugCtx->uSelectedAsset = i;
+                        }
+                    } 
+                }
+            }
+            gptUI->end_child();
+        }
+
+        if(gptUI->begin_child("Assets Right", 0, 0))
+        {
+            if(gptDebugCtx->uSelectedAsset < uAssetCount)
+            {
+                plAssetHandle tAssetHandle = atAssetHandles[gptDebugCtx->uSelectedAsset];
+                gptUI->layout_dynamic(0.0f, 1);
+                gptUI->labeled_text("Path", "%s", gptAsset->get_path(tAssetHandle));
+
+                plAssetTypeKey tAssetType = gptAsset->get_type_key(tAssetHandle);
+
+                if(tAssetType == gptMaterial->get_asset_type_key())
+                {
+                    plMaterial* ptMaterial = gptAsset->get_data(tAssetHandle);
+
+                    gptUI->separator_text("base");
+                    gptUI->text("NOTE: edits don't work at the moment");
+                    gptUI->labeled_text("material model", "PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS");
+
+                    const char* apcAlphaMode[] = {
+                        "PL_MATERIAL_ALPHA_MODE_OPAQUE",
+                        "PL_MATERIAL_ALPHA_MODE_MASK",
+                        "PL_MATERIAL_ALPHA_MODE_BLEND"
+                    };
+
+                    gptUI->labeled_text("alpha mode", apcAlphaMode[ptMaterial->eAlphaMode]);
+                    gptUI->input_float("alpha cutoff", &ptMaterial->fAlphaCutoff, "%g", 0);
+                    gptUI->checkbox_flags("double sided", &ptMaterial->eFlags, PL_MATERIAL_FLAG_DOUBLE_SIDED);
+                    gptUI->input_float4("base color", ptMaterial->tBaseColor.d, "%g", 0);
+                    gptUI->input_float("metalness", &ptMaterial->fMetalness, "%g", 0);
+                    gptUI->input_float("roughness", &ptMaterial->fRoughness, "%g", 0);
+                    gptUI->input_float("normal map strength", &ptMaterial->fNormalMapStrength, "%g", 0);
+                    gptUI->input_float("occlusion strength", &ptMaterial->fOcclusionStrength, "%g", 0);
+                    gptUI->input_float3("emissive color", ptMaterial->tEmissiveColor.d, "%g", 0);
+                    gptUI->input_float("emissive strength", &ptMaterial->fEmissiveStrength, "%g", 0);
+                    gptUI->input_float("ior", &ptMaterial->fIor, "%g", 0);
+
+                    if(ptMaterial->eFlags & PL_MATERIAL_FLAG_CLEARCOAT)
+                    {
+                        if(gptUI->begin_collapsing_header("Clearcoat", 0))
+                        {
+                            gptUI->end_collapsing_header();
+                        }
+                    }
+
+                    if(ptMaterial->eFlags & PL_MATERIAL_FLAG_SHEEN)
+                    {
+                        if(gptUI->begin_collapsing_header("Sheen", 0))
+                        {
+                            gptUI->end_collapsing_header();
+                        }
+                    }
+
+                    if(ptMaterial->eFlags & PL_MATERIAL_FLAG_IRIDESCENCE)
+                    {
+                        if(gptUI->begin_collapsing_header("Iridescence", 0))
+                        {
+                            gptUI->end_collapsing_header();
+                        }
+                    }
+
+                    if(ptMaterial->eFlags & PL_MATERIAL_FLAG_ANISOTROPY)
+                    {
+                        if(gptUI->begin_collapsing_header("Anisotropy", 0))
+                        {
+                            gptUI->end_collapsing_header();
+                        }
+                    }
+
+                    if(ptMaterial->eFlags & PL_MATERIAL_FLAG_TRANSMISSION)
+                    {
+                        if(gptUI->begin_collapsing_header("Transmission", 0))
+                        {
+                            gptUI->end_collapsing_header();
+                        }
+                    }
+
+                    if(ptMaterial->eFlags & PL_MATERIAL_FLAG_VOLUME)
+                    {
+                        if(gptUI->begin_collapsing_header("Volume", 0))
+                        {
+                            gptUI->end_collapsing_header();
+                        }
+                    }
+
+                    if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DISPERSION)
+                    {
+                        if(gptUI->begin_collapsing_header("Dispersion", 0))
+                        {
+                            gptUI->end_collapsing_header();
+                        }
+                    }
+
+                    if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
+                    {
+                        if(gptUI->begin_collapsing_header("Diffuse Transmission", 0))
+                        {
+                            gptUI->end_collapsing_header();
+                        }
+                    }
+
+                }
+            }
+            gptUI->end_child();
+        }
+        gptUI->end_window();
+    }
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -1388,6 +1606,8 @@ pl_load_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
         gptLog           = pl_get_api_latest(ptApiRegistry, plLogI);
         gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);
+        gptAsset         = pl_get_api_latest(ptApiRegistry, plAssetI);
+        gptMaterial      = pl_get_api_latest(ptApiRegistry, plMaterialI);
         gptIO = gptIOI->get_io();
     #endif
 
@@ -1416,6 +1636,7 @@ pl_unload_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     ptApiRegistry->remove_api(ptApi);
 
     gptUI->text_filter_cleanup(&gptDebugCtx->tMemoryFilter);
+    gptUI->text_filter_cleanup(&gptDebugCtx->tAssetFilter);
     pl_sb_free(gptDebugCtx->sbppdValues);
     pl_sb_free(gptDebugCtx->sbppdFrameValues);
     pl_sb_free(gptDebugCtx->sbdRawValues);

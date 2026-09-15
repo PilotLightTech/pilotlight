@@ -38,8 +38,7 @@ with pl.project("pilotlight_examples"):
     pl.set_output_directory("../out")
     pl.add_link_directories("../out")
     pl.add_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS", "PL_CONFIG_DEBUG")
-    pl.add_include_directories("../examples", "../sandbox", "../src", "../shaders", "../libs", "../extensions", "../out",
-                               "../thirdparty/stb", "../thirdparty/imgui")
+    pl.add_include_directories("../examples", "../sandbox", "../src", "../shaders", "../libs", "../extensions", "../out")
         
     #-----------------------------------------------------------------------------
     # [SECTION] examples
@@ -51,7 +50,6 @@ with pl.project("pilotlight_examples"):
         'example_basic_2',
         'example_basic_3',
         'example_basic_4',
-        'example_basic_5',
         'example_gfx_0',
         'example_gfx_1',
         'example_gfx_2',
@@ -62,8 +60,6 @@ with pl.project("pilotlight_examples"):
     ]
 
     cpp_examples = [
-        'example_basic_6',
-        # 'example_renderer_0',
     ]
 
     for name in c_examples:
@@ -72,7 +68,6 @@ with pl.project("pilotlight_examples"):
 
             pl.add_source_files(name + ".c")
             pl.set_output_binary(name)
-            pl.add_dynamic_link_libraries("pl_unity_ext", "pl_platform_ext", "pl_graphics_ext", "pl_shader_ext")
 
             with pl.configuration("debug"):
 

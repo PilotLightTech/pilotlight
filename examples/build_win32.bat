@@ -85,8 +85,6 @@
     @if exist "../out/example_basic_3_*.pdb" del "..\out\example_basic_3_*.pdb"
     @if exist "../out/example_basic_4.dll" del "..\out\example_basic_4.dll"
     @if exist "../out/example_basic_4_*.pdb" del "..\out\example_basic_4_*.pdb"
-    @if exist "../out/example_basic_5.dll" del "..\out\example_basic_5.dll"
-    @if exist "../out/example_basic_5_*.pdb" del "..\out\example_basic_5_*.pdb"
     @if exist "../out/example_gfx_0.dll" del "..\out\example_gfx_0.dll"
     @if exist "../out/example_gfx_0_*.pdb" del "..\out\example_gfx_0_*.pdb"
     @if exist "../out/example_gfx_1.dll" del "..\out\example_gfx_1.dll"
@@ -101,8 +99,6 @@
     @if exist "../out/example_gfx_5_*.pdb" del "..\out\example_gfx_5_*.pdb"
     @if exist "../out/example_gfx_6.dll" del "..\out\example_gfx_6.dll"
     @if exist "../out/example_gfx_6_*.pdb" del "..\out\example_gfx_6_*.pdb"
-    @if exist "../out/example_basic_6.dll" del "..\out\example_basic_6.dll"
-    @if exist "../out/example_basic_6_*.pdb" del "..\out\example_basic_6_*.pdb"
 
 )
 
@@ -110,11 +106,10 @@
 
 :Build_example_basic_0
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_0.c" 
 
 :: run compiler (and linker)
@@ -122,7 +117,7 @@
 @echo [1m[93mTarget: example_basic_0[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_0_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_0_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -144,11 +139,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_basic_1
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_1.c" 
 
 :: run compiler (and linker)
@@ -156,7 +150,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_basic_1[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_1_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_1_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -178,11 +172,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_basic_2
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_2.c" 
 
 :: run compiler (and linker)
@@ -190,7 +183,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_basic_2[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_2_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_2_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -212,11 +205,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_basic_3
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_3.c" 
 
 :: run compiler (and linker)
@@ -224,7 +216,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_basic_3[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_3_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_3_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -246,11 +238,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_basic_4
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_4.c" 
 
 :: run compiler (and linker)
@@ -258,41 +249,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_basic_4[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_4_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_5 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:Build_example_basic_5
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
-@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
-@set PL_SOURCES="example_basic_5.c" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mTarget: example_basic_5[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_5.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_5_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_4_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -314,11 +271,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_0
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_0.c" 
 
 :: run compiler (and linker)
@@ -326,7 +282,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_0[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_0_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_0_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -348,11 +304,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_1
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_1.c" 
 
 :: run compiler (and linker)
@@ -360,7 +315,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_1[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_1_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_1_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -382,11 +337,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_2
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_2.c" 
 
 :: run compiler (and linker)
@@ -394,7 +348,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_2[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_2_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_2_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -416,11 +370,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_3
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_3.c" 
 
 :: run compiler (and linker)
@@ -428,7 +381,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_3[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_3_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_3_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -450,11 +403,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_4
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_4.c" 
 
 :: run compiler (and linker)
@@ -462,7 +414,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_4[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_4_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_4_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -484,11 +436,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_5
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_5.c" 
 
 :: run compiler (and linker)
@@ -496,7 +447,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_5[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_5.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_5_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_5.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_5_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -518,11 +469,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_6
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_6.c" 
 
 :: run compiler (and linker)
@@ -530,41 +480,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_6[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_6.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_6_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:Build_example_basic_6
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
-@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_STATIC_LINK_LIBRARIES=dearimguid.lib 
-@set PL_SOURCES="example_basic_6.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mTarget: example_basic_6[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_6.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_6_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_6.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_6_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -634,8 +550,6 @@ goto ExitLabel
     @if exist "../out/example_basic_3_*.pdb" del "..\out\example_basic_3_*.pdb"
     @if exist "../out/example_basic_4.dll" del "..\out\example_basic_4.dll"
     @if exist "../out/example_basic_4_*.pdb" del "..\out\example_basic_4_*.pdb"
-    @if exist "../out/example_basic_5.dll" del "..\out\example_basic_5.dll"
-    @if exist "../out/example_basic_5_*.pdb" del "..\out\example_basic_5_*.pdb"
     @if exist "../out/example_gfx_0.dll" del "..\out\example_gfx_0.dll"
     @if exist "../out/example_gfx_0_*.pdb" del "..\out\example_gfx_0_*.pdb"
     @if exist "../out/example_gfx_1.dll" del "..\out\example_gfx_1.dll"
@@ -650,8 +564,6 @@ goto ExitLabel
     @if exist "../out/example_gfx_5_*.pdb" del "..\out\example_gfx_5_*.pdb"
     @if exist "../out/example_gfx_6.dll" del "..\out\example_gfx_6.dll"
     @if exist "../out/example_gfx_6_*.pdb" del "..\out\example_gfx_6_*.pdb"
-    @if exist "../out/example_basic_6.dll" del "..\out\example_basic_6.dll"
-    @if exist "../out/example_basic_6_*.pdb" del "..\out\example_basic_6_*.pdb"
 
 )
 
@@ -659,11 +571,10 @@ goto ExitLabel
 
 :Build_example_basic_0
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_0.c" 
 
 :: run compiler (and linker)
@@ -671,7 +582,7 @@ goto ExitLabel
 @echo [1m[93mTarget: example_basic_0[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_0_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_0_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -693,11 +604,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_basic_1
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_1.c" 
 
 :: run compiler (and linker)
@@ -705,7 +615,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_basic_1[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_1_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_1_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -727,11 +637,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_basic_2
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_2.c" 
 
 :: run compiler (and linker)
@@ -739,7 +648,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_basic_2[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_2_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_2_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -761,11 +670,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_basic_3
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_3.c" 
 
 :: run compiler (and linker)
@@ -773,7 +681,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_basic_3[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_3_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_3_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -795,11 +703,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_basic_4
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_basic_4.c" 
 
 :: run compiler (and linker)
@@ -807,41 +714,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_basic_4[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_4_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_5 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:Build_example_basic_5
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
-@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
-@set PL_SOURCES="example_basic_5.c" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mTarget: example_basic_5[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_5.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_5_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_4_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -863,11 +736,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_0
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_0.c" 
 
 :: run compiler (and linker)
@@ -875,7 +747,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_0[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_0_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_0_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -897,11 +769,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_1
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_1.c" 
 
 :: run compiler (and linker)
@@ -909,7 +780,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_1[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_1_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_1_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -931,11 +802,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_2
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_2.c" 
 
 :: run compiler (and linker)
@@ -943,7 +813,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_2[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_2_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_2_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -965,11 +835,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_3
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_3.c" 
 
 :: run compiler (and linker)
@@ -977,7 +846,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_3[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_3_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_3_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -999,11 +868,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_4
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_4.c" 
 
 :: run compiler (and linker)
@@ -1011,7 +879,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_4[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_4_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_4_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -1033,11 +901,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_5
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_5.c" 
 
 :: run compiler (and linker)
@@ -1045,7 +912,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_5[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_5.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_5_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_5.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_5_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -1067,11 +934,10 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :Build_example_gfx_6
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_graphics_ext.lib pl_shader_ext.lib 
 @set PL_SOURCES="example_gfx_6.c" 
 
 :: run compiler (and linker)
@@ -1079,41 +945,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mTarget: example_gfx_6[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_6.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_6_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-@del "..\out\*.obj"  > nul 2> nul
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:Build_example_basic_6
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/imgui" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
-@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_STATIC_LINK_LIBRARIES=dearimgui.lib 
-@set PL_SOURCES="example_basic_6.cpp" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mTarget: example_basic_6[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_6.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_6_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_6.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_6_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%

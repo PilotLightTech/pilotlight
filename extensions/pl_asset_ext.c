@@ -87,6 +87,9 @@ typedef struct _plAssetContext
     uint32_t*              sbtAssetGenerations;
     plAssetRegisteredType* sbtTypeDescriptions;
     plAssetTypeDesc*       sbtTypeUserDescriptions;
+
+    plAssetHandle* sbtToolingAssets; // for retrieval
+    bool           bToolsDirty;
 } plAssetContext;
 
 //-----------------------------------------------------------------------------
@@ -98,6 +101,23 @@ static plAssetContext* gptAssetCtx = NULL;
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementations
 //-----------------------------------------------------------------------------
+
+bool
+pl_asset_is_valid(plAssetHandle tHandle)
+{
+    if(tHandle.uGeneration != gptAssetCtx->sbtAssetGenerations[tHandle.uIndex])
+        return false;
+    return true;
+}
+
+plAssetTypeKey
+pl_asset_get_type_key(plAssetHandle tHandle)
+{
+    if(tHandle.uGeneration != gptAssetCtx->sbtAssetGenerations[tHandle.uIndex])
+        return UINT32_MAX;
+    plAsset* ptAsset = &gptAssetCtx->sbtAssets[tHandle.uIndex];
+    return ptAsset->tType;
+}
 
 static void
 pl__ensure_asset_capacity(plAssetRegisteredType* ptType, uint32_t uIndex)
@@ -157,6 +177,36 @@ pl_asset_get_type_descriptions(const plAssetTypeDesc** pptAssetDescOut)
     return pl_sb_size(gptAssetCtx->sbtTypeUserDescriptions);
 }
 
+const plAssetHandle*
+pl_asset_get_assets(uint32_t* puSizeOut)
+{
+    if(puSizeOut)
+    {
+        *puSizeOut = pl_sb_size(gptAssetCtx->sbtToolingAssets);
+    };
+
+    if(gptAssetCtx->bToolsDirty)
+    {
+        pl_sb_reset(gptAssetCtx->sbtToolingAssets);
+        const uint32_t uRawSize = pl_sb_size(gptAssetCtx->sbtAssets);
+        for(uint32_t i = 1; i < uRawSize; i++)
+        {
+            if(gptAssetCtx->sbtAssets[i].uDataIndex != UINT32_MAX)
+            {
+                plAssetHandle tAssetHandle = {
+                    .uIndex = i,
+                    .uGeneration = gptAssetCtx->sbtAssetGenerations[i]
+                };
+                pl_sb_push(gptAssetCtx->sbtToolingAssets, tAssetHandle);
+            }
+        }
+        gptAssetCtx->bToolsDirty = false;
+    }
+
+
+    return gptAssetCtx->sbtToolingAssets;
+}
+
 void
 pl_asset_initialize(plAssetInit tInit)
 {
@@ -200,6 +250,7 @@ pl_asset_cleanup(void)
     pl_sb_free(gptAssetCtx->sbtTypeDescriptions);
     pl_sb_free(gptAssetCtx->sbtTypeUserDescriptions);
     pl_sb_free(gptAssetCtx->sbtAssets);
+    pl_sb_free(gptAssetCtx->sbtToolingAssets);
     pl_temp_allocator_free(&gptAssetCtx->tTempAllocator);
 }
 
@@ -215,6 +266,7 @@ pl_asset_create(const plAssetDesc* ptDesc, const void* pData)
         tAsset.uGeneration = gptAssetCtx->sbtAssetGenerations[ulExistingSlot];
         return tAsset;
     }
+    gptAssetCtx->bToolsDirty = true;
 
     uint64_t uIndex = pl_hm_get_free_index(&gptAssetCtx->tAssetLookup);
     if(uIndex == PL_DS_HASH_INVALID)
@@ -265,6 +317,7 @@ pl_asset_destroy(plAssetHandle tHandle)
         return;
 
     plAssetTypeKey tType = pl_asset_get_type_key(tHandle);
+    gptAssetCtx->bToolsDirty = true;
 
     uint32_t uDataIndex = gptAssetCtx->sbtAssets[tHandle.uIndex].uDataIndex;
 
@@ -298,6 +351,7 @@ pl_asset_load(const char* pcFile)
         tAsset.uGeneration = gptAssetCtx->sbtAssetGenerations[ulExistingSlot];
         return tAsset;
     }
+    gptAssetCtx->bToolsDirty = true;
 
     // find new asset home slot
     uint64_t uIndex = pl_hm_get_free_index(&gptAssetCtx->tAssetLookup);
@@ -385,23 +439,6 @@ pl_asset_find(const char* pcName)
     return (plAssetHandle){0};
 }
 
-bool
-pl_asset_is_valid(plAssetHandle tHandle)
-{
-    if(tHandle.uGeneration != gptAssetCtx->sbtAssetGenerations[tHandle.uIndex])
-        return false;
-    return true;
-}
-
-plAssetTypeKey
-pl_asset_get_type_key(plAssetHandle tHandle)
-{
-    if(tHandle.uGeneration != gptAssetCtx->sbtAssetGenerations[tHandle.uIndex])
-        return UINT32_MAX;
-    plAsset* ptAsset = &gptAssetCtx->sbtAssets[tHandle.uIndex];
-    return ptAsset->tType;
-}
-
 const char*
 pl_asset_get_path(plAssetHandle tHandle)
 {
@@ -457,6 +494,7 @@ pl_load_asset_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_type_key          = pl_asset_get_type_key,
         .get_type_description  = pl_asset_get_type_description,
         .get_type_descriptions = pl_asset_get_type_descriptions,
+        .get_assets            = pl_asset_get_assets,
     };
     pl_set_api(ptApiRegistry, plAssetI, &tApi);
 
@@ -473,7 +511,9 @@ pl_load_asset_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
     else // first load
     {
-        static plAssetContext tCtx = {0};
+        static plAssetContext tCtx = {
+            .bToolsDirty = true
+        };
         gptAssetCtx = &tCtx;
         ptDataRegistry->set_data("plAssetContext", gptAssetCtx);
     }

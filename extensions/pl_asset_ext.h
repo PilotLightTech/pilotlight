@@ -99,6 +99,9 @@ typedef struct _plAssetI
     plAssetTypeKey         (*register_type)       (plAssetTypeDesc);
     const plAssetTypeDesc* (*get_type_description)(plAssetTypeKey);
     uint32_t               (*get_type_descriptions)(const plAssetTypeDesc**);
+
+    // tooling
+    const plAssetHandle* (*get_assets)(uint32_t*); // do not store
 } plAssetI;
 
 //-----------------------------------------------------------------------------
