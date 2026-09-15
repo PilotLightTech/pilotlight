@@ -12,7 +12,6 @@
 # [SECTION] pilot_light
 # [SECTION] imgui & implot
 # [SECTION] editor app
-# [SECTION] pl_dear_imgui_ext
 # [SECTION] generate_scripts
 
 #-----------------------------------------------------------------------------
@@ -48,8 +47,7 @@ with pl.project("pilotlight"):
     # project wide settings
     pl.set_output_directory(output_directory)
     pl.add_link_directories(output_directory)
-    pl.add_include_directories("../sandbox", "../src", "../shaders", "../libs", "../extensions", output_directory, "../thirdparty/stb",
-                               "../thirdparty/cgltf", "../thirdparty/imgui")
+    pl.add_include_directories("../sandbox", "../src", "../shaders", "../libs", "../extensions", output_directory)
 
     #-----------------------------------------------------------------------------
     # [SECTION] profiles

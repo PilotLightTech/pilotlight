@@ -51,32 +51,18 @@ Demonstrates:
 * basic console extension
 * basic UI extension
 
-### Example 3 - Starter & Basic Extensions (example_basic_3.c)
-Demonstrates:
-* loading extensions
-* starter extension
-* basic drawing extension (2D)
-* basic screen log extension
-* basic console extension
-* basic UI extension
-
-### Example 4 - Draw Extension With API Registry (example_basic_4.c)
+### Example 3 - Draw Extension With API Registry (example_basic_3.c)
 Demonstrates:
 * loading APIs
 * loading extensions
 * drawing extension (2D)
 
-### Example 5 - UI Extension With API Registry (example_basic_5.c)
+### Example 4 - UI Extension With API Registry (example_basic_4.c)
 Demonstrates:
 * loading APIs
 * loading extensions
 * hot reloading
 * ui extension
-
-### Example 6 - Dear ImGui With API Registry (example_basic_6.c)
-Demonstrates:
-* Dear ImGui integration
-
 
 ## Low Level Graphics Examples
 
@@ -130,16 +116,3 @@ Demonstrates:
 * compute shaders
 * image extension
 * drawing extension (2D)
-
-## Renderer Examples (Unstable)
-
-### Example 0 - Graphics Extension 0 With API Registry (example_renderer_0.cpp)
-Demonstrates:
-* loading the extensions required by the current renderer stack
-* preserving application state across hot reloads
-* initializing the starter, ECS, shader-variant, and renderer systems
-* creating a renderer scene and view
-* loading renderable ECS objects from glTF
-* creating a camera and environment probe
-* preparing and rendering a single view each frame
-* presenting the renderer's output through the starter extension

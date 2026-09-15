@@ -1,10 +1,10 @@
 /*
    example_basic_3.c
+     - demonstrates loading APIs
+     - demonstrates loading extensions
+     - demonstrates hot reloading
      - demonstrates starter extension
-     - demonstrates basic drawing extension (2D)
-     - demonstrates basic screen log extension
-     - demonstrates basic console extension
-     - demonstrates basic UI extension
+     - demonstrates drawing extension (2D)
 */
 
 /*
@@ -24,29 +24,9 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-    This example is the same as example 2 but shows how to use Pilot Light
-    without the function pointers & API structs. This usage does not allow
-    hot reloading but may be preferred by some developers. To utilize this
-    mode, just link to the extensions when building your project.
-    
-    This example is also the first to introduce the "starter" extension. This
-    extension acts a bit as a helper extension to remove some common boilerplate
-    but is also just useful in general for most applications only needing to use
-    UI, plotting, drawing, etc. Or even to just experiment with the lower level
-    graphics extension in an isolated manner. Later examples will gradually peel
-    away at this extension and others. For this example, we will just demonstrate
-    some of the smaller helpful extensions. These include:
-
-    * log
-    * profile
-    * stats
-    * console
-    * screen log
-    * ui
-    
-    This will be very light introductions with later examples going into more
-    detail. Feel free to open the header file for the extension for more
-    information and functionality.
+    The purpose of this example is to demonstrate the drawing extension. We
+    will still use the starter extension to handle other boilerplate code but
+    we will configure it such that it doesn't manage the drawing extension.
 */
 
 //-----------------------------------------------------------------------------
@@ -57,23 +37,14 @@ Index of this file:
 #include <string.h> // memset
 #include "pl.h"
 
-#include "pl_unity_ext.h" // for loading extension directly to not need api structs
-
 #define PL_MATH_INCLUDE_FUNCTIONS // required to expose some of the color helpers
 #include "pl_math.h"
 
 // extensions
 #include "pl_draw_ext.h"
 #include "pl_starter_ext.h"
-#include "pl_ui_ext.h"
-#include "pl_screen_log_ext.h"
-#include "pl_profile_ext.h"
-#include "pl_log_ext.h"
-#include "pl_stats_ext.h"
-#include "pl_console_ext.h"
-#include "pl_platform_ext.h"
 #include "pl_graphics_ext.h"
-#include "pl_shader_ext.h"
+#include "pl_platform_ext.h"
 #include "pl_vfs_ext.h"
 
 //-----------------------------------------------------------------------------
@@ -85,22 +56,25 @@ typedef struct _plAppData
     // window
     plWindow* ptWindow;
 
-    // log channel
-    uint64_t uExampleLogChannel;
-
-    // console variable
-    bool bShowHelpWindow;
+    // drawing
+    plDrawList2D*  ptDrawlist;
+    plDrawLayer2D* ptFGLayer;
+    plDrawLayer2D* ptBGLayer;
+    plFont*        ptCousineBitmapFont;
+    plFont*        ptCousineSDFFont;
 } plAppData;
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-plApiRegistryI* gptApiRegistry = NULL;
-
-#define PL_ALLOC(x)      pl_memory_tracked_realloc(NULL, (x), __FILE__, __LINE__)
-#define PL_REALLOC(x, y) pl_memory_tracked_realloc((x), (y), __FILE__, __LINE__)
-#define PL_FREE(x)       pl_memory_tracked_realloc((x), 0, __FILE__, __LINE__)
+const plIOI*       gptIO      = NULL;
+const plWindowI*   gptWindows = NULL;
+const plDrawI*     gptDraw    = NULL;
+const plStarterI*  gptStarter = NULL;
+const plGraphicsI* gptGfx     = NULL;
+const plVfsI*      gptVfs     = NULL;
+const plFileI*     gptFile    = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -109,37 +83,69 @@ plApiRegistryI* gptApiRegistry = NULL;
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    gptApiRegistry = ptApiRegistry; // saving for cleanup later
+    // NOTE: on first load, "ptAppData" will be NULL but on reloads
+    //       it will be the value returned from this function
+
+    // if "ptAppData" is a valid pointer, then this function is being called
+    // during a hot reload.
+    if(ptAppData)
+    {
+
+        // re-retrieve the apis since we are now in
+        // a different dll/so and we are storing them
+        // as global variables
+        gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
+        gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
+        gptDraw    = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+        gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
+
+        return ptAppData;
+    }
+
+    // this path is taken only during first load, so we
+    // allocate app memory here
+    ptAppData = malloc(sizeof(plAppData));
+    memset(ptAppData, 0, sizeof(plAppData));
 
     // retrieve extension registry
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
 
-    // load extensions manually
-    pl_load_ext(ptApiRegistry, false);
-    pl_load_platform_ext(ptApiRegistry, false);
-    pl_load_graphics_ext(ptApiRegistry, false);
-    pl_load_shader_ext(ptApiRegistry, false);
+    // load extensions
+    //   * first argument is the shared library name WITHOUT the extension
+    //   * second & third argument is the load/unload functions names (use NULL for the default of "pl_load_ext" &
+    //     "pl_unload_ext")
+    //   * fourth argument indicates if the extension is reloadable (should we check for changes and reload if changed)
+    ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
+    ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false); // provides the file API used by the drawing ext
+    ptExtensionRegistry->load("pl_shader_ext", "pl_load_shader_ext", "pl_unload_shader_ext", true);
+    ptExtensionRegistry->load("pl_graphics_ext", "pl_load_graphics_ext", "pl_unload_graphics_ext", true);
     
-    // this path is taken only during first load, so we
-    // allocate app memory here
-    ptAppData = PL_ALLOC(sizeof(plAppData));
-    memset(ptAppData, 0, sizeof(plAppData));
+    // load required apis
+    gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
+
+    // load required apis (these are provided though extensions)
+    gptDraw    = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+    gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
 
     // create cache directories
-    pl_file_create_directory("../cache");
-    pl_file_create_directory("../cache/shaders");
-    pl_file_create_directory("../cache/imports");
-    pl_file_create_directory("../cache/textures");
-    pl_file_create_directory("../cache/terrain");
+    gptFile->create_directory("../cache");
+    gptFile->create_directory("../cache/shaders");
+    gptFile->create_directory("../cache/imports");
+    gptFile->create_directory("../cache/textures");
+    gptFile->create_directory("../cache/terrain");
 
     // mount required directories
-    pl_vfs_mount_directory("/shaders",   "../shaders",   PL_VFS_MOUNT_FLAGS_NONE);
-    pl_vfs_mount_directory("/resources", "../resources", PL_VFS_MOUNT_FLAGS_NONE);
-    pl_vfs_mount_directory("/cache",     "../cache",     PL_VFS_MOUNT_FLAGS_NONE);
-    pl_vfs_mount_directory("/assets",    "../assets",    PL_VFS_MOUNT_FLAGS_NONE);
-
-    // default values
-    ptAppData->bShowHelpWindow = true;
+    gptVfs->mount_directory("/shaders",   "../shaders",   PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/resources", "../resources", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/cache",     "../cache",     PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/assets",    "../assets",    PL_VFS_MOUNT_FLAGS_NONE);
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
@@ -149,33 +155,85 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uWidth  = 600,
         .uHeight = 600,
     };
-    pl_window_create(tWindowDesc, &ptAppData->ptWindow);
-    pl_window_show(ptAppData->ptWindow);
+    gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->show(ptAppData->ptWindow);
 
-    // initialize the starter API (handles alot of boilerplate)
+    // initialize the starter API
     plStarterInit tStarterInit = {
-        // .eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
+        .eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
     };
 
-    // explicitly setting the flags for information purposes
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_DRAW_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_UI_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_CONSOLE_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_PROFILE_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_STATS_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_SHADER_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_SCREEN_LOG_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_GRAPHICS_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_TOOLS_EXT;
-    pl_starter_initialize(tStarterInit);
-    pl_starter_finalize();
+    // we will remove this flag so we can handle
+    // management of the UI extension
+    tStarterInit.eFlags &= ~PL_STARTER_FLAGS_DRAW_EXT;
 
-    // add a log channel
-    ptAppData->uExampleLogChannel = pl_log_add_channel("Example 2", (plLogExtChannelInit){.tType = PL_LOG_CHANNEL_TYPE_BUFFER});
+    gptStarter->initialize(tStarterInit);
 
-    // add a console variable
-    pl_console_add_toggle_variable("a.HelpWindow", &ptAppData->bShowHelpWindow, "toggle help window", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    // initialize the draw extension
+    plDevice* ptDevice = gptStarter->get_device();
+    plDrawInit tDrawInit = {
+        .ptDevice = ptDevice
+    };
+    gptDraw->initialize(&tDrawInit);
+
+    // create font atlas
+    plFontAtlas* ptAtlas = gptDraw->create_font_atlas();
+    gptDraw->set_font_atlas(ptAtlas);
+
+    // typical font range (you can also add individual characters)
+    const plFontRange tRange = {
+        .iFirstCodePoint = 0x0020,
+        .uCharCount = 0x00FF - 0x0020
+    };
+
+    // adding another font
+    plFontConfig tFontConfig0 = {
+        .bSdf           = false,
+        .fSize          = 18.0f,
+        .uHOverSampling = 1,
+        .uVOverSampling = 1,
+        .uRangeCount    = 1,
+        .ptRanges       = &tRange
+    };
+    ptAppData->ptCousineBitmapFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig0, "../resources/Cousine-Regular.ttf");
+
+    // adding previous font but as a signed distance field (SDF)
+    plFontConfig tFontConfig1 = {
+        .bSdf           = true, // only works with ttf
+        .fSize          = 18.0f,
+        .uHOverSampling = 1,
+        .uVOverSampling = 1,
+        .ucOnEdgeValue  = 180,
+        .iSdfPadding    = 1,
+        .uRangeCount    = 1,
+        .ptRanges       = &tRange
+    };
+    ptAppData->ptCousineSDFFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig1, "../resources/Cousine-Regular.ttf");
+
+    // register our app drawlist
+    ptAppData->ptDrawlist = gptDraw->request_2d_drawlist();
+
+    // request layers (allows drawing out of order)
+    ptAppData->ptFGLayer = gptDraw->request_2d_layer(ptAppData->ptDrawlist);
+    ptAppData->ptBGLayer = gptDraw->request_2d_layer(ptAppData->ptDrawlist);
+
+    // wraps up
+    gptStarter->finalize();
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~font atlas texture~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // draw extension handles creating the font atlas texture and
+    // uploading to the GPU but it requires a command buffer (in an non recording state).
+    // Later examples will go into command buffers without using the starter ext
+
+    plCommandBuffer* ptCmdBuffer = gptStarter->get_raw_command_buffer(); // not recording
+
+    // actually record building atlas
+    gptDraw->build_font_atlas(ptCmdBuffer, gptDraw->get_current_font_atlas());
+
+    // return back to the pool (this actually submits the work and waits)
+    gptStarter->return_raw_command_buffer(ptCmdBuffer);
 
     // return app memory
     return ptAppData;
@@ -188,18 +246,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
+    // ensure device is done with resources
+    plDevice* ptDevice = gptStarter->get_device();
+    gptGfx->flush_device(ptDevice); // waits for the GPU to be done with all work
+
+    // cleans up texture and other resources
+    gptDraw->cleanup_font_atlas(gptDraw->get_current_font_atlas());
+    gptDraw->cleanup();
+
     // allow starter extension to handle cleanup for extensions
     // we set it to handle
-    pl_starter_cleanup();
-
-    pl_window_destroy(ptAppData->ptWindow);
-    
-    // unload extensions
-    pl_unload_ext(gptApiRegistry, false);
-    pl_unload_platform_ext(gptApiRegistry, false);
-    pl_unload_graphics_ext(gptApiRegistry, false);
-    pl_unload_shader_ext(gptApiRegistry, false);
-    PL_FREE(ptAppData);
+    gptStarter->cleanup();
+    gptWindows->destroy(ptAppData->ptWindow);
+    free(ptAppData);
 }
 
 //-----------------------------------------------------------------------------
@@ -212,7 +271,7 @@ pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
     // here we allow the starter to handle resize for any 
     // extensions that require it, for example resizing
     // textures with the swapchain
-    pl_starter_resize();
+    gptStarter->resize();
 }
 
 //-----------------------------------------------------------------------------
@@ -224,96 +283,147 @@ pl_app_update(plAppData* ptAppData)
 {
     // this needs to be the first call when using the starter
     // extension. You must return if it returns false (usually a swapchain recreation).
-    if(!pl_starter_begin_frame())
+    if(!gptStarter->begin_frame())
         return;
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~stats API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    
-    // rather than have to lookup the counter every frame, its best to "store" it
-    // like this. To update it, just deference it and set the value.
-    static double* pdExample2Counter = NULL;
-    if(!pdExample2Counter)
-        pdExample2Counter = pl_stats_get_counter("example 2 counter");
+    // this must be called now that the starter
+    // extension isn't doing it for us
+    gptDraw->new_frame();
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing & profile API~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    pl_profile_begin_sample(0, "example drawing");
-    
-    plDrawLayer2D* ptFGLayer = pl_starter_get_foreground_layer();
-    pl_draw_add_line(ptFGLayer,
-        (plVec2){0.0f, 0.0f},
-        (plVec2){500.0f, 500.0f}, (plDrawLineOptions){ .fThickness = 1.0f, .uColor = PL_COLOR_32_MAGENTA});
-
-    plDrawLayer2D* ptBGLayer = pl_starter_get_background_layer();
-    pl_draw_add_triangle_filled(ptBGLayer,
-        (plVec2){50.0f, 100.0f},
-        (plVec2){200.0f},
-        (plVec2){100.0f, 200.0f}, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.0f, 0.5f, 1.0f, 0.5f)});
-
-    plVec2 points[5] = {
-        (plVec2){100.0f, 100.0f},
-        (plVec2){500.0f, 100.0f},
-        (plVec2){500.0f, 300.0f},
-        (plVec2){300.0f, 500.0f},
-        (plVec2){100.0f, 300.0f},
+    plDrawLineOptions tCommonLineOptions = {
+        .fThickness = 1.0f,
+        .uColor     = PL_COLOR_32_MAGENTA
     };
-    pl_draw_add_convex_polygon_filled(ptBGLayer, points, sizeof(points)/sizeof(points[0]), (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.25f, 0.25f, 0.5f)});
-    pl_draw_add_polygon(ptBGLayer, points, sizeof(points)/sizeof(points[0]), (plDrawLineOptions){.fThickness = 30.0f, .uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 1.0f, 0.5f)});
 
-    pl_profile_end_sample(0);
+    plDrawSolidOptions tCommonSolidOptions = {
+        .uColor = PL_COLOR_32_MAGENTA
+    };
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~UI & Screen Log API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    gptDraw->add_line(ptAppData->ptFGLayer,
+        (plVec2){0.0f, 0.0f},
+        (plVec2){100.0f, 100.0f}, tCommonLineOptions);
 
-    // creating a window
-    if(ptAppData->bShowHelpWindow)
-    {
-        if(pl_ui_begin_window("Help", NULL, PL_UI_WINDOW_FLAGS_AUTO_SIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE))
-        {
-            pl_ui_layout_static(0.0f, 500.0f, 1);
-            pl_ui_text("Press F1 to bring up console.");
-            pl_ui_text("Look for t.StatsTool (we added a stat)");
-            pl_ui_text("Look for t.LogTool (we added a log channel)");
-            pl_ui_text("Look for t.ProfileTool");
-            pl_ui_text("Look for t.MemoryAllocationTool and look for example 2!");
-            pl_ui_text("Look for a.HelpWindow (console variable we added)");
-            pl_ui_end_window();
-        }
-    }
+    float fXCursor = 0.0f;
+    gptDraw->add_line(ptAppData->ptFGLayer,
+        (plVec2){fXCursor, 0.0f},
+        (plVec2){fXCursor + 100.0f, 100.0f}, tCommonLineOptions);
 
-    // creating another window
-    if(pl_ui_begin_window("Pilot Light", NULL, PL_UI_WINDOW_FLAGS_NONE))
-    {
-        pl_ui_text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+    fXCursor += 100.0f;
+    gptDraw->add_triangle(ptAppData->ptFGLayer,
+        (plVec2){fXCursor + 50.0f, 0.0f },
+        (plVec2){fXCursor, 100.0f },
+        (plVec2){fXCursor + 100.0f, 100.0f }, tCommonLineOptions);
 
-        if(pl_ui_button("Log"))
-        {
-            pl_log_trace(ptAppData->uExampleLogChannel, "Log");
-            pl_log_debug(ptAppData->uExampleLogChannel, "Log");
-            pl_log_info(ptAppData->uExampleLogChannel, "Log");
-            pl_log_warn(ptAppData->uExampleLogChannel, "Log");
-            pl_log_error(ptAppData->uExampleLogChannel, "Log");
-            pl_log_fatal(ptAppData->uExampleLogChannel, "Log");
-        }
+    fXCursor += 100.0f;
+    gptDraw->add_circle(ptAppData->ptFGLayer,
+        (plVec2){fXCursor + 50.0f, 50.0f},
+        50.0f, 0, tCommonLineOptions);
 
-        static int iCounter = 0;
-        pl_ui_slider_int("Stat Counter Example", &iCounter, -10, 10, 0);
-        *pdExample2Counter = iCounter; // setting our stat variable
+    fXCursor += 100.0f;
+    gptDraw->add_rect_rounded(ptAppData->ptFGLayer,
+        (plVec2){fXCursor, 5.0f},
+        (plVec2){fXCursor + 100.0f, 100.0f},
+        0, 0, 0, tCommonLineOptions);
 
-        pl_ui_layout_row_begin(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2); // got to pl_ui_ext.h to see layout systems
-        
-        pl_ui_layout_row_push(0.3f);
-        if(pl_ui_button("Log To Screen"))
-            pl_screen_log_add_message(5.0, "Cool Message!");
+    fXCursor += 100.0f;
+    gptDraw->add_rect_rounded(ptAppData->ptFGLayer,
+        (plVec2){fXCursor, 5.0f},
+        (plVec2){fXCursor + 100.0f, 100.0f},
+        25.0f, 0, 0, tCommonLineOptions);
 
-        pl_ui_layout_row_push(0.3f);
-        if(pl_ui_button("Big Log To Screen"))
-            pl_screen_log_add_message_ex(0, 5, PL_COLOR_32_GREEN, 3.0f, "%s", "Bigger & Greener!");
+    fXCursor += 100.0f;
+    gptDraw->add_rect_rounded(ptAppData->ptFGLayer,
+        (plVec2){fXCursor, 5.0f},
+        (plVec2){fXCursor + 100.0f, 100.0f},
+        25.0f, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT, tCommonLineOptions);
 
-        pl_ui_layout_row_end();
+    fXCursor += 100.0f;
+    gptDraw->add_quad(ptAppData->ptFGLayer,
+        (plVec2){fXCursor + 5.0f, 5.0f},
+        (plVec2){fXCursor + 5.0f, 100.0f},
+        (plVec2){fXCursor + 100.0f, 100.0f},
+        (plVec2){fXCursor + 100.0f, 5.0f}, tCommonLineOptions);
 
-        pl_ui_end_window();
-    }
+    fXCursor += 100.0f;
+    gptDraw->add_bezier_quad(ptAppData->ptFGLayer,
+        (plVec2){fXCursor, 0.0f},
+        (plVec2){fXCursor + 100.0f, 0.0f},
+        (plVec2){fXCursor + 100.0f, 100.0f}, 0, tCommonLineOptions);
+
+    fXCursor += 100.0f;
+    gptDraw->add_bezier_cubic(ptAppData->ptFGLayer,
+        (plVec2){fXCursor, 0.0f},
+        (plVec2){fXCursor + 100.0f, 0.0f},
+        (plVec2){fXCursor, 100.0f},
+        (plVec2){fXCursor + 100.0f, 100.0f},
+        0, tCommonLineOptions);
+
+    fXCursor = 100.0f;
+    gptDraw->add_triangle_filled(ptAppData->ptFGLayer,
+        (plVec2){fXCursor + 50.0f, 100.0f},
+        (plVec2){fXCursor, 200.0f},
+        (plVec2){fXCursor + 100.0f, 200.0f}, tCommonSolidOptions);
+
+    fXCursor += 100.0f;
+    gptDraw->add_circle_filled(ptAppData->ptFGLayer,
+        (plVec2){fXCursor + 50.0f, 150.0f},
+        50.0f, 0, tCommonSolidOptions);
+
+    fXCursor += 100.0f;
+    gptDraw->add_rect_rounded_filled(ptAppData->ptFGLayer,
+        (plVec2){fXCursor, 105.0f},
+        (plVec2){fXCursor + 100.0f, 200.0f},
+        0, 0, 0, tCommonSolidOptions);
+
+    fXCursor += 100.0f;
+    gptDraw->add_rect_rounded_filled(ptAppData->ptFGLayer,
+        (plVec2){fXCursor, 105.0f},
+        (plVec2){fXCursor + 100.0f, 200.0f},
+        25.0f, 0, 0, tCommonSolidOptions);
+
+    fXCursor += 100.0f;
+    gptDraw->add_quad_filled(ptAppData->ptFGLayer,
+        (plVec2){fXCursor + 5.0f, 105.0f},
+        (plVec2){fXCursor + 5.0f, 200.0f},
+        (plVec2){fXCursor + 100.0f, 200.0f},
+        (plVec2){fXCursor + 100.0f, 105.0f}, tCommonSolidOptions);
+
+    // default text
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 300.0f}, "Proggy @ 13 (loaded at 13)", (plDrawTextOptions){.ptFont = gptStarter->get_default_font(), .uColor = PL_COLOR_32_WHITE});
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 315.0f}, "Proggy @ 45 (loaded at 13)", (plDrawTextOptions){.ptFont = gptStarter->get_default_font(), .uColor = PL_COLOR_32_WHITE, .fSize = 45.0f});
+
+    // bitmap text
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 400.0f}, "Cousine @ 18, bitmap (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineBitmapFont, .uColor = PL_COLOR_32_WHITE});
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 420.0f}, "Cousine @ 100, bitmap (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineBitmapFont, .uColor = PL_COLOR_32_WHITE, .fSize = 100.0f});
+
+    // sdf text
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 520.0f}, "Cousine @ 18, sdf (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineSDFFont, .uColor = PL_COLOR_32_WHITE, .fSize = 18.0f});
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 540.0f}, "Cousine @ 100, sdf (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineSDFFont, .uColor = PL_COLOR_32_WHITE, .fSize = 100.0f});
+
+    // submit our draw layers
+    gptDraw->submit_2d_layer(ptAppData->ptBGLayer);
+    gptDraw->submit_2d_layer(ptAppData->ptFGLayer);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit drawlists~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // the starter extension will call begin/end main_pass if you don't but in this
+    // case we are managing the draw extension so we must submit the drawlists
+    // ourself. The starter extension still handles alot of the process of dealing
+    // with command buffers, syncronization, submission, etc. but that is outside
+    // the scope of the draw extension.
+
+    // start main pass & return the command buffer being used
+    plCommandBuffer* ptCmdBuffer = gptStarter->begin_main_pass();
+
+    // submit our drawlist
+    plIO* ptIO = gptIO->get_io();
+    plRenderAttachmentInfo tRenderAttachmentInfo = {0};
+    gptStarter->get_render_attachment_info(&tRenderAttachmentInfo);
+    gptDraw->submit_2d_drawlist(ptAppData->ptDrawlist, ptCmdBuffer, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1, &tRenderAttachmentInfo);
+
+    // allows the starter extension to handle some things then ends the main pass
+    gptStarter->end_main_pass();
 
     // must be the last function called when using the starter extension
-    pl_starter_end_frame(); 
+    gptStarter->end_frame(); 
 }
