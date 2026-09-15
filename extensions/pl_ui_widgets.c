@@ -3242,6 +3242,18 @@ pl_ui_slider_float(const char* pcLabel, float* pfValue, float fMin, float fMax, 
 }
 
 bool
+pl_ui_slider_angle(const char* pcLabel, float* fRadians, float fDegreesMin, float fDegreesMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    if (pcFormat == NULL)
+        pcFormat = "%.0f deg";
+    float fDeg = (*fRadians) * 360.0f / (2.0f * PL_PI);
+    bool value_changed = pl_ui_slider_float_f(pcLabel, &fDeg, fDegreesMin, fDegreesMax, pcFormat, tFlags);
+    if (value_changed)
+        *fRadians = fDeg * (2.0f * PL_PI) / 360.0f;
+    return value_changed;
+}
+
+bool
 pl_ui_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;

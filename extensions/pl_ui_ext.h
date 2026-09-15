@@ -55,7 +55,7 @@ extern "C" {
 // [SECTION] api
 //-----------------------------------------------------------------------------
 
-#define plUiI_version {1, 2, 0}
+#define plUiI_version {1, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -236,6 +236,7 @@ typedef struct _plUiI
     bool (*slider_int_f)  (const char* label, int* value, int minValue, int maxValue, const char* fmt, plUiSliderFlags);
     bool (*slider_uint)   (const char* label, uint32_t* value, uint32_t minValue, uint32_t maxValue, plUiSliderFlags);
     bool (*slider_uint_f) (const char* label, uint32_t* value, uint32_t minValue, uint32_t maxValue, const char* fmt, plUiSliderFlags);
+    bool (*slider_angle)  (const char* label, float* v_rad, float v_degrees_min, float v_degrees_max, const char* format, plUiSliderFlags);
 
     // drag sliders
     bool (*drag_float)  (const char* label, float* value, float speed, float minValue, float maxValue, plUiSliderFlags);

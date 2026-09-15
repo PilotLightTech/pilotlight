@@ -2752,6 +2752,7 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .slider_int_f                          = pl_ui_slider_int_f,
         .slider_uint                           = pl_ui_slider_uint,
         .slider_uint_f                         = pl_ui_slider_uint_f,
+        .slider_angle                          = pl_ui_slider_angle,
         .drag_float                            = pl_ui_drag_float,
         .drag_float_f                          = pl_ui_drag_float_f,
         .begin_collapsing_header               = pl_ui_begin_collapsing_header,
