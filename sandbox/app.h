@@ -194,7 +194,6 @@ typedef struct _plAppData
 
     // scene
     plEntity tMainCamera;
-    bool     bMainViewHovered;
     bool     bHasTerrain;
 
     // scenes/views

@@ -401,7 +401,7 @@ pl_app_update(plAppData* ptAppData)
 
         plVec2 tMousePos = gptIO->get_mouse_pos();
 
-        if(ptAppData->bMainViewHovered && !gptUI->wants_mouse_capture() && !gptGizmo->active())
+        if(!gptUI->wants_mouse_capture() && !gptGizmo->active())
         {
             static plVec2 tClickPos = {0};
             if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
@@ -416,15 +416,6 @@ pl_app_update(plAppData* ptAppData)
                     gptRendererEditor->update_hovered_entity(ptAppData->ptView, ptAppData->tView0Offset, ptAppData->tView0Scale);
             }
         }
-
-        // if(!ptAppData->bMainViewHovered)
-        // {
-        //     if(ImGui::GetIO().WantCaptureKeyboard)
-        //         gptUI->set_wants_keyboard_capture_next_frame(true);
-
-        //     if(ImGui::GetIO().WantCaptureMouse)
-        //         gptUI->set_wants_mouse_capture_next_frame(true);
-        // }
 
         // run ecs system
         PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Run ECS");
@@ -449,10 +440,12 @@ pl_app_update(plAppData* ptAppData)
             {
                 ptAppData->tSelectedEntity.uData = UINT64_MAX;
                 gptRendererEditor->outline_entities(ptAppData->ptScene, 0, NULL);
+                gptScreenLog->add_message_ex(565168477883, 1.0, PL_COLOR_32_RED, 1.0f, "Unselected Entity");
             }
             else if(ptAppData->tSelectedEntity.uData != tNextEntity.uData)
             {
-                gptScreenLog->add_message_ex(565168477883, 5.0, PL_COLOR_32_RED, 1.0f, "Selected Entity {%u, %u}", tNextEntity.uIndex, tNextEntity.uGeneration);
+                plTagComponent* ptSelectedTag = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), tNextEntity);
+                gptScreenLog->add_message_ex(565168477883, -1.0, PL_COLOR_32_GREEN, 1.0f, "Selected Entity \"%s\" {%u, %u}", ptSelectedTag ? ptSelectedTag->pcName : "No Name", tNextEntity.uIndex, tNextEntity.uGeneration);
                 gptRendererEditor->outline_entities(ptAppData->ptScene, 1, &tNextEntity);
                 ptAppData->tSelectedEntity = tNextEntity;
                 gptPhysics->set_angular_velocity(ptLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
@@ -541,6 +534,11 @@ pl_app_update(plAppData* ptAppData)
 
     if(ptAppData->ptScene)
     {
+        ptAppData->tView0Scale.x = 1.0f;
+        ptAppData->tView0Scale.y = 1.0f;
+                    //     tContextSize.x / ImGui::GetWindowViewport()->Size.x,
+                    //     tContextSize.y / ImGui::GetWindowViewport()->Size.y,
+                    // };
         plVec2 tStartPos = {0};
         plVec2 tEndPos = ptIO->tMainViewportSize;
         plVec2 tUV = {0};
