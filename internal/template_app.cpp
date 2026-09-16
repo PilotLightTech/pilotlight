@@ -62,7 +62,7 @@ Index of this file:
 #include "pl_config_ext.h"
 #include "pl_resource_ext.h"
 #include "pl_renderer_ext.h"
-#include "pl_ecs_tools_ext.h"
+#include "pl_asset_tools_ext.h"
 #include "pl_gizmo_ext.h"
 #include "pl_physics_ext.h"
 #include "pl_collision_ext.h"
@@ -108,7 +108,7 @@ const plNetworkI*           gptNetwork          = nullptr;
 const plStringInternI*      gptString           = nullptr;
 const plProfileI*           gptProfile          = nullptr;
 const plFileI*              gptFile             = nullptr;
-const plEcsToolsI*          gptEcsTools         = nullptr;
+const plAssetToolsI*        gptAssetTools       = nullptr;
 const plGizmoI*             gptGizmo            = nullptr;
 const plConsoleI*           gptConsole          = nullptr;
 const plScreenLogI*         gptScreenLog        = nullptr;
@@ -320,7 +320,7 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptString           = pl_get_api_latest(ptApiRegistry, plStringInternI);
     gptProfile          = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptFile             = pl_get_api_latest(ptApiRegistry, plFileI);
-    gptEcsTools         = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
+    gptAssetTools       = pl_get_api_latest(ptApiRegistry, plAssetToolsI);
     gptGizmo            = pl_get_api_latest(ptApiRegistry, plGizmoI);
     gptConsole          = pl_get_api_latest(ptApiRegistry, plConsoleI);
     gptScreenLog        = pl_get_api_latest(ptApiRegistry, plScreenLogI);
@@ -375,7 +375,7 @@ pl__load_extensions(plApiRegistryI* ptApiRegistry)
     ptExtensionRegistry->load("pl_renderer_extd", "pl_load_renderer_ext", "pl_unload_renderer_ext", false);
     ptExtensionRegistry->load("pl_resource_extd", "pl_load_resource_ext", "pl_unload_resource_ext", false);
     ptExtensionRegistry->load("pl_ui_extd", "pl_load_ui_ext", "pl_unload_ui_ext", false);
-    ptExtensionRegistry->load("pl_ecs_tools_extd", "pl_load_ecs_tools_ext", "pl_unload_ecs_tools_ext", false);
+    ptExtensionRegistry->load("pl_asset_tools_extd", "pl_load_asset_tools_ext", "pl_unload_asset_tools_ext", false);
     ptExtensionRegistry->load("pl_camera_extd", "pl_load_camera_ext", "pl_unload_camera_ext", false);
     ptExtensionRegistry->load("pl_animation_extd", "pl_load_animation_ext", "pl_unload_animation_ext", false);
     ptExtensionRegistry->load("pl_gizmo_extd", "pl_load_gizmo_ext", "pl_unload_gizmo_ext", false);
@@ -426,7 +426,7 @@ pl__load_extensions(plApiRegistryI* ptApiRegistry)
     ptExtensionRegistry->load("pl_renderer_ext", "pl_load_renderer_ext", "pl_unload_renderer_ext", false);
     ptExtensionRegistry->load("pl_resource_ext", "pl_load_resource_ext", "pl_unload_resource_ext", false);
     ptExtensionRegistry->load("pl_ui_ext", "pl_load_ui_ext", "pl_unload_ui_ext", false);
-    ptExtensionRegistry->load("pl_ecs_tools_ext", "pl_load_ecs_tools_ext", "pl_unload_ecs_tools_ext", false);
+    ptExtensionRegistry->load("pl_asset_tools_ext", "pl_load_asset_tools_ext", "pl_unload_asset_tools_ext", false);
     ptExtensionRegistry->load("pl_camera_ext", "pl_load_camera_ext", "pl_unload_camera_ext", false);
     ptExtensionRegistry->load("pl_animation_ext", "pl_load_animation_ext", "pl_unload_animation_ext", false);
     ptExtensionRegistry->load("pl_gizmo_ext", "pl_load_gizmo_ext", "pl_unload_gizmo_ext", false);

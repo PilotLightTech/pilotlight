@@ -40,7 +40,7 @@ Index of this file:
 #include "pl_tools_ext.c"
 #include "pl_profile_ext.c"
 #include "pl_log_ext.c"
-#include "pl_ecs_tools_ext.c"
+#include "pl_asset_tools_ext.c"
 #include "pl_gizmo_ext.c"
 #include "pl_console_ext.c"
 #include "pl_screen_log_ext.c"
@@ -339,7 +339,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptResource          = pl_get_api_latest(ptApiRegistry, plResourceI);
     gptProfile           = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptLog               = pl_get_api_latest(ptApiRegistry, plLogI);
-    gptEcsTools          = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
+    gptAssetTools          = pl_get_api_latest(ptApiRegistry, plAssetToolsI);
     gptConsole           = pl_get_api_latest(ptApiRegistry, plConsoleI);
     gptGizmo             = pl_get_api_latest(ptApiRegistry, plGizmoI);
     gptScreenLog         = pl_get_api_latest(ptApiRegistry, plScreenLogI);
@@ -400,7 +400,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_resource_ext(ptApiRegistry, bReload);
     pl_load_renderer_ext(ptApiRegistry, bReload);
     pl_load_animation_ext(ptApiRegistry, bReload);
-    pl_load_ecs_tools_ext(ptApiRegistry, bReload);
+    pl_load_asset_tools_ext(ptApiRegistry, bReload);
     pl_load_gizmo_ext(ptApiRegistry, bReload);
     pl_load_console_ext(ptApiRegistry, bReload);
     pl_load_screen_log_ext(ptApiRegistry, bReload);

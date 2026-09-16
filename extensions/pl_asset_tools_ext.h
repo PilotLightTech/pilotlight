@@ -1,5 +1,5 @@
 /*
-   pl_ecs_tools_ext.h
+   pl_asset_tools_ext.h
 */
 
 /*
@@ -16,8 +16,8 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_ECS_TOOLS_EXT_H
-#define PL_ECS_TOOLS_EXT_H
+#ifndef PL_ASSET_TOOLS_EXT_H
+#define PL_ASSET_TOOLS_EXT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,7 +27,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plEcsToolsI_version {0, 1, 0}
+#define plAssetToolsI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -36,37 +36,37 @@ extern "C" {
 #include "pl.inc"
 #include <stdint.h>
 #include <stdbool.h>
+#include "pl_ecs_ext.inl"
+#include "pl_asset_ext.inl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
 // external
-typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
-typedef struct _plRenderScene      plRenderScene;      // pl_renderer_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
 // extension loading
-PL_API void pl_load_ecs_tools_ext  (plApiRegistryI*, bool reload);
-PL_API void pl_unload_ecs_tools_ext(plApiRegistryI*, bool reload);
+PL_API void pl_load_asset_tools_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_asset_tools_ext(plApiRegistryI*, bool reload);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
-typedef struct _plEcsToolsI
+typedef struct _plAssetToolsI
 {
-    void (*initialize)     (void);
-    void (*cleanup)        (void);
-    bool (*show_window)(plComponentLibrary*, plEntity* selectedEntity, plRenderScene*, bool*);
-} plEcsToolsI;
+    void (*initialize) (void);
+    void (*cleanup)    (void);
+    bool (*show_assets)(bool*);
+} plAssetToolsI;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // PL_ECS_TOOLS_EXT_H
+#endif // PL_ASSET_TOOLS_EXT_H

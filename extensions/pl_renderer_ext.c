@@ -3677,7 +3677,7 @@ pl_renderer_register_asset_types(void)
         .serialize       = pl__renderer_serialize_settings,
         .deserialize     = pl__renderer_deserialize_settings,
     };
-    gptData->tAssetTypeKeyEnvironment = gptAsset->register_type(tDesc1);
+    gptData->tAssetTypeKeySettings = gptAsset->register_type(tDesc1);
 }
 
 plAssetTypeKey

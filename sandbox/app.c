@@ -105,7 +105,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->iSelectedEnvironment = 0;
 
     gptConfig->load_from_disk(NULL);
-    ptAppData->bShowEntityWindow = gptConfig->load_bool("bShowEntityWindow", false);
+    ptAppData->bShowAssetWindow = gptConfig->load_bool("bShowAssetWindow", false);
     ptAppData->bPhysicsDebugDraw = gptConfig->load_bool("bPhysicsDebugDraw", false);
 
     // add console variables
@@ -113,10 +113,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .eFlags = PL_CONSOLE_FLAGS_POPUP
     };
     gptConsole->initialize(tConsoleSettings);
-    gptConsole->add_toggle_variable("a.Entities", &ptAppData->bShowEntityWindow, "shows ecs tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    gptConsole->add_toggle_variable("a.Assets", &ptAppData->bShowAssetWindow, "shows asset tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
 
     // initialize APIs that require it
-    gptEcsTools->initialize();
+    gptAssetTools->initialize();
 
     plPhysicsEngineSettings tPhysicsSettings = {0};
     gptPhysics->initialize(tPhysicsSettings);
@@ -251,14 +251,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->pbShowProfiling            = (bool*)gptConsole->get_variable("t.ProfileTool", NULL, NULL);
     ptAppData->pbShowMemoryAllocations    = (bool*)gptConsole->get_variable("t.MemoryAllocationTool", NULL, NULL);
     ptAppData->pbShowDeviceMemoryAnalyzer = (bool*)gptConsole->get_variable("t.DeviceMemoryAnalyzerTool", NULL, NULL);
-    ptAppData->pbShowAssets               = (bool*)gptConsole->get_variable("t.AssetTool", NULL, NULL);
 
     *ptAppData->pbShowLogging = gptConfig->load_bool("pbShowLogging", *ptAppData->pbShowLogging);
     *ptAppData->pbShowStats = gptConfig->load_bool("pbShowStats", *ptAppData->pbShowStats);
     *ptAppData->pbShowProfiling = gptConfig->load_bool("pbShowProfiling", *ptAppData->pbShowProfiling);
     *ptAppData->pbShowMemoryAllocations = gptConfig->load_bool("pbShowMemoryAllocations", *ptAppData->pbShowMemoryAllocations);
     *ptAppData->pbShowDeviceMemoryAnalyzer = gptConfig->load_bool("pbShowDeviceMemoryAnalyzer", *ptAppData->pbShowDeviceMemoryAnalyzer);
-    *ptAppData->pbShowAssets = gptConfig->load_bool("pbShowAssets", *ptAppData->pbShowDeviceMemoryAnalyzer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~setup draw extensions~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -319,10 +317,9 @@ pl_app_shutdown(plAppData* ptAppData)
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
 
-    gptConfig->set_bool("bShowEntityWindow", ptAppData->bShowEntityWindow);
+    gptConfig->set_bool("bShowAssetWindow", ptAppData->bShowAssetWindow);
     gptConfig->set_bool("bPhysicsDebugDraw", ptAppData->bPhysicsDebugDraw);
     gptConfig->set_bool("pbShowLogging", *ptAppData->pbShowLogging);
-    gptConfig->set_bool("pbShowAssets", *ptAppData->pbShowAssets);
     gptConfig->set_bool("pbShowStats", *ptAppData->pbShowStats);
     gptConfig->set_bool("pbShowProfiling", *ptAppData->pbShowProfiling);
     gptConfig->set_bool("pbShowMemoryAllocations", *ptAppData->pbShowMemoryAllocations);
@@ -330,7 +327,7 @@ pl_app_shutdown(plAppData* ptAppData)
 
     gptConfig->save_to_disk(NULL);
     gptConfig->cleanup();
-    gptEcsTools->cleanup();
+    gptAssetTools->cleanup();
     gptPhysics->cleanup();
 
     if(ptAppData->ptScene)
@@ -457,9 +454,9 @@ pl_app_update(plAppData* ptAppData)
         if(gptIO->is_key_pressed(PL_KEY_M, true))
             gptGizmo->next_mode();
 
-        if(ptAppData->bShowEntityWindow)
+        if(ptAppData->bShowAssetWindow)
         {
-            if(gptEcsTools->show_window(ptLibrary, &ptAppData->tSelectedEntity, ptAppData->ptScene, &ptAppData->bShowEntityWindow))
+            if(gptAssetTools->show_assets(&ptAppData->bShowAssetWindow))
             {
                 if(ptAppData->tSelectedEntity.uData == UINT64_MAX)
                 {
@@ -1110,8 +1107,7 @@ pl__show_editor_window(plAppData* ptAppData)
                 gptUI->checkbox("Profiling", ptAppData->pbShowProfiling);
                 gptUI->checkbox("Statistics", ptAppData->pbShowStats);
                 gptUI->checkbox("Logging", ptAppData->pbShowLogging);
-                gptUI->checkbox("Assets", ptAppData->pbShowAssets);
-                gptUI->checkbox("Entities", &ptAppData->bShowEntityWindow);
+                gptUI->checkbox("Assets", &ptAppData->bShowAssetWindow);
                 gptUI->end_collapsing_header();
             }
             if(gptUI->begin_collapsing_header(ICON_FA_USER_GEAR " User Interface", 0))
@@ -1224,7 +1220,7 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptString           = pl_get_api_latest(ptApiRegistry, plStringInternI);
     gptProfile          = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptFile             = pl_get_api_latest(ptApiRegistry, plFileI);
-    gptEcsTools         = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
+    gptAssetTools         = pl_get_api_latest(ptApiRegistry, plAssetToolsI);
     gptGizmo            = pl_get_api_latest(ptApiRegistry, plGizmoI);
     gptConsole          = pl_get_api_latest(ptApiRegistry, plConsoleI);
     gptScreenLog        = pl_get_api_latest(ptApiRegistry, plScreenLogI);

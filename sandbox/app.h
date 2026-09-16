@@ -65,7 +65,7 @@ Index of this file:
 #include "pl_resource_ext.h"
 #include "pl_gltf_ext.h"
 #include "pl_renderer_ext.h"
-#include "pl_ecs_tools_ext.h"
+#include "pl_asset_tools_ext.h"
 #include "pl_gizmo_ext.h"
 #include "pl_physics_ext.h"
 #include "pl_collision_ext.h"
@@ -106,7 +106,7 @@ const plNetworkI*           gptNetwork          = NULL;
 const plStringInternI*      gptString           = NULL;
 const plProfileI*           gptProfile          = NULL;
 const plFileI*              gptFile             = NULL;
-const plEcsToolsI*          gptEcsTools         = NULL;
+const plAssetToolsI*        gptAssetTools         = NULL;
 const plGizmoI*             gptGizmo            = NULL;
 const plConsoleI*           gptConsole          = NULL;
 const plScreenLogI*         gptScreenLog        = NULL;
@@ -184,13 +184,12 @@ typedef struct _plAppData
     bool  bShowUiDemo;
     bool  bShowUiDebug;
     bool  bShowUiStyle;
-    bool  bShowEntityWindow;
+    bool  bShowAssetWindow;
     bool* pbShowDeviceMemoryAnalyzer;
     bool* pbShowMemoryAllocations;
     bool* pbShowProfiling;
     bool* pbShowStats;
     bool* pbShowLogging;
-    bool* pbShowAssets;
 
     // scene
     plEntity tMainCamera;
