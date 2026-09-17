@@ -45,9 +45,8 @@ typedef struct _plChunkFileData
 typedef struct _plTerrain
 {
     plRenderAttachmentInfo tRenderPassLayoutHandle;
-    plTerrainRuntimeOptions tRuntimeOptions;
     plChunkFileData* sbtChunkFiles;
-    plTerrainAsset tInfo;
+    plAssetHandle tAsset;
     plVec2           tTopLeftGlobal;
     plVec2           tBottomRightGlobal;
     uint32_t                 uTileCount;
@@ -75,13 +74,12 @@ static void pl__handle_residency (plTerrain*);
 static void pl__request_residency(plTerrain*, plTerrainChunk*);
 static void pl__touch_chunk(plTerrain*, plTerrainChunk*);
 static void pl__make_unresident  (plTerrain*, plTerrainChunk*);
-static bool pl__terrain_load(plTerrain* ptTerrain, plTerrainAsset* ptInfo);
 void pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk);
 
-static void pl__render_chunk(plRenderScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t);
+static void pl__render_chunk(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t);
 static void
 pl__render_chunk_shadow(
-    plRenderScene* ptScene,
+    plScene* ptScene,
     plTerrain* ptTerrain,
     const plCamera* ptCamera,
     plCommandBuffer* ptCmdBuffer,
@@ -109,39 +107,34 @@ static inline bool pl__is_leaf_resident(const plTerrainChunk* c)
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
+bool
+pl_chlod_load_chunk_file(plTerrain* ptTerrain, const char* pcPath)
+{
+    plChunkFileData tChunkFileData = {0};
+    uint32_t uChunkFileID = pl_sb_size(ptTerrain->sbtChunkFiles);
+    gptTerrain->load_chunk_file(pcPath, &tChunkFileData.tFile, uChunkFileID);
+
+    for(uint32_t i = 0; i < tChunkFileData.tFile.uChunkCount; i++)
+    {
+
+        tChunkFileData.tFile.atChunks[i].uIndex = i;
+
+        tChunkFileData.tFile.atChunks[i].tUVScale.x = 1.0f;
+        tChunkFileData.tFile.atChunks[i].tUVScale.y = 1.0f;
+    }
+    pl_sb_push(ptTerrain->sbtChunkFiles, tChunkFileData);
+    return true;
+}
+
 static plTerrain*
-pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plTerrainAsset* ptInfo)
+pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plAssetHandle tAsset)
 {
     plTerrain* ptTerrain = PL_ALLOC(sizeof(plTerrain));
     memset(ptTerrain, 0, sizeof(plTerrain));
 
 
     ptTerrain->tRenderPassLayoutHandle = gptData->tRenderPassLayout;
-    ptTerrain->tInfo = *ptInfo;
-    ptTerrain->tRuntimeOptions.fTau = 0.2f;
-
-    ptTerrain->tRuntimeOptions.fSlopeStart = 0.0f;
-    ptTerrain->tRuntimeOptions.fSlopeEnd = 0.45f;
-    ptTerrain->tRuntimeOptions.atElevationZones[0].fMinElevation = -1000.0f;
-    ptTerrain->tRuntimeOptions.atElevationZones[0].fMaxElevation = 20.0f;
-    ptTerrain->tRuntimeOptions.atElevationZones[0].fBlendSize = 30.0f;
-    ptTerrain->tRuntimeOptions.atElevationZones[0].tFlatMaterial.tBaseColor = (plVec4){0.66f, 0.598f, 0.402f, 1.0f};
-    ptTerrain->tRuntimeOptions.atElevationZones[0].tSteepMaterial.tBaseColor = (plVec4){0.20f, 0.18f, 0.16f, 1.0f};
-
-    ptTerrain->tRuntimeOptions.fTerrainShadowConstantDepthBias = -100.0f;
-    ptTerrain->tRuntimeOptions.fTerrainShadowSlopeDepthBias = -10.0f;
-
-    ptTerrain->tRuntimeOptions.atElevationZones[1].fMinElevation = 20.0f;
-    ptTerrain->tRuntimeOptions.atElevationZones[1].fMaxElevation = 1000.0f;
-    ptTerrain->tRuntimeOptions.atElevationZones[1].fBlendSize = 40.0f;
-    ptTerrain->tRuntimeOptions.atElevationZones[1].tFlatMaterial.tBaseColor  = (plVec4){0.05f, 0.30f, 0.05f, 1.0f};
-    ptTerrain->tRuntimeOptions.atElevationZones[1].tSteepMaterial.tBaseColor = (plVec4){0.08f, 0.07f, 0.06f, 1.0f};
-
-    ptTerrain->tRuntimeOptions.atElevationZones[2].fMinElevation = 1000.0f;
-    ptTerrain->tRuntimeOptions.atElevationZones[2].fMaxElevation = 2000.0f;
-    ptTerrain->tRuntimeOptions.atElevationZones[2].fBlendSize = 60.0f;
-    ptTerrain->tRuntimeOptions.atElevationZones[2].tFlatMaterial.tBaseColor = (plVec4){0.85f, 0.85f, 0.82f, 1.0f};
-    ptTerrain->tRuntimeOptions.atElevationZones[2].tSteepMaterial.tBaseColor = (plVec4){0.45f, 0.45f, 0.43f, 1.0f};
+    ptTerrain->tAsset = tAsset;
 
     pl_sb_resize(ptTerrain->sbuFreeRequests, PL_REQUEST_QUEUE_SIZE);
 
@@ -170,23 +163,46 @@ pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plTerrainAsset* ptInfo
     };
     gptStarter->create_buffer(&tIndexBufferDesc, NULL, &ptTerrain->tIndexBuffer);
 
-    pl__terrain_load(ptTerrain, ptInfo);
-    ptTerrain->atTiles = PL_ALLOC(sizeof(plTerrainProcessTileInfo) * ptInfo->uTileCount);
-    memset(ptTerrain->atTiles, 0, sizeof(plTerrainProcessTileInfo) * ptInfo->uTileCount);
-    memcpy(ptTerrain->atTiles, ptInfo->atTiles, sizeof(plTerrainProcessTileInfo) * ptInfo->uTileCount);
-    ptTerrain->uTileCount = ptInfo->uTileCount;
+    plTerrainAsset* ptTerrainAsset = gptAsset->get_data(tAsset);
+
+    {
+        float fX = ptTerrainAsset->atTiles[0].tCenter.x;
+        float fY = ptTerrainAsset->atTiles[0].tCenter.z;
+        ptTerrain->tTopLeftGlobal.x = fX - 0.5f * (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel;
+        ptTerrain->tTopLeftGlobal.y = fY - 0.5f * (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel;
+    }
+
+    {
+        float fX = ptTerrainAsset->atTiles[ptTerrainAsset->uTileCount - 1].tCenter.x;
+        float fY = ptTerrainAsset->atTiles[ptTerrainAsset->uTileCount - 1].tCenter.z;
+        ptTerrain->tBottomRightGlobal.x = fX - 0.5f * (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel;
+        ptTerrain->tBottomRightGlobal.y = fY - 0.5f * (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel;
+    }
+
+    for(uint32_t k = 0; k < ptTerrainAsset->uTileCount; k++)
+    {
+        uint32_t i = k % ptTerrainAsset->uHorizontalTiles;
+        uint32_t j = (k - i) / ptTerrainAsset->uVerticalTiles;
+
+        const char* pcAssetPath = gptAsset->get_path(ptTerrainAsset->atTiles[i].tHeightmap);
+
+        char acFileNameOnly[256] = {0};
+        pl_str_get_file_name_only(pcAssetPath, acFileNameOnly, 256);
+
+        char acCacheFile[256] = {0};
+        pl_sprintf(acCacheFile, "/cache/terrain/%s.chu", acFileNameOnly);
+
+        pl_chlod_load_chunk_file(ptTerrain, acCacheFile);
+    }
+
+    ptTerrain->atTiles = PL_ALLOC(sizeof(plTerrainProcessTileInfo) * ptTerrainAsset->uTileCount);
+    memset(ptTerrain->atTiles, 0, sizeof(plTerrainProcessTileInfo) * ptTerrainAsset->uTileCount);
+    memcpy(ptTerrain->atTiles, ptTerrainAsset->atTiles, sizeof(plTerrainProcessTileInfo) * ptTerrainAsset->uTileCount);
+    ptTerrain->uTileCount = ptTerrainAsset->uTileCount;
 
     for(uint32_t i = 0; i < pl_sb_size(ptTerrain->sbtChunkFiles); i++)
         pl__request_residency(ptTerrain, &ptTerrain->sbtChunkFiles[i].tFile.atChunks[0]);
     return ptTerrain;
-}
-
-plTerrainRuntimeOptions*
-pl_renderer_get_terrain_options(plRenderScene* ptScene)
-{
-    if(ptScene->ptTerrain)
-        return &ptScene->ptTerrain->tRuntimeOptions;
-    return NULL;
 }
 
 static void
@@ -359,25 +375,6 @@ pl_prepare_terrain(plTerrain* ptTerrain)
     {
         gptScreenLog->add_message_ex(294, 10.0, PL_COLOR_32_RED, 1.0f, "Stream Inactive");
     }
-}
-
-bool
-pl_chlod_load_chunk_file(plTerrain* ptTerrain, const char* pcPath)
-{
-    plChunkFileData tChunkFileData = {0};
-    uint32_t uChunkFileID = pl_sb_size(ptTerrain->sbtChunkFiles);
-    gptTerrain->load_chunk_file(pcPath, &tChunkFileData.tFile, uChunkFileID);
-
-    for(uint32_t i = 0; i < tChunkFileData.tFile.uChunkCount; i++)
-    {
-
-        tChunkFileData.tFile.atChunks[i].uIndex = i;
-
-        tChunkFileData.tFile.atChunks[i].tUVScale.x = 1.0f;
-        tChunkFileData.tFile.atChunks[i].tUVScale.y = 1.0f;
-    }
-    pl_sb_push(ptTerrain->sbtChunkFiles, tChunkFileData);
-    return true;
 }
 
 static void
@@ -603,7 +600,7 @@ pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 }
 
 static void
-pl__render_chunk(plRenderScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex)
+pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -637,8 +634,10 @@ pl__render_chunk(plRenderScene* ptScene, plTerrain* ptTerrain, const plCamera* p
     float fGeometricError = ptFile->fMaxBaseError * (float)ptChunk->uLevel;
     float fRho = fGeometricError * fK / fDistance;
 
+    plTerrainComponent* ptTerrainComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tTerrainComponentType, ptScene->tTerrain);
+    plTerrainAsset* ptAsset = gptAsset->get_data(ptTerrain->tAsset);
 
-    float tauSubdivide = ptTerrain->tRuntimeOptions.fTau;
+    float tauSubdivide = ptTerrainComp->fTau;
     float tauMerge     = tauSubdivide * 0.5f;
 
     bool bChildrenResident = pl__all_children_resident(ptChunk);
@@ -652,7 +651,7 @@ pl__render_chunk(plRenderScene* ptScene, plTerrain* ptTerrain, const plCamera* p
         plGpuDynTerrainData* ptDynamic = (plGpuDynTerrainData*)tDynamicBinding.pcData;
 
         ptDynamic->iLevel          = (int)ptChunk->uLevel;
-        ptDynamic->tFlags          = ptTerrain->tRuntimeOptions.tFlags;
+        ptDynamic->tFlags          = ptTerrainComp->tFlags;
         ptDynamic->tUVInfo.xy       = ptChunk->tUVScale;
         ptDynamic->tUVInfo.zw       = ptChunk->tUVOffset;
         ptDynamic->iPointLightCount = pl_sb_size(ptScene->sbtPointLights);
@@ -660,25 +659,24 @@ pl__render_chunk(plRenderScene* ptScene, plTerrain* ptTerrain, const plCamera* p
         ptDynamic->iDirectionLightCount = pl_sb_size(ptScene->sbtDirectionLights);
         ptDynamic->iProbeCount = pl_sb_size(ptScene->sbtProbeData);
         ptDynamic->uGlobalIndex = uGlobalIndex;
-        ptDynamic->fSlopeStart = ptTerrain->tRuntimeOptions.fSlopeStart;
-        ptDynamic->fSlopeEnd = ptTerrain->tRuntimeOptions.fSlopeEnd;
+        ptDynamic->fSlopeStart = ptTerrainComp->fSlopeStart;
+        ptDynamic->fSlopeEnd = ptTerrainComp->fSlopeEnd;
 
-        for(uint32_t i = 0; i < PL_MAX_TERRAIN_ELEVATION_ZONES; i++)
+        
+        for(uint32_t i = 0; i < ptAsset->uElevationZoneCount; i++)
         {
-            ptDynamic->atElevationZones[i].tElevation.x = ptTerrain->tRuntimeOptions.atElevationZones[i].fMinElevation;
-            ptDynamic->atElevationZones[i].tElevation.y = ptTerrain->tRuntimeOptions.atElevationZones[i].fMaxElevation;
-            ptDynamic->atElevationZones[i].tElevation.z = ptTerrain->tRuntimeOptions.atElevationZones[i].fBlendSize;
-            ptDynamic->atElevationZones[i].tFlatMaterial.tBaseColor = ptTerrain->tRuntimeOptions.atElevationZones[i].tFlatMaterial.tBaseColor;
-            ptDynamic->atElevationZones[i].tSteepMaterial.tBaseColor = ptTerrain->tRuntimeOptions.atElevationZones[i].tSteepMaterial.tBaseColor;
+            ptDynamic->atElevationZones[i].tElevation.x = ptAsset->atElevationZones[i].fMinElevation;
+            ptDynamic->atElevationZones[i].tElevation.y = ptAsset->atElevationZones[i].fMaxElevation;
+            ptDynamic->atElevationZones[i].tElevation.z = ptAsset->atElevationZones[i].fBlendSize;
+
+            plMaterial* ptFlatMaterial = gptAsset->get_data(ptAsset->atElevationZones[i].tFlatMaterial);
+            plMaterial* ptSteepMaterial = gptAsset->get_data(ptAsset->atElevationZones[i].tSteepMaterial);
+
+            ptDynamic->atElevationZones[i].tFlatMaterial.tBaseColor = ptFlatMaterial->tBaseColor;
+            ptDynamic->atElevationZones[i].tSteepMaterial.tBaseColor = ptSteepMaterial->tBaseColor;
         }
 
-        gptGfx->bind_graphics_bind_groups(
-            ptCmdBuffer,
-            ptScene->tTerrainShader,
-            0, 0,
-            NULL,
-            1, &tDynamicBinding
-        );
+        gptGfx->bind_graphics_bind_groups(ptCmdBuffer, ptScene->tTerrainShader, 0, 0, NULL, 1, &tDynamicBinding);
 
         const plDrawIndex tDraw = {
             .uInstanceCount = 1,
@@ -719,16 +717,9 @@ pl__render_chunk(plRenderScene* ptScene, plTerrain* ptTerrain, const plCamera* p
 }
 
 static void
-pl__render_chunk_shadow(
-    plRenderScene* ptScene,
-    plTerrain* ptTerrain,
-    const plCamera* ptCamera,
-    plCommandBuffer* ptCmdBuffer,
-    plTerrainChunk* ptChunk,
-    plTerrainChunkFile* ptFile,
-    uint32_t uGlobalIndex,
-    float fShadowViewportWidth,
-    float fShadowViewportHeight)
+pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera,
+    plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex,
+    float fShadowViewportWidth, float fShadowViewportHeight)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -747,54 +738,34 @@ pl__render_chunk_shadow(
     if(ptChunk->ptIndexHole == NULL)
         return;
 
+    plTerrainComponent* ptTerrainComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tTerrainComponentType, ptScene->tTerrain);
+
+
     // Geometric error is measured in world units.
-    float fGeometricError =
-        ptFile->fMaxBaseError * (float)ptChunk->uLevel;
+    float fGeometricError = ptFile->fMaxBaseError * (float)ptChunk->uLevel;
 
     // Orthographic projection has constant screen-space scale.
     //
     // Adjust the matrix member access for your actual plMat4 layout.
-    const float fProjectionScaleX =
-        fabsf(ptCamera->tProjMat.col[0].x);
-
-    const float fProjectionScaleY =
-        fabsf(ptCamera->tProjMat.col[1].y);
-
-    const float fPixelsPerWorldUnitX =
-        0.5f * fShadowViewportWidth * fProjectionScaleX;
-
-    const float fPixelsPerWorldUnitY =
-        0.5f * fShadowViewportHeight * fProjectionScaleY;
+    const float fProjectionScaleX = fabsf(ptCamera->tProjMat.col[0].x);
+    const float fProjectionScaleY = fabsf(ptCamera->tProjMat.col[1].y);
+    const float fPixelsPerWorldUnitX = 0.5f * fShadowViewportWidth * fProjectionScaleX;
+    const float fPixelsPerWorldUnitY = 0.5f * fShadowViewportHeight * fProjectionScaleY;
 
     // Conservative choice: refine according to the axis with the
     // greatest pixel density.
-    const float fPixelsPerWorldUnit =
-        pl_max(fPixelsPerWorldUnitX, fPixelsPerWorldUnitY);
+    const float fPixelsPerWorldUnit = pl_max(fPixelsPerWorldUnitX, fPixelsPerWorldUnitY);
+    const float fRho = fGeometricError * fPixelsPerWorldUnit;
+    const float fTauSubdivide = ptTerrainComp->fTau;
+    const float fTauMerge = fTauSubdivide * 0.5f;
+    const bool bChildrenResident = pl__all_children_resident(ptChunk);
 
-    const float fRho =
-        fGeometricError * fPixelsPerWorldUnit;
-
-    const float fTauSubdivide =
-        ptTerrain->tRuntimeOptions.fTau;
-
-    const float fTauMerge =
-        fTauSubdivide * 0.5f;
-
-    const bool bChildrenResident =
-        pl__all_children_resident(ptChunk);
-
-    if(!bChildrenResident ||
-       fRho <= fTauSubdivide ||
-       ptChunk->uLevel < 3)
+    if(!bChildrenResident || fRho <= fTauSubdivide || ptChunk->uLevel < 3)
     {
         const plDrawIndex tDraw = {
             .uIndexCount    = ptChunk->uIndexCount,
-            .uVertexStart   = (uint32_t)(
-                ptChunk->ptVertexHole->uOffset /
-                sizeof(plTerrainVertex)),
-            .uIndexStart    = (uint32_t)(
-                ptChunk->ptIndexHole->uOffset /
-                sizeof(uint32_t)),
+            .uVertexStart   = (uint32_t)(ptChunk->ptVertexHole->uOffset / sizeof(plTerrainVertex)),
+            .uIndexStart    = (uint32_t)(ptChunk->ptIndexHole->uOffset / sizeof(uint32_t)),
             .tIndexBuffer   = ptTerrain->tIndexBuffer,
             .uInstanceCount = 1
         };
@@ -809,70 +780,19 @@ pl__render_chunk_shadow(
             for(uint32_t i = 0; i < 4; i++)
             {
                 if(ptChunk->aptChildren[i])
-                {
-                    pl__request_residency(
-                        ptTerrain,
-                        ptChunk->aptChildren[i]);
-                }
+                    pl__request_residency(ptTerrain, ptChunk->aptChildren[i]);
             }
         }
         else if(fRho < fTauMerge)
-        {
             pl__unload_children(ptTerrain, ptChunk);
-        }
     }
     else
     {
         for(uint32_t i = 0; i < 4; i++)
         {
             if(ptChunk->aptChildren[i])
-            {
-                pl__render_chunk_shadow(
-                    ptScene,
-                    ptTerrain,
-                    ptCamera,
-                    ptCmdBuffer,
-                    ptChunk->aptChildren[i],
-                    ptFile,
-                    uGlobalIndex,
-                    fShadowViewportWidth,
-                    fShadowViewportHeight);
-            }
+                pl__render_chunk_shadow(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk->aptChildren[i], ptFile,
+                    uGlobalIndex, fShadowViewportWidth, fShadowViewportHeight);
         }
     }
-}
-
-static bool
-pl__terrain_load(plTerrain* ptTerrain, plTerrainAsset* ptInfo)
-{
-    {
-        float fX = ptInfo->atTiles[0].tCenter.x;
-        float fY = ptInfo->atTiles[0].tCenter.z;
-        ptTerrain->tTopLeftGlobal.x = fX - 0.5f * (float)ptInfo->uSize * ptInfo->fMetersPerPixel;
-        ptTerrain->tTopLeftGlobal.y = fY - 0.5f * (float)ptInfo->uSize * ptInfo->fMetersPerPixel;
-    }
-
-    {
-        float fX = ptInfo->atTiles[ptInfo->uTileCount - 1].tCenter.x;
-        float fY = ptInfo->atTiles[ptInfo->uTileCount - 1].tCenter.z;
-        ptTerrain->tBottomRightGlobal.x = fX - 0.5f * (float)ptInfo->uSize * ptInfo->fMetersPerPixel;
-        ptTerrain->tBottomRightGlobal.y = fY - 0.5f * (float)ptInfo->uSize * ptInfo->fMetersPerPixel;
-    }
-
-    for(uint32_t k = 0; k < ptInfo->uTileCount; k++)
-    {
-        uint32_t i = k % ptInfo->uHorizontalTiles;
-        uint32_t j = (k - i) / ptInfo->uVerticalTiles;
-
-        const char* pcAssetPath = gptAsset->get_path(ptInfo->atTiles[i].tHeightmap);
-
-        char acFileNameOnly[256] = {0};
-        pl_str_get_file_name_only(pcAssetPath, acFileNameOnly, 256);
-
-        char acCacheFile[256] = {0};
-        pl_sprintf(acCacheFile, "/cache/terrain/%s.chu", acFileNameOnly);
-
-        pl_chlod_load_chunk_file(ptTerrain, acCacheFile);
-    }
-    return true;
 }

@@ -22,7 +22,14 @@
                 "name": "Terrain"
             },
             "terrain": {                
-                "terrain": "/assets/terrains/mountains.plterrain"
+                "terrain": "/assets/terrains/mountains.plterrain",
+                "tau": 0.2,
+                "slope_start": 0.0,
+                "slope_end": 0.45,
+                "depth_bias": -100.0,
+                "slope_depth_bias": -10.0,
+                "wireframe": false,
+                "show_levels": false
             }
         },
         {
@@ -35,6 +42,15 @@
                 "rotation": [0.0, 0.0, 0.0, 1.0], 
                 "scale": [1.0, 1.0, 1.0]
             },
+            "object": {                
+                "mesh": "/assets/meshes/probe.plmesh", 
+                "first_submesh": 0, 
+                "submesh_count": 1, 
+                "transform": 3, 
+                "casts_shadow": false, 
+                "receives_shadow": true, 
+                "renderable": true
+            }, 
             "probe": {
                 "range": 30.0,
                 "resolution": 128,

@@ -130,7 +130,7 @@
                 "mesh": "/assets/meshes/probe.plmesh", 
                 "first_submesh": 0, 
                 "submesh_count": 1, 
-                "transform": 0, 
+                "transform": 3, 
                 "casts_shadow": false, 
                 "receives_shadow": true, 
                 "renderable": true

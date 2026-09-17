@@ -211,139 +211,6 @@ pl__focus_window(plUiWindow* ptWindow)
 }
 
 void
-pl_ui_end_frame(void)
-{
-    // draw submission
-    gptDraw->submit_2d_layer(gptCtx->ptBgLayer);
-    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
-    {
-        if(gptCtx->sbptWindows[i]->uHideFrames == 0)
-        {
-            gptDraw->submit_2d_layer(gptCtx->sbptWindows[i]->ptBgLayer);
-            gptDraw->submit_2d_layer(gptCtx->sbptWindows[i]->ptFgLayer);
-        }
-        else
-        {
-            gptCtx->sbptWindows[i]->uHideFrames--;
-        }
-    }
-    gptDraw->submit_2d_layer(gptCtx->tTooltipWindow.ptBgLayer);
-    gptDraw->submit_2d_layer(gptCtx->tTooltipWindow.ptFgLayer);
-    gptDraw->submit_2d_layer(gptCtx->ptFgLayer);
-    gptDraw->submit_2d_layer(gptCtx->ptDebugLayer);
-
-    const plVec2 tMousePos = gptIOI->get_mouse_pos();
-
-    // submit windows in display order
-    pl_sb_reset(gptCtx->sbptWindows);
-    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptFocusedWindows); i++)
-    {
-        plUiWindow* ptRootWindow = gptCtx->sbptFocusedWindows[i];
-
-        // recursively submits child windows
-        if(ptRootWindow->bActive)
-            pl__submit_window(ptRootWindow);
-    }
-
-    // find windows
-    gptCtx->ptHoveredWindow = NULL;
-    gptCtx->ptWheelingWindow = NULL;
-    if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
-    {
-        gptCtx->ptMovingWindow = NULL;
-        gptCtx->ptSizingWindow = NULL;
-        gptCtx->ptScrollingWindow = NULL;
-    }
-
-    // find windows
-    //   - we are assuming they will be the last window hovered
-    bool bRequestFocus = false;
-    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
-    {
-        plUiWindow* ptWindow = gptCtx->sbptWindows[i];
-        if(pl_rect_contains_point(&ptWindow->tOuterRectClipped, gptIO->_tMousePos))
-        {
-            gptCtx->ptHoveredWindow = ptWindow;
-
-            // scrolling
-            if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_AUTO_SIZE) && gptIOI->get_mouse_wheel() != 0.0f)
-                gptCtx->ptWheelingWindow = ptWindow;
-
-            float fTitleBarHeight = ptWindow->tTempData.fTitleBarHeight;
-            const plRect tTitleBarHitRegion = {
-                .tMin = {ptWindow->tPos.x + 2.0f, ptWindow->tPos.y + 2.0f},
-                .tMax = {ptWindow->tPos.x + ptWindow->tSize.x - 2.0f, ptWindow->tPos.y + fTitleBarHeight}
-            };
-
-            // check if window is activated
-            if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-            {
-
-                bRequestFocus = true;
-                gptCtx->ptMovingWindow = NULL;
-                gptCtx->ptNavWindow = ptWindow;
-
-                // check if window titlebar is clicked
-                if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR) && gptIOI->is_mouse_hovering_rect(tTitleBarHitRegion.tMin, tTitleBarHitRegion.tMax))
-                    gptCtx->ptMovingWindow = ptWindow;
-
-            }
-        }
-    }
-
-    if(bRequestFocus)
-        pl__focus_window(gptCtx->ptHoveredWindow->ptRootWindow);
-
-    // scroll window
-    if(gptCtx->ptWheelingWindow)
-    {
-        gptCtx->ptWheelingWindow->tScroll.y -= gptIOI->get_mouse_wheel() * 10.0f;
-        gptCtx->ptWheelingWindow->tScroll.y = pl_clampf(0.0f, gptCtx->ptWheelingWindow->tScroll.y, gptCtx->ptWheelingWindow->tScrollMax.y);
-    }
-
-    // moving window
-    if(gptCtx->ptMovingWindow && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f) && !(gptCtx->ptMovingWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_MOVE))
-    {
-
-        if(tMousePos.x > 0.0f && tMousePos.x < gptIO->tMainViewportSize.x)
-            gptCtx->ptMovingWindow->tPos.x = gptCtx->ptMovingWindow->tPos.x + gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 2.0f).x;
-
-        if(tMousePos.y > 0.0f && tMousePos.y < gptIO->tMainViewportSize.y)
-            gptCtx->ptMovingWindow->tPos.y = gptCtx->ptMovingWindow->tPos.y + gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 2.0f).y;  
-
-        // clamp x
-        gptCtx->ptMovingWindow->tPos.x = pl_maxf(gptCtx->ptMovingWindow->tPos.x, -gptCtx->ptMovingWindow->tSize.x / 2.0f);   
-        gptCtx->ptMovingWindow->tPos.x = pl_minf(gptCtx->ptMovingWindow->tPos.x, gptIO->tMainViewportSize.x - gptCtx->ptMovingWindow->tSize.x / 2.0f);
-
-        // clamp y
-        gptCtx->ptMovingWindow->tPos.y = pl_maxf(gptCtx->ptMovingWindow->tPos.y, 0.0f);   
-        gptCtx->ptMovingWindow->tPos.y = pl_minf(gptCtx->ptMovingWindow->tPos.y, gptIO->tMainViewportSize.y - 50.0f);
-
-        gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
-    }
-
-    gptIO->_fMouseWheel = 0.0f;
-    gptIO->_fMouseWheelH = 0.0f;
-    pl_sb_reset(gptIO->_sbInputQueueCharacters);
-
-    for(uint32_t i = 0; i < 5; i++)
-    {
-        if(gptIO->_abMouseClicked[i])
-        {
-            gptCtx->abMouseOwned[i] = gptCtx->ptHoveredWindow != NULL;
-        }
-        // else if(!gptIO->_abMouseDown[i])
-        // {
-        //     gptCtx->abMouseOwned[i] = gptCtx->ptHoveredWindow != NULL;
-        // }
-        else if(gptIO->_abMouseReleased[i])
-        {
-            gptCtx->abMouseOwned[i] = false;
-        }
-    }
-}
-
-void
 pl_ui_push_theme_color(plUiColor tColorCode, plVec4 tColor)
 {
     const plUiColorStackItem tPrevItem = {
@@ -2290,6 +2157,12 @@ pl_ui_initialize(void)
     gptCtx->iWantCaptureKeyboardNextFrame = -1;
     gptCtx->iWantCaptureMouseNextFrame = -1;
     pl_ui_set_dark_theme();
+
+    if(gptConsole->add_bool_variable)
+    {
+        gptConsole->add_toggle_variable("t.UiDebug", &gptCtx->bShowDebugTool, "shows ui debug tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+        gptConsole->add_toggle_variable("t.UiStyle", &gptCtx->bShowStyleTool, "shows ui style tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    }
 }
 
 void
@@ -2666,6 +2539,149 @@ pl_ui_show_style_editor_window(bool* pbOpen)
     }  
 }
 
+void
+pl_ui_end_frame(void)
+{
+    if(gptCtx->bShowStyleTool)
+    {
+        pl_ui_show_style_editor_window(&gptCtx->bShowStyleTool);
+    }
+
+    if(gptCtx->bShowDebugTool)
+    {
+        pl_ui_show_debug_window(&gptCtx->bShowDebugTool);
+    }
+
+    // draw submission
+    gptDraw->submit_2d_layer(gptCtx->ptBgLayer);
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
+    {
+        if(gptCtx->sbptWindows[i]->uHideFrames == 0)
+        {
+            gptDraw->submit_2d_layer(gptCtx->sbptWindows[i]->ptBgLayer);
+            gptDraw->submit_2d_layer(gptCtx->sbptWindows[i]->ptFgLayer);
+        }
+        else
+        {
+            gptCtx->sbptWindows[i]->uHideFrames--;
+        }
+    }
+    gptDraw->submit_2d_layer(gptCtx->tTooltipWindow.ptBgLayer);
+    gptDraw->submit_2d_layer(gptCtx->tTooltipWindow.ptFgLayer);
+    gptDraw->submit_2d_layer(gptCtx->ptFgLayer);
+    gptDraw->submit_2d_layer(gptCtx->ptDebugLayer);
+
+    const plVec2 tMousePos = gptIOI->get_mouse_pos();
+
+    // submit windows in display order
+    pl_sb_reset(gptCtx->sbptWindows);
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptFocusedWindows); i++)
+    {
+        plUiWindow* ptRootWindow = gptCtx->sbptFocusedWindows[i];
+
+        // recursively submits child windows
+        if(ptRootWindow->bActive)
+            pl__submit_window(ptRootWindow);
+    }
+
+    // find windows
+    gptCtx->ptHoveredWindow = NULL;
+    gptCtx->ptWheelingWindow = NULL;
+    if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
+    {
+        gptCtx->ptMovingWindow = NULL;
+        gptCtx->ptSizingWindow = NULL;
+        gptCtx->ptScrollingWindow = NULL;
+    }
+
+    // find windows
+    //   - we are assuming they will be the last window hovered
+    bool bRequestFocus = false;
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
+    {
+        plUiWindow* ptWindow = gptCtx->sbptWindows[i];
+        if(pl_rect_contains_point(&ptWindow->tOuterRectClipped, gptIO->_tMousePos))
+        {
+            gptCtx->ptHoveredWindow = ptWindow;
+
+            // scrolling
+            if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_AUTO_SIZE) && gptIOI->get_mouse_wheel() != 0.0f)
+                gptCtx->ptWheelingWindow = ptWindow;
+
+            float fTitleBarHeight = ptWindow->tTempData.fTitleBarHeight;
+            const plRect tTitleBarHitRegion = {
+                .tMin = {ptWindow->tPos.x + 2.0f, ptWindow->tPos.y + 2.0f},
+                .tMax = {ptWindow->tPos.x + ptWindow->tSize.x - 2.0f, ptWindow->tPos.y + fTitleBarHeight}
+            };
+
+            // check if window is activated
+            if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+            {
+
+                bRequestFocus = true;
+                gptCtx->ptMovingWindow = NULL;
+                gptCtx->ptNavWindow = ptWindow;
+
+                // check if window titlebar is clicked
+                if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR) && gptIOI->is_mouse_hovering_rect(tTitleBarHitRegion.tMin, tTitleBarHitRegion.tMax))
+                    gptCtx->ptMovingWindow = ptWindow;
+
+            }
+        }
+    }
+
+    if(bRequestFocus)
+        pl__focus_window(gptCtx->ptHoveredWindow->ptRootWindow);
+
+    // scroll window
+    if(gptCtx->ptWheelingWindow)
+    {
+        gptCtx->ptWheelingWindow->tScroll.y -= gptIOI->get_mouse_wheel() * 10.0f;
+        gptCtx->ptWheelingWindow->tScroll.y = pl_clampf(0.0f, gptCtx->ptWheelingWindow->tScroll.y, gptCtx->ptWheelingWindow->tScrollMax.y);
+    }
+
+    // moving window
+    if(gptCtx->ptMovingWindow && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f) && !(gptCtx->ptMovingWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_MOVE))
+    {
+
+        if(tMousePos.x > 0.0f && tMousePos.x < gptIO->tMainViewportSize.x)
+            gptCtx->ptMovingWindow->tPos.x = gptCtx->ptMovingWindow->tPos.x + gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 2.0f).x;
+
+        if(tMousePos.y > 0.0f && tMousePos.y < gptIO->tMainViewportSize.y)
+            gptCtx->ptMovingWindow->tPos.y = gptCtx->ptMovingWindow->tPos.y + gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 2.0f).y;  
+
+        // clamp x
+        gptCtx->ptMovingWindow->tPos.x = pl_maxf(gptCtx->ptMovingWindow->tPos.x, -gptCtx->ptMovingWindow->tSize.x / 2.0f);   
+        gptCtx->ptMovingWindow->tPos.x = pl_minf(gptCtx->ptMovingWindow->tPos.x, gptIO->tMainViewportSize.x - gptCtx->ptMovingWindow->tSize.x / 2.0f);
+
+        // clamp y
+        gptCtx->ptMovingWindow->tPos.y = pl_maxf(gptCtx->ptMovingWindow->tPos.y, 0.0f);   
+        gptCtx->ptMovingWindow->tPos.y = pl_minf(gptCtx->ptMovingWindow->tPos.y, gptIO->tMainViewportSize.y - 50.0f);
+
+        gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+    }
+
+    gptIO->_fMouseWheel = 0.0f;
+    gptIO->_fMouseWheelH = 0.0f;
+    pl_sb_reset(gptIO->_sbInputQueueCharacters);
+
+    for(uint32_t i = 0; i < 5; i++)
+    {
+        if(gptIO->_abMouseClicked[i])
+        {
+            gptCtx->abMouseOwned[i] = gptCtx->ptHoveredWindow != NULL;
+        }
+        // else if(!gptIO->_abMouseDown[i])
+        // {
+        //     gptCtx->abMouseOwned[i] = gptCtx->ptHoveredWindow != NULL;
+        // }
+        else if(gptIO->_abMouseReleased[i])
+        {
+            gptCtx->abMouseOwned[i] = false;
+        }
+    }
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -2808,6 +2824,7 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptDraw = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptIOI = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptConsole = pl_get_api_latest(ptApiRegistry, plConsoleI);
     gptIO = gptIOI->get_io();
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

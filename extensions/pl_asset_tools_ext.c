@@ -36,6 +36,7 @@ Index of this file:
 #include "pl_texture_ext.h"
 #include "pl_terrain_ext.h"
 #include "pl_graphics_ext.h"
+#include "pl_console_ext.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -48,7 +49,6 @@ static const plMemoryI*   gptMemory = NULL;
 static const plEcsI*      gptEcs      = NULL;
 static const plAnimationI*  gptAnimation = NULL;
 static const plUiI*       gptUI       = NULL;
-static const plRendererEditorI* gptRendererEditor = NULL;
 static const plRendererI* gptRenderer = NULL;
 static const plPhysicsI*  gptPhysics = NULL;
 static const plCameraI*   gptCamera = NULL;
@@ -64,6 +64,7 @@ static const plSkeletonI* gptSkeleton = NULL;
 static const plTextureI*       gptTexture       = NULL;
 static const plTerrainI*       gptTerrain       = NULL;
 static const plGraphicsI*       gptGfx       = NULL;
+static const plConsoleI*       gptConsole       = NULL;
 
 #ifndef PL_DS_ALLOC
     
@@ -99,6 +100,7 @@ static const plGraphicsI*       gptGfx       = NULL;
 #define PL_ICON_FA_PALETTE "\xef\x94\xbf"	// U+f53f
 #define PL_ICON_FA_CHESS_BOARD "\xef\x90\xbc"	// U+f43c
 #define PL_ICON_FA_DRAW_POLYGON "\xef\x97\xae"	// U+f5ee
+#define PL_ICON_FA_BONE "\xef\x97\x97"	// U+f5d7
 
 static const char* apcComponentNames[] = {
     "None",
@@ -129,7 +131,10 @@ static const char* apcAssetIcons[] = {
     PL_ICON_FA_FOLDER_OPEN,
     PL_ICON_FA_FILM,
     PL_ICON_FA_CLOUD_SUN,
-    PL_ICON_FA_GLOBE
+    PL_ICON_FA_GLOBE,
+    PL_ICON_FA_PLAY,
+    PL_ICON_FA_USER_INJURED,
+    PL_ICON_FA_BONE,
 };
 
 static const char* apcAssetNames[] = {
@@ -140,7 +145,10 @@ static const char* apcAssetNames[] = {
     PL_ICON_FA_FOLDER_OPEN " library",
     PL_ICON_FA_FILM " renderer",
     PL_ICON_FA_CLOUD_SUN " environment",
-    PL_ICON_FA_GLOBE " terrain"
+    PL_ICON_FA_GLOBE " terrain",
+    PL_ICON_FA_PLAY " animation",
+    PL_ICON_FA_USER_INJURED " skin",
+    PL_ICON_FA_BONE " skeleton",
 };
 
 //-----------------------------------------------------------------------------
@@ -162,6 +170,7 @@ typedef struct _plAssetToolSelectData
 typedef struct _plEcsToolsContext
 {
     char* sbcBuffer;
+    bool bShowTool;
 
     // asset data
     plUiTextFilter tAssetFilter;
@@ -267,8 +276,12 @@ pl__asset_tools_blah(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, 
 }
 
 bool
-pl_asset_tools_show_window(const char* pcName, plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, bool* pbShowWindow)
+pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity, bool* pbShowWindow)
 {
+
+    plComponentLibrary* ptLibrary = gptAsset->get_data(tAssetHandle);
+    const char* pcLibraryName = gptAsset->get_path(tAssetHandle);
+
     bool bResult = false;
 
     if(!pl_hm_has_key(&gptAssetToolsCtx->tLibraryHashmap, (uint64_t)ptLibrary))
@@ -284,10 +297,17 @@ pl_asset_tools_show_window(const char* pcName, plComponentLibrary* ptLibrary, pl
     }
     plLibraryToolHelper* ptLibraryHelper = &gptAssetToolsCtx->sbtLibraryData[pl_hm_lookup(&gptAssetToolsCtx->tLibraryHashmap, (uint64_t)ptLibrary)];
 
-    if(gptUI->begin_window(pcName, pbShowWindow, false))
+    if(gptUI->begin_window(pcLibraryName, pbShowWindow, false))
     {
         const plVec2 tWindowSize = gptUI->get_window_size();
         const float pfRatios[] = {0.5f, 0.5f};
+
+        gptUI->layout_static(0.0f, 100.0f, 1);
+        if(gptUI->button("Save"))
+        {
+            gptAsset->save(tAssetHandle, PL_ASSET_ENCODING_TEXT);
+        }
+
         gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios);
         gptUI->text("Entities");
         gptUI->text("Components");
@@ -464,6 +484,17 @@ pl_asset_tools_show_window(const char* pcName, plComponentLibrary* ptLibrary, pl
                 if(ptTerrain && gptUI->begin_collapsing_header("Terrain", 0))
                 {
                     gptUI->text("Terrain: %s", gptAsset->get_path(ptTerrain->tTerrain));
+                    gptUI->slider_float("fTau", &ptTerrain->fTau, 0.0f, 1.0f, 0);
+
+                    gptUI->checkbox_flags("Wireframe", &ptTerrain->tFlags, PL_TERRAIN_FLAGS_WIREFRAME);
+                    gptUI->checkbox_flags("Show Levels", &ptTerrain->tFlags, PL_TERRAIN_FLAGS_SHOW_LEVELS);
+
+                    gptUI->slider_float("fSlopeStart", &ptTerrain->fSlopeStart, 0.0f, 1.0f, 0);
+                    gptUI->slider_float("fSlopeEnd", &ptTerrain->fSlopeEnd, 0.0f, 1.0f, 0);
+
+                    gptUI->input_float("Terrain Depth Bias", &ptTerrain->fTerrainShadowConstantDepthBias, "%g", 0);
+                    gptUI->input_float("Terrain Slope Depth Bias", &ptTerrain->fTerrainShadowSlopeDepthBias, "%g", 0);
+
                     gptUI->end_collapsing_header();
                 }
 
@@ -865,7 +896,6 @@ pl_asset_tools_show_assets(bool* bValue)
     uint32_t uAssetCount = 0;
     const plAssetHandle* atAssetHandles = gptAsset->get_assets(&uAssetCount);
     pl_sb_resize(gptAssetToolsCtx->sbtSelectionData, uAssetCount);
-    pl_sb_reset(gptAssetToolsCtx->sbuSelectionData);
 
     if(gptUI->begin_window("Assets", bValue, false))
     {
@@ -888,6 +918,9 @@ pl_asset_tools_show_assets(bool* bValue)
             gptRenderer->get_asset_type_key_settings(),
             gptRenderer->get_asset_type_key_environment(),
             gptTerrain->get_asset_type_key(),
+            gptAnimation->get_asset_type_key(),
+            gptSkeleton->get_asset_type_key_skin(),
+            gptSkeleton->get_asset_type_key_skeleton(),
         };
 
         static uint32_t uAssetFilter = 0;
@@ -939,11 +972,24 @@ pl_asset_tools_show_assets(bool* bValue)
 
                         pl_sb_sprintf(gptAssetToolsCtx->sbcBuffer, "%s", pcAssetPath);
                         pl_sb_pop(gptAssetToolsCtx->sbcBuffer);
-                        if(gptAssetToolsCtx->sbtSelectionData[i].bSelected)
+                        if(gptUI->selectable(gptAssetToolsCtx->sbcBuffer, &gptAssetToolsCtx->sbtSelectionData[i].bSelected, 0))
                         {
-                            pl_sb_push(gptAssetToolsCtx->sbuSelectionData, i);
+                            if(gptAssetToolsCtx->sbtSelectionData[i].bSelected)
+                            {
+                                pl_sb_push(gptAssetToolsCtx->sbuSelectionData, i);
+                            }
+                            else
+                            {
+                                for(uint32_t j = 0; j < pl_sb_size(gptAssetToolsCtx->sbuSelectionData); j++)
+                                {
+                                    if(gptAssetToolsCtx->sbuSelectionData[j] == i)
+                                    {
+                                        pl_sb_del_swap(gptAssetToolsCtx->sbuSelectionData, j);
+                                        break;
+                                    }
+                                }
+                            }
                         }
-                        gptUI->selectable(gptAssetToolsCtx->sbcBuffer, &gptAssetToolsCtx->sbtSelectionData[i].bSelected, 0);
                     }
                 } 
             }
@@ -973,11 +1019,24 @@ pl_asset_tools_show_assets(bool* bValue)
                         pl_sb_sprintf(gptAssetToolsCtx->sbcBuffer, "%s", pcAssetPath);
                         pl_sb_pop(gptAssetToolsCtx->sbcBuffer);
 
-                        if(gptAssetToolsCtx->sbtSelectionData[i].bSelected)
+                        if(gptUI->selectable(gptAssetToolsCtx->sbcBuffer, &gptAssetToolsCtx->sbtSelectionData[i].bSelected, 0))
                         {
-                            pl_sb_push(gptAssetToolsCtx->sbuSelectionData, i);
+                            if(gptAssetToolsCtx->sbtSelectionData[i].bSelected)
+                            {
+                                pl_sb_push(gptAssetToolsCtx->sbuSelectionData, i);
+                            }
+                            else
+                            {
+                                for(uint32_t j = 0; j < pl_sb_size(gptAssetToolsCtx->sbuSelectionData); j++)
+                                {
+                                    if(gptAssetToolsCtx->sbuSelectionData[j] == i)
+                                    {
+                                        pl_sb_del_swap(gptAssetToolsCtx->sbuSelectionData, j);
+                                        break;
+                                    }
+                                }
+                            }
                         }
-                        gptUI->selectable(gptAssetToolsCtx->sbcBuffer, &gptAssetToolsCtx->sbtSelectionData[i].bSelected, 0);
                     } 
                 }
             }
@@ -995,7 +1054,14 @@ pl_asset_tools_show_assets(bool* bValue)
         plAssetHandle tAssetHandle = atAssetHandles[gptAssetToolsCtx->sbuSelectionData[iSelectionIndex]];
         plAssetTypeKey tAssetType = gptAsset->get_type_key(tAssetHandle);
 
-        if(tAssetType != gptEcs->get_asset_type_key() && gptUI->begin_window(gptAsset->get_path(atAssetHandles[gptAssetToolsCtx->sbuSelectionData[iSelectionIndex]]), &ptSelectionData->bSelected, 0))
+        if(!ptSelectionData->bSelected)
+        {
+            pl_sb_del_swap(gptAssetToolsCtx->sbuSelectionData, iSelectionIndex);
+            uSelectedCount--;
+            continue;
+        }
+
+        if(tAssetType != gptEcs->get_asset_type_key() && gptUI->begin_window(gptAsset->get_path(tAssetHandle), &ptSelectionData->bSelected, 0))
         {
             const plVec2 tWindowSize = gptUI->get_window_size();
 
@@ -1315,7 +1381,11 @@ pl_asset_tools_show_assets(bool* bValue)
                         gptUI->slider_float("Contrast", &ptSettings->tTonemap.fContrast, 0.0f, 2.0f, 0);
                         gptUI->slider_float("Saturation", &ptSettings->tTonemap.fSaturation, 0.0f, 2.0f, 0);
 
-                        gptUI->separator_text("Bloom");
+                        gptUI->end_collapsing_header();
+                    }
+
+                    if(gptUI->begin_collapsing_header("Bloom", 0))
+                    {
                         bool bBloomActive = ptSettings->tBloom.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE;
                         gptUI->checkbox("Bloom", &bBloomActive);
 
@@ -1330,7 +1400,6 @@ pl_asset_tools_show_assets(bool* bValue)
                         }
                         else
                             ptSettings->tBloom.tFlags &= ~PL_RENDERER_BLOOM_FLAGS_ACTIVE;
-
                         gptUI->end_collapsing_header();
                     }
 
@@ -1430,7 +1499,6 @@ pl_asset_tools_show_assets(bool* bValue)
                             ptEnvironment->uAerialSamplesPerSlice = (uint32_t)iAerialSamplesPerSlice;
                         }
                     }
-                    // ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_LUTS_DIRTY;
                 }
                 else if(tAssetType == gptTerrain->get_asset_type_key())
                 {
@@ -1443,7 +1511,25 @@ pl_asset_tools_show_assets(bool* bValue)
 
                     static uint32_t uSelectedTile = 0;
                     uSelectedTile = pl_clampu(0, uSelectedTile, ptTerrain->uTileCount);
-                    gptUI->slider_uint("Tile", &uSelectedTile, 0, ptTerrain->uTileCount, 0);
+
+                    gptUI->separator_text("Elevation Zones");
+
+                    for(uint32_t i = 0; i < ptTerrain->uElevationZoneCount; i++)
+                    {
+                        if(gptUI->tree_node_f("Zone: %d", 0, i))
+                        {
+                            gptUI->labeled_text("flat material", gptAsset->get_path(ptTerrain->atElevationZones[i].tFlatMaterial));
+                            gptUI->labeled_text("steep material", gptAsset->get_path(ptTerrain->atElevationZones[i].tSteepMaterial));
+                            gptUI->input_float("fMinElevation", &ptTerrain->atElevationZones[i].fMinElevation, "%g", 0);
+                            gptUI->input_float("fMaxElevation", &ptTerrain->atElevationZones[i].fMaxElevation, "%g", 0);
+                            gptUI->input_float("fBlendSize", &ptTerrain->atElevationZones[i].fBlendSize, "%g", 0);
+                            gptUI->tree_pop();
+                        }
+                    }
+
+                    gptUI->separator_text("Tiles");
+                    if(ptTerrain->uTileCount > 1)
+                        gptUI->slider_uint("Tile", &uSelectedTile, 0, ptTerrain->uTileCount, 0);
 
                     plTerrainProcessTileInfo* ptTile = &ptTerrain->atTiles[uSelectedTile];
                     gptUI->labeled_text("height map", gptAsset->get_path(tAssetHandle));
@@ -1452,6 +1538,8 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->input_float("min. height", &ptTile->fMinHeight, "%g", 0);
                     gptUI->input_int("tree depth", &ptTile->iTreeDepth,  0);
                     gptUI->input_float3("center", ptTile->tCenter.d, "%0.6f", 0);
+
+
                 }
                 else if(tAssetType == gptEcs->get_asset_type_key())
                 {
@@ -1462,17 +1550,16 @@ pl_asset_tools_show_assets(bool* bValue)
         }
     }
 
-    for(uint32_t iSelectionIndex = 0; iSelectionIndex < uSelectedCount;iSelectionIndex++)
+    for(uint32_t iSelectionIndex = 0; iSelectionIndex < uSelectedCount; iSelectionIndex++)
     {
         plAssetToolSelectData* ptSelectionData = &gptAssetToolsCtx->sbtSelectionData[gptAssetToolsCtx->sbuSelectionData[iSelectionIndex]];
         plAssetHandle tAssetHandle = atAssetHandles[gptAssetToolsCtx->sbuSelectionData[iSelectionIndex]];
         plAssetTypeKey tAssetType = gptAsset->get_type_key(tAssetHandle);
 
-        if(tAssetType == gptEcs->get_asset_type_key())
+        if(tAssetType == gptEcs->get_asset_type_key()) // ecs library
         {
-            plComponentLibrary* ptLibrary = gptAsset->get_data(tAssetHandle);
-            const char* pcLibraryName = gptAsset->get_path(tAssetHandle);
-            if(pl_asset_tools_show_window(pcLibraryName, ptLibrary, &ptSelectionData->tSelectedEntity, NULL))
+
+            if(pl_asset_tools_show_window(tAssetHandle, &ptSelectionData->tSelectedEntity, NULL))
             {
                 bResult = true;
             }
@@ -1485,7 +1572,10 @@ pl_asset_tools_show_assets(bool* bValue)
 void
 pl_asset_tools_initialize(void)
 {
-
+    if(gptConsole->add_bool_variable)
+    {
+        gptConsole->add_toggle_variable("t.Assets", &gptAssetToolsCtx->bShowTool, "shows assets tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    }
 }
 
 void
@@ -1504,6 +1594,15 @@ pl_asset_tools_cleanup(void)
     pl_hm_free(&gptAssetToolsCtx->tLibraryHashmap);
 }
 
+void
+pl_asset_tools_run(void)
+{
+    if(gptAssetToolsCtx->bShowTool)
+    {
+        pl_asset_tools_show_assets(&gptAssetToolsCtx->bShowTool);
+    }
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -1512,15 +1611,14 @@ void
 pl_load_asset_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plAssetToolsI tApi = {
-        .show_assets = pl_asset_tools_show_assets,
         .initialize  = pl_asset_tools_initialize,
-        .cleanup     = pl_asset_tools_cleanup
+        .cleanup     = pl_asset_tools_cleanup,
+        .run         = pl_asset_tools_run
     };
     pl_set_api(ptApiRegistry, plAssetToolsI, &tApi);
 
     #ifndef PL_UNITY_BUILD
         gptMemory         = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptRendererEditor = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
         gptRenderer       = pl_get_api_latest(ptApiRegistry, plRendererI);
         gptUI             = pl_get_api_latest(ptApiRegistry, plUiI);
         gptEcs            = pl_get_api_latest(ptApiRegistry, plEcsI);
@@ -1539,6 +1637,7 @@ pl_load_asset_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptTexture        = pl_get_api_latest(ptApiRegistry, plTextureI);
         gptTerrain        = pl_get_api_latest(ptApiRegistry, plTerrainI);
         gptGfx            = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+        gptConsole        = pl_get_api_latest(ptApiRegistry, plConsoleI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

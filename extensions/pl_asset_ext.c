@@ -254,16 +254,38 @@ pl_asset_cleanup(void)
     pl_temp_allocator_free(&gptAssetCtx->tTempAllocator);
 }
 
+void*
+pl_asset_get_data(plAssetHandle tHandle)
+{
+    if(tHandle.uGeneration != gptAssetCtx->sbtAssetGenerations[tHandle.uIndex])
+        return NULL;
+
+    plAsset* ptAsset = &gptAssetCtx->sbtAssets[tHandle.uIndex];
+    plAssetRegisteredType* ptType = &gptAssetCtx->sbtTypeDescriptions[ptAsset->tType];
+    return &((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize];
+}
+
 plAssetHandle
 pl_asset_create(const plAssetDesc* ptDesc, const void* pData)
 {
     const uint64_t ulHash = pl_hm_hash_str(ptDesc->pcPath, 0);
     uint64_t ulExistingSlot = 0;
+
+    plAssetRegisteredType* ptType = &gptAssetCtx->sbtTypeDescriptions[ptDesc->tType];
+
     if(pl_hm_has_key_ex(&gptAssetCtx->tAssetLookup, ulHash, &ulExistingSlot))
     {
         plAssetHandle tAsset = {0};
         tAsset.uIndex      = (uint32_t)ulExistingSlot;
         tAsset.uGeneration = gptAssetCtx->sbtAssetGenerations[ulExistingSlot];
+
+        plAsset* ptAsset = &gptAssetCtx->sbtAssets[tAsset.uIndex];
+
+        if(pData)
+            memcpy(&((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize], pData, ptType->tDesc.szSize);
+        else
+            memset(&((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize], 0, ptType->tDesc.szSize);
+
         return tAsset;
     }
     gptAssetCtx->bToolsDirty = true;
@@ -288,8 +310,6 @@ pl_asset_create(const plAssetDesc* ptDesc, const void* pData)
     plAssetHandle tNewAsset = {0};
     tNewAsset.uIndex      = (uint32_t)uIndex;
     tNewAsset.uGeneration = gptAssetCtx->sbtAssetGenerations[uIndex];
-
-    plAssetRegisteredType* ptType = &gptAssetCtx->sbtTypeDescriptions[ptDesc->tType];
 
     if(ptAsset->uDataIndex == UINT32_MAX)
     {
@@ -457,17 +477,6 @@ pl_asset_get_source_path(plAssetHandle tHandle)
 
     plAsset* ptAsset = &gptAssetCtx->sbtAssets[tHandle.uIndex];
     return ptAsset->pcSource;
-}
-
-void*
-pl_asset_get_data(plAssetHandle tHandle)
-{
-    if(tHandle.uGeneration != gptAssetCtx->sbtAssetGenerations[tHandle.uIndex])
-        return NULL;
-
-    plAsset* ptAsset = &gptAssetCtx->sbtAssets[tHandle.uIndex];
-    plAssetRegisteredType* ptType = &gptAssetCtx->sbtTypeDescriptions[ptAsset->tType];
-    return &((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize];
 }
 
 //-----------------------------------------------------------------------------

@@ -127,8 +127,6 @@ const plDateTimeI*          gptDateTime         = nullptr;
 const plCompressI*          gptCompress         = nullptr;
 const plMaterialI*          gptMaterial         = nullptr;
 const plScriptI*            gptScript           = nullptr;
-const plRendererDebugI*     gptRendererDebug    = nullptr;
-const plRendererEditorI*    gptRendererEditor   = nullptr;
 const plAssetI*             gptAsset            = nullptr;
 const plTransformI*         gptTransform        = nullptr;
 const plIkI*                gptIk               = nullptr;
@@ -339,8 +337,6 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptCompress         = pl_get_api_latest(ptApiRegistry, plCompressI);
     gptMaterial         = pl_get_api_latest(ptApiRegistry, plMaterialI);
     gptScript           = pl_get_api_latest(ptApiRegistry, plScriptI);
-    gptRendererDebug    = pl_get_api_latest(ptApiRegistry, plRendererDebugI);
-    gptRendererEditor   = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
     gptAsset            = pl_get_api_latest(ptApiRegistry, plAssetI);
     gptTransform        = pl_get_api_latest(ptApiRegistry, plTransformI);
     gptIk               = pl_get_api_latest(ptApiRegistry, plIkI);

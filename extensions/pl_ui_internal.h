@@ -46,6 +46,7 @@ Index of this file:
 // extensions
 #include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
+#include "pl_console_ext.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -65,8 +66,9 @@ Index of this file:
     #endif
 
     // static const plDataRegistryI*      gptDataRegistry      = NULL;
-    static const plDrawI*              gptDraw              = NULL;
-    static const plIOI*                gptIOI               = NULL;
+    static const plDrawI*    gptDraw    = NULL;
+    static const plIOI*      gptIOI     = NULL;
+    static const plConsoleI* gptConsole = NULL;
     static plIO* gptIO = NULL;
 #endif
 
@@ -508,6 +510,10 @@ typedef struct _plUiContext
 
     // misc
     char* sbcTempBuffer;
+
+    // debug stuff
+    bool bShowDebugTool;
+    bool bShowStyleTool;
 } plUiContext;
 
 //-----------------------------------------------------------------------------

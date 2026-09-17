@@ -1553,7 +1553,7 @@ pl_ui_separator(void)
         gptDraw->add_line(ptWindow->ptFgLayer,
             tStartPos,
             (plVec2){tStartPos.x + tWidgetSize.x, tStartPos.y},
-            (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tSeparatorCol), .fThickness = 1.0f});
+            (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tSeparatorCol), .fThickness = gptCtx->tStyle.fSeparatorTextLineSize});
     }
 
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
@@ -1569,7 +1569,7 @@ pl_ui_separator_text(const char* pcText)
     const plVec2 tWidgetSize = pl__calculate_item_size(gptCtx->tStyle.fFontSize + gptCtx->tStyle.tSeparatorTextPadding.y * 2.0f);
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
-                plRect tTextBounding = gptDraw->calculate_text_bb(tStartPos, pcText,
+        plRect tTextBounding = gptDraw->calculate_text_bb(tStartPos, pcText,
             (plDrawTextOptions){
                 .ptFont = gptCtx->tFont,
                 .fSize = gptCtx->tStyle.fFontSize,

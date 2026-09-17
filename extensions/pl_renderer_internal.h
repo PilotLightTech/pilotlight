@@ -159,7 +159,7 @@ Index of this file:
 
 // basic types
 typedef struct _plView                  plView;
-typedef struct _plRenderScene                 plRenderScene;
+typedef struct _plScene                 plScene;
 typedef struct _plRefRendererData       plRefRendererData;
 typedef struct _plSkinData              plSkinData;
 typedef struct _plDrawable              plDrawable;
@@ -327,7 +327,7 @@ typedef struct _plEnvironmentProbeData
 
 typedef struct _plView
 {
-    plRenderScene* ptParentScene;
+    plScene* ptParentScene;
     uint32_t uIndex;
     plGpuViewData tViewData;
 
@@ -384,10 +384,25 @@ typedef struct _plView
     plDrawList3D* pt3DSelectionDrawList;
 
     // view based options
-    plRendererDebugViewOptions  tDebugOptions;
-    plRendererEditorViewOptions tEditorOptions;
-    // plRendererBloomOptions      tBloomOptions;
-    // plRendererTonemapOptions    tTonemapOptions;
+    bool bDrawLightsDebug;
+    bool bDrawBoundingBoxesDebug;
+    bool bDrawSelectedBoundingBoxesDebug;
+    bool bDrawBvhDebug;
+    bool bFrustumCulling;
+    bool bFreezeCameraNextFrame;
+    bool bFrozenCamera;
+    bool bShowOrigin;
+    plCamera tCullCamera;
+
+    bool bShowGrid;
+    bool bShowSelectedBoundingBox;
+    uint32_t uOutlineWidth;
+
+    // grid
+    float  fGridCellSize;
+    float  fGridMinPixelsBetweenCells;
+    plVec4 tGridColorThin;
+    plVec4 tGridColorThick;
 
     // atmosphere rendering stuff
     plTextureHandle   atSkyLut[PL_MAX_FRAMES_IN_FLIGHT];
@@ -398,11 +413,11 @@ typedef struct _plView
     plBindGroupHandle atSkyAerialBG2[PL_MAX_FRAMES_IN_FLIGHT];
 } plView;
 
-typedef struct _plRenderScene
+typedef struct _plScene
 {
     plSceneDesc          tInit;
     const char*          pcName;
-    plRenderSceneFlags         tFlags;
+    plSceneFlags         tFlags;
     plSceneInternalFlags tInternalFlags;
     plComponentLibrary*  ptComponentLibrary;
     plView**             sbptViews; // child views
@@ -560,16 +575,21 @@ typedef struct _plRenderScene
     uint64_t                uLastProbeAddFrame;
 
     // terrain
+    plEntity   tTerrain;
     plTerrain* ptTerrain;
 
-    // scene based options
-    plRendererEditorSceneOptions tEditorOptions;
-    plRendererDebugSceneOptions  tDebugOptions;
+    // debug stuff
+    bool bWireframe;
+    bool bShowProbes;
+    bool bShowProbeRange;
+    plShaderDebugMode tShaderDebugMode;
 
     // culling
     plVisibleDrawable* sbtVisibleDrawables0;
     plVisibleDrawable* sbtVisibleDrawables1;
-} plRenderScene;
+
+    bool bDynamicBVH;
+} plScene;
 
 typedef struct _plRefRendererData
 {
@@ -617,7 +637,7 @@ typedef struct _plRefRendererData
     plTextureHandle tDummyTexture;
     plTextureHandle tDummyTextureCube;
 
-    plRenderScene** sbptScenes;
+    plScene** sbptScenes;
 
     // draw stream data
     plDrawStream tDrawStream;
@@ -649,7 +669,7 @@ typedef struct _plRefRendererData
 
 typedef struct _plCullData
 {
-    plRenderScene*        ptScene;
+    plScene*        ptScene;
     const plCamera* ptCullCamera;
     plDrawable*     atDrawables;
     plFrustum       tFrustum;
@@ -685,7 +705,7 @@ static plRefRendererData* gptData = NULL;
 
 // misc.
 static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice, uint32_t uSize){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock, uSize);}
-static bool pl__renderer_add_drawable_data_to_global_buffer(plRenderScene*, uint32_t uDrawableIndex, uint32_t uSubmeshIndex);
+static bool pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex, uint32_t uSubmeshIndex);
 
 // job system tasks
 static void pl__renderer_cull_job            (plInvocationData, void*, void*);
@@ -697,31 +717,31 @@ static void pl__camera_build_perspective_frustum(const plCamera*, plFrustum*);
 static void pl__camera_build_orthographic_frustum(const plCamera*, plFrustum*);
 
 // shadow atlas helpers
-static bool pl__renderer_pack_shadow_atlas     (plRenderScene*);
-static bool pl__renderer_pack_view_shadow_atlas(plRenderScene*);
+static bool pl__renderer_pack_shadow_atlas     (plScene*);
+static bool pl__renderer_pack_view_shadow_atlas(plScene*);
 
 // scene render helpers
-static void pl__renderer_perform_skinning           (plCommandBuffer*, plRenderScene*);
-static void pl__renderer_generate_direction_view_map(plCommandBuffer*, plRenderScene*, const plCamera*, plCSMInfo);
-static void pl__renderer_generate_sun_shadow_map    (plCommandBuffer*, plRenderScene*, plGpuViewData*, plBufferHandle, plBufferHandle, const plCamera*, plBindGroupHandle, bool probe);
-static void pl__renderer_generate_shadow_maps       (plCommandBuffer*, plRenderScene*, const plCamera**, uint32_t count);
+static void pl__renderer_perform_skinning           (plCommandBuffer*, plScene*);
+static void pl__renderer_generate_direction_view_map(plCommandBuffer*, plScene*, const plCamera*, plCSMInfo);
+static void pl__renderer_generate_sun_shadow_map    (plCommandBuffer*, plScene*, plGpuViewData*, plBufferHandle, plBufferHandle, const plCamera*, plBindGroupHandle, bool probe);
+static void pl__renderer_generate_shadow_maps       (plCommandBuffer*, plScene*, const plCamera**, uint32_t count);
 
 // bindless helpers
-static uint32_t pl__renderer_get_bindless_texture_index(plRenderScene*, plTextureHandle);
-static uint32_t pl__renderer_get_bindless_cube_texture_index(plRenderScene*, plTextureHandle);
-static void     pl__renderer_return_bindless_texture_index(plRenderScene*, plTextureHandle);
-static void     pl__renderer_return_bindless_cube_texture_index(plRenderScene*, plTextureHandle);
+static uint32_t pl__renderer_get_bindless_texture_index(plScene*, plTextureHandle);
+static uint32_t pl__renderer_get_bindless_cube_texture_index(plScene*, plTextureHandle);
+static void     pl__renderer_return_bindless_texture_index(plScene*, plTextureHandle);
+static void     pl__renderer_return_bindless_cube_texture_index(plScene*, plTextureHandle);
 
 // scene helpers
-static void     pl__renderer_scene_create_textures           (plRenderScene*);
-static void     pl__renderer_scene_create_buffers            (plRenderScene*);
-static void     pl__renderer_scene_create_bindgroups         (plRenderScene*);
-static void     pl__renderer_scene_update_bindgroups         (plRenderScene*);
-static void     pl__renderer_scene_create_brdf_lut           (plRenderScene*);
-static void     pl__renderer_scene_create_sky_luts_textures  (plRenderScene*);
-static void     pl__renderer_scene_update_sky_luts_bindgroups(plRenderScene*);
-static uint64_t pl__renderer_add_material_to_scene           (plRenderScene*, plAssetHandle);
-static void     pl__renderer_scene_load_skybox_from_panorama(plRenderScene*, const char* path, int res);
+static void     pl__renderer_scene_create_textures           (plScene*);
+static void     pl__renderer_scene_create_buffers            (plScene*);
+static void     pl__renderer_scene_create_bindgroups         (plScene*);
+static void     pl__renderer_scene_update_bindgroups         (plScene*);
+static void     pl__renderer_scene_create_brdf_lut           (plScene*);
+static void     pl__renderer_scene_create_sky_luts_textures  (plScene*);
+static void     pl__renderer_scene_update_sky_luts_bindgroups(plScene*);
+static uint64_t pl__renderer_add_material_to_scene           (plScene*, plAssetHandle);
+static void     pl__renderer_scene_load_skybox_from_panorama(plScene*, const char* path, int res);
 
 // view helpers
 static void pl__renderer_view_create_textures           (plView*);
@@ -732,17 +752,22 @@ static void pl__renderer_view_create_sky_luts_textures  (plView*);
 static void pl__renderer_view_update_sky_luts_bindgroups(plView*);
 
 // environment probe helpers
-static void     pl__renderer_probe_create_textures       (plRenderScene*, plEnvironmentProbeData*);
-static void     pl__renderer_probe_create_buffers        (plRenderScene*, plEnvironmentProbeData*);
-static void     pl__renderer_probe_create_bindgroups     (plRenderScene*, plEnvironmentProbeData*);
-static void     pl__renderer_probe_update_bindgroups     (plRenderScene*, plEnvironmentProbeData*);
-static uint32_t pl__renderer_probe_data_pack_index       (plRenderScene*, uint32_t res);
-static void     pl__renderer_probe_update_all            (plRenderScene*);
-static void     pl__renderer_probe_create_environment_map(plRenderScene*, plEnvironmentProbeData*);
+static void     pl__renderer_probe_create_textures       (plScene*, plEnvironmentProbeData*);
+static void     pl__renderer_probe_create_buffers        (plScene*, plEnvironmentProbeData*);
+static void     pl__renderer_probe_create_bindgroups     (plScene*, plEnvironmentProbeData*);
+static void     pl__renderer_probe_update_bindgroups     (plScene*, plEnvironmentProbeData*);
+static uint32_t pl__renderer_probe_data_pack_index       (plScene*, uint32_t res);
+static void     pl__renderer_probe_update_all            (plScene*);
+static void     pl__renderer_probe_create_environment_map(plScene*, plEnvironmentProbeData*);
 
 // ecs helpers
-static bool pl__renderer_add_drawable_objects_to_scene(plRenderScene*, uint32_t count, const plEntity* objects);
-static void pl__renderer_add_probes_to_scene          (plRenderScene*, uint32_t count, const plEntity* probes);
-static void pl__renderer_add_lights_to_scene          (plRenderScene*, uint32_t count, const plEntity* lights);
+static bool pl__renderer_add_drawable_objects_to_scene(plScene*, uint32_t count, const plEntity* objects);
+static void pl__renderer_add_probes_to_scene          (plScene*, uint32_t count, const plEntity* probes);
+static void pl__renderer_add_lights_to_scene          (plScene*, uint32_t count, const plEntity* lights);
+
+// forward declarations
+plBindGroupHandle pl_renderer_get_view_color_bind_group  (plView* ptView, plVec2* ptMaxUVOut);
+void              pl_renderer_editor_reload_scene_shaders(plScene*);
+void              pl_renderer_editor_rebuild_scene_bvh   (plScene*);
 
 #endif // PL_RENDERER_INTERNAL_H

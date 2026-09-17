@@ -370,8 +370,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptStage             = pl_get_api_latest(ptApiRegistry, plStageI);
     gptGjk               = pl_get_api_latest(ptApiRegistry, plGjkI);
     gptRenderer          = pl_get_api_latest(ptApiRegistry, plRendererI);
-    gptRendererDebug     = pl_get_api_latest(ptApiRegistry, plRendererDebugI);
-    gptRendererEditor    = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
     gptShader            = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptTransform         = pl_get_api_latest(ptApiRegistry, plTransformI);
     gptIk                = pl_get_api_latest(ptApiRegistry, plIkI);

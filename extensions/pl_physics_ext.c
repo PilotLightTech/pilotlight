@@ -64,6 +64,8 @@ Index of this file:
 #include "pl_log_ext.h"
 #include "pl_stats_ext.h"
 #include "pl_transform_ext.h"
+#include "pl_console_ext.h"
+#include "pl_ui_ext.h"
 
 // unstable extensions
 #include "pl_ecs_ext.h"
@@ -95,6 +97,8 @@ Index of this file:
     static const plStatsI*     gptStats     = NULL;
     static const plCollisionI* gptCollision = NULL;
     static const plTransformI* gptTransform = NULL;
+    static const plConsoleI*   gptConsole   = NULL;
+    static const plUiI*        gptUI        = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -216,6 +220,9 @@ typedef struct _plPhysicsContext
     // ecs
     plEcsTypeKey tRigidBodyPhysicsComponentType;
     plEcsTypeKey tForceFieldComponentType;
+
+    // debug
+    bool bShowPhysicsTool;
 } plPhysicsContext;
 
 //-----------------------------------------------------------------------------
@@ -323,6 +330,50 @@ pl_physics_get_ecs_type_key_force_field(void)
 }
 
 void
+pl_physics_wake_up_body(plComponentLibrary* ptLibrary, plEntity tEntity)
+{
+    plRigidBodyPhysicsComponent* ptBody = gptEcs->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
+
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
+    {
+        plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
+        pl__set_awake(ptRigidBody, true);
+    }
+}
+
+void
+pl_physics_sleep_body(plComponentLibrary* ptLibrary, plEntity tEntity)
+{
+    plRigidBodyPhysicsComponent* ptBody = gptEcs->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
+
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
+    {
+        plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
+        pl__set_awake(ptRigidBody, false);
+    }
+}
+
+void
+pl_physics_wake_up_all(void)
+{
+    const uint32_t uBodyCount = pl_sb_size(gptPhysicsCtx->sbtRigidBodies);
+    for(uint32_t i = 0; i < uBodyCount; i++)
+    {
+        pl__set_awake(&gptPhysicsCtx->sbtRigidBodies[i], true);
+    }
+}
+
+void
+pl_physics_sleep_all(void)
+{
+    const uint32_t uBodyCount = pl_sb_size(gptPhysicsCtx->sbtRigidBodies);
+    for(uint32_t i = 0; i < uBodyCount; i++)
+    {
+        pl__set_awake(&gptPhysicsCtx->sbtRigidBodies[i], false);
+    }
+}
+
+void
 pl_physics_register_ecs_components(void)
 {
     const plComponentDesc tRigidBodyDesc = {
@@ -377,6 +428,11 @@ pl_physics_initialize(plPhysicsEngineSettings tSettings)
 {
 
     pl_physics_set_settings(tSettings);
+
+    if(gptConsole->add_bool_variable)
+    {
+        gptConsole->add_toggle_variable("t.Physics", &gptPhysicsCtx->bShowPhysicsTool, "shows physics tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    }
 
     plLogExtChannelInit tLogInit = {
         .tType       = PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER,
@@ -552,98 +608,8 @@ pl_physics_create_rigid_body(plComponentLibrary* ptLibrary, plEntity tEntity)
     }
 }
 
-void
-pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
-{
-
-    if(!gptPhysicsCtx->tSettings.bEnabled)
-        return;
-
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Physics Update");
-
-    const float fSubstepTime = (1.0f / gptPhysicsCtx->tSettings.fSimulationFrameRate);
-
-    const plEntity* ptRigidBodyEntities = NULL;
-    const uint32_t uRigidBodyCount = gptEcs->get_components(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
-
-    // update stats
-    static double* pdPhysicsObjects = NULL;
-    if(!pdPhysicsObjects)
-        pdPhysicsObjects = gptStats->get_counter("physics objects");
-    *pdPhysicsObjects = (double)uRigidBodyCount;
-
-    float fRatio = fRenderDeltaTime / fSubstepTime;
-    float fRemainder = 0.0f;
-    fRemainder = modff(fRatio, &fRemainder);
-    uint32_t uSubsteps = (uint32_t)ceilf(fRatio);
-
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Update Physics Objects");
-    for(uint32_t i = 0; i < uRigidBodyCount; i++)
-    {
-        // register rigid bodies or update them if they already exists
-        pl_physics_create_rigid_body(ptLibrary, ptRigidBodyEntities[i]);
-    }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-
-    // physics substep
-    for(uint32_t uSubstep = 0; uSubstep < uSubsteps; uSubstep++)
-    {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Substep");
-        pl__physics_update_force_fields(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier, ptLibrary);
-        pl__detect_collisions(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier, ptLibrary);
-        pl__resolve_contacts(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier);
-        pl__physics_integrate(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier, gptPhysicsCtx->sbtRigidBodies, uRigidBodyCount);
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-    }
-
-    // interpolation required
-    if(fRemainder > 0.0f)
-    {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Interpolation Step");
-        for(uint32_t i = 0; i < uRigidBodyCount; i++)
-        {
-            plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[i];
-            ptBody->tPosition.x = ((ptBody->tPosition.x - ptBody->tPreviousPosition.x) / fSubstepTime) * fRemainder * fSubstepTime + ptBody->tPreviousPosition.x;
-            ptBody->tPosition.y = ((ptBody->tPosition.y - ptBody->tPreviousPosition.y) / fSubstepTime) * fRemainder * fSubstepTime + ptBody->tPreviousPosition.y;
-            ptBody->tPosition.z = ((ptBody->tPosition.z - ptBody->tPreviousPosition.z) / fSubstepTime) * fRemainder * fSubstepTime + ptBody->tPreviousPosition.z;
-            ptBody->tOrientation = pl_quat_slerp(ptBody->tPreviousOrientation, ptBody->tOrientation, fRemainder);
-            ptBody->tTransform = pl_rotation_translation_scale(ptBody->tOrientation, ptBody->tPosition, (plVec3){1.0f, 1.0f, 1.0f});
-        }
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-    }
-
-    // update transforms
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Update Transforms");
-    const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
-    const plEcsTypeKey tRigidBodyPhysicsComponentType = gptPhysicsCtx->tRigidBodyPhysicsComponentType;
-    for(uint32_t i = 0; i < uRigidBodyCount; i++)
-    {
-        plTransformComponent* ptSphereTransform = gptEcs->get_component(ptLibrary, tTransformComponentType, ptRigidBodyEntities[i]);
-        plRigidBodyPhysicsComponent* ptRigidBody = gptEcs->get_component(ptLibrary, tRigidBodyPhysicsComponentType, ptRigidBodyEntities[i]);
-        plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[i];
-
-        plMat4 tParentTransform = gptTransform->compute_parent_transform(ptLibrary, ptBody->tEntity);
-        plMat4 tInvParentTransform = pl_mat4_invert(&tParentTransform);
-        plMat4 tTransform = pl_mul_mat4(&ptBody->tTransform, &ptBody->tInverseAdditionalTransform);
-        tTransform = pl_mul_mat4(&tInvParentTransform, &tTransform);
-
-        plVec3 tUnUsedScale = {0};
-        pl_decompose_matrix(&tTransform, &tUnUsedScale, &ptSphereTransform->tRotation, &ptSphereTransform->tTranslation);
-        ptSphereTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
-    }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-}
-
-void
-pl_physics_reset(void)
-{
-    pl_sb_reset(gptPhysicsCtx->sbtRigidBodies);
-}
-
-void
-pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
+static void
+pl__physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Physics Draw");
 
@@ -756,6 +722,120 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
         }
     }
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+}
+
+void
+pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
+{
+
+    if(gptPhysicsCtx->bShowPhysicsTool)
+    {
+        if(gptUI->begin_window("Physics", &gptPhysicsCtx->bShowPhysicsTool, PL_UI_WINDOW_FLAGS_NONE))
+        {
+
+            gptUI->checkbox("Enabled", &gptPhysicsCtx->tSettings.bEnabled);
+            gptUI->checkbox("Debug Draw", &gptPhysicsCtx->tSettings.bDebugDraw);
+            gptUI->slider_float("Simulation Speed", &gptPhysicsCtx->tSettings.fSimulationMultiplier, 0.01f, 3.0f, 0);
+            gptUI->input_float("Sleep Epsilon", &gptPhysicsCtx->tSettings.fSleepEpsilon, "%g", 0);
+            gptUI->input_float("Position Epsilon", &gptPhysicsCtx->tSettings.fPositionEpsilon, "%g", 0);
+            gptUI->input_float("Velocity Epsilon", &gptPhysicsCtx->tSettings.fVelocityEpsilon, "%g", 0);
+            gptUI->input_uint("Max Position Its.", &gptPhysicsCtx->tSettings.uMaxPositionIterations, 0);
+            gptUI->input_uint("Max Velocity Its.", &gptPhysicsCtx->tSettings.uMaxVelocityIterations, 0);
+            gptUI->input_float("Frame Rate", &gptPhysicsCtx->tSettings.fSimulationFrameRate, "%g", 0);
+            if(gptUI->button("Wake All")) pl_physics_wake_up_all();
+            if(gptUI->button("Sleep All")) pl_physics_sleep_all();
+
+            gptUI->end_window(); 
+        }
+    }
+
+    if(!gptPhysicsCtx->tSettings.bEnabled)
+        return;
+
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Physics Update");
+
+    const float fSubstepTime = (1.0f / gptPhysicsCtx->tSettings.fSimulationFrameRate);
+
+    const plEntity* ptRigidBodyEntities = NULL;
+    const uint32_t uRigidBodyCount = gptEcs->get_components(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
+
+    // update stats
+    static double* pdPhysicsObjects = NULL;
+    if(!pdPhysicsObjects)
+        pdPhysicsObjects = gptStats->get_counter("physics objects");
+    *pdPhysicsObjects = (double)uRigidBodyCount;
+
+    float fRatio = fRenderDeltaTime / fSubstepTime;
+    float fRemainder = 0.0f;
+    fRemainder = modff(fRatio, &fRemainder);
+    uint32_t uSubsteps = (uint32_t)ceilf(fRatio);
+
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Update Physics Objects");
+    for(uint32_t i = 0; i < uRigidBodyCount; i++)
+    {
+        // register rigid bodies or update them if they already exists
+        pl_physics_create_rigid_body(ptLibrary, ptRigidBodyEntities[i]);
+    }
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+
+    // physics substep
+    for(uint32_t uSubstep = 0; uSubstep < uSubsteps; uSubstep++)
+    {
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Substep");
+        pl__physics_update_force_fields(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier, ptLibrary);
+        pl__detect_collisions(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier, ptLibrary);
+        pl__resolve_contacts(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier);
+        pl__physics_integrate(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier, gptPhysicsCtx->sbtRigidBodies, uRigidBodyCount);
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    }
+
+    // interpolation required
+    if(fRemainder > 0.0f)
+    {
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Interpolation Step");
+        for(uint32_t i = 0; i < uRigidBodyCount; i++)
+        {
+            plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[i];
+            ptBody->tPosition.x = ((ptBody->tPosition.x - ptBody->tPreviousPosition.x) / fSubstepTime) * fRemainder * fSubstepTime + ptBody->tPreviousPosition.x;
+            ptBody->tPosition.y = ((ptBody->tPosition.y - ptBody->tPreviousPosition.y) / fSubstepTime) * fRemainder * fSubstepTime + ptBody->tPreviousPosition.y;
+            ptBody->tPosition.z = ((ptBody->tPosition.z - ptBody->tPreviousPosition.z) / fSubstepTime) * fRemainder * fSubstepTime + ptBody->tPreviousPosition.z;
+            ptBody->tOrientation = pl_quat_slerp(ptBody->tPreviousOrientation, ptBody->tOrientation, fRemainder);
+            ptBody->tTransform = pl_rotation_translation_scale(ptBody->tOrientation, ptBody->tPosition, (plVec3){1.0f, 1.0f, 1.0f});
+        }
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    }
+
+    // update transforms
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Update Transforms");
+    const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
+    const plEcsTypeKey tRigidBodyPhysicsComponentType = gptPhysicsCtx->tRigidBodyPhysicsComponentType;
+    for(uint32_t i = 0; i < uRigidBodyCount; i++)
+    {
+        plTransformComponent* ptSphereTransform = gptEcs->get_component(ptLibrary, tTransformComponentType, ptRigidBodyEntities[i]);
+        plRigidBodyPhysicsComponent* ptRigidBody = gptEcs->get_component(ptLibrary, tRigidBodyPhysicsComponentType, ptRigidBodyEntities[i]);
+        plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[i];
+
+        plMat4 tParentTransform = gptTransform->compute_parent_transform(ptLibrary, ptBody->tEntity);
+        plMat4 tInvParentTransform = pl_mat4_invert(&tParentTransform);
+        plMat4 tTransform = pl_mul_mat4(&ptBody->tTransform, &ptBody->tInverseAdditionalTransform);
+        tTransform = pl_mul_mat4(&tInvParentTransform, &tTransform);
+
+        plVec3 tUnUsedScale = {0};
+        pl_decompose_matrix(&tTransform, &tUnUsedScale, &ptSphereTransform->tRotation, &ptSphereTransform->tTranslation);
+        ptSphereTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
+    }
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+
+    if(gptPhysicsCtx->tSettings.bDebugDraw)
+        pl__physics_draw(ptLibrary, ptDrawlist);
+
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+}
+
+void
+pl_physics_reset(void)
+{
+    pl_sb_reset(gptPhysicsCtx->sbtRigidBodies);
 }
 
 void
@@ -965,50 +1045,6 @@ pl_physics_apply_impulse_torque(plComponentLibrary* ptLibrary, plEntity tEntity,
             ptRigidBody->tAnglularVelocity = pl_add_vec3(ptRigidBody->tAnglularVelocity, tAngularAcceleration);
             pl__set_awake(ptRigidBody, true);
         }
-    }
-}
-
-void
-pl_physics_wake_up_body(plComponentLibrary* ptLibrary, plEntity tEntity)
-{
-    plRigidBodyPhysicsComponent* ptBody = gptEcs->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
-
-    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
-    {
-        plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
-        pl__set_awake(ptRigidBody, true);
-    }
-}
-
-void
-pl_physics_sleep_body(plComponentLibrary* ptLibrary, plEntity tEntity)
-{
-    plRigidBodyPhysicsComponent* ptBody = gptEcs->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
-
-    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
-    {
-        plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
-        pl__set_awake(ptRigidBody, false);
-    }
-}
-
-void
-pl_physics_wake_up_all(void)
-{
-    const uint32_t uBodyCount = pl_sb_size(gptPhysicsCtx->sbtRigidBodies);
-    for(uint32_t i = 0; i < uBodyCount; i++)
-    {
-        pl__set_awake(&gptPhysicsCtx->sbtRigidBodies[i], true);
-    }
-}
-
-void
-pl_physics_sleep_all(void)
-{
-    const uint32_t uBodyCount = pl_sb_size(gptPhysicsCtx->sbtRigidBodies);
-    for(uint32_t i = 0; i < uBodyCount; i++)
-    {
-        pl__set_awake(&gptPhysicsCtx->sbtRigidBodies[i], false);
     }
 }
 
@@ -2075,7 +2111,6 @@ pl_load_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_settings                        = pl_physics_get_settings,
         .update                              = pl_physics_update,
         .create_rigid_body                   = pl_physics_create_rigid_body,
-        .draw                                = pl_physics_draw,
         .set_linear_velocity                 = pl_physics_set_linear_velocity,
         .set_angular_velocity                = pl_physics_set_angular_velocity,
         .apply_force                         = pl_physics_apply_force,
@@ -2105,6 +2140,8 @@ pl_load_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptLog       = pl_get_api_latest(ptApiRegistry, plLogI);
         gptCollision = pl_get_api_latest(ptApiRegistry, plCollisionI);
         gptTransform = pl_get_api_latest(ptApiRegistry, plTransformI);
+        gptConsole   = pl_get_api_latest(ptApiRegistry, plConsoleI);
+        gptUI        = pl_get_api_latest(ptApiRegistry, plUiI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

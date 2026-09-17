@@ -75,7 +75,7 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
 
     if(gptConsole->add_bool_variable)
     {
-        gptConsole->add_toggle_variable("r.Tools", &gptData->bShowTools, "shows renderer tools", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+        gptConsole->add_toggle_variable("t.Renderer", &gptData->bShowTools, "shows renderer tools", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
     }
 
     gptData->ptDevice = ptSettings->ptDevice;
@@ -134,7 +134,7 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
     return true;
 };
 
-plRenderScene*
+plScene*
 pl_renderer_create_scene(const plSceneDesc* ptInit)
 {
     if(!gptData->bFullyInitialized)
@@ -150,8 +150,8 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     if(tInit.szMaterialBufferSize == 0) tInit.szMaterialBufferSize = 8000000;
     if(tInit.szSkinBufferSize == 0)     tInit.szSkinBufferSize = 8000000;
 
-    plRenderScene* ptScene = PL_ALLOC(sizeof(plRenderScene));
-    memset(ptScene, 0, sizeof(plRenderScene));
+    plScene* ptScene = PL_ALLOC(sizeof(plScene));
+    memset(ptScene, 0, sizeof(plScene));
     pl_sb_push(gptData->sbptScenes, ptScene);
 
     ptScene->tInit = tInit;
@@ -212,9 +212,9 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS | PL_RENDERING_FLAG_PCF_SHADOWS | PL_RENDERING_FLAG_USE_IBL | PL_RENDERING_FLAG_USE_NORMAL_MAPS | PL_RENDERING_FLAG_PUNCTUAL;
 
     // create lighting shader
-    int aiLightingConstantData[] = {iSceneWideRenderingFlags, ptScene->tDebugOptions.tShaderDebugMode};
+    int aiLightingConstantData[] = {iSceneWideRenderingFlags, ptScene->tShaderDebugMode};
 
-    if(ptScene->tDebugOptions.tShaderDebugMode)
+    if(ptScene->tShaderDebugMode)
         ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_debug", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
     else
     {
@@ -246,7 +246,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     //-----------------------------------------------------------------------------
 
     plMesh tUnitSphere = {0};
-    gptMesh->create_sphere(0.5f, 16, 16, &tUnitSphere);
+    gptMesh->create_sphere(1.0f, 16, 16, &tUnitSphere);
     tUnitSphere.atSubmeshes[0].tMaterial = gptAsset->load("/assets/materials/default.plmaterial");
     plAssetDesc tMeshAsset = {
         .tType = gptMesh->get_asset_type_key(),
@@ -342,8 +342,8 @@ pl_renderer_destroy_view(plView* ptView)
     PL_FREE(ptView);
 }
 
-plRenderSceneFlags
-pl_renderer_get_scene_flags(const plRenderScene* ptScene)
+plSceneFlags
+pl_renderer_get_scene_flags(const plScene* ptScene)
 {
     if(ptScene)
         return ptScene->tFlags;
@@ -351,14 +351,14 @@ pl_renderer_get_scene_flags(const plRenderScene* ptScene)
 }
 
 void
-pl_renderer_set_scene_flags(plRenderScene* ptScene, plRenderSceneFlags tFlags)
+pl_renderer_set_scene_flags(plScene* ptScene, plSceneFlags tFlags)
 {
     if(ptScene)
         ptScene->tFlags = tFlags;
 }
 
 void
-pl_renderer_load_component_library(plRenderScene* ptScene, plComponentLibrary* ptLibrary)
+pl_renderer_load_component_library(plScene* ptScene, plComponentLibrary* ptLibrary)
 {
 
     ptScene->ptComponentLibrary = ptLibrary;
@@ -371,13 +371,13 @@ pl_renderer_load_component_library(plRenderScene* ptScene, plComponentLibrary* p
         plRendererComponent* ptRendererComp = gptEcs->get_component(ptLibrary, gptData->tRendererComponentType, ptRendererEntities[0]);
 
         if(ptRendererComp)
-            pl_renderer_set_settings(ptScene, ptRendererComp->tRenderer);
+            ptScene->tSettings = ptRendererComp->tRenderer;
         else
-            pl_renderer_set_settings(ptScene, gptAsset->load("/assets/settings/default.plrenderer"));
+            ptScene->tSettings = gptAsset->load("/assets/settings/default.plrenderer");
     }
     else
     {
-        pl_renderer_set_settings(ptScene, gptAsset->load("/assets/settings/default.plrenderer"));
+        ptScene->tSettings = gptAsset->load("/assets/settings/default.plrenderer");
     }
 
     const plEntity* ptEnvironmentEntities = NULL;
@@ -388,14 +388,16 @@ pl_renderer_load_component_library(plRenderScene* ptScene, plComponentLibrary* p
         plEnvironmentComponent* ptEnvironmentComp = gptEcs->get_component(ptLibrary, gptData->tEnvironmentComponentType, ptRendererEntities[0]);
 
         if(ptEnvironmentComp)
-            pl_renderer_set_environment(ptScene, ptEnvironmentComp->tEnvironment);
+            ptScene->tEnvironment = ptEnvironmentComp->tEnvironment;
         else
-            pl_renderer_set_environment(ptScene, gptAsset->load("/assets/environments/skybox.plenvironment"));
+            ptScene->tEnvironment = gptAsset->load("/assets/environments/skybox.plenvironment");
     }
     else
     {
-        pl_renderer_set_environment(ptScene, gptAsset->load("/assets/environments/skybox.plenvironment"));
+        ptScene->tEnvironment = gptAsset->load("/assets/environments/skybox.plenvironment");
     }
+    ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_SKYBOX_DIRTY;
+    ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
 
     const plEntity* ptProbeEntities = NULL;
     uint32_t uProbeCount = gptEcs->get_components(ptLibrary, gptData->tEnvironmentProbeComponentType, NULL, &ptProbeEntities);
@@ -417,7 +419,8 @@ pl_renderer_load_component_library(plRenderScene* ptScene, plComponentLibrary* p
 
         plTerrainComponent* ptTerrainComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tTerrainComponentType, ptTerrainEntities[0]);
         plTerrainAsset* ptTerrain = gptAsset->get_data(ptTerrainComp->tTerrain);
-        ptScene->ptTerrain = pl__renderer_terrain_create(ptCmdBuffer, ptTerrain);
+        ptScene->tTerrain = ptTerrainEntities[0];
+        ptScene->ptTerrain = pl__renderer_terrain_create(ptCmdBuffer, ptTerrainComp->tTerrain);
         gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
     }
 
@@ -426,7 +429,7 @@ pl_renderer_load_component_library(plRenderScene* ptScene, plComponentLibrary* p
 }
 
 void
-pl_renderer_destroy_scene(plRenderScene* ptScene)
+pl_renderer_destroy_scene(plScene* ptScene)
 {
     if(ptScene == NULL)
         return;
@@ -587,7 +590,7 @@ pl_renderer_destroy_scene(plRenderScene* ptScene)
 }
 
 plView*
-pl_renderer_create_view(plRenderScene* ptScene, const plViewDesc* ptDesc)
+pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
 {
 
     plView* ptView = PL_ALLOC(sizeof(plView));
@@ -595,14 +598,15 @@ pl_renderer_create_view(plRenderScene* ptScene, const plViewDesc* ptDesc)
 
     ptView->uIndex = pl_sb_size(ptScene->sbptViews);
     pl_sb_push(ptScene->sbptViews, ptView);
+    ptView->bFrustumCulling = true;
 
     // default editor options
-    ptView->tEditorOptions.uOutlineWidth = 4;
-    ptView->tEditorOptions.bShowSelectedBoundingBox = true;
-    ptView->tEditorOptions.fGridCellSize = 0.025f;
-    ptView->tEditorOptions.fGridMinPixelsBetweenCells = 2.0f;
-    ptView->tEditorOptions.tGridColorThin = (plVec4){0.5f, 0.5f, 0.5f, 1.0f};
-    ptView->tEditorOptions.tGridColorThick = (plVec4){0.75f, 0.75f, 0.75f, 1.0f};
+    ptView->uOutlineWidth = 4;
+    ptView->bShowSelectedBoundingBox = true;
+    ptView->fGridCellSize = 0.025f;
+    ptView->fGridMinPixelsBetweenCells = 2.0f;
+    ptView->tGridColorThin = (plVec4){0.5f, 0.5f, 0.5f, 1.0f};
+    ptView->tGridColorThick = (plVec4){0.75f, 0.75f, 0.75f, 1.0f};
 
     ptView->ptParentScene = ptScene;
     ptView->tTargetSize.x = (float)ptDesc->uWidth;
@@ -677,7 +681,7 @@ pl_renderer_cleanup(void)
 }
 
 void
-pl_renderer_editor_outline_entities(plRenderScene* ptScene, uint32_t uCount, const plEntity* atEntities)
+pl_renderer_editor_outline_entities(plScene* ptScene, uint32_t uCount, const plEntity* atEntities)
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
@@ -781,7 +785,7 @@ pl_renderer_editor_outline_entities(plRenderScene* ptScene, uint32_t uCount, con
 }
 
 void
-pl_renderer_editor_reload_scene_shaders(plRenderScene* ptScene)
+pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
 {
 
     if(ptScene == NULL)
@@ -832,9 +836,9 @@ pl_renderer_editor_reload_scene_shaders(plRenderScene* ptScene)
     if(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PUNCTUAL;
     if(ptSettings->tShadows.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF)                    iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
         
-    int aiLightingConstantData[] = {iSceneWideRenderingFlags, ptScene->tDebugOptions.tShaderDebugMode};
+    int aiLightingConstantData[] = {iSceneWideRenderingFlags, ptScene->tShaderDebugMode};
     
-    if(ptScene->tDebugOptions.tShaderDebugMode)
+    if(ptScene->tShaderDebugMode)
         ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_debug", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
     else
     {
@@ -908,14 +912,14 @@ pl_renderer_editor_reload_scene_shaders(plRenderScene* ptScene)
             iTextureMappingFlags,
             ptMaterial->eFlags,
             iObjectRenderingFlags,
-            ptScene->tDebugOptions.tShaderDebugMode // debug only
+            ptScene->tShaderDebugMode // debug only
         };
 
         int aiGBufferFragmentConstantData0[] = {
             (int)ptMesh->uVertexStreamMask,
             iTextureMappingFlags,
             ptMaterial->eFlags,
-            ptScene->tDebugOptions.tShaderDebugMode,
+            ptScene->tShaderDebugMode,
             iObjectRenderingFlags
         };
 
@@ -936,13 +940,13 @@ pl_renderer_editor_reload_scene_shaders(plRenderScene* ptScene)
                 .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .eStencilOpPass      = PL_STENCIL_OP_KEEP,
-                .bWireframe          = ptScene->tDebugOptions.bWireframe
+                .bWireframe          = ptScene->bWireframe
             };
 
             if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                 tVariantTemp.eCullMode = PL_CULL_MODE_NONE;
 
-            if(ptScene->tDebugOptions.tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
+            if(ptScene->tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
             {
                 aiGBufferFragmentConstantData0[3] = iObjectRenderingFlags;
                 ptScene->sbtRegularShaders[uDrawableIndex] = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiVertexConstantData0, aiGBufferFragmentConstantData0, &gptData->tDeferredLightingRenderPassLayout);
@@ -978,13 +982,13 @@ pl_renderer_editor_reload_scene_shaders(plRenderScene* ptScene)
                 .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .eStencilOpPass      = PL_STENCIL_OP_KEEP,
-                .bWireframe          = ptScene->tDebugOptions.bWireframe
+                .bWireframe          = ptScene->bWireframe
             };
 
             if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                 tVariantTemp.eCullMode = PL_CULL_MODE_NONE;
 
-            if(ptScene->tDebugOptions.tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
+            if(ptScene->tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
             {
                 ptScene->sbtRegularShaders[uDrawableIndex] = gptShaderVariant->get_shader("forward", &tVariantTemp, aiVertexConstantData0, aiForwardFragmentConstantData0, &gptData->tTransparentRenderPassLayout);
                 aiForwardFragmentConstantData0[3] = ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS ? PL_RENDERING_FLAG_SHADOWS : 0; // remove ibl
@@ -1023,13 +1027,13 @@ pl_renderer_editor_reload_scene_shaders(plRenderScene* ptScene)
                 .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .eStencilOpPass      = PL_STENCIL_OP_KEEP,
-                .bWireframe          = ptScene->tDebugOptions.bWireframe
+                .bWireframe          = ptScene->bWireframe
             };
 
             if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                 tVariantTemp.eCullMode = PL_CULL_MODE_NONE;
 
-            if(ptScene->tDebugOptions.tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
+            if(ptScene->tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
             {
                 ptScene->sbtRegularShaders[uDrawableIndex] = gptShaderVariant->get_shader("transmission", &tVariantTemp, aiVertexConstantData0, aiForwardFragmentConstantData0, &gptData->tTransparentRenderPassLayout);
                 aiForwardFragmentConstantData0[3] = ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS ? PL_RENDERING_FLAG_SHADOWS : 0; // remove ibl
@@ -1037,7 +1041,7 @@ pl_renderer_editor_reload_scene_shaders(plRenderScene* ptScene)
             }
             else
             {
-                aiForwardFragmentConstantData0[4] = ptScene->tDebugOptions.tShaderDebugMode;
+                aiForwardFragmentConstantData0[4] = ptScene->tShaderDebugMode;
                 ptScene->sbtRegularShaders[uDrawableIndex] = gptShaderVariant->get_shader("forward_debug", &tVariantTemp, aiVertexConstantData0, aiForwardFragmentConstantData0, &gptData->tTransparentRenderPassLayout);
                 aiForwardFragmentConstantData0[3] = ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS? PL_RENDERING_FLAG_SHADOWS : 0; // remove ibl
                 ptScene->sbtProbeShaders[uDrawableIndex] = gptShaderVariant->get_shader("forward_debug", &tVariantTemp, aiVertexConstantData0, aiForwardFragmentConstantData0, &gptData->tTransparentRenderPassLayout);
@@ -1127,9 +1131,12 @@ pl_renderer_editor_get_hovered_entity(plView* ptView, plEntity* ptEntityOut)
 }
 
 void
-pl_renderer_prepare_scene(plRenderScene* ptScene, const plCamera** atCameras, uint32_t uCameraCount)
+pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t uCameraCount)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+
+    if(ptScene->bDynamicBVH)
+        pl_renderer_editor_rebuild_scene_bvh(ptScene);
 
     if(ptScene->ptTerrain)
         pl_prepare_terrain(ptScene->ptTerrain);
@@ -1636,7 +1643,7 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
 
-    plRenderScene* ptScene = ptView->ptParentScene;
+    plScene* ptScene = ptView->ptParentScene;
     plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
 
     // update view data
@@ -1713,18 +1720,19 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
     // debug drawing environment probes
     //-----------------------------------------------------------------------------
 
-    if(ptScene->tDebugOptions.bShowProbes)
+    if(ptScene->bShowProbes)
     {
+        const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
         const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
         for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
         {
             plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
             plEnvironmentProbeComponent* ptProbeComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
             plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptProbe->tEntity);
-            plTransformComponent* ptTransform = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptObject->tTransform);
+            plTransformComponent* ptTransform = gptEcs->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
             // gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.0f, 1.0f, 0.0f), .fThickness = 0.02f});
 
-            if(ptScene->tDebugOptions.bShowProbeRange)
+            if(ptScene->bShowProbeRange)
             {
                 plSphere tSphere = {
                     .fRadius = ptProbeComp->fRange,
@@ -1917,18 +1925,203 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
 }
 
 void
+pl_renderer_render_debug_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
+{
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+
+    plScene* ptScene   = ptView->ptParentScene;
+    const plCamera* ptCamera = ptViewDesc->ptCamera;
+
+    if(ptView->bFreezeCameraNextFrame || !ptView->bFrozenCamera)
+    {
+        ptView->tCullCamera = *ptCamera;
+        ptView->bFreezeCameraNextFrame = false;
+    }
+
+    const plCamera* ptCullCamera = ptView->bFrustumCulling ? &ptView->tCullCamera : NULL;
+
+    // debug lights
+    if(ptView->bDrawLightsDebug)
+    {
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw lights");
+
+        plLightComponent* ptLights = NULL;
+        const uint32_t uLightCount = gptEcs->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
+
+        for(uint32_t i = 0; i < uLightCount; i++)
+        {
+            if(ptLights[i].tFlags & PL_LIGHT_FLAG_VISUALIZER)
+            {
+                const plVec4 tColor = {.rgb = ptLights[i].tColor, .a = 1.0f};
+                if(ptLights[i].tType == PL_LIGHT_TYPE_POINT)
+                {
+                    plSphere tSphere = {
+                        .fRadius = ptLights[i].fRadius,
+                        .tCenter = ptLights[i].tPosition
+                    };
+                    gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere, 6, 6, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.005f});
+                    tSphere.fRadius = ptLights[i].fRange;
+                    plSphere tSphere2 = {
+                        .fRadius = ptLights[i].fRange,
+                        .tCenter = ptLights[i].tPosition
+                    };
+                    gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere2, 0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                }
+                else if(ptLights[i].tType == PL_LIGHT_TYPE_SPOT)
+                {
+                    plCone tCone0 = {
+                        .fRadius = tanf(ptLights[i].fOuterConeAngle * 0.5f) * ptLights[i].fRange,
+                        .tTipPos = ptLights[i].tPosition,
+                        .tBasePos = pl_add_vec3(ptLights[i].tPosition, pl_mul_vec3_scalarf(ptLights[i].tDirection, ptLights[i].fRange))
+                    };
+                    gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+
+                    if(ptLights[i].fInnerConeAngle > 0.0f)
+                    {
+                        plCone tCone1 = {
+                            .fRadius = tanf(ptLights[i].fInnerConeAngle) * ptLights[i].fRange,
+                            .tTipPos = ptLights[i].tPosition,
+                            .tBasePos = pl_add_vec3(ptLights[i].tPosition, pl_mul_vec3_scalarf(ptLights[i].tDirection, ptLights[i].fRange))
+                        };
+                        gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone1, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                    }
+                }
+
+                else if(ptLights[i].tType == PL_LIGHT_TYPE_DIRECTIONAL)
+                {
+                    plVec3 tDirection = pl_norm_vec3(ptLights[i].tDirection);
+                    plCone tCone0 = {
+                        .fRadius = 0.125f,
+                        .tBasePos = (plVec3){0.0f, 3.0f, 0.0f},
+                        .tTipPos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, 0.25f))
+                    };
+                    gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                    plCylinder tCylinder = {
+                        .fRadius = 0.0625f,
+                        .tBasePos = tCone0.tBasePos,
+                        .tTipPos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, -0.25f))
+                    };
+                    gptDraw->add_3d_cylinder(ptView->pt3DDrawList, tCylinder, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                }
+            }
+        }
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    }
+
+    // debug bounding boxes
+    if(ptView->bDrawBoundingBoxesDebug)
+    {
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw bounding boxes");
+        const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
+        for(uint32_t i = 0; i < uDrawableCount; i++)
+        {
+            plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtDrawables[i].tEntity);
+
+            plMesh* ptMesh = gptAsset->get_data(ptObject->tMesh);
+            gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 0.2f, 0.0f), .fThickness = 0.02f});
+        }
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    }
+
+    // debug bvh
+    if(ptView->bDrawBvhDebug)
+    {
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw BVH");
+
+        plObjectComponent* ptComponents = NULL;
+        gptEcs->get_components(ptScene->ptComponentLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
+
+        plBVHNode* ptNode = NULL;
+        uint32_t uLeafIndex = UINT32_MAX;
+        while (gptBvh->traverse(&ptScene->tBvh, &ptNode, &uLeafIndex))
+        {
+            if(uLeafIndex != UINT32_MAX)
+            {
+                plObjectComponent* ptObject = &ptComponents[uLeafIndex];
+                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_DARK_BLUE});
+            }
+            else
+            {
+                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptNode->tAABB.tMin, ptNode->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_WHITE});
+            }
+        }
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    }
+
+    // selection bounding boxes
+    if(ptView->bDrawSelectedBoundingBoxesDebug)
+    {
+        const uint32_t uOutlineDrawableCount = pl_sb_size(ptScene->sbtOutlinedEntities);
+        if(uOutlineDrawableCount > 0 && ptView->bShowSelectedBoundingBox)
+        {
+            const plVec4 tOutlineColor = (plVec4){0.0f, (float)sin(gptIOI->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 1.0f};
+            for(uint32_t i = 0; i < uOutlineDrawableCount; i++)
+            {
+                plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtOutlinedEntities[i]);
+                gptDraw->add_3d_aabb(ptView->pt3DSelectionDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tOutlineColor), .fThickness = 0.01f});
+                
+            }
+        }
+    }
+
+    if(ptView->bShowOrigin)
+    {
+        const plMat4 tTransform = pl_identity_mat4();
+        gptDraw->add_3d_transform(ptView->pt3DDrawList, &tTransform, 10.0f, (plDrawLineOptions){.fThickness = 0.02f});
+    }
+
+    plRenderEnvironment* ptEnvironment = gptAsset->get_data(ptScene->tEnvironment);
+
+    if(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER)
+    {
+        const plVec4 tColor = {.rgb = ptEnvironment->tSunColor, .a = 1.0f};
+        plVec3 tDirection = pl_norm_vec3(ptEnvironment->tSunDirection);
+        plCone tCone0 = {
+            .fRadius = 0.125f,
+            .tBasePos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, -0.25f)),
+            .tTipPos = (plVec3){0.0f, 3.0f, 0.0f}
+        };
+        gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+        plCylinder tCylinder = {
+            .fRadius = 0.0625f,
+            .tBasePos = tCone0.tBasePos,
+            .tTipPos = pl_add_vec3(tCone0.tBasePos, pl_mul_vec3_scalarf(tDirection, -1.0f))
+        };
+        gptDraw->add_3d_cylinder(ptView->pt3DDrawList, tCylinder, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+    }
+
+    if(ptView->bFrozenCamera)
+    {
+        const plDrawFrustumDesc tFrustumDesc = {
+            .fAspectRatio = ptCullCamera->fAspectRatio,
+            .fFarZ        = ptCullCamera->fFarZ,
+            .fNearZ       = ptCullCamera->fNearZ,
+            .fYFov        = ptCullCamera->fYFov
+        };
+        gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tInvViewMat, tFrustumDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = 0.02f});
+    }
+
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+}
+
+void
 pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     const plCamera* ptCamera = ptViewDesc->ptCamera;
-    const plCamera* ptCullCamera = ptViewDesc->ptCullCamera;
+    if(ptView->bFreezeCameraNextFrame || !ptView->bFrozenCamera)
+    {
+        ptView->tCullCamera = *ptCamera;
+        ptView->bFreezeCameraNextFrame = false;
+    }
+    const plCamera* ptCullCamera = ptView->bFrustumCulling ? &ptView->tCullCamera : NULL;
 
     // for convience
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
-    plRenderScene* ptScene   = ptView->ptParentScene;
+    plScene* ptScene   = ptView->ptParentScene;
     plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~culling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1993,7 +2186,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
                 }
                 else if(tDrawable.tFlags & PL_DRAWABLE_FLAG_PROBE)
                 {
-                    if(ptScene->tDebugOptions.bShowProbes)
+                    if(ptScene->bShowProbes)
                     {
                         pl_sb_push(ptScene->sbuVisibleForwardEntities, uDrawableIndex);
                         pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
@@ -2117,7 +2310,9 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         gptGfx->push_debug_group(ptSceneCmdBuffer, "Terrain", (plVec4){0.33f, 0.42f, 0.20f, 1.0f});
         plShaderHandle tTerrainShader = ptScene->tTerrainShader;
 
-        if(ptScene->ptTerrain->tRuntimeOptions.tFlags & PL_TERRAIN_FLAGS_WIREFRAME)
+        plTerrainComponent* ptTerrainComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tTerrainComponentType, ptScene->tTerrain);
+
+        if(ptTerrainComp->tFlags & PL_TERRAIN_FLAGS_WIREFRAME)
             tTerrainShader = ptScene->tTerrainWireframeShader;
 
         gptGfx->set_depth_bias(ptSceneCmdBuffer, 0.0f, 0.0f, 0.0f);
@@ -2175,7 +2370,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         .uGlobalIndex = 0,
     };
 
-    if(ptScene->tDebugOptions.tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
+    if(ptScene->tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
         pl__render_view_deferred_lighting_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tDeferredLightingPassInfo);
     else
         pl__render_view_deferred_lighting_debug_pass(ptView, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx]);
@@ -2319,7 +2514,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     if(pl_sb_size(ptScene->sbuVisibleTransmissionEntities) > 0)
         pl__render_view_transmission_pass(ptView, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx]);
 
-    if(ptView->tEditorOptions.bShowGrid)
+    if(ptView->bShowGrid)
         pl__render_view_grid_pass(ptView, ptSceneCmdBuffer, ptCamera);
 
     gptGfx->end_render_pass(ptSceneCmdBuffer);
@@ -2397,108 +2592,6 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
-void
-pl_renderer_debug_draw_lights(plView* ptView, const plLightComponent* sbtLights, uint32_t uLightCount)
-{
-    for(uint32_t i = 0; i < uLightCount; i++)
-    {
-        if(sbtLights[i].tFlags & PL_LIGHT_FLAG_VISUALIZER)
-        {
-            const plVec4 tColor = {.rgb = sbtLights[i].tColor, .a = 1.0f};
-            if(sbtLights[i].tType == PL_LIGHT_TYPE_POINT)
-            {
-                plSphere tSphere = {
-                    .fRadius = sbtLights[i].fRadius,
-                    .tCenter = sbtLights[i].tPosition
-                };
-                gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere, 6, 6, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.005f});
-                tSphere.fRadius = sbtLights[i].fRange;
-                plSphere tSphere2 = {
-                    .fRadius = sbtLights[i].fRange,
-                    .tCenter = sbtLights[i].tPosition
-                };
-                gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere2, 0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-            }
-            else if(sbtLights[i].tType == PL_LIGHT_TYPE_SPOT)
-            {
-                plCone tCone0 = {
-                    .fRadius = tanf(sbtLights[i].fOuterConeAngle * 0.5f) * sbtLights[i].fRange,
-                    .tTipPos = sbtLights[i].tPosition,
-                    .tBasePos = pl_add_vec3(sbtLights[i].tPosition, pl_mul_vec3_scalarf(sbtLights[i].tDirection, sbtLights[i].fRange))
-                };
-                gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-
-                if(sbtLights[i].fInnerConeAngle > 0.0f)
-                {
-                    plCone tCone1 = {
-                        .fRadius = tanf(sbtLights[i].fInnerConeAngle) * sbtLights[i].fRange,
-                        .tTipPos = sbtLights[i].tPosition,
-                        .tBasePos = pl_add_vec3(sbtLights[i].tPosition, pl_mul_vec3_scalarf(sbtLights[i].tDirection, sbtLights[i].fRange))
-                    };
-                    gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone1, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-                }
-            }
-
-            else if(sbtLights[i].tType == PL_LIGHT_TYPE_DIRECTIONAL)
-            {
-                plVec3 tDirection = pl_norm_vec3(sbtLights[i].tDirection);
-                plCone tCone0 = {
-                    .fRadius = 0.125f,
-                    .tBasePos = (plVec3){0.0f, 3.0f, 0.0f},
-                    .tTipPos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, 0.25f))
-                };
-                gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-                plCylinder tCylinder = {
-                    .fRadius = 0.0625f,
-                    .tBasePos = tCone0.tBasePos,
-                    .tTipPos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, -0.25f))
-                };
-                gptDraw->add_3d_cylinder(ptView->pt3DDrawList, tCylinder, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-            }
-        }
-    }
-}
-
-void
-pl_renderer_debug_draw_all_bound_boxes(plView* ptView)
-{
-    plRenderScene* ptScene = ptView->ptParentScene;
-    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
-    for(uint32_t i = 0; i < uDrawableCount; i++)
-    {
-        plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtDrawables[i].tEntity);
-
-        plMesh* ptMesh = gptAsset->get_data(ptObject->tMesh);
-        gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 0.2f, 0.0f), .fThickness = 0.02f});
-    }
-}
-
-void
-pl_renderer_debug_draw_bvh(plView* ptView)
-{
-    plRenderScene* ptScene = ptView->ptParentScene;
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw BVH");
-
-    plObjectComponent* ptComponents = NULL;
-    gptEcs->get_components(ptScene->ptComponentLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
-
-    plBVHNode* ptNode = NULL;
-    uint32_t uLeafIndex = UINT32_MAX;
-    while (gptBvh->traverse(&ptScene->tBvh, &ptNode, &uLeafIndex))
-    {
-        if(uLeafIndex != UINT32_MAX)
-        {
-            plObjectComponent* ptObject = &ptComponents[uLeafIndex];
-            gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_DARK_BLUE});
-        }
-        else
-        {
-            gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptNode->tAABB.tMin, ptNode->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_WHITE});
-        }
-    }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-}
-
 bool
 pl_renderer_begin_frame(void)
 {
@@ -2512,76 +2605,129 @@ pl_renderer_begin_frame(void)
 
     if(gptData->bShowTools)
     {
-        for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
+
+        static const char* apcShaderDebugModeText[] = {
+            "None",
+            "Base Color",
+            "Metallic",
+            "Roughness",
+            "Alpha",
+            "Emissive",
+            "Occlusion",
+            "Shading Normal",
+            "Texture Normal",
+            "Geometry Normal",
+            "Geometry Tangent",
+            "Geometry Bitangent",
+            "UV 0",
+            "Clearcoat",
+            "Clearcoat Roughness",
+            "Clearcoat Normal",
+            "Sheen Color",
+            "Sheen Roughness",
+            "Iridescence Factor",
+            "Iridescence Thickness",
+            "Anisotropy Strength",
+            "Anisotropy Direction",
+            "Transmission Strength",
+            "Volume Thickness",
+            "Diffuse Transmission Strength",
+            "Diffuse Transmission Color",
+        };
+
+        if(pl_sb_size(gptData->sbptScenes) > 0 && gptUI->begin_window("Renderer", &gptData->bShowTools, 0))
         {
-            plRenderScene* ptScene = gptData->sbptScenes[uSceneIndex];
-            if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
-                continue;
+            const float pfRatios[] = {1.0f};
+            const float pfRatios2[] = {0.5f, 0.5f};
+            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
 
-            if(gptUI->begin_window("Renderer Extension", &gptData->bShowTools, 0))
+            gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+            gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
+            gptUI->separator_text("Scenes");
+
+            for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
             {
-                const float pfRatios[] = {1.0f};
-                const float pfRatios2[] = {0.5f, 0.5f};
-                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-
-                if(gptUI->begin_collapsing_header("Information", 0))
+                plScene* ptScene = gptData->sbptScenes[uSceneIndex];
+                bool bReloadShaders = false;
+                if(gptUI->tree_node_f("Scene: %u", 0, uSceneIndex))
                 {
-                    gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                    gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
-                    gptUI->end_collapsing_header();
-                }
+                    if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
+                        continue;
 
-                static const char* apcShaderDebugModeText[] = {
-                    "None",
-                    "Base Color",
-                    "Metallic",
-                    "Roughness",
-                    "Alpha",
-                    "Emissive",
-                    "Occlusion",
-                    "Shading Normal",
-                    "Texture Normal",
-                    "Geometry Normal",
-                    "Geometry Tangent",
-                    "Geometry Bitangent",
-                    "UV 0",
-                    "Clearcoat",
-                    "Clearcoat Roughness",
-                    "Clearcoat Normal",
-                    "Sheen Color",
-                    "Sheen Roughness",
-                    "Iridescence Factor",
-                    "Iridescence Thickness",
-                    "Anisotropy Strength",
-                    "Anisotropy Direction",
-                    "Transmission Strength",
-                    "Volume Thickness",
-                    "Diffuse Transmission Strength",
-                    "Diffuse Transmission Color",
-                };
-                bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
-                abShaderDebugMode[ptScene->tDebugOptions.tShaderDebugMode] = true;
-                if(gptUI->begin_combo("Shader Debug Mode", apcShaderDebugModeText[ptScene->tDebugOptions.tShaderDebugMode], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
-                {
-                    plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
-                    for(uint32_t i = 0; i < PL_ARRAYSIZE(apcShaderDebugModeText); i++)
+                    gptUI->checkbox("Show Probes", &ptScene->bShowProbes);
+                    gptUI->checkbox("Show Probe Ranges", &ptScene->bShowProbeRange);
+                    gptUI->checkbox("Dynamic BVH", &ptScene->bDynamicBVH);
+                    if(gptUI->checkbox("Wireframe", &ptScene->bWireframe))
+                        bReloadShaders = true;
+
+                    if(gptUI->button("Reload Shaders"))
+                        bReloadShaders = true;
+
+                    if(gptUI->button("Update Environment"))
                     {
-                        if(gptUI->selectable(apcShaderDebugModeText[i], &abShaderDebugMode[i], 0))
-                        {
-                            if(i == 0)
-                                ptSettings->tTonemap.tMode = PL_TONEMAP_MODE_SIMPLE;
-                            else
-                                ptSettings->tTonemap.tMode = PL_TONEMAP_MODE_NONE;
-                            ptScene->tDebugOptions.tShaderDebugMode = i;
-                            gptUI->close_current_popup();
-                            pl_renderer_editor_reload_scene_shaders(ptScene);
-                        } 
+                        ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
+                        ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_SKY_LUTS_DIRTY;
                     }
-                    gptUI->end_combo();
+
+                    bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
+                    abShaderDebugMode[ptScene->tShaderDebugMode] = true;
+                    if(gptUI->begin_combo("Shader Debug Mode", apcShaderDebugModeText[ptScene->tShaderDebugMode], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
+                    {
+                        plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
+                        for(uint32_t i = 0; i < PL_ARRAYSIZE(apcShaderDebugModeText); i++)
+                        {
+                            if(gptUI->selectable(apcShaderDebugModeText[i], &abShaderDebugMode[i], 0))
+                            {
+                                if(i == 0)
+                                    ptSettings->tTonemap.tMode = PL_TONEMAP_MODE_SIMPLE;
+                                else
+                                    ptSettings->tTonemap.tMode = PL_TONEMAP_MODE_NONE;
+                                ptScene->tShaderDebugMode = i;
+                                gptUI->close_current_popup();
+                                bReloadShaders = true;
+                                
+                            } 
+                        }
+                        gptUI->end_combo();
+                    }
+
+                    for(uint32_t uViewIndex = 0; uViewIndex < pl_sb_size(ptScene->sbptViews); uViewIndex++)
+                    {
+                        plView* ptView = ptScene->sbptViews[uViewIndex];
+                        if(gptUI->tree_node_f("View: %u", 0, uViewIndex))
+                        {
+                            gptUI->checkbox("Show Origin", &ptView->bShowOrigin);
+                            gptUI->checkbox("Show Grid", &ptView->bShowGrid);
+                            gptUI->checkbox("Show Lights", &ptView->bDrawLightsDebug);
+                            gptUI->checkbox("Show Bounding Boxes", &ptView->bDrawBoundingBoxesDebug);
+                            gptUI->checkbox("Show Selected Bounding Boxes", &ptView->bDrawSelectedBoundingBoxesDebug);
+                            gptUI->checkbox("Show BVH", &ptView->bDrawBvhDebug);
+                            gptUI->checkbox("Selected Bounding Box", &ptView->bShowSelectedBoundingBox);
+                            gptUI->checkbox("Frustum Culling", &ptView->bFrustumCulling);
+                            if(gptUI->checkbox("Freeze Culling", &ptView->bFrozenCamera))
+                            {
+                                if(ptView->bFrozenCamera)
+                                    ptView->bFreezeCameraNextFrame = true;
+                            }
+                            gptUI->slider_uint("Outline Width", &ptView->uOutlineWidth, 2, 50, 0);
+                            gptUI->tree_pop();
+                        }
+                    }
+
+                    if(bReloadShaders)
+                    {
+                        pl_renderer_editor_reload_scene_shaders(ptScene);
+                    }
+                    gptUI->tree_pop();
                 }
-                gptUI->end_window();
             }
+
+
+
+            gptUI->end_window();
         }
+
+
     }
 
 
@@ -2592,25 +2738,25 @@ pl_renderer_begin_frame(void)
 
     for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
     {
-        plRenderScene* ptScene = gptData->sbptScenes[uSceneIndex];
+        plScene* ptScene = gptData->sbptScenes[uSceneIndex];
         if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
             continue;
 
 
         plRenderEnvironment* ptEnvironment = gptAsset->get_data(ptScene->tEnvironment);
-        if(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_LUTS_DIRTY)
+        if(ptScene->tFlags & PL_RENDERER_SCENE_FLAGS_SKY_LUTS_DIRTY)
         {
             pl__renderer_scene_create_sky_luts_textures(ptScene);
             pl__renderer_scene_update_sky_luts_bindgroups(ptScene);
         }
 
-        if(ptEnvironment->eMode == PL_RENDERER_SKY_MODE_SKYBOX && ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY)
+        if(ptEnvironment->eMode == PL_RENDERER_SKY_MODE_SKYBOX && ptScene->tFlags & PL_RENDERER_SCENE_FLAGS_SKYBOX_DIRTY)
         {
             if(gptGfx->is_texture_valid(ptDevice, ptScene->tSkyboxTexture))
                 gptGfx->queue_texture_for_deletion(ptDevice, ptScene->tSkyboxTexture);
             plTextureAsset* ptSkyboxTexture = gptAsset->get_data(ptEnvironment->tSkyboxTexture);
             pl__renderer_scene_load_skybox_from_panorama(ptScene, ptSkyboxTexture->pcSourceFile, ptEnvironment->uSkyboxResolution);
-            ptEnvironment->eFlags &= ~PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY;
+            ptScene->tFlags &= ~PL_RENDERER_SCENE_FLAGS_SKYBOX_DIRTY;
             ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
         }
         
@@ -2672,7 +2818,7 @@ pl_renderer_begin_frame(void)
         {
             plView* ptView = ptScene->sbptViews[uViewIndex];
 
-            if(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_LUTS_DIRTY)
+            if(ptScene->tFlags & PL_RENDERER_SCENE_FLAGS_SKY_LUTS_DIRTY)
             {
                 pl__renderer_view_create_sky_luts_textures(ptView);
                 pl__renderer_view_update_sky_luts_bindgroups(ptView);
@@ -2695,7 +2841,7 @@ pl_renderer_begin_frame(void)
             }
         }
 
-        ptEnvironment->eFlags &= ~PL_RENDERER_SKY_FLAGS_LUTS_DIRTY;
+        ptScene->tFlags &= ~PL_RENDERER_SCENE_FLAGS_SKY_LUTS_DIRTY;
     }
 
     // gptStarter->return_readback_buffer(&gptData->tReadbackBuffer);
@@ -2785,7 +2931,6 @@ pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
             gptJson->string_member(ptJsonSky, "mode", acTempBuffer, 256);
             if     (acTempBuffer[0] == 's') ptEnvironment->eMode = PL_RENDERER_SKY_MODE_SKYBOX;
             else if(acTempBuffer[0] == 'r') ptEnvironment->eMode = PL_RENDERER_SKY_MODE_REALISTIC;
-            ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY;
 
             if(ptEnvironment->eMode == PL_RENDERER_SKY_MODE_SKYBOX)
             {
@@ -2795,12 +2940,10 @@ pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
                     gptJson->string_member(ptJsonSkybox, "texture", acTempBuffer, 256);
                     ptEnvironment->tSkyboxTexture = gptAsset->load(acTempBuffer);
                     ptEnvironment->uSkyboxResolution = gptJson->uint32_member(ptJsonSkybox, "resolution", 1024);
-                    ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY;
                 }
             }
             else if(ptEnvironment->eMode == PL_RENDERER_SKY_MODE_REALISTIC)
             {
-                ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_LUTS_DIRTY;
                 plJsonObject* ptJsonRealistic = gptJson->member(ptJsonSky, "realistic");
                 if(ptJsonRealistic)
                 {
@@ -3014,7 +3157,7 @@ pl__renderer_deserialize_settings(const char* pcName, void* pSettings)
 }
 
 void
-pl_renderer_update_scene_materials(plRenderScene* ptScene, uint32_t uCount, const plAssetHandle* atMaterials)
+pl_renderer_update_scene_materials(plScene* ptScene, uint32_t uCount, const plAssetHandle* atMaterials)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -3123,7 +3266,7 @@ pl_renderer_update_scene_materials(plRenderScene* ptScene, uint32_t uCount, cons
 }
 
 void
-pl_renderer_add_materials_to_scene(plRenderScene* ptScene, uint32_t uMaterialCount, const plAssetHandle* atMaterials)
+pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, const plAssetHandle* atMaterials)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -3135,98 +3278,8 @@ pl_renderer_add_materials_to_scene(plRenderScene* ptScene, uint32_t uMaterialCou
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
-plAssetHandle
-pl_renderer_get_settings(plRenderScene* ptScene)
-{
-    if(ptScene)
-        return ptScene->tSettings;
-    return (plAssetHandle){0};
-}
-
 void
-pl_renderer_set_settings(plRenderScene* ptScene, plAssetHandle tHandle)
-{
-    if(ptScene)
-        ptScene->tSettings = tHandle;
-}
-
-plAssetHandle
-pl_renderer_get_environment(plRenderScene* ptScene)
-{
-    if(ptScene)
-        return ptScene->tEnvironment;
-    return (plAssetHandle){0};
-}
-
-void
-pl_renderer_set_environment(plRenderScene* ptScene, plAssetHandle tHandle)
-{
-    if(ptScene)
-    {
-        ptScene->tEnvironment = tHandle;
-        plRenderEnvironment* ptEnvironment = gptAsset->get_data(ptScene->tEnvironment);
-        ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY;
-    }
-}
-
-void
-pl_renderer_debug_get_scene_options(plRenderScene* ptScene, plRendererDebugSceneOptions* ptOptions)
-{
-    if(ptScene)
-        *ptOptions = ptScene->tDebugOptions;
-}
-
-void
-pl_renderer_debug_set_scene_options(plRenderScene* ptScene, const plRendererDebugSceneOptions* ptOptions)
-{
-    if(ptScene)
-        ptScene->tDebugOptions = *ptOptions;
-}
-
-void
-pl_renderer_editor_get_scene_options(plRenderScene* ptScene, plRendererEditorSceneOptions* ptOptions)
-{
-    if(ptScene)
-        *ptOptions = ptScene->tEditorOptions;
-}
-
-void
-pl_renderer_editor_set_scene_options(plRenderScene* ptScene, const plRendererEditorSceneOptions* ptOptions)
-{
-    if(ptScene)
-        ptScene->tEditorOptions = *ptOptions;
-}
-
-void
-pl_renderer_editor_get_view_options(plView* ptView, plRendererEditorViewOptions* ptOptions)
-{
-    if(ptView)
-        *ptOptions = ptView->tEditorOptions;
-}
-
-void
-pl_renderer_editor_set_view_options(plView* ptView, const plRendererEditorViewOptions* ptOptions)
-{
-    if(ptView)
-        ptView->tEditorOptions = *ptOptions;
-}
-
-void
-pl_renderer_debug_get_view_options(plView* ptView, plRendererDebugViewOptions* ptOptions)
-{
-    if(ptView)
-        *ptOptions = ptView->tDebugOptions;
-}
-
-void
-pl_renderer_debug_set_view_options(plView* ptView, const plRendererDebugViewOptions* ptOptions)
-{
-    if(ptView)
-        ptView->tDebugOptions = *ptOptions;
-}
-
-void
-pl_renderer_editor_rebuild_scene_bvh(plRenderScene* ptScene)
+pl_renderer_editor_rebuild_scene_bvh(plScene* ptScene)
 {
     plComponentLibrary* ptLibrary = ptScene->ptComponentLibrary;
 
@@ -3397,6 +3450,7 @@ pl__ecs_light_serialize(void* pComponent, const plComponentLibrary* ptLibrary, p
     gptJson->add_float_member(ptJson, "range", ptComponent->fRange);
     gptJson->add_bool_member(ptJson, "casts_shadow", ptComponent->tFlags & PL_LIGHT_FLAG_CAST_SHADOW);
     gptJson->add_bool_member(ptJson, "visualizer", ptComponent->tFlags & PL_LIGHT_FLAG_VISUALIZER);
+    gptJson->add_float_array(ptJson, "color", ptComponent->tColor.d, 3);
 }
 
 static void
@@ -3513,6 +3567,13 @@ pl__ecs_terrain_serialize(void* pComponent, const plComponentLibrary* ptLibrary,
 {
     plTerrainComponent* ptComponent = pComponent;
     gptJson->add_string_member(ptJson, "terrain", gptAsset->get_path(ptComponent->tTerrain));
+    gptJson->add_float_member(ptJson, "tau", ptComponent->fTau);
+    gptJson->add_float_member(ptJson, "slope_start", ptComponent->fSlopeStart);
+    gptJson->add_float_member(ptJson, "slope_end", ptComponent->fSlopeEnd);
+    gptJson->add_float_member(ptJson, "depth_bias", ptComponent->fTerrainShadowConstantDepthBias);
+    gptJson->add_float_member(ptJson, "slope_depth_bias", ptComponent->fTerrainShadowSlopeDepthBias);
+    gptJson->add_bool_member(ptJson, "wireframe", ptComponent->tFlags & PL_TERRAIN_FLAGS_WIREFRAME);
+    gptJson->add_bool_member(ptJson, "show_levels", ptComponent->tFlags & PL_TERRAIN_FLAGS_SHOW_LEVELS);
 }
 
 static void
@@ -3521,6 +3582,14 @@ pl__ecs_terrain_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary,
     plTerrainComponent* ptComponent = pComponent;
     char acTempBuffer0[1024] = {0};
     gptJson->string_member(ptJson, "terrain", acTempBuffer0, 1024);
+    ptComponent->fTau = gptJson->float_member(ptJson, "tau", 0.2f);
+    ptComponent->fSlopeStart = gptJson->float_member(ptJson, "slope_start", 0.0f);
+    ptComponent->fSlopeEnd = gptJson->float_member(ptJson, "slope_end", 0.45f);
+    ptComponent->fTerrainShadowConstantDepthBias = gptJson->float_member(ptJson, "depth_bias", -100.0f);
+    ptComponent->fTerrainShadowSlopeDepthBias = gptJson->float_member(ptJson, "slope_depth_bias", -10.0f);
+    if(gptJson->bool_member(ptJson, "wireframe", false)) ptComponent->tFlags |= PL_TERRAIN_FLAGS_WIREFRAME;
+    if(gptJson->bool_member(ptJson, "show_levels", false)) ptComponent->tFlags |= PL_TERRAIN_FLAGS_SHOW_LEVELS;
+
     ptComponent->tTerrain = gptAsset->load(acTempBuffer0);
     plTerrainAsset* ptTerrain = gptAsset->get_data(ptComponent->tTerrain);
     gptTerrain->process(ptTerrain);
@@ -3710,19 +3779,15 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi0.prepare_scene                  = pl_renderer_prepare_scene;
     tApi0.prepare_view                   = pl_renderer_prepare_view;
     tApi0.render_view                    = pl_renderer_render_view;
+    tApi0.render_debug_view              = pl_renderer_render_debug_view;
     tApi0.get_view_color_bind_group      = pl_renderer_get_view_color_bind_group;
     tApi0.resize_view                    = pl_renderer_resize_view;
     tApi0.set_scene_flags                = pl_renderer_set_scene_flags;
     tApi0.load_component_library          = pl_renderer_load_component_library;
     tApi0.get_scene_flags                = pl_renderer_get_scene_flags;
-    tApi0.set_settings                   = pl_renderer_set_settings;
-    tApi0.get_settings                   = pl_renderer_get_settings;
-    tApi0.get_environment                = pl_renderer_get_environment;
-    tApi0.set_environment                = pl_renderer_set_environment;
     tApi0.register_asset_types           = pl_renderer_register_asset_types;
     tApi0.get_asset_type_key_environment = pl_renderer_get_asset_type_key_environment;
     tApi0.get_asset_type_key_settings    = pl_renderer_get_asset_type_key_settings;
-    tApi0.get_terrain_options            = pl_renderer_get_terrain_options;
     tApi0.add_materials_to_scene         = pl_renderer_add_materials_to_scene;
     tApi0.update_scene_materials         = pl_renderer_update_scene_materials;
     tApi0.get_ecs_type_key_terrain            = pl_renderer_get_type_key_terrain;
@@ -3735,33 +3800,16 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi0.get_ecs_type_key_object             = pl_renderer_get_type_key_object;
     tApi0.run_object_update_system            = pl_renderer_run_object_update_system;
     tApi0.register_ecs_components             = pl_renderer_register_ecs_components;
-
-    plRendererDebugI tApi3 = {0};
-    tApi3.get_drawlist            = pl_renderer_debug_get_drawlist;
-    tApi3.draw_lights             = pl_renderer_debug_draw_lights;
-    tApi3.draw_all_bound_boxes    = pl_renderer_debug_draw_all_bound_boxes;
-    tApi3.draw_bvh                = pl_renderer_debug_draw_bvh;
-    tApi3.set_scene_options = pl_renderer_debug_set_scene_options;
-    tApi3.get_scene_options = pl_renderer_debug_get_scene_options;
-    tApi3.set_view_options  = pl_renderer_debug_set_view_options;
-    tApi3.get_view_options  = pl_renderer_debug_get_view_options;
-
-    plRendererEditorI tApi4 = {0};
-    tApi4.update_hovered_entity = pl_renderer_editor_update_hovered_entity;
-    tApi4.get_hovered_entity    = pl_renderer_editor_get_hovered_entity;
-    tApi4.reload_scene_shaders  = pl_renderer_editor_reload_scene_shaders;
-    tApi4.outline_entities      = pl_renderer_editor_outline_entities;
-    tApi4.get_gizmo_drawlist    = pl_renderer_editor_get_gizmo_drawlist;
-    tApi4.rebuild_scene_bvh     = pl_renderer_editor_rebuild_scene_bvh;
-    tApi4.set_scene_options     = pl_renderer_editor_set_scene_options;
-    tApi4.get_scene_options     = pl_renderer_editor_get_scene_options;
-    tApi4.set_view_options      = pl_renderer_editor_set_view_options;
-    tApi4.get_view_options      = pl_renderer_editor_get_view_options;
+    tApi0.get_drawlist                       = pl_renderer_debug_get_drawlist;
+    tApi0.update_hovered_entity              = pl_renderer_editor_update_hovered_entity;
+    tApi0.get_hovered_entity                 = pl_renderer_editor_get_hovered_entity;
+    tApi0.reload_scene_shaders               = pl_renderer_editor_reload_scene_shaders;
+    tApi0.outline_entities                   = pl_renderer_editor_outline_entities;
+    tApi0.get_gizmo_drawlist                 = pl_renderer_editor_get_gizmo_drawlist;
+    tApi0.rebuild_scene_bvh                  = pl_renderer_editor_rebuild_scene_bvh;
 
 
     pl_set_api(ptApiRegistry, plRendererI, &tApi0);
-    pl_set_api(ptApiRegistry, plRendererDebugI, &tApi3);
-    pl_set_api(ptApiRegistry, plRendererEditorI, &tApi4);
 
     // core apis
     #ifndef PL_UNITY_BUILD
@@ -3821,12 +3869,7 @@ pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         return;
         
     const plRendererI* ptApi0 = pl_get_api_latest(ptApiRegistry, plRendererI);
-    const plRendererDebugI* ptApi3 = pl_get_api_latest(ptApiRegistry, plRendererDebugI);
-    const plRendererEditorI* ptApi4 = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
-
     ptApiRegistry->remove_api(ptApi0);
-    ptApiRegistry->remove_api(ptApi3);
-    ptApiRegistry->remove_api(ptApi4);
 }
 
 //-----------------------------------------------------------------------------

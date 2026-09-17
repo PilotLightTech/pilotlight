@@ -22,6 +22,9 @@ assets/gltf-samples
 assets/materials/*
 !assets/materials/default.plmaterial
 !assets/materials/probe.plmaterial
+!assets/materials/grass.plmaterial
+!assets/materials/rock.plmaterial
+!assets/materials/snow.plmaterial
 
 assets/meshes/*
 !assets/meshes/plane.plmesh

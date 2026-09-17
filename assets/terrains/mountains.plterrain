@@ -22,5 +22,28 @@
                 "max_base_error": 3.0
             }
         }
+    ],
+    "elevation_zones": [
+        {
+            "min_elevation": -1000.0,
+            "max_elevation": 20.0,
+            "blend_size": 30.0,
+            "flat_material": "/assets/materials/sand.plmaterial",
+            "steep_material": "/assets/materials/rock.plmaterial"
+        },
+        {
+            "min_elevation": 20.0,
+            "max_elevation": 1000.0,
+            "blend_size": 40.0,
+            "flat_material": "/assets/materials/grass.plmaterial",
+            "steep_material": "/assets/materials/rock.plmaterial"
+        },
+        {
+            "min_elevation": 1000.0,
+            "max_elevation": 2000.0,
+            "blend_size": 60.0,
+            "flat_material": "/assets/materials/snow.plmaterial",
+            "steep_material": "/assets/materials/rock.plmaterial"
+        }
     ]
 }

@@ -62,7 +62,7 @@ typedef struct _plAssetToolsI
 {
     void (*initialize) (void);
     void (*cleanup)    (void);
-    bool (*show_assets)(bool*);
+    void (*run)        (void);
 } plAssetToolsI;
 
 #ifdef __cplusplus

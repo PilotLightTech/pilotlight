@@ -504,6 +504,7 @@ pl__terrain_cleanup(void* pTerrain)
     //     ptTile->
     // }
 
+    PL_FREE(ptTerrain->atElevationZones);
     PL_FREE(ptTerrain->atTiles);
     ptTerrain->atTiles = NULL;
 }
@@ -569,6 +570,26 @@ pl__terrain_deserialize(const char* pcName, void* pTerrain)
                 ptTile->iTreeDepth = gptJson->int_member(ptJsonGeneration, "tree_depth", 2);
                 ptTile->fMaxBaseError = gptJson->float_member(ptJsonGeneration, "max_base_error", 1.0f);
             }
+        }
+
+        plJsonObject* ptJsonZones = gptJson->array_member(ptRoot, "elevation_zones", &ptTerrain->uElevationZoneCount);
+        ptTerrain->uElevationZoneCount = pl_minu(ptTerrain->uElevationZoneCount, PL_MAX_TERRAIN_ELEVATION_ZONES);
+        ptTerrain->atElevationZones = PL_ALLOC(ptTerrain->uElevationZoneCount * sizeof(plTerrainElevationZone));
+        memset(ptTerrain->atElevationZones, 0, ptTerrain->uElevationZoneCount * sizeof(plTerrainElevationZone));
+        for(uint32_t i = 0; i < ptTerrain->uElevationZoneCount; i++)
+        {
+            plJsonObject* ptJsonZone = gptJson->member_by_index(ptJsonZones, i);
+            plTerrainElevationZone* ptZone = &ptTerrain->atElevationZones[i];
+
+            ptZone->fMinElevation = gptJson->float_member(ptJsonZone, "min_elevation", 0.0f);
+            ptZone->fMaxElevation = gptJson->float_member(ptJsonZone, "max_elevation", 0.0f);
+            ptZone->fBlendSize = gptJson->float_member(ptJsonZone, "blend_size", 0.0f);
+
+            gptJson->string_member(ptJsonZone, "flat_material", acTempBuffer, 256);
+            ptZone->tFlatMaterial = gptAsset->load(acTempBuffer);
+
+            gptJson->string_member(ptJsonZone, "steep_material", acTempBuffer, 256);
+            ptZone->tSteepMaterial = gptAsset->load(acTempBuffer);
         }
 
         PL_FREE(puFileBuffer);

@@ -6,6 +6,7 @@
 Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
+// [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] public api
@@ -31,6 +32,12 @@ extern "C" {
 #define plTerrainI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#define PL_MAX_TERRAIN_ELEVATION_ZONES 3
+
+//-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
@@ -49,6 +56,7 @@ typedef struct _plTerrainChunkFile       plTerrainChunkFile;
 typedef struct _plTerrainChunk           plTerrainChunk;
 typedef struct _plTerrainProcessTileInfo plTerrainProcessTileInfo;
 typedef struct _plTerrainAsset           plTerrainAsset;
+typedef struct _plTerrainElevationZone   plTerrainElevationZone;
 
 // external
 typedef struct _plFreeListNode plFreeListNode; // pl_freelist_ext.h
@@ -138,6 +146,16 @@ typedef struct _plTerrainVertex
     plVec2 tUV;
 } plTerrainVertex;
 
+typedef struct _plTerrainElevationZone
+{
+    float fMinElevation;
+    float fMaxElevation;
+    float fBlendSize;
+
+    plAssetHandle tFlatMaterial;
+    plAssetHandle tSteepMaterial;
+} plTerrainElevationZone;
+
 typedef struct _plTerrainAsset
 {
     float    fMetersPerPixel;
@@ -147,6 +165,9 @@ typedef struct _plTerrainAsset
 
     uint32_t                  uTileCount;
     plTerrainProcessTileInfo* atTiles;
+
+    uint32_t                uElevationZoneCount;
+    plTerrainElevationZone* atElevationZones;
 
 } plTerrainAsset;
 

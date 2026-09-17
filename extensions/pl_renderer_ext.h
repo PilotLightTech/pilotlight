@@ -66,16 +66,13 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plRendererI_version        {0, 3, 0}
-#define plRendererDebugI_version   {0, 1, 0}
-#define plRendererEditorI_version  {0, 1, 0}
+#define plRendererI_version {0, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
 
 #define PL_MAX_SHADOW_CASCADES 4
-#define PL_MAX_TERRAIN_ELEVATION_ZONES 3
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -92,22 +89,18 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plRendererSettings           plRendererSettings;
-typedef struct _plSceneDesc                  plSceneDesc;
-typedef struct _plRendererEditorSceneOptions plRendererEditorSceneOptions;
-typedef struct _plRendererEditorViewOptions  plRendererEditorViewOptions;
-typedef struct _plRendererFogOptions         plRendererFogOptions;
-typedef struct _plRendererBloomOptions       plRendererBloomOptions;
-typedef struct _plRendererTonemapOptions     plRendererTonemapOptions;
-typedef struct _plRendererShadowOptions      plRendererShadowOptions;
-typedef struct _plRendererDebugSceneOptions  plRendererDebugSceneOptions;
-typedef struct _plRendererDebugViewOptions   plRendererDebugViewOptions;
-typedef struct _plRendererLightingOptions    plRendererLightingOptions;
-typedef struct _plRendererSkyOptions         plRendererSkyOptions;
-typedef struct _plViewDesc                   plViewDesc;
-typedef struct _plRenderViewDesc             plRenderViewDesc;
-typedef struct _plRenderScene                      plRenderScene; // opaque type
-typedef struct _plView                       plView;  // opaque type
+typedef struct _plRendererSettings        plRendererSettings;
+typedef struct _plSceneDesc               plSceneDesc;
+typedef struct _plRendererFogOptions      plRendererFogOptions;
+typedef struct _plRendererBloomOptions    plRendererBloomOptions;
+typedef struct _plRendererTonemapOptions  plRendererTonemapOptions;
+typedef struct _plRendererShadowOptions   plRendererShadowOptions;
+typedef struct _plRendererLightingOptions plRendererLightingOptions;
+typedef struct _plRendererSkyOptions      plRendererSkyOptions;
+typedef struct _plViewDesc                plViewDesc;
+typedef struct _plRenderViewDesc          plRenderViewDesc;
+typedef struct _plScene                   plScene; // opaque type
+typedef struct _plView                    plView;  // opaque type
 
 // assets
 typedef struct _plRenderEnvironment plRenderEnvironment;
@@ -115,9 +108,6 @@ typedef struct _plRenderSettings    plRenderSettings;
 
 // terrain types
 typedef struct _plTerrain plTerrain; // opaque type
-typedef struct _plTerrainRuntimeOptions plTerrainRuntimeOptions;
-typedef struct _plTerrainMaterialLayer plTerrainMaterialLayer;
-typedef struct _plTerrainElevationZone plTerrainElevationZone;
 
 // ecs components
 typedef struct _plObjectComponent           plObjectComponent;
@@ -143,21 +133,12 @@ typedef int plRendererSkyFlags;
 typedef int plRendererSkyMode;
 
 // external 
-typedef struct _plWindow              plWindow;             // pl_platform_ext.h
-typedef struct _plGraphics            plGraphics;           // pl_graphics_ext.h
-typedef struct _plDevice              plDevice;             // pl_graphics_ext.h
-typedef struct _plDeviceInfo          plDeviceInfo;         // pl_graphics_ext.h
-typedef struct _plDrawList3D          plDrawList3D;         // pl_draw_ext.h
-typedef struct _plCommandBuffer       plCommandBuffer;      // pl_graphics_ext.h
-typedef struct _plCommandPool         plCommandPool;        // pl_graphics_ext.h
-typedef struct _plSwapchain           plSwapchain;          // pl_graphics_ext.h
-typedef union  plTextureHandle        plTextureHandle;      // pl_graphics_ext.h
-typedef union  plRenderPassHandle     plRenderPassHandle;   // pl_graphics_ext.h
-typedef union  plBindGroupHandle      plBindGroupHandle;    // pl_graphics_ext.h
-typedef struct _plComponentLibrary    plComponentLibrary;   // pl_ecs_ext.h
-typedef struct _plCamera              plCamera;             // pl_camera_ext.h
-typedef struct _plTerrainAsset        plTerrainAsset; // pl_terrain_ext.h
-typedef void* plTextureId;                                 // pl_ui_ext.h
+typedef struct _plDevice           plDevice;           // pl_graphics_ext.h
+typedef struct _plDrawList3D       plDrawList3D;       // pl_draw_ext.h
+typedef struct _plSwapchain        plSwapchain;        // pl_graphics_ext.h
+typedef union  plBindGroupHandle   plBindGroupHandle;  // pl_graphics_ext.h
+typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
+typedef struct _plCamera           plCamera;           // pl_camera_ext.h
 
 // external enums & flags
 typedef int plShaderDebugMode; // pl_shader_interop_renderer.h
@@ -168,115 +149,9 @@ typedef int plDrawFlags;       // pl_draw_ext.h
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-//-------------------------------extension-------------------------------------
-
 // extension loading
 PL_API void pl_load_renderer_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_renderer_ext(plApiRegistryI*, bool reload);
-
-//----------------------------------main---------------------------------------
-
-// setup/shutdown
-PL_API bool pl_renderer_initialize(const plRendererSettings*);
-PL_API void pl_renderer_cleanup   (void);
-
-// scenes
-PL_API plRenderScene*             pl_renderer_create_scene (const plSceneDesc*);
-PL_API void                 pl_renderer_destroy_scene(plRenderScene*);
-PL_API plRenderSceneFlags pl_renderer_get_scene_flags(const plRenderScene*);
-PL_API void                 pl_renderer_set_scene_flags(plRenderScene*, plRenderSceneFlags);
-PL_API void                 pl_renderer_load_component_library(plRenderScene*, plComponentLibrary*);
-
-// views
-PL_API plView*           pl_renderer_create_view     (plRenderScene*, const plViewDesc*);
-PL_API void              pl_renderer_destroy_view    (plView*);
-PL_API void              pl_renderer_resize_view     (plView*, plVec2 dims);
-PL_API plBindGroupHandle pl_renderer_get_view_color_bind_group(plView*, plVec2* maxUVOut); // for UI
-
-// Per-frame order:
-//   pl_renderer_begin_frame()
-//   pl_renderer_prepare_scene(...) // once per scene
-//   pl_renderer_prepare_view(...)  // once per visible view
-//   pl_renderer_render_view(...)
-PL_API bool pl_renderer_begin_frame  (void);
-PL_API void pl_renderer_prepare_scene(plRenderScene*, const plCamera**, uint32_t cameraCount);
-PL_API void pl_renderer_prepare_view (plView*, const plCamera*);
-PL_API void pl_renderer_render_view  (plView*, const plRenderViewDesc*);
-
-// scene runtime options
-PL_API plAssetHandle pl_renderer_get_settings   (plRenderScene*);
-PL_API void          pl_renderer_set_settings   (plRenderScene*, plAssetHandle);
-PL_API plAssetHandle pl_renderer_get_environment(plRenderScene*);
-PL_API void          pl_renderer_set_environment(plRenderScene*, plAssetHandle);
-
-PL_API plTerrainRuntimeOptions* pl_renderer_get_terrain_options(plRenderScene*);
-
-// materials
-PL_API void pl_renderer_add_materials_to_scene(plRenderScene*, uint32_t count, const plAssetHandle* materials);
-PL_API void pl_renderer_update_scene_materials(plRenderScene*, uint32_t count, const plAssetHandle* materials);
-
-//---------------------------ASSET INTEGRATION---------------------------------
-
-PL_API void           pl_renderer_register_asset_types(void);
-PL_API plAssetTypeKey pl_renderer_get_asset_type_key_environment(void);
-PL_API plAssetTypeKey pl_renderer_get_asset_type_key_settings(void);
-
-//----------------------------ECS INTEGRATION----------------------------------
-
-// system setup/shutdown/etc
-PL_API void pl_renderer_register_ecs_components(void);
-
-// systems
-PL_API void pl_renderer_run_object_update_system           (plComponentLibrary*);
-PL_API void pl_renderer_run_light_update_system            (plComponentLibrary*);
-PL_API void pl_renderer_run_environment_probe_update_system(plComponentLibrary*);
-
-// ecs types
-PL_API plEcsTypeKey pl_renderer_get_type_key_object           (void);
-PL_API plEcsTypeKey pl_renderer_get_type_key_light            (void);
-PL_API plEcsTypeKey pl_renderer_get_type_key_environment_probe(void);
-PL_API plEcsTypeKey pl_renderer_get_type_key_terrain          (void);
-PL_API plEcsTypeKey pl_renderer_get_type_key_environment      (void);
-PL_API plEcsTypeKey pl_renderer_get_type_key_renderer         (void);
-
-//---------------------------------editor--------------------------------------
-
-// Editor API: authoring overlays, picking, highlighting, and editor-only helpers.
-
-// misc.
-PL_API void          pl_renderer_editor_reload_scene_shaders(plRenderScene*);
-PL_API plDrawList3D* pl_renderer_editor_get_gizmo_drawlist  (plView*);
-PL_API void          pl_renderer_editor_rebuild_scene_bvh(plRenderScene*);
-
-// selection & highlighting
-PL_API void pl_renderer_editor_update_hovered_entity(plView*, plVec2 offset, plVec2 windowScale);
-PL_API bool pl_renderer_editor_get_hovered_entity   (plView*, plEntity*);
-PL_API void pl_renderer_editor_outline_entities     (plRenderScene*, uint32_t count, const plEntity*);
-
-// scene runtime options
-PL_API void pl_renderer_editor_get_scene_options(plRenderScene*, plRendererEditorSceneOptions* out);
-PL_API void pl_renderer_editor_set_scene_options(plRenderScene*, const plRendererEditorSceneOptions*);
-
-// view runtime options
-PL_API void pl_renderer_editor_get_view_options(plView*, plRendererEditorViewOptions* out);
-PL_API void pl_renderer_editor_set_view_options(plView*, const plRendererEditorViewOptions*);
-
-//---------------------------------debug---------------------------------------
-
-// Debug API: renderer diagnostic visualization.
-
-PL_API void          pl_renderer_debug_draw_lights         (plView*, const plLightComponent*, uint32_t lightCount);
-PL_API void          pl_renderer_debug_draw_all_bound_boxes(plView*);
-PL_API void          pl_renderer_debug_draw_bvh            (plView*);
-PL_API plDrawList3D* pl_renderer_debug_get_drawlist        (plView*);
-
-// scene runtime options
-PL_API void pl_renderer_debug_get_scene_options (plRenderScene*, plRendererDebugSceneOptions* out);
-PL_API void pl_renderer_debug_set_scene_options (plRenderScene*, const plRendererDebugSceneOptions*);
-
-// view runtime options
-PL_API void pl_renderer_debug_get_view_options(plView*, plRendererDebugViewOptions* out);
-PL_API void pl_renderer_debug_set_view_options(plView*, const plRendererDebugViewOptions*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -289,14 +164,14 @@ typedef struct _plRendererI
     void (*cleanup)   (void);
 
     // scenes
-    plRenderScene*       (*create_scene)   (const plSceneDesc*);
-    void                 (*destroy_scene)  (plRenderScene*);
-    plRenderSceneFlags   (*get_scene_flags)(const plRenderScene*);
-    void                 (*set_scene_flags)(plRenderScene*, plRenderSceneFlags);
-    void                 (*load_component_library)(plRenderScene*, plComponentLibrary*);
+    plScene*             (*create_scene)   (const plSceneDesc*);
+    void                 (*destroy_scene)  (plScene*);
+    plRenderSceneFlags   (*get_scene_flags)(const plScene*);
+    void                 (*set_scene_flags)(plScene*, plRenderSceneFlags);
+    void                 (*load_component_library)(plScene*, plComponentLibrary*);
 
     // views
-    plView*           (*create_view)               (plRenderScene*, const plViewDesc*);
+    plView*           (*create_view)               (plScene*, const plViewDesc*);
     void              (*destroy_view)              (plView*);
     plBindGroupHandle (*get_view_color_bind_group) (plView*, plVec2* maxUVOut); // for UI
     void              (*resize_view)               (plView*, plVec2 dims);
@@ -307,21 +182,14 @@ typedef struct _plRendererI
     //   prepare_view(...)  // once per visible view
     //   render_view(...)
     bool (*begin_frame)  (void);
-    void (*prepare_scene)(plRenderScene*, const plCamera**, uint32_t cameraCount);
+    void (*prepare_scene)(plScene*, const plCamera**, uint32_t cameraCount);
     void (*prepare_view) (plView*, const plCamera*);
-    void (*render_view)  (plView*, const plRenderViewDesc*);
-
-    // settings
-    plAssetHandle (*get_settings)   (plRenderScene*);
-    void          (*set_settings)   (plRenderScene*, plAssetHandle);
-    plAssetHandle (*get_environment)(plRenderScene*);
-    void          (*set_environment)(plRenderScene*, plAssetHandle);
-
-    plTerrainRuntimeOptions* (*get_terrain_options)(plRenderScene*);
+    void (*render_view)      (plView*, const plRenderViewDesc*);
+    void (*render_debug_view)(plView*, const plRenderViewDesc*);
 
     // materials
-    void (*add_materials_to_scene)(plRenderScene*, uint32_t count, const plAssetHandle* materials);
-    void (*update_scene_materials)(plRenderScene*, uint32_t count, const plAssetHandle* materials);
+    void (*add_materials_to_scene)(plScene*, uint32_t count, const plAssetHandle* materials);
+    void (*update_scene_materials)(plScene*, uint32_t count, const plAssetHandle* materials);
 
     // assets
     void           (*register_asset_types)(void);
@@ -343,41 +211,18 @@ typedef struct _plRendererI
     plEcsTypeKey (*get_ecs_type_key_terrain)          (void);
     plEcsTypeKey (*get_ecs_type_key_environment)      (void);
     plEcsTypeKey (*get_ecs_type_key_renderer)         (void);
-} plRendererI;
 
-typedef struct _plRendererDebugI
-{
-    void          (*draw_lights)         (plView*, const plLightComponent*, uint32_t lightCount);
-    void          (*draw_all_bound_boxes)(plView*);
-    void          (*draw_bvh)            (plView*);
-    plDrawList3D* (*get_drawlist)        (plView*);
+    // misc.
+    plDrawList3D* (*get_drawlist)(plView*);
 
-    // scene options
-    void (*get_scene_options)(plRenderScene*, plRendererDebugSceneOptions* out);
-    void (*set_scene_options)(plRenderScene*, const plRendererDebugSceneOptions*);
-
-    // view options
-    void (*get_view_options)(plView*, plRendererDebugViewOptions* out);
-    void (*set_view_options)(plView*, const plRendererDebugViewOptions*);
-} plRendererDebugI;
-
-typedef struct _plRendererEditorI
-{
+    // editor stuff
     void          (*update_hovered_entity)(plView*, plVec2 offset, plVec2 windowScale);
     bool          (*get_hovered_entity)   (plView*, plEntity*);
-    void          (*outline_entities)     (plRenderScene*, uint32_t count, const plEntity*);
-    void          (*reload_scene_shaders) (plRenderScene*);
+    void          (*outline_entities)     (plScene*, uint32_t count, const plEntity*);
+    void          (*reload_scene_shaders) (plScene*);
     plDrawList3D* (*get_gizmo_drawlist)   (plView*);
-    void          (*rebuild_scene_bvh)    (plRenderScene*);
-
-    // scene options
-    void (*get_scene_options)  (plRenderScene*, plRendererEditorSceneOptions* out);
-    void (*set_scene_options)  (plRenderScene*, const plRendererEditorSceneOptions*);
-
-    // view options
-    void (*get_view_options)(plView*, plRendererEditorViewOptions* out);
-    void (*set_view_options)(plView*, const plRendererEditorViewOptions*);
-} plRendererEditorI;
+    void          (*rebuild_scene_bvh)    (plScene*);
+} plRendererI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] stable structs
@@ -408,7 +253,6 @@ typedef struct _plViewDesc
 typedef struct _plRenderViewDesc
 {
     const plCamera* ptCamera;
-    const plCamera* ptCullCamera; // optional, NULL => ptCamera
 } plRenderViewDesc;
 
 //-----------------------------------------------------------------------------
@@ -517,72 +361,6 @@ typedef struct _plRenderSettings
     plRendererSkyOptions      tSky;
 } plRenderSettings;
 
-typedef struct _plRendererDebugSceneOptions
-{
-    bool bWireframe;
-    bool bShowOrigin;
-    bool bShowProbes;
-    bool bShowProbeRange;
-    plShaderDebugMode tShaderDebugMode;
-} plRendererDebugSceneOptions;
-
-typedef struct _plRendererDebugViewOptions
-{
-    int _iUnused;
-} plRendererDebugViewOptions;
-
-typedef struct _plRendererEditorViewOptions
-{
-    bool bShowGrid;
-    bool bShowSelectedBoundingBox;
-    uint32_t uOutlineWidth;
-
-    // grid
-    float  fGridCellSize;
-    float  fGridMinPixelsBetweenCells;
-    plVec4 tGridColorThin;
-    plVec4 tGridColorThick;
-} plRendererEditorViewOptions;
-
-typedef struct _plRendererEditorSceneOptions
-{
-    int _iUnused;
-} plRendererEditorSceneOptions;
-
-typedef struct _plTerrainMaterialLayer
-{
-    plVec4           tBaseColor;      // default/debug fallback
-    // plResourceHandle tAlbedoTexture;  // optional
-    // plResourceHandle tNormalTexture;  // optional
-    // plResourceHandle tAOMRTexture;    // optional
-
-    float            fUVScale;        // default: 1.0f
-    float            fRoughness;      // default: 1.0f
-    float            fMetalness;      // default: 0.0f
-    float            fAO;             // default: 1.0f
-} plTerrainMaterialLayer;
-
-typedef struct _plTerrainElevationZone
-{
-    float fMinElevation;
-    float fMaxElevation;
-    float fBlendSize;
-
-    plTerrainMaterialLayer tFlatMaterial;
-    plTerrainMaterialLayer tSteepMaterial;
-} plTerrainElevationZone;
-
-typedef struct _plTerrainRuntimeOptions
-{
-    plTerrainFlags         tFlags;
-    float                  fTau;
-    float                  fSlopeStart;
-    float                  fSlopeEnd;
-    plTerrainElevationZone atElevationZones[PL_MAX_TERRAIN_ELEVATION_ZONES];
-    float                  fTerrainShadowConstantDepthBias;
-    float                  fTerrainShadowSlopeDepthBias;
-} plTerrainRuntimeOptions;
-
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
@@ -627,16 +405,12 @@ enum _plRendererSkyFlags
 
     // general options
     PL_RENDERER_SKY_FLAGS_SHADOWS         = 1 << 1,
-    PL_RENDERER_SKY_FLAGS_LUTS_DIRTY      = 1 << 2,
     PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER = 1 << 3,
     PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES  = 1 << 4,
 
     // realistic options
     PL_RENDERER_SKY_FLAGS_MULTISCATTER       = 1 << 5,
     PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE = 1 << 6,
-
-    // skybox options
-    PL_RENDERER_SKY_FLAGS_SKYBOX_DIRTY       = 1 << 7
 };
 
 enum _plRendererShadowFlags
@@ -684,6 +458,8 @@ enum _plRenderSceneFlags
 {
     PL_RENDERER_SCENE_FLAGS_NONE             = 0,
     PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY = 1 << 0,
+    PL_RENDERER_SCENE_FLAGS_SKY_LUTS_DIRTY   = 1 << 1,
+    PL_RENDERER_SCENE_FLAGS_SKYBOX_DIRTY     = 1 << 2,
 };
 
 //-----------------------------------------------------------------------------
@@ -706,7 +482,13 @@ typedef struct _plObjectComponent
 
 typedef struct _plTerrainComponent
 {
-    plAssetHandle tTerrain;
+    plAssetHandle  tTerrain;
+    plTerrainFlags tFlags;
+    float          fTau;
+    float          fSlopeStart;
+    float          fSlopeEnd;
+    float          fTerrainShadowConstantDepthBias;
+    float          fTerrainShadowSlopeDepthBias;
 } plTerrainComponent;
 
 typedef struct _plEnvironmentComponent

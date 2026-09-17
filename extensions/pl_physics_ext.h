@@ -105,8 +105,7 @@ typedef struct _plPhysicsI
     void (*get_settings)(plPhysicsEngineSettings* out);
 
     // per frame
-    void (*update)(float deltaTime, plComponentLibrary*);
-    void (*draw)(plComponentLibrary*, plDrawList3D*);
+    void (*update)(float deltaTime, plComponentLibrary*, plDrawList3D*);
 
     // forces/torques/impulses
     void (*apply_force)                (plComponentLibrary*, plEntity, plVec3);
@@ -149,6 +148,7 @@ typedef struct _plPhysicsI
 typedef struct _plPhysicsEngineSettings
 {
     bool     bEnabled;               // default: false
+    bool     bDebugDraw;             // default: false
     float    fSleepEpsilon;          // default: 0.5f
     float    fPositionEpsilon;       // default: 0.01f
     float    fVelocityEpsilon;       // default: 0.01f

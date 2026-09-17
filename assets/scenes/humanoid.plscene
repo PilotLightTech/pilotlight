@@ -87,7 +87,7 @@
                 "name": "Probe 0"
             }, 
             "transform": {                
-                "translation": [ 0, 5, 0 ], 
+                "translation": [ 0.0, 3.0, 2.0 ], 
                 "rotation": [ 0, 0, 0, 1 ], 
                 "scale": [ 1, 1, 1 ]
             }, 
@@ -95,7 +95,7 @@
                 "mesh": "/assets/meshes/probe.plmesh", 
                 "first_submesh": 0, 
                 "submesh_count": 1, 
-                "transform": 0, 
+                "transform": 3, 
                 "casts_shadow": false, 
                 "receives_shadow": true, 
                 "renderable": true
@@ -107,6 +107,109 @@
                 "range": 30, 
                 "realtime": false, 
                 "include_sky": true
+            }
+        },
+        {            
+            "id": 4, 
+            "tag": {                
+                "name": "Probe 1"
+            }, 
+            "transform": {                
+                "translation": [ -3.0, 3.0, 3.0 ], 
+                "rotation": [ 0, 0, 0, 1 ], 
+                "scale": [ 1, 1, 1 ]
+            }, 
+            "object": {                
+                "mesh": "/assets/meshes/probe.plmesh", 
+                "first_submesh": 0, 
+                "submesh_count": 1, 
+                "transform": 4, 
+                "casts_shadow": false, 
+                "receives_shadow": true, 
+                "renderable": true
+            }, 
+            "probe": {                
+                "resolution": 128, 
+                "samples": 128, 
+                "interval": 1, 
+                "range": 30, 
+                "realtime": false, 
+                "include_sky": true
+            }
+        },
+        {            
+            "id": 5, 
+            "tag": {                
+                "name": "Probe 2"
+            }, 
+            "transform": {                
+                "translation": [ 3.0, 3.0, 3.0 ], 
+                "rotation": [ 0, 0, 0, 1 ], 
+                "scale": [ 1, 1, 1 ]
+            }, 
+            "object": {                
+                "mesh": "/assets/meshes/probe.plmesh", 
+                "first_submesh": 0, 
+                "submesh_count": 1, 
+                "transform": 5, 
+                "casts_shadow": false, 
+                "receives_shadow": true, 
+                "renderable": true
+            }, 
+            "probe": {                
+                "resolution": 128, 
+                "samples": 128, 
+                "interval": 1, 
+                "range": 30, 
+                "realtime": false, 
+                "include_sky": true
+            }
+        },
+        {            
+            "id": 6, 
+            "tag": {                
+                "name": "Spot Light 0"
+            }, 
+            "transform": {                
+                "translation": [ 0.0, 3.27, -1.5 ], 
+                "rotation": [ 0, 0, 0, 1 ], 
+                "scale": [ 1, 1, 1 ]
+            }, 
+            "light": {                
+                "type": "spot",
+                "inner_cone_angle": 0.0,
+                "outer_cone_angle": 0.392699,
+                "radius": 0.025,
+                "color": [1.0, 0.0, 1.0],
+                "position": [0.0, 3.27, -1.5],
+                "direction": [0.0, -0.390, 0.368],
+                "shadow_resolution": 512,
+                "intensity": 20.0,
+                "range": 15.0,
+                "casts_shadow": true,
+                "visualizer": true
+            }
+        },
+        {            
+            "id": 7, 
+            "tag": {                
+                "name": "Point Light 0"
+            }, 
+            "transform": {                
+                "translation": [ 0.0, 3.0, -3.0 ], 
+                "rotation": [ 0, 0, 0, 1 ], 
+                "scale": [ 1, 1, 1 ]
+            }, 
+            "light": {                
+                "type": "point",
+                "radius": 0.025,
+                "color": [0.0, 1.0, 0.0],
+                "position": [0.0, 3.0, -3.0],
+                "shadow_resolution": 512,
+                "intensity": 1.0,
+                "range": 10.0,
+                "casts_shadow": true,
+                "visualizer": true
             }
         }
     ]

@@ -1,4 +1,3 @@
-#include "app.h"
 
 void
 pl__show_ui_demo_window(plAppData* ptAppData)
