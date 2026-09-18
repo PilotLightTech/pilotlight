@@ -355,59 +355,6 @@ pl__load_extensions(plApiRegistryI* ptApiRegistry)
     ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false);
     ptExtensionRegistry->load("pl_shader_ext", "pl_load_shader_ext", "pl_unload_shader_ext", false);
     ptExtensionRegistry->load("pl_graphics_ext", "pl_load_graphics_ext", "pl_unload_graphics_ext", false);
-
-    #ifdef PL_CONFIG_DEBUG
-    ptExtensionRegistry->load("pl_log_extd", "pl_load_log_ext", "pl_unload_log_ext", false);
-    ptExtensionRegistry->load("pl_profile_extd", "pl_load_profile_ext", "pl_unload_profile_ext", false);
-    ptExtensionRegistry->load("pl_image_extd", "pl_load_image_ext", "pl_unload_image_ext", false);
-    ptExtensionRegistry->load("pl_stats_extd", "pl_load_stats_ext", "pl_unload_stats_ext", false);
-    ptExtensionRegistry->load("pl_rect_pack_extd", "pl_load_rect_pack_ext", "pl_unload_rect_pack_ext", false);
-    ptExtensionRegistry->load("pl_string_intern_extd", "pl_load_string_intern_ext", "pl_unload_string_intern_ext", false);
-    ptExtensionRegistry->load("pl_draw_extd", "pl_load_draw_ext", "pl_unload_draw_ext", false);
-    ptExtensionRegistry->load("pl_job_extd", "pl_load_job_ext", "pl_unload_job_ext", false);
-    ptExtensionRegistry->load("pl_gpu_allocators_extd", "pl_load_gpu_allocators_ext", "pl_unload_gpu_allocators_ext", false);
-    ptExtensionRegistry->load("pl_ecs_extd", "pl_load_ecs_ext", "pl_unload_ecs_ext", false);
-    ptExtensionRegistry->load("pl_tools_extd", "pl_load_tools_ext", "pl_unload_tools_ext", false);
-    ptExtensionRegistry->load("pl_renderer_extd", "pl_load_renderer_ext", "pl_unload_renderer_ext", false);
-    ptExtensionRegistry->load("pl_resource_extd", "pl_load_resource_ext", "pl_unload_resource_ext", false);
-    ptExtensionRegistry->load("pl_ui_extd", "pl_load_ui_ext", "pl_unload_ui_ext", false);
-    ptExtensionRegistry->load("pl_asset_tools_extd", "pl_load_asset_tools_ext", "pl_unload_asset_tools_ext", false);
-    ptExtensionRegistry->load("pl_camera_extd", "pl_load_camera_ext", "pl_unload_camera_ext", false);
-    ptExtensionRegistry->load("pl_animation_extd", "pl_load_animation_ext", "pl_unload_animation_ext", false);
-    ptExtensionRegistry->load("pl_gizmo_extd", "pl_load_gizmo_ext", "pl_unload_gizmo_ext", false);
-    ptExtensionRegistry->load("pl_console_extd", "pl_load_console_ext", "pl_unload_console_ext", false);
-    ptExtensionRegistry->load("pl_screen_log_extd", "pl_load_screen_log_ext", "pl_unload_screen_log_ext", false);
-    ptExtensionRegistry->load("pl_starter_extd", "pl_load_starter_ext", "pl_unload_starter_ext", false);
-    ptExtensionRegistry->load("pl_physics_extd", "pl_load_physics_ext", "pl_unload_physics_ext", false);
-    ptExtensionRegistry->load("pl_collision_extd", "pl_load_collision_ext", "pl_unload_collision_ext", false);
-    ptExtensionRegistry->load("pl_bvh_extd", "pl_load_bvh_ext", "pl_unload_bvh_ext", false);
-    ptExtensionRegistry->load("pl_config_extd", "pl_load_config_ext", "pl_unload_config_ext", false);
-    ptExtensionRegistry->load("pl_mesh_extd", "pl_load_mesh_ext", "pl_unload_mesh_ext", false);
-    ptExtensionRegistry->load("pl_shader_variant_extd", "pl_load_shader_variant_ext", "pl_unload_shader_variant_ext", false);
-    ptExtensionRegistry->load("pl_datetime_extd", "pl_load_datetime_ext", "pl_unload_datetime_ext", false);
-    ptExtensionRegistry->load("pl_vfs_extd", "pl_load_vfs_ext", "pl_unload_vfs_ext", false);
-    ptExtensionRegistry->load("pl_compress_extd", "pl_load_compress_ext", "pl_unload_compress_ext", false);
-    ptExtensionRegistry->load("pl_dds_extd", "pl_load_dds_ext", "pl_unload_dds_ext", false);
-    ptExtensionRegistry->load("pl_dxt_extd", "pl_load_dxt_ext", "pl_unload_dxt_ext", false);
-    ptExtensionRegistry->load("pl_pak_extd", "pl_load_pak_ext", "pl_unload_pak_ext", false);
-    ptExtensionRegistry->load("pl_script_extd", "pl_load_script_ext", "pl_unload_script_ext", false);
-    ptExtensionRegistry->load("pl_material_extd", "pl_load_material_ext", "pl_unload_material_ext", false);
-    ptExtensionRegistry->load("pl_terrain_extd", "pl_load_terrain_ext", "pl_unload_terrain_ext", false);
-    ptExtensionRegistry->load("pl_voxel_extd", "pl_load_voxel_ext", "pl_unload_voxel_ext", false);
-    ptExtensionRegistry->load("pl_path_extd", "pl_load_path_ext", "pl_unload_path_ext", false);
-    ptExtensionRegistry->load("pl_audio_extd", "pl_load_audio_ext", "pl_unload_audio_ext", false);
-    ptExtensionRegistry->load("pl_freelist_extd", "pl_load_freelist_ext", "pl_unload_freelist_ext", false);
-    ptExtensionRegistry->load("pl_stage_extd", "pl_load_stage_ext", "pl_unload_stage_ext", false);
-    ptExtensionRegistry->load("pl_image_ops_extd", "pl_load_image_ops_ext", "pl_unload_image_ops_ext", false);
-    ptExtensionRegistry->load("pl_gjk_extd", "pl_load_gjk_ext", "pl_unload_gjk_ext", false);
-    ptExtensionRegistry->load("pl_ik_extd", "pl_load_ik_ext", "pl_unload_ik_ext", false);
-    ptExtensionRegistry->load("pl_transform_extd", "pl_load_transform_ext", "pl_unload_transform_ext", false);
-    ptExtensionRegistry->load("pl_asset_extd", "pl_load_asset_ext", "pl_unload_asset_ext", false);
-    ptExtensionRegistry->load("pl_skeleton_extd", "pl_load_skeleton_ext", "pl_unload_skeleton_ext", false);
-    ptExtensionRegistry->load("pl_json_extd", "pl_load_json_ext", "pl_unload_json_ext", false);
-    ptExtensionRegistry->load("pl_stl_extd", "pl_load_stl_ext", "pl_unload_stl_ext", false);
-    ptExtensionRegistry->load("pl_texture_extd", "pl_load_texture_ext", "pl_unload_texture_ext", false);
-    #else
     ptExtensionRegistry->load("pl_log_ext", "pl_load_log_ext", "pl_unload_log_ext", false);
     ptExtensionRegistry->load("pl_profile_ext", "pl_load_profile_ext", "pl_unload_profile_ext", false);
     ptExtensionRegistry->load("pl_image_ext", "pl_load_image_ext", "pl_unload_image_ext", false);
@@ -458,5 +405,4 @@ pl__load_extensions(plApiRegistryI* ptApiRegistry)
     ptExtensionRegistry->load("pl_json_ext", "pl_load_json_ext", "pl_unload_json_ext", false);
     ptExtensionRegistry->load("pl_stl_ext", "pl_load_stl_ext", "pl_unload_stl_ext", false);
     ptExtensionRegistry->load("pl_texture_ext", "pl_load_texture_ext", "pl_unload_texture_ext", false);
-    #endif
 }

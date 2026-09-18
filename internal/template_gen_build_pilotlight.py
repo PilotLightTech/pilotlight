@@ -211,14 +211,13 @@ with pl.project("pilotlight"):
 
     for extension in extensions:
 
-        with pl.target(extension, pl.TargetType.DYNAMIC_LIBRARY, cache=True):
+        with pl.target(extension, pl.TargetType.DYNAMIC_LIBRARY):
 
             pl.add_source_files("../dependencies/pilotlight/src/" + extension + ".c")
+            pl.set_output_binary(extension)
             
             # default config
             with pl.configuration("debug"):
-
-                pl.set_output_binary(extension + "d")
 
                 # win32
                 with pl.platform("Windows"):
@@ -238,8 +237,6 @@ with pl.project("pilotlight"):
 
             # release
             with pl.configuration("release"):
-
-                pl.set_output_binary(extension)
 
                 # win32
                 with pl.platform("Windows"):

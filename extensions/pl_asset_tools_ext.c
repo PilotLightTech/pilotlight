@@ -1716,7 +1716,7 @@ pl_load_asset_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 }
 
 void
-pl_unload_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+pl_unload_asset_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)
         return;

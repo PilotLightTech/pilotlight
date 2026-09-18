@@ -455,7 +455,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_gpu_allocators_ext(ptApiRegistry, bReload);
     pl_unload_draw_ext(ptApiRegistry, bReload);
     pl_unload_animation_ext(ptApiRegistry, bReload);
-    pl_unload_ecs_tools_ext(ptApiRegistry, bReload);
+    pl_unload_asset_tools_ext(ptApiRegistry, bReload);
     pl_unload_tools_ext(ptApiRegistry, bReload);
     pl_unload_ui_ext(ptApiRegistry, bReload);
     pl_unload_ecs_ext(ptApiRegistry, bReload);
