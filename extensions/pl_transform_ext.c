@@ -336,6 +336,30 @@ pl_transform_create_transform(plComponentLibrary* ptLibrary, const char* pcName,
 }
 
 void
+pl_transform_set_world_transform(plComponentLibrary* ptLibrary, plEntity tEntity, const plMat4* ptDesired)
+{
+    plTransformComponent* ptParentTransform = NULL;
+    plTransformComponent* ptTransform = gptEcs->get_component(ptLibrary, gptTransformCtx->tTransformComponentType, tEntity);
+    plHierarchyComponent* ptHierarchyComp = gptEcs->get_component(ptLibrary, gptTransformCtx->tHierarchyComponentType, tEntity);
+    if(ptHierarchyComp)
+    {
+        ptParentTransform = gptEcs->get_component(ptLibrary, gptTransformCtx->tTransformComponentType, ptHierarchyComp->tParent);
+    }
+
+    if(ptParentTransform)
+    {
+        plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
+        plMat4 tChildWorld = pl_mul_mat4(&tInvParent, ptDesired);
+        pl_decompose_matrix(&tChildWorld, &ptTransform->tScale, &ptTransform->tRotation, &ptTransform->tTranslation);
+    }
+    else
+    {
+        pl_decompose_matrix(ptDesired, &ptTransform->tScale, &ptTransform->tRotation, &ptTransform->tTranslation);
+    }
+    ptTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
+}
+
+void
 pl_transform_attach_component(plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent)
 {
     plHierarchyComponent* ptHierarchyComponent = NULL;
@@ -459,6 +483,7 @@ pl_load_transform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .compute_parent_transform    = pl_transform_compute_parent_transform,
         .run_transform_update_system = pl_transform_run_transform_update_system,
         .run_hierarchy_update_system = pl_transform_run_hierarchy_update_system,
+        .set_world_transform         = pl_transform_set_world_transform,
         .get_ecs_type_key_transform  = pl_transform_get_ecs_type_key_transform,
         .get_ecs_type_key_hierarchy  = pl_transform_get_ecs_type_key_hierarchy
     };
