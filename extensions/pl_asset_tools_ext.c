@@ -16,6 +16,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <inttypes.h>
 #include "pl.h"
 #include "pl_asset_tools_ext.h"
 #include "pl_ecs_ext.h"
@@ -450,8 +451,9 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                 plRendererComponent*          ptRenderer          = gptEcs->get_component(ptLibrary, tRendererComponentType, *ptSelectedEntity);
                 plTerrainComponent*           ptTerrain           = gptEcs->get_component(ptLibrary, tTerrainComponentType, *ptSelectedEntity);
 
-    
-                gptUI->text("ID: %llu", gptEcs->get_entity_id(ptLibrary, *ptSelectedEntity));
+                static char acEntityIdBuffer[64] = {0};
+                snprintf(acEntityIdBuffer, 64, "%" PRIu64, gptEcs->get_entity_id(ptLibrary, *ptSelectedEntity));
+                gptUI->input_text("ID", acEntityIdBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
                 gptUI->text("Entity: {i-%u, g-%u}", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
                 
                 gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
@@ -1261,8 +1263,8 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->text("AABB Max: (%g, %g)", ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y);
                     gptUI->text("AABB Min: (%g, %g)", ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y);
                     static uint32_t uSelectedSubmesh = 0;
-                    uSelectedSubmesh = pl_clampu(0, uSelectedSubmesh, ptMesh->uSubmeshCount);
-                    gptUI->slider_uint("Submesh", &uSelectedSubmesh, 0, ptMesh->uSubmeshCount, 0);
+                    uSelectedSubmesh = pl_clampu(0, uSelectedSubmesh, ptMesh->uSubmeshCount - 1);
+                    gptUI->slider_uint("Submesh", &uSelectedSubmesh, 0, ptMesh->uSubmeshCount - 1, 0);
 
                     const plSubmesh* ptSubmesh = &ptMesh->atSubmeshes[uSelectedSubmesh];
                     gptUI->labeled_text("Material", "%s", gptAsset->get_path(ptSubmesh->tMaterial));
@@ -1510,7 +1512,7 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->labeled_text("tiles", "%u", ptTerrain->uTileCount);
 
                     static uint32_t uSelectedTile = 0;
-                    uSelectedTile = pl_clampu(0, uSelectedTile, ptTerrain->uTileCount);
+                    uSelectedTile = pl_clampu(0, uSelectedTile, ptTerrain->uTileCount - 1);
 
                     gptUI->separator_text("Elevation Zones");
 
@@ -1541,8 +1543,67 @@ pl_asset_tools_show_assets(bool* bValue)
 
 
                 }
+                else if(tAssetType == gptAnimation->get_asset_type_key())
+                {
+                    static const char* apcPathText[] = {
+                        "unknown",
+                        "translation",
+                        "rotation",
+                        "scale",
+                        "weights"
+                    };
+
+                    static const char* apcModeText[] = {
+                        "unknown",
+                        "linear",
+                        "step",
+                        "cubic_spline"
+                    };
+
+                    plAnimation* ptAnimation = gptAsset->get_data(tAssetHandle);
+                    gptUI->input_float("start", &ptAnimation->fStart, "%g", 0);
+                    gptUI->input_float("end", &ptAnimation->fEnd, "%g", 0);
+
+                    gptUI->separator_text("Joints");
+
+                    static uint32_t uSelectedChannel = 0;
+                    uSelectedChannel = pl_clampu(0, uSelectedChannel, ptAnimation->uChannelCount - 1);
+                    gptUI->slider_uint("channel", &uSelectedChannel, 0, ptAnimation->uChannelCount - 1, 0);
+
+                    plAnimationChannel* ptChannel = &ptAnimation->atChannels[uSelectedChannel];
+                    gptUI->labeled_text("mode", apcModeText[ptChannel->tMode]);
+                    gptUI->labeled_text("path", apcPathText[ptChannel->tPath]);
+
+                }
+                else if(tAssetType == gptSkeleton->get_asset_type_key_skeleton())
+                {
+                    plSkeleton* ptSkeleton = gptAsset->get_data(tAssetHandle);
+                    gptUI->separator_text("Joints");
+                    static uint32_t uSelectedJoint = 0;
+                    uSelectedJoint = pl_clampu(0, uSelectedJoint, ptSkeleton->uJointCount - 1);
+                    gptUI->slider_uint("joint", &uSelectedJoint, 0, ptSkeleton->uJointCount - 1, 0);
+
+                    plSkeletonJoint* ptJoint = &ptSkeleton->atJoints[uSelectedJoint];
+                    gptUI->labeled_text("name", ptJoint->pcName);
+                    gptUI->labeled_text("parent", "%u", ptJoint->uParent);
+                    gptUI->labeled_text("translation", "%g, %g, %g", ptJoint->tTranslation.x, ptJoint->tTranslation.y, ptJoint->tTranslation.z);
+                    gptUI->labeled_text("rotation", "%g, %g, %g, %g", ptJoint->tRotation.x, ptJoint->tRotation.y, ptJoint->tRotation.z, ptJoint->tRotation.w);
+                    gptUI->labeled_text("scale", "%g, %g, %g", ptJoint->tScale.x, ptJoint->tScale.y, ptJoint->tScale.z);
+
+                }
+                else if(tAssetType == gptSkeleton->get_asset_type_key_skin())
+                {
+                    plSkin* ptSkin = gptAsset->get_data(tAssetHandle);
+                    gptUI->labeled_text("skeleton", gptAsset->get_path(ptSkin->tSkeleton));
+                    gptUI->separator_text("Joints");
+                    for(uint32_t i = 0; i < ptSkin->uJointCount; i++)
+                    {
+                        gptUI->text("%" PRIu64, ptSkin->atJoints[i]);
+                    }
+                }
                 else if(tAssetType == gptEcs->get_asset_type_key())
                 {
+                    // separate window below
                 }
                 gptUI->end_child();
             }

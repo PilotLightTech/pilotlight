@@ -99,8 +99,10 @@ pl__ecs_skin_clone(const void* pSrc, plComponentLibrary* ptSrcLib, void* Dest, p
     ptDestComponent->_atJoints = PL_ALLOC(sizeof(plEntity) * ptSkin->uJointCount);
     ptDestComponent->_atTextureData = PL_ALLOC(sizeof(plMat4) * ptSkin->uJointCount * 2);
 
-    memcpy(ptDestComponent->_atJoints, ptSrcComponent->_atJoints, ptSkin->uJointCount * sizeof(plEntity));
-    memcpy(ptDestComponent->_atTextureData, ptSrcComponent->_atTextureData, 2 * ptSkin->uJointCount * sizeof(plMat4));
+    if(ptSrcComponent->_atJoints)
+        memcpy(ptDestComponent->_atJoints, ptSrcComponent->_atJoints, ptSkin->uJointCount * sizeof(plEntity));
+    if(ptSrcComponent->_atTextureData)
+        memcpy(ptDestComponent->_atTextureData, ptSrcComponent->_atTextureData, 2 * ptSkin->uJointCount * sizeof(plMat4));
 }
 
 static void

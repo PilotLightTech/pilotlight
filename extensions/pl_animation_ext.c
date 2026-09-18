@@ -388,7 +388,7 @@ pl__animation_serialize(const char* pcName, const void* pAnimation, plAssetEncod
         gptVfs->write_file_stream(tFileHandle, 1, sizeof(tHeader), &tHeader);
         gptVfs->write_file_stream(tFileHandle, 1, szRawDataSize, ptAnimation->puRawData);
 
-        for(uint32_t i = 0; i < ptAnimation->uChannelCount; i++)
+        for(uint32_t i = 0; i < ptAnimation->uDataCount; i++)
         {
             plAnimationDataHeader tDataHeader = {
                 .szDataSize = ptAnimation->atData[i].szDataSize,
@@ -458,7 +458,7 @@ pl__animation_cleanup(void* pAnimation)
 {
     plAnimation* ptAnimation = pAnimation;
 
-    for(uint32_t i = 0; i < ptAnimation->uChannelCount; i++)
+    for(uint32_t i = 0; i < ptAnimation->uDataCount; i++)
     {
         if(ptAnimation->atData[i].afKeyFrameTimes)
         {
@@ -473,6 +473,7 @@ pl__animation_cleanup(void* pAnimation)
         ptAnimation->atData[i].pKeyFrameData = NULL;
         
     }
+    ptAnimation->uDataCount = 0;
 
     if(ptAnimation->puRawData)
     {
@@ -519,7 +520,7 @@ pl__animation_deserialize(const char* pcName, void* pAnimation)
         ptAnimation->uDataCount = tHeader.uDataCount;
         gptVfs->read_file_stream(tFileHandle, szAllocationSize, 1, ptAnimation->puRawData);
         
-        for(uint32_t i = 0; i < ptAnimation->uChannelCount; i++)
+        for(uint32_t i = 0; i < ptAnimation->uDataCount; i++)
         {
             plAnimationDataHeader tDataHeader = {0};
             gptVfs->read_file_stream(tFileHandle, sizeof(tDataHeader), 1, &tDataHeader);
