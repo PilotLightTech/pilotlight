@@ -652,22 +652,15 @@ pl_app_update(plAppData* ptAppData)
         if(gptEcs->is_entity_valid(ptLibrary, ptAppData->tSelectedEntity))
         {
             plDrawList3D* ptGizmoDrawlist =  gptRenderer->get_gizmo_drawlist(ptAppData->ptView);
-            plObjectComponent* ptSelectedObject = (plObjectComponent*)gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
-            plTransformComponent* ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), ptAppData->tSelectedEntity);
-            plTransformComponent* ptParentTransform = NULL;
-            plHierarchyComponent* ptHierarchyComp = (plHierarchyComponent*)gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_hierarchy(), ptAppData->tSelectedEntity);
-            if(ptHierarchyComp)
+            
+            if(gptEcs->has_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), ptAppData->tSelectedEntity))
             {
-                ptParentTransform = (plTransformComponent*)gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), ptHierarchyComp->tParent);
+                gptGizmo->gizmo(ptLibrary, ptAppData->tSelectedEntity, ptGizmoDrawlist, ptCamera, (plVec2){0}, (plVec2){1.0f, 1.0f});
             }
-            if(ptSelectedTransform)
+            else if(gptEcs->has_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity))
             {
-                gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, (plVec2){0}, (plVec2){1.0f, 1.0f});
-            }
-            else if(ptSelectedObject)
-            {
-                ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), ptSelectedObject->tTransform);
-                gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, (plVec2){0}, (plVec2){1.0f, 1.0f});
+                plObjectComponent* ptSelectedObject = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
+                gptGizmo->gizmo(ptLibrary, ptSelectedObject->tTransform, ptGizmoDrawlist, ptCamera, (plVec2){0}, (plVec2){1.0f, 1.0f});
             }
         }
 

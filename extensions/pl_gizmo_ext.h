@@ -30,6 +30,7 @@ extern "C" {
 
 #include "pl.inc"
 #include <stdbool.h>
+#include "pl_ecs_ext.inl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
@@ -45,9 +46,9 @@ extern "C" {
 typedef int plGizmoMode;
 
 // external
-typedef struct _plTransformComponent plTransformComponent; // pl_ecs_ext.h
-typedef struct _plCamera             plCamera;             // pl_ecs_ext.h
-typedef struct _plDrawList3D         plDrawList3D;         // pl_draw_ext.h
+typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
+typedef struct _plCamera           plCamera;           // pl_camera_ext.h
+typedef struct _plDrawList3D       plDrawList3D;       // pl_draw_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -66,7 +67,7 @@ typedef struct _plGizmoI
     void (*set_mode)(plGizmoMode);
     void (*next_mode)(void);
     bool (*active)(void);
-    void (*gizmo)(plDrawList3D*, plCamera*, plTransformComponent* selectedTransform, plTransformComponent* parentTransform, plVec2 viewOffset, plVec2 viewScale);
+    void (*gizmo)(plComponentLibrary*, plEntity, plDrawList3D*, plCamera*, plVec2 viewOffset, plVec2 viewScale);
 } plGizmoI;
 
 //-----------------------------------------------------------------------------

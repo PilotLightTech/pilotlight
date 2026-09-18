@@ -28,6 +28,7 @@ Index of this file:
 #include "pl_animation_ext.h"
 #include "pl_collision_ext.h"
 #include "pl_transform_ext.h"
+#include "pl_ecs_ext.h"
 #include "pl_ui_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -40,6 +41,7 @@ static const plDrawI*      gptDraw = NULL;
 static const plIOI*        gptIOI  = NULL;
 static const plCollisionI* gptCollision  = NULL;
 static const plTransformI* gptTransform  = NULL;
+static const plEcsI*       gptEcs  = NULL;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -93,9 +95,9 @@ static plGizmoContext* gptGizmoCtx = NULL;
 //-----------------------------------------------------------------------------
 
 static bool pl__does_line_intersect_cylinder(plVec3 tP0, plVec3 tV0, plVec3 tP1, plVec3 tV1, float fRadius, float fHeight, float* pfDistance);
-static void pl__gizmo_translation           (plDrawList3D*, plCamera*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale);
-static void pl__gizmo_rotation              (plDrawList3D*, plCamera*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale);
-static void pl__gizmo_scale                 (plDrawList3D*, plCamera*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale);
+static void pl__gizmo_translation           (plComponentLibrary*, plEntity, plDrawList3D*, plCamera*, plVec2 tViewOffset, plVec2 tViewScale);
+static void pl__gizmo_rotation              (plComponentLibrary*, plEntity, plDrawList3D*, plCamera*, plVec2 tViewOffset, plVec2 tViewScale);
+static void pl__gizmo_scale                 (plComponentLibrary*, plEntity, plDrawList3D*, plCamera*, plVec2 tViewOffset, plVec2 tViewScale);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -120,11 +122,12 @@ pl_gizmo_next_mode(void)
 }
 
 void
-pl_gizmo_gizmo(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
+pl_gizmo_gizmo(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plVec2 tViewOffset, plVec2 tViewScale)
 {
 
-    if(ptSelectedTransform)
+    if(gptEcs->has_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity))
     {
+        plTransformComponent* ptSelectedTransform = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
         plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
         if(gptGizmoCtx->tState == PL_GIZMO_STATE_DEFAULT)
         {
@@ -134,13 +137,13 @@ pl_gizmo_gizmo(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCom
         switch(gptGizmoCtx->tSelectionMode)
         {
             case PL_GIZMO_MODE_TRANSLATION:
-                pl__gizmo_translation(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, tViewOffset, tViewScale);
+                pl__gizmo_translation(ptLibrary, tEntity, ptGizmoDrawlist, ptCamera, tViewOffset, tViewScale);
                 break;
             case PL_GIZMO_MODE_ROTATION:
-                pl__gizmo_rotation(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, tViewOffset, tViewScale);
+                pl__gizmo_rotation(ptLibrary, tEntity, ptGizmoDrawlist, ptCamera, tViewOffset, tViewScale);
                 break;
             case PL_GIZMO_MODE_SCALE:
-                pl__gizmo_scale(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, tViewOffset, tViewScale);
+                pl__gizmo_scale(ptLibrary, tEntity, ptGizmoDrawlist, ptCamera, tViewOffset, tViewScale);
                 break;
             case PL_GIZMO_MODE_NONE:
             default:
@@ -167,7 +170,7 @@ pl__does_line_intersect_cylinder(plVec3 tP0, plVec3 tV0, plVec3 tP1, plVec3 tV1,
 
     float fDistance = FLT_MAX;
 
-    if(fabsf(fDet) > FLT_MIN)
+    if(fabsf(fDet) > 1e-6f)
     {
         fDet = 1.0f / fDet;
         float fDpv1 = pl_dot_vec3(tDp, tV0);
@@ -187,9 +190,9 @@ pl__does_line_intersect_cylinder(plVec3 tP0, plVec3 tV0, plVec3 tP1, plVec3 tV1,
 }
 
 static void
-pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
+pl__gizmo_translation(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plVec2 tViewOffset, plVec2 tViewScale)
 {
-
+    plTransformComponent* ptSelectedTransform = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
     plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
 
     plVec2 tMousePos = gptIOI->get_mouse_pos();
@@ -336,23 +339,13 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTrans
         bYZSelected = false;
         *ptCenter = pl_add_vec3(*ptCenter, (plVec3){fXDistanceAlong - gptGizmoCtx->fOriginalDistX, 0.0f, 0.0f});
 
-        if(ptParentTransform)
-        {
-            plVec4 tCurrentRot = {0};
-            plVec3 tCurrentTrans = {0};
-            plVec3 tCurrentScale = {0};
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
+        plVec4 tCurrentRot = {0};
+        plVec3 tCurrentTrans = {0};
+        plVec3 tCurrentScale = {0};
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
-
-            plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-            plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-            pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-        }
-        else
-        {
-            ptSelectedTransform->tTranslation = *ptCenter;
-        }
+        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
+        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
     }
     else if(gptGizmoCtx->tState == PL_GIZMO_STATE_Y_TRANSLATION)
     {
@@ -363,23 +356,15 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTrans
         bXYSelected = false;
         bYZSelected = false;
         *ptCenter = pl_add_vec3(*ptCenter, (plVec3){0.0f, fYDistanceAlong - gptGizmoCtx->fOriginalDistY, 0.0f});
-        if(ptParentTransform)
-        {
-            plVec4 tCurrentRot = {0};
-            plVec3 tCurrentTrans = {0};
-            plVec3 tCurrentScale = {0};
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
+        plVec4 tCurrentRot = {0};
+        plVec3 tCurrentTrans = {0};
+        plVec3 tCurrentScale = {0};
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-            plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-            pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-        }
-        else
-        {
-            ptSelectedTransform->tTranslation = *ptCenter;
-        }
+        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
+        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
+
     }
     else if(gptGizmoCtx->tState == PL_GIZMO_STATE_Z_TRANSLATION)
     {
@@ -390,23 +375,16 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTrans
         bXYSelected = false;
         bYZSelected = false;
         *ptCenter = pl_add_vec3(*ptCenter, (plVec3){0.0f, 0.0f, fZDistanceAlong - gptGizmoCtx->fOriginalDistZ});
-        if(ptParentTransform)
-        {
-            plVec4 tCurrentRot = {0};
-            plVec3 tCurrentTrans = {0};
-            plVec3 tCurrentScale = {0};
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
+        plVec4 tCurrentRot = {0};
+        plVec3 tCurrentTrans = {0};
+        plVec3 tCurrentScale = {0};
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-            plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-            pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-        }
-        else
-        {
-            ptSelectedTransform->tTranslation = *ptCenter;
-        }
+        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
+        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
+
+
     }
 
     else if(gptGizmoCtx->tState == PL_GIZMO_STATE_YZ_TRANSLATION)
@@ -418,23 +396,14 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTrans
         bXZSelected = false;
         bXYSelected = false;
         *ptCenter = pl_add_vec3(*ptCenter, (plVec3){0.0f, tYZIntersectionPoint.y - gptGizmoCtx->tOriginalPos.y - ptCenter->y, tYZIntersectionPoint.z - gptGizmoCtx->tOriginalPos.z - ptCenter->z});
-        if(ptParentTransform)
-        {
-            plVec4 tCurrentRot = {0};
-            plVec3 tCurrentTrans = {0};
-            plVec3 tCurrentScale = {0};
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
+        plVec4 tCurrentRot = {0};
+        plVec3 tCurrentTrans = {0};
+        plVec3 tCurrentScale = {0};
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-            plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-            pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-        }
-        else
-        {
-            ptSelectedTransform->tTranslation = *ptCenter;
-        }
+        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
+        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
     }
 
     else if(gptGizmoCtx->tState == PL_GIZMO_STATE_XZ_TRANSLATION)
@@ -446,23 +415,15 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTrans
         bXYSelected = false;
         bYZSelected = false;
         *ptCenter = pl_add_vec3(*ptCenter, (plVec3){tXZIntersectionPoint.x - gptGizmoCtx->tOriginalPos.x - ptCenter->x, 0.0, tXZIntersectionPoint.z - gptGizmoCtx->tOriginalPos.z - ptCenter->z});
-        if(ptParentTransform)
-        {
-            plVec4 tCurrentRot = {0};
-            plVec3 tCurrentTrans = {0};
-            plVec3 tCurrentScale = {0};
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
+        plVec4 tCurrentRot = {0};
+        plVec3 tCurrentTrans = {0};
+        plVec3 tCurrentScale = {0};
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-            plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-            pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-        }
-        else
-        {
-            ptSelectedTransform->tTranslation = *ptCenter;
-        }
+        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
+        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
+
     }
 
     else if(gptGizmoCtx->tState == PL_GIZMO_STATE_XY_TRANSLATION)
@@ -474,23 +435,15 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTrans
         bXZSelected = false;
         bYZSelected = false;
         *ptCenter = pl_add_vec3(*ptCenter, (plVec3){tXYIntersectionPoint.x - gptGizmoCtx->tOriginalPos.x - ptCenter->x, tXYIntersectionPoint.y - gptGizmoCtx->tOriginalPos.y - ptCenter->y, 0.0f});
-        if(ptParentTransform)
-        {
-            plVec4 tCurrentRot = {0};
-            plVec3 tCurrentTrans = {0};
-            plVec3 tCurrentScale = {0};
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
+        plVec4 tCurrentRot = {0};
+        plVec3 tCurrentTrans = {0};
+        plVec3 tCurrentScale = {0};
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-            plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-            pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-        }
-        else
-        {
-            ptSelectedTransform->tTranslation = *ptCenter;
-        }
+        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
+        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
+
     }
 
     if(bXSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
@@ -624,9 +577,10 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTrans
 }
 
 static void
-pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
+pl__gizmo_rotation(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plVec2 tViewOffset, plVec2 tViewScale)
 {
 
+    plTransformComponent* ptSelectedTransform = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
     plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
 
     plVec2 tMousePos = gptIOI->get_mouse_pos();
@@ -743,7 +697,9 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransfor
         plVec3 tDir1 = pl_norm_vec3(pl_sub_vec3(tXIntersectionPoint, *ptCenter));
         const float fAngleBetweenVec0 = acosf(pl_dot_vec3(tDir0, tUpDir));
         const float fAngleBetweenVec1 = acosf(pl_dot_vec3(tDir1, tUpDir));
+        // float fAngle = atan2f(pl_dot_vec3(tUpDir, pl_cross_vec3(tDir0, tDir1)), pl_dot_vec3(tDir0, tDir1));
         float fAngleBetweenVecs = fAngleBetweenVec1 - fAngleBetweenVec0;
+        // float fAngleBetweenVecs = fAngle;
 
         if(gptGizmoCtx->tOriginalPos.z < ptCenter->z && tXIntersectionPoint.z < ptCenter->z)
             fAngleBetweenVecs *= -1.0f;
@@ -764,20 +720,10 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransfor
 
         if(fAngleBetweenVecs != 0.0f)
         {
-            if(ptParentTransform)
-            {
-                tCurrentRot = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 1.0f, 0.0f, 0.0f), gptGizmoCtx->tOriginalRot);
+            tCurrentRot = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 1.0f, 0.0f, 0.0f), gptGizmoCtx->tOriginalRot);
 
-                plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-
-                plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-                plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-                pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-            }
-            else
-            {
-                ptSelectedTransform->tRotation = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 1.0f, 0.0f, 0.0f), gptGizmoCtx->tOriginalRot);
-            }
+            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
+            gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
         }
     }
     else if(gptGizmoCtx->tState == PL_GIZMO_STATE_Y_ROTATION)
@@ -812,20 +758,10 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransfor
 
         if(fAngleBetweenVecs != 0.0f)
         {
-            if(ptParentTransform)
-            {
-                tCurrentRot = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 0.0f, 1.0f, 0.0f), gptGizmoCtx->tOriginalRot);
+            tCurrentRot = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 0.0f, 1.0f, 0.0f), gptGizmoCtx->tOriginalRot);
 
-                plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-
-                plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-                plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-                pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-            }
-            else
-            {
-                ptSelectedTransform->tRotation = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 0.0f, 1.0f, 0.0f), gptGizmoCtx->tOriginalRot);
-            }
+            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
+            gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
         }
     }
     else if(gptGizmoCtx->tState == PL_GIZMO_STATE_Z_ROTATION)
@@ -860,20 +796,10 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransfor
 
         if(fAngleBetweenVecs != 0.0f)
         {
-            if(ptParentTransform)
-            {
-                tCurrentRot = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 0.0f, 0.0f, -1.0f), gptGizmoCtx->tOriginalRot);
+            tCurrentRot = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 0.0f, 0.0f, -1.0f), gptGizmoCtx->tOriginalRot);
 
-                plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-
-                plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-                plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-                pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-            }
-            else
-            {
-                ptSelectedTransform->tRotation = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 0.0f, 0.0f, -1.0f), gptGizmoCtx->tOriginalRot);
-            }
+            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
+            gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
         }
     }
 
@@ -894,36 +820,21 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransfor
     {
         gptGizmoCtx->bActive = true;
         gptGizmoCtx->tOriginalPos = tXIntersectionPoint;
-        if(ptParentTransform)
-        {
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &gptGizmoCtx->tOriginalRot, &tCurrentTrans);
-        }
-        else
-            gptGizmoCtx->tOriginalRot = ptSelectedTransform->tRotation;
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &gptGizmoCtx->tOriginalRot, &tCurrentTrans);
         gptGizmoCtx->tState = PL_GIZMO_STATE_X_ROTATION;
     }
     else if(bYSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
         gptGizmoCtx->bActive = true;
         gptGizmoCtx->tOriginalPos = tYIntersectionPoint;
-        if(ptParentTransform)
-        {
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &gptGizmoCtx->tOriginalRot, &tCurrentTrans);
-        }
-        else
-            gptGizmoCtx->tOriginalRot = ptSelectedTransform->tRotation;
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &gptGizmoCtx->tOriginalRot, &tCurrentTrans);
         gptGizmoCtx->tState = PL_GIZMO_STATE_Y_ROTATION;
     }
     else if(bZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
         gptGizmoCtx->bActive = true;
         gptGizmoCtx->tOriginalPos = tZIntersectionPoint;
-        if(ptParentTransform)
-        {
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &gptGizmoCtx->tOriginalRot, &tCurrentTrans);
-        }
-        else
-            gptGizmoCtx->tOriginalRot = ptSelectedTransform->tRotation;
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &gptGizmoCtx->tOriginalRot, &tCurrentTrans);
         gptGizmoCtx->tState = PL_GIZMO_STATE_Z_ROTATION;
     }
 
@@ -940,9 +851,9 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransfor
 }
 
 static void
-pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
+pl__gizmo_scale(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plVec2 tViewOffset, plVec2 tViewScale)
 {
-
+    plTransformComponent* ptSelectedTransform = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
     plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
 
     plVec2 tMousePos = gptIOI->get_mouse_pos();
@@ -985,12 +896,23 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
 
     if(gptGizmoCtx->tState != PL_GIZMO_STATE_DEFAULT)
     {
-        float fScaleX = gptGizmoCtx->tState == PL_GIZMO_STATE_X_SCALE ? gptGizmoCtx->fOriginalScaleX + (fXDistanceAlong - gptGizmoCtx->fOriginalDistX) * gptGizmoCtx->fOriginalScaleX : gptGizmoCtx->fOriginalScaleX;
-        float fScaleY = gptGizmoCtx->tState == PL_GIZMO_STATE_Y_SCALE ? gptGizmoCtx->fOriginalScaleY + (fYDistanceAlong - gptGizmoCtx->fOriginalDistY) * gptGizmoCtx->fOriginalScaleY : gptGizmoCtx->fOriginalScaleY;
-        float fScaleZ = gptGizmoCtx->tState == PL_GIZMO_STATE_Z_SCALE ? gptGizmoCtx->fOriginalScaleZ + (fZDistanceAlong - gptGizmoCtx->fOriginalDistZ) * gptGizmoCtx->fOriginalScaleZ : gptGizmoCtx->fOriginalScaleZ;
+        float fDeltaX = (fXDistanceAlong - gptGizmoCtx->fOriginalDistX) / fLength;
+        float fDeltaY = (fYDistanceAlong - gptGizmoCtx->fOriginalDistY) / fLength;
+        float fDeltaZ = (fZDistanceAlong - gptGizmoCtx->fOriginalDistZ) / fLength;
+        float fScaleX = gptGizmoCtx->fOriginalScaleX * (1.0f + fDeltaX);
+        float fScaleY = gptGizmoCtx->fOriginalScaleY * (1.0f + fDeltaY);
+        float fScaleZ = gptGizmoCtx->fOriginalScaleZ * (1.0f + fDeltaZ);
+        // float fScaleX = gptGizmoCtx->tState == PL_GIZMO_STATE_X_SCALE ? gptGizmoCtx->fOriginalScaleX + (fXDistanceAlong - gptGizmoCtx->fOriginalDistX) * gptGizmoCtx->fOriginalScaleX : gptGizmoCtx->fOriginalScaleX;
+        // float fScaleY = gptGizmoCtx->tState == PL_GIZMO_STATE_Y_SCALE ? gptGizmoCtx->fOriginalScaleY + (fYDistanceAlong - gptGizmoCtx->fOriginalDistY) * gptGizmoCtx->fOriginalScaleY : gptGizmoCtx->fOriginalScaleY;
+        // float fScaleZ = gptGizmoCtx->tState == PL_GIZMO_STATE_Z_SCALE ? gptGizmoCtx->fOriginalScaleZ + (fZDistanceAlong - gptGizmoCtx->fOriginalDistZ) * gptGizmoCtx->fOriginalScaleZ : gptGizmoCtx->fOriginalScaleZ;
         if(gptGizmoCtx->tState == PL_GIZMO_STATE_SCALE)
         {
-            float fScale = gptGizmoCtx->fOriginalScaleX + gptGizmoCtx->fOriginalScaleX * pl_length_vec3((plVec3){fXDistanceAlong - gptGizmoCtx->fOriginalDistX, fYDistanceAlong - gptGizmoCtx->fOriginalDistY, fZDistanceAlong - gptGizmoCtx->fOriginalDistZ});
+            // float fScale = gptGizmoCtx->fOriginalScaleX + gptGizmoCtx->fOriginalScaleX * pl_length_vec3((plVec3){fXDistanceAlong - gptGizmoCtx->fOriginalDistX, fYDistanceAlong - gptGizmoCtx->fOriginalDistY, fZDistanceAlong - gptGizmoCtx->fOriginalDistZ});
+            // fScaleX = fScale;
+            // fScaleY = fScale;
+            // fScaleZ = fScale;
+            float fDelta = (fXDistanceAlong - gptGizmoCtx->fOriginalDistX) / fLength;
+            float fScale = gptGizmoCtx->fOriginalScaleX * (1.0f + fDelta);
             fScaleX = fScale;
             fScaleY = fScale;
             fScaleZ = fScale;
@@ -1018,7 +940,7 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
             bXYZSelected ? pl_length_vec3(pl_sub_vec3(*ptCenter, ptCamera->tPositionF)) - fAxisRadius * 4: FLT_MAX
         };
 
-        bool bSomethingSelected = bXSelected || bYSelected || bZSelected | bXYZSelected;
+        bool bSomethingSelected = bXSelected || bYSelected || bZSelected || bXYZSelected;
 
         bXSelected = false;
         bYSelected = false;
@@ -1058,26 +980,15 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
         bZSelected = false;
         bXYZSelected = false;
 
-        if(ptParentTransform)
-        {
+        plVec4 tCurrentRot = {0};
+        plVec3 tCurrentTrans = {0};
+        plVec3 tCurrentScale = {0};
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plVec4 tCurrentRot = {0};
-            plVec3 tCurrentTrans = {0};
-            plVec3 tCurrentScale = {0};
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
+        tCurrentScale.x = gptGizmoCtx->fOriginalScaleX + (fXDistanceAlong - gptGizmoCtx->fOriginalDistX) * gptGizmoCtx->fOriginalScaleX;
 
-            tCurrentScale.x = gptGizmoCtx->fOriginalScaleX + (fXDistanceAlong - gptGizmoCtx->fOriginalDistX) * gptGizmoCtx->fOriginalScaleX;
-
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-
-            plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-            plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-            pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-        }
-        else
-        {
-            ptSelectedTransform->tScale.x = gptGizmoCtx->fOriginalScaleX + (fXDistanceAlong - gptGizmoCtx->fOriginalDistX) * gptGizmoCtx->fOriginalScaleX;
-        }
+        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
+        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
     }
 
 
@@ -1088,27 +999,16 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
         bZSelected = false;
         bXYZSelected = false;
 
-        if(ptParentTransform)
-        {
-
-            plVec4 tCurrentRot = {0};
-            plVec3 tCurrentTrans = {0};
-            plVec3 tCurrentScale = {0};
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
+        plVec4 tCurrentRot = {0};
+        plVec3 tCurrentTrans = {0};
+        plVec3 tCurrentScale = {0};
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
 
-            tCurrentScale.y = gptGizmoCtx->fOriginalScaleY + (fYDistanceAlong - gptGizmoCtx->fOriginalDistY) * gptGizmoCtx->fOriginalScaleY;
+        tCurrentScale.y = gptGizmoCtx->fOriginalScaleY + (fYDistanceAlong - gptGizmoCtx->fOriginalDistY) * gptGizmoCtx->fOriginalScaleY;
 
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-
-            plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-            plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-            pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-        }
-        else
-        {
-            ptSelectedTransform->tScale.y = gptGizmoCtx->fOriginalScaleY + (fYDistanceAlong - gptGizmoCtx->fOriginalDistY) * gptGizmoCtx->fOriginalScaleY;
-        }
+        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
+        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
     }
 
     else if(gptGizmoCtx->tState == PL_GIZMO_STATE_Z_SCALE)
@@ -1118,27 +1018,16 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
         bZSelected = true;
         bXYZSelected = false;
 
-        if(ptParentTransform)
-        {
-
-            plVec4 tCurrentRot = {0};
-            plVec3 tCurrentTrans = {0};
-            plVec3 tCurrentScale = {0};
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
+        plVec4 tCurrentRot = {0};
+        plVec3 tCurrentTrans = {0};
+        plVec3 tCurrentScale = {0};
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
 
-            tCurrentScale.z = gptGizmoCtx->fOriginalScaleZ + (fZDistanceAlong - gptGizmoCtx->fOriginalDistZ) * gptGizmoCtx->fOriginalScaleZ;
+        tCurrentScale.z = gptGizmoCtx->fOriginalScaleZ + (fZDistanceAlong - gptGizmoCtx->fOriginalDistZ) * gptGizmoCtx->fOriginalScaleZ;
 
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-
-            plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-            plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-            pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-        }
-        else
-        {
-            ptSelectedTransform->tScale.z = gptGizmoCtx->fOriginalScaleZ + (fZDistanceAlong - gptGizmoCtx->fOriginalDistZ) * gptGizmoCtx->fOriginalScaleZ;
-        }
+        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
+        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
     }
 
     else if(gptGizmoCtx->tState == PL_GIZMO_STATE_SCALE)
@@ -1148,38 +1037,20 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
         bZSelected = false;
         bXYZSelected = true;
 
-        if(ptParentTransform)
-        {
+        plVec4 tCurrentRot = {0};
+        plVec3 tCurrentTrans = {0};
+        plVec3 tCurrentScale = {0};
+        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
 
-            plVec4 tCurrentRot = {0};
-            plVec3 tCurrentTrans = {0};
-            plVec3 tCurrentScale = {0};
-            pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-            if(fYDistanceAlong - gptGizmoCtx->fOriginalDistY > 0)
-                tCurrentScale.x = gptGizmoCtx->fOriginalScaleX + pl_length_vec3(pl_sub_vec3(tXYZIntersectionPoint, gptGizmoCtx->tOriginalPos)) * gptGizmoCtx->fOriginalScaleX;
-            else
-                tCurrentScale.x = gptGizmoCtx->fOriginalScaleX - pl_length_vec3(pl_sub_vec3(tXYZIntersectionPoint, gptGizmoCtx->tOriginalPos)) * gptGizmoCtx->fOriginalScaleX;
-            tCurrentScale.y = tCurrentScale.x;
-            tCurrentScale.z = tCurrentScale.x;
-
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-
-            plMat4 tInvParent = pl_mat4_invert(&ptParentTransform->tWorld);
-            plMat4 tChildWorld = pl_mul_mat4(&tInvParent, &tDesired);
-            pl_decompose_matrix(&tChildWorld, &ptSelectedTransform->tScale, &ptSelectedTransform->tRotation, &ptSelectedTransform->tTranslation);
-        }
+        if(fYDistanceAlong - gptGizmoCtx->fOriginalDistY > 0)
+            tCurrentScale.x = gptGizmoCtx->fOriginalScaleX + pl_length_vec3(pl_sub_vec3(tXYZIntersectionPoint, gptGizmoCtx->tOriginalPos)) * gptGizmoCtx->fOriginalScaleX;
         else
-        {
-            if(fYDistanceAlong - gptGizmoCtx->fOriginalDistY > 0)
-                ptSelectedTransform->tScale.x = gptGizmoCtx->fOriginalScaleX + pl_length_vec3(pl_sub_vec3(tXYZIntersectionPoint, gptGizmoCtx->tOriginalPos)) * gptGizmoCtx->fOriginalScaleX;
-            else
-                ptSelectedTransform->tScale.x = gptGizmoCtx->fOriginalScaleX - pl_length_vec3(pl_sub_vec3(tXYZIntersectionPoint, gptGizmoCtx->tOriginalPos)) * gptGizmoCtx->fOriginalScaleX;
-            ptSelectedTransform->tScale.y = ptSelectedTransform->tScale.x;
-            ptSelectedTransform->tScale.z = ptSelectedTransform->tScale.x;
+            tCurrentScale.x = gptGizmoCtx->fOriginalScaleX - pl_length_vec3(pl_sub_vec3(tXYZIntersectionPoint, gptGizmoCtx->tOriginalPos)) * gptGizmoCtx->fOriginalScaleX;
+        tCurrentScale.y = tCurrentScale.x;
+        tCurrentScale.z = tCurrentScale.x;
 
-
-        }
+        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
+        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
     }
 
     plVec4 tCurrentRot = {0};
@@ -1197,7 +1068,7 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
         gptGizmoCtx->fOriginalDistX = fXDistanceAlong;
         gptGizmoCtx->fOriginalDistY = fYDistanceAlong;
         gptGizmoCtx->fOriginalDistZ = fZDistanceAlong;
-        gptGizmoCtx->tOriginalPos = *ptCenter;
+        gptGizmoCtx->tOriginalPos = tXYZIntersectionPoint;
         gptGizmoCtx->tState = PL_GIZMO_STATE_X_SCALE;
     }
     else if(bYSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
@@ -1209,7 +1080,7 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
         gptGizmoCtx->fOriginalDistX = fXDistanceAlong;
         gptGizmoCtx->fOriginalDistY = fYDistanceAlong;
         gptGizmoCtx->fOriginalDistZ = fZDistanceAlong;
-        gptGizmoCtx->tOriginalPos = *ptCenter;
+        gptGizmoCtx->tOriginalPos = tXYZIntersectionPoint;
         gptGizmoCtx->tState = PL_GIZMO_STATE_Y_SCALE;
     }
     else if(bZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
@@ -1221,7 +1092,7 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
         gptGizmoCtx->fOriginalDistX = fXDistanceAlong;
         gptGizmoCtx->fOriginalDistY = fYDistanceAlong;
         gptGizmoCtx->fOriginalDistZ = fZDistanceAlong;
-        gptGizmoCtx->tOriginalPos = *ptCenter;
+        gptGizmoCtx->tOriginalPos = tXYZIntersectionPoint;
         gptGizmoCtx->tState = PL_GIZMO_STATE_Z_SCALE;
     }
     else if(bXYZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
@@ -1230,14 +1101,14 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
         gptGizmoCtx->fOriginalScaleX = tCurrentScale.x;
         gptGizmoCtx->fOriginalScaleY = tCurrentScale.y;
         gptGizmoCtx->fOriginalScaleZ = tCurrentScale.z;
-        gptGizmoCtx->tOriginalPos = *ptCenter;
+        gptGizmoCtx->tOriginalPos = tXYZIntersectionPoint;
         gptGizmoCtx->tState = PL_GIZMO_STATE_SCALE;
     }
 
     if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
     {
         gptGizmoCtx->bActive = false;
-        gptGizmoCtx->tOriginalPos = *ptCenter;
+        gptGizmoCtx->tOriginalPos = tXYZIntersectionPoint;
         gptGizmoCtx->tState = PL_GIZMO_STATE_DEFAULT;
     }
 
@@ -1325,6 +1196,7 @@ pl_load_gizmo_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptDraw      = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptCollision = pl_get_api_latest(ptApiRegistry, plCollisionI);
     gptTransform = pl_get_api_latest(ptApiRegistry, plTransformI);
+    gptEcs       = pl_get_api_latest(ptApiRegistry, plEcsI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
     if(bReload)
