@@ -453,7 +453,6 @@ typedef struct _plIO
     // frame rate calcs
     float _afFrameRateSecPerFrame[120];
     int   _iFrameRateSecPerFrameIdx;
-    int   _iFrameRateSecPerFrameCount;
     float _fFrameRateSecPerFrameAccum;
 
     #ifdef __cplusplus

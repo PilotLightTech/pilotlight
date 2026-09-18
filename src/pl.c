@@ -545,10 +545,7 @@ pl_set_string(plDataObject* ptWriter, uint32_t uProperty, const char* pcValue)
         {
             pl_hm_remove_str(&gtHashmap, pcValue);
         }
-        else
-        {
-            pl_hm_insert_str(&gtHashmap, pcValue, ptWriter->tId.ulData);
-        }
+        pl_hm_insert_str(&gtHashmap, pcValue, ptWriter->tId.ulData);
     }
 }
 
@@ -704,6 +701,7 @@ pl_unload_extension(const char* pcName)
     {
         if(strcmp(pcName, gsbtExtensions[i].pcLibName) == 0)
         {
+            const bool bReloadable = gsbtExtensions[i].bReloadable;
             gsbtExtensions[i].pl_unload(ptApiRegistry, false);
             PL_FREE(gsbptLibs[i]);
             gsbptLibs[i] = NULL;
@@ -711,7 +709,7 @@ pl_unload_extension(const char* pcName)
             pl_sb_del_swap(gsbptLibs, i);
 
             // remove from hot libs if reloadable
-            if(gsbtExtensions[i].bReloadable)
+            if(bReloadable)
             {
                 for(uint32_t j = 0; j < uHotLibCount; j++)
                 {
@@ -1335,10 +1333,9 @@ pl_new_frame(void)
     gtIO._fFrameRateSecPerFrameAccum += gtIO.fDeltaTime - gtIO._afFrameRateSecPerFrame[gtIO._iFrameRateSecPerFrameIdx];
     gtIO._afFrameRateSecPerFrame[gtIO._iFrameRateSecPerFrameIdx] = gtIO.fDeltaTime;
     gtIO._iFrameRateSecPerFrameIdx = (gtIO._iFrameRateSecPerFrameIdx + 1) % 120;
-    gtIO._iFrameRateSecPerFrameCount = pl_max(gtIO._iFrameRateSecPerFrameCount, 120);
     gtIO.fFrameRate = FLT_MAX;
     if(gtIO._fFrameRateSecPerFrameAccum > 0)
-        gtIO.fFrameRate = ((float) gtIO._iFrameRateSecPerFrameCount) / gtIO._fFrameRateSecPerFrameAccum;
+        gtIO.fFrameRate = 120.0f / gtIO._fFrameRateSecPerFrameAccum;
 
     // handle events
     pl__update_events();
@@ -1577,7 +1574,7 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
             #else
             pNewBuffer = realloc(pBuffer, szSize);
             #endif
-            memset(pNewBuffer, 0, szSize);
+            // memset(pNewBuffer, 0, szSize);
             PL_ASSERT(pNewBuffer);
         }
     
