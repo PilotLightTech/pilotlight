@@ -87,11 +87,12 @@ typedef struct _plMeshI
     plAssetTypeKey (*get_asset_type_key)  (void);
 
     // operations
-    void (*allocate)            (plMesh*, const plSubmeshAllocationDesc*, uint32_t count);
-    void (*cleanup)             (plMesh*);
-    void (*calculate_normals)   (plMesh*);
-    void (*calculate_tangents)  (plMesh*);
-    void (*calculate_bounds)    (plMesh*);
+    void (*allocate)          (plMesh*, const plSubmeshAllocationDesc*, uint32_t count);
+    void (*cleanup)           (plMesh*);
+    void (*calculate_normals) (plMesh*);
+    void (*calculate_tangents)(plMesh*);
+    void (*calculate_bounds)  (plMesh*);
+    bool (*generate_indices)  (plMesh*);
     // void (*split_submeshes)     (plMesh*, plMesh* meshesOut);
 
     // helpers

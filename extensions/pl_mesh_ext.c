@@ -570,6 +570,95 @@ pl_mesh_calculate_bounds(plMesh* ptMesh)
 }
 
 void
+pl__mesh_cleanup(void* pMesh)
+{
+    plMesh* ptMesh = pMesh;
+    if(ptMesh->puRawData)
+    {
+        PL_FREE(ptMesh->puRawData);
+        ptMesh->puRawData = NULL;
+    }
+    ptMesh->atSubmeshes = NULL;
+    ptMesh->uSubmeshCount = 0;
+    ptMesh->szRawDataSize = 0;
+    ptMesh->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
+    ptMesh->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
+}
+
+bool
+pl_mesh_generate_indices(plMesh* ptMesh)
+{
+    // check if indices are needed
+    bool bIndicesNeeded = false;
+    for(uint32_t i = 0; i < ptMesh->uSubmeshCount; i++)
+    {
+        if(ptMesh->atSubmeshes[i].szIndexCount == 0)
+        {
+            bIndicesNeeded = true;
+            break;
+        }
+    }
+
+    if(!bIndicesNeeded)
+        return false;
+
+    plSubmeshAllocationDesc* atSubmeshAllocDescs = PL_ALLOC(sizeof(plSubmeshAllocationDesc) * ptMesh->uSubmeshCount);
+    memset(atSubmeshAllocDescs, 0, sizeof(plSubmeshAllocationDesc) * ptMesh->uSubmeshCount);
+
+    for(uint32_t i = 0; i < ptMesh->uSubmeshCount; i++)
+    {
+        atSubmeshAllocDescs[i].uVertexStreamMask = ptMesh->atSubmeshes[i].uVertexStreamMask;
+        atSubmeshAllocDescs[i].szVertexCount = ptMesh->atSubmeshes[i].szVertexCount;
+        atSubmeshAllocDescs[i].szIndexCount = ptMesh->atSubmeshes[i].szIndexCount;
+        if(ptMesh->atSubmeshes[i].szIndexCount == 0)
+        {
+            atSubmeshAllocDescs[i].szIndexCount = ptMesh->atSubmeshes[i].szVertexCount;
+        }
+    }
+
+    plMesh tNewMesh = {0};
+    pl_mesh_allocate(&tNewMesh, atSubmeshAllocDescs, ptMesh->uSubmeshCount);
+    PL_FREE(atSubmeshAllocDescs);
+    atSubmeshAllocDescs = NULL;
+    tNewMesh.tAABB = ptMesh->tAABB;
+
+    for(uint32_t i = 0; i < ptMesh->uSubmeshCount; i++)
+    {
+        plSubmesh* ptNewSubmesh = &tNewMesh.atSubmeshes[i];
+        plSubmesh* ptOldSubmesh = &ptMesh->atSubmeshes[i];
+        
+        ptNewSubmesh->tMaterial = ptOldSubmesh->tMaterial;
+        ptNewSubmesh->tAABB = ptOldSubmesh->tAABB;
+
+        if(ptNewSubmesh->ptVertexPositions)             memcpy(ptNewSubmesh->ptVertexPositions, ptOldSubmesh->ptVertexPositions, sizeof(plVec3) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexNormals)               memcpy(ptNewSubmesh->ptVertexNormals, ptOldSubmesh->ptVertexNormals, sizeof(plVec3) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexTangents)              memcpy(ptNewSubmesh->ptVertexTangents, ptOldSubmesh->ptVertexTangents, sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexColors[0])             memcpy(ptNewSubmesh->ptVertexColors[0], ptOldSubmesh->ptVertexColors[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexColors[1])             memcpy(ptNewSubmesh->ptVertexColors[1], ptOldSubmesh->ptVertexColors[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexWeights[0])            memcpy(ptNewSubmesh->ptVertexWeights[0], ptOldSubmesh->ptVertexWeights[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexWeights[1])            memcpy(ptNewSubmesh->ptVertexWeights[1], ptOldSubmesh->ptVertexWeights[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexJoints[0])             memcpy(ptNewSubmesh->ptVertexJoints[0], ptOldSubmesh->ptVertexJoints[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexJoints[1])             memcpy(ptNewSubmesh->ptVertexJoints[1], ptOldSubmesh->ptVertexJoints[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexTextureCoordinates[0]) memcpy(ptNewSubmesh->ptVertexTextureCoordinates[0], ptOldSubmesh->ptVertexTextureCoordinates[0], sizeof(plVec2) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexTextureCoordinates[1]) memcpy(ptNewSubmesh->ptVertexTextureCoordinates[1], ptOldSubmesh->ptVertexTextureCoordinates[1], sizeof(plVec2) * ptOldSubmesh->szVertexCount);
+
+        if(ptOldSubmesh->puIndices)
+            memcpy(ptNewSubmesh->puIndices, ptOldSubmesh->puIndices, sizeof(uint32_t) * ptOldSubmesh->szIndexCount);
+        else
+        {
+            for(uint32_t j = 0; j < ptOldSubmesh->szVertexCount; j++)
+            {
+                ptNewSubmesh->puIndices[j] = j;
+            }
+        }
+    }
+
+    pl__mesh_cleanup(ptMesh);
+    *ptMesh = tNewMesh;
+    return true;
+}
+
+void
 pl_mesh_allocate(plMesh* ptMesh, const plSubmeshAllocationDesc* atAllocDesc, uint32_t uCount)
 {
 
@@ -679,22 +768,6 @@ pl_mesh_allocate(plMesh* ptMesh, const plSubmeshAllocationDesc* atAllocDesc, uin
         }
     }
 
-    ptMesh->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
-    ptMesh->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
-}
-
-void
-pl__mesh_cleanup(void* pMesh)
-{
-    plMesh* ptMesh = pMesh;
-    if(ptMesh->puRawData)
-    {
-        PL_FREE(ptMesh->puRawData);
-        ptMesh->puRawData = NULL;
-    }
-    ptMesh->atSubmeshes = NULL;
-    ptMesh->uSubmeshCount = 0;
-    ptMesh->szRawDataSize = 0;
     ptMesh->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
     ptMesh->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
 }
@@ -1165,6 +1238,7 @@ pl_load_mesh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .calculate_bounds      = pl_mesh_calculate_bounds,
         .allocate              = pl_mesh_allocate,
         .cleanup               = pl_mesh_cleanup,
+        .generate_indices      = pl_mesh_generate_indices,
     };
     pl_set_api(ptApiRegistry, plMeshI, &ptApi0);
 
