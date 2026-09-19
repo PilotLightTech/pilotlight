@@ -264,8 +264,6 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     plFreeListNode* ptVertexBufferNode = gptFreeList->get_node(&ptScene->tVertexBufferFreeList, (uint32_t)ptMesh->atSubmeshes->szVertexCount * sizeof(plVec3));
 
     const plDrawable tDrawable = {
-        .uIndexCount     = (uint32_t)ptMesh->atSubmeshes->szIndexCount,
-        .uVertexCount    = (uint32_t)ptMesh->atSubmeshes->szVertexCount,
         .uIndexOffset    = (uint32_t)(ptIndexBufferNode->uOffset / sizeof(uint32_t)),
         .uVertexOffset   = (uint32_t)(ptVertexBufferNode->uOffset / sizeof(plVec3)),
         .uTransformIndex = ptScene->uNextTransformIndex++,
@@ -2134,8 +2132,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     
     plCullData tCullData = {
         .ptScene      = ptScene,
-        .ptCullCamera = ptCullCamera,
-        .atDrawables  = ptScene->sbtDrawables
+        .ptCullCamera = ptCullCamera
     };
     if(ptCullCamera && ptCullCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
         pl__camera_build_perspective_frustum(ptCullCamera, &tCullData.tFrustum);

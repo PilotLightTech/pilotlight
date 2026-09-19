@@ -238,23 +238,18 @@ typedef struct _plVisibleDrawable
 typedef struct _plDrawable
 {
     // hot (normal draw)
-    uint32_t       uDataOffset;
-    uint32_t       uStaticVertexOffset;
-    uint32_t       uDynamicVertexOffset;
-    uint32_t       uMaterialIndex;
-    plBufferHandle tIndexBuffer;
-    uint32_t       uIndexOffset;
-    uint32_t       uTriangleCount;
-    uint32_t       uTransformIndex;
-    uint32_t       uInstanceCount;
+    uint32_t uDataOffset;
+    uint32_t uVertexOffset;
+    uint32_t uMaterialIndex;
+    uint32_t uIndexOffset;
+    uint32_t uTriangleCount;
+    uint32_t uInstanceCount;
+    uint32_t uTransformIndex;
+    uint32_t uInstanceIndex; // used in shadows
 
     // cold
     plDrawableFlags tFlags;
     plEntity        tEntity;
-    uint32_t        uVertexOffset;
-    uint32_t        uVertexCount;
-    uint32_t        uIndexCount;
-    uint32_t        uInstanceIndex;
     uint32_t        uSkinIndex;
     uint32_t        uSubmeshIndex;
     bool            bCulled;
@@ -393,7 +388,6 @@ typedef struct _plView
     bool bFrozenCamera;
     bool bShowOrigin;
     plCamera tCullCamera;
-
     bool bShowGrid;
     bool bShowSelectedBoundingBox;
     uint32_t uOutlineWidth;
@@ -671,7 +665,6 @@ typedef struct _plCullData
 {
     plScene*        ptScene;
     const plCamera* ptCullCamera;
-    plDrawable*     atDrawables;
     plFrustum       tFrustum;
     plSphere        tSphere;
     plCone          tCone;
