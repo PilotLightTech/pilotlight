@@ -248,12 +248,10 @@ pl_ui_get_default_font(void)
 void
 pl_ui_set_keyboard_focus_last_item(void)
 {
-    gptCtx->tInputTextState.uId = gptCtx->tPrevItemData.uHash;
-    gptCtx->uNavId = gptCtx->tPrevItemData.uHash;
-    gptCtx->uActiveId = gptCtx->tPrevItemData.uHash;
-    gptCtx->uActiveIdIsAlive = gptCtx->tPrevItemData.uHash;
-    gptCtx->bActiveIdJustActivated = true;
-    gptCtx->uHoveredId = gptCtx->tPrevItemData.uHash;
+    const uint32_t uHash = gptCtx->tPrevItemData.uHash;
+    pl__set_nav_id(uHash, gptCtx->ptCurrentWindow);
+    pl__set_active_id(uHash, gptCtx->ptCurrentWindow);
+    gptCtx->uHoveredId = uHash;
 }
 
 void

@@ -113,6 +113,9 @@ pl__is_word_boundary_from_right(plUiInputTextState* obj, int idx)
     // if ((obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_PASSWORD) || idx <= 0)
     //     return 0;
 
+    if(idx <= 0)
+        return 0;
+
     bool prev_white = pl__char_is_blank_w(obj->sbTextW[idx - 1]);
     bool prev_separ = pl__is_separator(obj->sbTextW[idx - 1]);
     bool curr_white = pl__char_is_blank_w(obj->sbTextW[idx]);
@@ -2243,7 +2246,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     const bool bIsMultiLine = (tFlags & PL_UI_INPUT_TEXT_FLAGS_MULTILINE) != 0;
     const bool bIsReadOnly  = (tFlags & PL_UI_INPUT_TEXT_FLAGS_READ_ONLY) != 0;
     const bool bIsPassword  = (tFlags & PL_UI_INPUT_TEXT_FLAGS_PASSWORD) != 0;
-    const bool bIsUndoable  = (tFlags & PL_UI_INPUT_TEXT_FLAGS_NO_UNDO_REDO) != 0;
+    const bool bIsUndoable  = (tFlags & PL_UI_INPUT_TEXT_FLAGS_NO_UNDO_REDO) == 0;
     const bool bIsResizable = (tFlags & PL_UI_INPUT_TEXT_FLAGS_CALLBACK_RESIZE) != 0;
 
     const plVec2 tFrameStartPos = *ptStartPos;
@@ -2279,6 +2282,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
 
     // TODO: scroll stuff
     const bool bUserClicked = bHovered && gptIOI->is_mouse_clicked(0, false);
+    const bool bActiveWithoutState = gptCtx->uActiveId == uHash && ptState == NULL;
     const bool bUserScrollFinish = false; // bIsMultiLine && ptState != NULL && gptCtx->uNextActiveId == 0 && gptCtx->uActiveId == GetWindowScrollbarID(ptDrawWindow, ImGuiAxis_Y);
     const bool bUserScrollActive = false; // bIsMultiLine && ptState != NULL && gptCtx->uNextActiveId == GetWindowScrollbarID(ptDrawWindow, ImGuiAxis_Y);
 
@@ -2290,7 +2294,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     const bool bInitChangedSpecs = (ptState != NULL && ptState->tStb.single_line != !bIsMultiLine); // state != NULL means its our state.
     const bool bInitMakeActive = (bUserClicked || bUserScrollFinish);
     const bool bInitState = (bInitMakeActive || bUserScrollActive);
-    if((bUserClicked && gptCtx->uActiveId != uHash) || bInitChangedSpecs)
+    if((bUserClicked && gptCtx->uActiveId != uHash) || bActiveWithoutState || bInitChangedSpecs)
     {
         // Access state even if we don't own it yet.
         ptState = &gptCtx->tInputTextState;
@@ -2529,9 +2533,9 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         // Otherwise we could simply assume that we own the keys as we are active.
         // const ImGuiInputFlags bRepeat = ImGuiInputFlags_Repeat;
         const bool bRepeat = false;
-        const bool bIsCut   = (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_X, bRepeat)) || (gptIO->bKeyShift && gptIOI->is_key_pressed(PL_KEY_DELETE, bRepeat)) && !bIsReadOnly && !bIsPassword && (!bIsMultiLine || pl__text_state_has_selection(ptState));
-        const bool bIsCopy  = (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_C, bRepeat)) || (gptIO->bKeyCtrl  && gptIOI->is_key_pressed(PL_KEY_INSERT, bRepeat)) && !bIsPassword && (!bIsMultiLine || pl__text_state_has_selection(ptState));
-        const bool bIsPaste = (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_V, bRepeat)) || ((gptIO->bKeyShift && gptIOI->is_key_pressed(PL_KEY_INSERT, bRepeat)) && !bIsReadOnly);
+        const bool bIsCut = ((gptIO->bKeyCtrl  && gptIOI->is_key_pressed(PL_KEY_X, bRepeat)) || (gptIO->bKeyShift && gptIOI->is_key_pressed(PL_KEY_DELETE, bRepeat))) && !bIsReadOnly && !bIsPassword && (!bIsMultiLine || pl__text_state_has_selection(ptState));
+        const bool bIsCopy = ((gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_C, bRepeat)) || (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_INSERT, bRepeat))) && !bIsPassword && (!bIsMultiLine || pl__text_state_has_selection(ptState));
+        const bool bIsPaste = ((gptIO->bKeyCtrl  && gptIOI->is_key_pressed(PL_KEY_V, bRepeat)) || (gptIO->bKeyShift && gptIOI->is_key_pressed(PL_KEY_INSERT, bRepeat))) && !bIsReadOnly;
         const bool bIsUndo  = (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_Z, bRepeat)) && !bIsReadOnly && bIsUndoable;
         const bool bIsRedo =  (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_Y, bRepeat)) || (bIsOsX && gptIO->bKeyShift && gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_Z, bRepeat)) && !bIsReadOnly && bIsUndoable;
         const bool bIsSelectAll = gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_A, bRepeat);
@@ -2853,7 +2857,12 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         //IMGUI_DEBUG_PRINT("InputText(\"%s\"): apply_new_text length %d\n", label, apply_new_text_length);
 
         // If the underlying buffer resize was denied or not carried to the next frame, apply_new_text_length+1 may be >= buf_size.
-        strncpy(pcBuffer, pcApplyNewText, pl_min(iApplyNewTextLength + 1, szBufferSize));
+        if(szBufferSize > 0)
+        {
+            const size_t szCopy = pl_min((size_t)iApplyNewTextLength, szBufferSize - 1);
+            memcpy(pcBuffer, pcApplyNewText, szCopy);
+            pcBuffer[szCopy] = '\0';
+        }
     }
 
     // Release active ID at the end of the function (so e.g. pressing Return still does a final application of the value)
