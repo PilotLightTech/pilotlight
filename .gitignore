@@ -40,13 +40,9 @@ assets/animations/*
 assets/skins/*
 
 assets/textures/*
-!assets/textures/damaged_helmet_albedo.pltexture
-!assets/textures/damaged_helmet_emissive.pltexture
-!assets/textures/damaged_helmet_metal_roughness.pltexture
-!assets/textures/damaged_helmet_normal.pltexture
-!assets/textures/damaged_helmet_occlusion.pltexture
 !assets/textures/skybox.pltexture
 !assets/textures/mountains.pltexture
+!assets/textures/default.pltexture
 
 # resources
 resources/development

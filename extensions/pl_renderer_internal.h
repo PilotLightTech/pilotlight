@@ -519,9 +519,9 @@ typedef struct _plScene
     plFreeList tShadowCameraFreeList;
 
     // material helpers & hashmaps (material component <-> GPU material)
-    plMaterial*          sbtMaterials;
-    plFreeListNode**     sbtMaterialNodes;
-    uint64_t             uMaterialDirtyValue;
+    plMaterial*      sbtMaterials;
+    plFreeListNode** sbtMaterialNodes;
+    plAssetHandle*   sbtDirtyMaterials;
 
     // shadows
     plGpuPointLightShadow* sbtPointLightShadowData;
@@ -733,8 +733,8 @@ static void     pl__renderer_scene_update_bindgroups         (plScene*);
 static void     pl__renderer_scene_create_brdf_lut           (plScene*);
 static void     pl__renderer_scene_create_sky_luts_textures  (plScene*);
 static void     pl__renderer_scene_update_sky_luts_bindgroups(plScene*);
-static uint64_t pl__renderer_add_material_to_scene           (plScene*, plAssetHandle);
-static void     pl__renderer_scene_load_skybox_from_panorama(plScene*, const char* path, int res);
+static void     pl__renderer_scene_load_skybox_from_panorama (plScene*, const char* path, int res);
+static uint32_t pl__renderer_get_or_create_material_slot     (plScene*, plAssetHandle);
 
 // view helpers
 static void pl__renderer_view_create_textures           (plView*);
@@ -762,5 +762,6 @@ static void pl__renderer_add_lights_to_scene          (plScene*, uint32_t count,
 plBindGroupHandle pl_renderer_get_view_color_bind_group  (plView* ptView, plVec2* ptMaxUVOut);
 void              pl_renderer_editor_reload_scene_shaders(plScene*);
 void              pl_renderer_editor_rebuild_scene_bvh   (plScene*);
+void              pl_renderer_update_scene_material      (plScene*, plAssetHandle);
 
 #endif // PL_RENDERER_INTERNAL_H

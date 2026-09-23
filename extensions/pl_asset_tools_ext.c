@@ -171,7 +171,7 @@ typedef struct _plAssetToolSelectData
 typedef struct _plEcsToolsContext
 {
     char* sbcBuffer;
-    bool bShowTool;
+    bool  bShowTool;
 
     // asset data
     plUiTextFilter tAssetFilter;
@@ -181,6 +181,7 @@ typedef struct _plEcsToolsContext
 
     plAssetToolSelectData* sbtSelectionData;
     uint32_t* sbuSelectionData;
+
 } plEcsToolsContext;
 
 //-----------------------------------------------------------------------------
@@ -1066,6 +1067,7 @@ pl_asset_tools_show_assets(bool* bValue)
         if(tAssetType != gptEcs->get_asset_type_key() && gptUI->begin_window(gptAsset->get_path(tAssetHandle), &ptSelectionData->bSelected, 0))
         {
             const plVec2 tWindowSize = gptUI->get_window_size();
+            const plVec2 tWindowPos = gptUI->get_window_pos();
 
             gptUI->layout_dynamic(0.0f, 1);
 
@@ -1233,11 +1235,76 @@ pl_asset_tools_show_assets(bool* bValue)
 
                     for(uint32_t i = 0; i < PL_MATERIAL_TEXTURE_SLOT_COUNT; i++)
                     {
-                        if(gptAsset->is_valid(ptMaterial->atTextures[i].tTexture))
+                        bool bTextureActive = gptAsset->is_valid(ptMaterial->atTextures[i].tTexture);
+                        if(!bTextureActive)
+                        {
+                            bool bPlaceHolder = false;
+                            if(gptUI->checkbox(apcTextureSlotNames[i], &bPlaceHolder))
+                            {
+                                ptMaterial->atTextures[i].tTexture = gptAsset->find("/assets/textures/default.pltexture");
+                                ptMaterial->atTextures[i].uUVSet = 0;
+                                ptMaterial->atTextures[i].tScale = (plVec2){1.0f, 1.0f};
+                                ptMaterial->atTextures[i].tOffset = (plVec2){0.0f, 0.0f};
+                                ptMaterial->atTextures[i].fRotation = 0.0f;
+                            }
+                        }
+
+                        else
                         {
                             if(gptUI->tree_node(apcTextureSlotNames[i], 0))
                             {
+
+                                if(gptUI->button("Select Texture"))
+                                {
+                                    gptUI->open_popup("Select Texture Popup", 0);
+                                }
+
+                                if(gptUI->button("Disable"))
+                                {
+                                    ptMaterial->atTextures[i].tTexture.uData = 0;
+                                }
+
                                 gptUI->labeled_text("Texture", "%s", gptAsset->get_path(ptMaterial->atTextures[i].tTexture));
+
+                                if(gptUI->is_popup_open("Select Texture Popup"))
+                                {
+                                    // plVec2 tCurrentCursorPos = gptUI->get_cursor_pos();
+                                    uint32_t uTypeAssetCount = 0;
+                                    const plAssetHandle* atTypeAssetHandles = gptAsset->get_assets_by_type(gptTexture->get_asset_type_key(), &uTypeAssetCount);
+
+                                    gptUI->set_next_window_pos((plVec2){tWindowPos.x + 0.10f * tWindowSize.x, tWindowPos.y + 0.10f * tWindowSize.y}, PL_UI_COND_ALWAYS);
+                                    gptUI->set_next_window_size((plVec2){0.80f * tWindowSize.x, 0.80f * tWindowSize.y}, PL_UI_COND_ALWAYS);
+
+                                    if(gptUI->begin_popup("Select Texture Popup", 0))
+                                    {
+                                        const plVec2 tPopupWindowSize = gptUI->get_window_size();
+
+                                        gptUI->layout_dynamic(tPopupWindowSize.y - 80.0f, 1);
+
+                                        if(gptUI->begin_child("Select Assets", 0, 0))
+                                        {
+                                            gptUI->layout_dynamic(0.0f, 1);
+
+                                            plUiClipper tClipper = {uTypeAssetCount};
+                                            while(gptUI->step_clipper(&tClipper))
+                                            {
+                                                for(uint32_t j = tClipper.uDisplayStart; j < tClipper.uDisplayEnd; j++)
+                                                {
+                                                    bool bPlaceholder = false;
+                                                    if(gptUI->selectable(gptAsset->get_path(atTypeAssetHandles[j]), &bPlaceholder, 0))
+                                                    {
+                                                        ptMaterial->atTextures[i].tTexture = atTypeAssetHandles[j];
+                                                        gptUI->close_current_popup();
+                                                    }
+                                                }
+                                            }
+
+                                            gptUI->end_child();
+                                        }
+                                        gptUI->end_popup();
+                                    }
+                                }
+
                                 gptUI->slider_uint("UV Set", &ptMaterial->atTextures[i].uUVSet, 0, 1, 0);
                                 gptUI->input_float2("Offset", ptMaterial->atTextures[i].tOffset.d, "%g", 0);
                                 gptUI->input_float2("Scale", ptMaterial->atTextures[i].tScale.d, "%g", 0);

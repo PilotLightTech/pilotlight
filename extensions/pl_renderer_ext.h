@@ -188,8 +188,7 @@ typedef struct _plRendererI
     void (*render_debug_view)(plView*, const plRenderViewDesc*);
 
     // materials
-    void (*add_materials_to_scene)(plScene*, uint32_t count, const plAssetHandle* materials);
-    void (*update_scene_materials)(plScene*, uint32_t count, const plAssetHandle* materials);
+    void (*update_scene_material)(plScene*, plAssetHandle);
 
     // assets
     void           (*register_asset_types)(void);

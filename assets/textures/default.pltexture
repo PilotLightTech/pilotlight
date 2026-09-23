@@ -1,0 +1,10 @@
+{    
+    "file_format": "pltexture", 
+    "version": 1, 
+    "type": "2d", 
+    "color_space": "srgb", 
+    "format": "PL_FORMAT_BC3_UNORM", 
+    "generate_mips": false, 
+    "compress": true, 
+    "source": "/resources/grass.png"
+}
