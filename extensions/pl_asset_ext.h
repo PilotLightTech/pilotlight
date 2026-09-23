@@ -101,7 +101,8 @@ typedef struct _plAssetI
     uint32_t               (*get_type_descriptions)(const plAssetTypeDesc**);
 
     // tooling
-    const plAssetHandle* (*get_assets)(uint32_t*); // do not store
+    const plAssetHandle* (*get_assets)        (uint32_t*); // do not store
+    const plAssetHandle* (*get_assets_by_type)(plAssetTypeKey, uint32_t*); // do not store
 } plAssetI;
 
 //-----------------------------------------------------------------------------

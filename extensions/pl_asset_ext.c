@@ -89,7 +89,9 @@ typedef struct _plAssetContext
     plAssetTypeDesc*       sbtTypeUserDescriptions;
 
     plAssetHandle* sbtToolingAssets; // for retrieval
+    plAssetHandle* sbtToolingAssetsByType; // for retrieval
     bool           bToolsDirty;
+    plAssetTypeKey tTooledType;
 } plAssetContext;
 
 //-----------------------------------------------------------------------------
@@ -180,10 +182,6 @@ pl_asset_get_type_descriptions(const plAssetTypeDesc** pptAssetDescOut)
 const plAssetHandle*
 pl_asset_get_assets(uint32_t* puSizeOut)
 {
-    if(puSizeOut)
-    {
-        *puSizeOut = pl_sb_size(gptAssetCtx->sbtToolingAssets);
-    };
 
     if(gptAssetCtx->bToolsDirty)
     {
@@ -203,8 +201,70 @@ pl_asset_get_assets(uint32_t* puSizeOut)
         gptAssetCtx->bToolsDirty = false;
     }
 
+    if(puSizeOut)
+    {
+        *puSizeOut = pl_sb_size(gptAssetCtx->sbtToolingAssets);
+    };
 
     return gptAssetCtx->sbtToolingAssets;
+}
+
+const plAssetHandle*
+pl_asset_get_assets_by_type(plAssetTypeKey tType, uint32_t* puSizeOut)
+{
+
+    bool bAssetByTypeDirty = false;
+
+    if(gptAssetCtx->bToolsDirty)
+    {
+        bAssetByTypeDirty = true;
+
+        const uint32_t uRawSize = pl_sb_size(gptAssetCtx->sbtAssets);
+        pl_sb_reset(gptAssetCtx->sbtToolingAssets);
+        
+        for(uint32_t i = 1; i < uRawSize; i++)
+        {
+            if(gptAssetCtx->sbtAssets[i].uDataIndex != UINT32_MAX)
+            {
+                plAssetHandle tAssetHandle = {
+                    .uIndex = i,
+                    .uGeneration = gptAssetCtx->sbtAssetGenerations[i]
+                };
+                pl_sb_push(gptAssetCtx->sbtToolingAssets, tAssetHandle);
+            }
+        }
+        gptAssetCtx->bToolsDirty = false;
+    }
+
+    if(gptAssetCtx->tTooledType != tType)
+        bAssetByTypeDirty = true;
+
+    if(bAssetByTypeDirty)
+    {
+        const uint32_t uRawSize = pl_sb_size(gptAssetCtx->sbtAssets);
+        pl_sb_reset(gptAssetCtx->sbtToolingAssetsByType);
+
+        for(uint32_t i = 1; i < uRawSize; i++)
+        {
+            if(gptAssetCtx->sbtAssets[i].uDataIndex != UINT32_MAX && gptAssetCtx->sbtAssets[i].tType == tType)
+            {
+                plAssetHandle tAssetHandle = {
+                    .uIndex = i,
+                    .uGeneration = gptAssetCtx->sbtAssetGenerations[i]
+                };
+                pl_sb_push(gptAssetCtx->sbtToolingAssetsByType, tAssetHandle);
+            }
+        }
+
+        gptAssetCtx->tTooledType = tType;
+    }
+
+    if(puSizeOut)
+    {
+        *puSizeOut = pl_sb_size(gptAssetCtx->sbtToolingAssetsByType);
+    };
+
+    return gptAssetCtx->sbtToolingAssetsByType;
 }
 
 void
@@ -504,6 +564,7 @@ pl_load_asset_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_type_description  = pl_asset_get_type_description,
         .get_type_descriptions = pl_asset_get_type_descriptions,
         .get_assets            = pl_asset_get_assets,
+        .get_assets_by_type    = pl_asset_get_assets_by_type
     };
     pl_set_api(ptApiRegistry, plAssetI, &tApi);
 
@@ -521,6 +582,7 @@ pl_load_asset_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     else // first load
     {
         static plAssetContext tCtx = {
+            .tTooledType = UINT32_MAX,
             .bToolsDirty = true
         };
         gptAssetCtx = &tCtx;
