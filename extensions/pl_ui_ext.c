@@ -460,20 +460,21 @@ pl_ui_begin_popup(const char* pcName, plUiWindowFlags tFlags)
     {
         if(gptCtx->sbtOpenPopupStack[i].uId == uHash)
         {
-            bNewOpen = gptCtx->sbtOpenPopupStack[i].ulOpenFrameCount <= gptIO->ulFrameCount + 1;
+            bNewOpen = gptCtx->sbtOpenPopupStack[i].ulOpenFrameCount == gptIO->ulFrameCount;
             bIsOpen = true;
             break;
         }
     }
 
-    plUiPopupData tPopupData = {
-        .uId = uHash,
-        .ulOpenFrameCount = gptIO->ulFrameCount + 1
-    };
-    pl_sb_push(gptCtx->sbtBeginPopupStack, tPopupData);
-
     if(bIsOpen)
     {
+
+        plUiPopupData tPopupData = {
+            .uId = uHash,
+            .ulOpenFrameCount = gptIO->ulFrameCount + 1
+        };
+        pl_sb_push(gptCtx->sbtBeginPopupStack, tPopupData);
+
         if(gptCtx->ptCurrentWindow)
             gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
         bool bResult = pl__begin_window_ex(pcName, NULL, tFlags | PL_UI_WINDOW_FLAGS_POPUP_WINDOW);
@@ -785,9 +786,9 @@ pl_ui_layout_template_end(void)
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     PL_ASSERT(ptCurrentRow->tSystemType == PL_UI_LAYOUT_SYSTEM_TYPE_TEMPLATE);
-    ptWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowCursorPos.x + ptCurrentRow->fMaxWidth, ptWindow->tTempData.tCursorMaxPos.x);
-    ptWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight, ptWindow->tTempData.tCursorMaxPos.y);
-    ptWindow->tTempData.tRowCursorPos.y = ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+    // ptWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowCursorPos.x + ptCurrentRow->fMaxWidth, ptWindow->tTempData.tCursorMaxPos.x);
+    // ptWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight, ptWindow->tTempData.tCursorMaxPos.y);
+    // ptWindow->tTempData.tRowCursorPos.y += ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
 
     // total available width minus padding/spacing
 
@@ -1370,7 +1371,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     {
         if(ptWindow->tCollapseAllowableFlags & gptCtx->tNextWindowData.tCollapseCondition)
         {
-            ptWindow->bCollapsed = true;
+            ptWindow->bCollapsed = gptCtx->tNextWindowData.bCollapsed;
             ptWindow->tCollapseAllowableFlags &= ~PL_UI_COND_ONCE;
         }   
     }
@@ -1443,14 +1444,18 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->bScrollbarY = false;
     }
 
-    if(ptWindow->bScrollbarX && ptWindow->bScrollbarY)
+    if(ptWindow->bScrollbarY)
     {
         ptWindow->tScrollMax.y += gptCtx->tStyle.fScrollbarSize + 2.0f;
+    }
+    else
+        ptWindow->tScroll.y = 0;
+
+    if(ptWindow->bScrollbarX)
+    {
         ptWindow->tScrollMax.x += gptCtx->tStyle.fScrollbarSize + 2.0f;
     }
-    else if(!ptWindow->bScrollbarY)
-        ptWindow->tScroll.y = 0;
-    else if(!ptWindow->bScrollbarX)
+    else
         ptWindow->tScroll.x = 0;
 
     // remove scrollbars from inner rect
@@ -2134,6 +2139,9 @@ pl__add_widget(uint32_t uHash)
                 gptCtx->bNavIdIsAlive = true;
             }
         }
+
+        if(gptCtx->uActiveId == uHash)
+            gptCtx->uActiveIdIsAlive = uHash;
     }
 
     gptCtx->tPrevItemData.uHash = uHash;
@@ -2179,7 +2187,6 @@ pl_ui_cleanup(void)
             pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbtRowTemplateEntries);
             pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbtTempLayoutSort);
             pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbuTempLayoutIndexSort);
-            pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->tStorage.sbtData);
             PL_FREE(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->pcName);
             PL_FREE(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]);
         }
@@ -2200,7 +2207,6 @@ pl_ui_cleanup(void)
     pl_sb_free(gptCtx->sbptWindows);
     pl_sb_free(gptCtx->sbDrawlists);
     pl_sb_free(gptCtx->sbptFocusedWindows);
-    pl_sb_free(gptCtx->sbptWindows);
     pl_sb_free(gptCtx->sbtColorStack);
     pl_sb_free(gptCtx->sbtTabBars);
     pl_sb_free(gptCtx->sbuIdStack);

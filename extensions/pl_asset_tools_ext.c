@@ -1266,7 +1266,7 @@ pl_asset_tools_show_assets(bool* bValue)
 
                                 gptUI->labeled_text("Texture", "%s", gptAsset->get_path(ptMaterial->atTextures[i].tTexture));
 
-                                if(gptUI->is_popup_open("Select Texture Popup"))
+                                // if(gptUI->is_popup_open("Select Texture Popup"))
                                 {
                                     // plVec2 tCurrentCursorPos = gptUI->get_cursor_pos();
                                     uint32_t uTypeAssetCount = 0;
