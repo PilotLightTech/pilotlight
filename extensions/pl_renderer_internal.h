@@ -209,7 +209,8 @@ typedef struct _plOBB
 typedef struct _plRendererLight
 {
     plEntity tEntity;
-    uint32_t uShadowBufferOffset;
+    plFreeListNode* ptShadowBufferOffset;
+    // uint32_t uShadowBufferOffset;
 } plRendererLight;
 
 typedef struct _plShadowPackData
@@ -220,6 +221,7 @@ typedef struct _plShadowPackData
 
 typedef struct _plSkinData
 {
+    bool                  bActive;
     plEntity              tEntity;
     plEntity              tObjectEntity;
     plComputeShaderHandle tShader;
@@ -237,22 +239,16 @@ typedef struct _plVisibleDrawable
 
 typedef struct _plDrawable
 {
-    // hot (normal draw)
-    uint32_t uDataOffset;
-    uint32_t uVertexOffset;
-    uint32_t uMaterialIndex;
-    uint32_t uIndexOffset;
-    uint32_t uTriangleCount;
-    uint32_t uInstanceCount;
-    uint32_t uTransformIndex;
-    uint32_t uInstanceIndex; // used in shadows
-
-    // cold
+    uint32_t        uDataOffset;
+    uint32_t        uVertexOffset;
+    uint32_t        uMaterialIndex;
+    uint32_t        uIndexOffset;
+    uint32_t        uTriangleCount;
+    uint32_t        uInstanceCount;
+    uint32_t        uTransformIndex;
+    uint32_t        uInstanceIndex; // used in shadows
     plDrawableFlags tFlags;
-    plEntity        tEntity;
-    uint32_t        uSkinIndex;
-    uint32_t        uSubmeshIndex;
-    bool            bCulled;
+    bool            bCulled; // replace with better system soon
 } plDrawable;
 
 typedef struct _plDrawableResources
@@ -261,6 +257,10 @@ typedef struct _plDrawableResources
     plFreeListNode* ptVertexBufferNode;
     plFreeListNode* ptDataBufferNode;
     plFreeListNode* ptSkinBufferNode;
+    uint32_t        uSubmeshIndex;
+    uint32_t        uSubmeshCount;
+    plEntity        tEntity;
+    uint32_t        uSkinIndex;
 } plDrawableResources;
 
 typedef struct _plEnvironmentProbeDataPack
@@ -543,6 +543,8 @@ typedef struct _plScene
     plShaderHandle*      sbtShadowShaders;
     plShaderHandle*      sbtProbeShaders;
     plShaderHandle*      sbtOutlineShaders;
+    uint32_t*            sbuFreeDrawableSlots;
+    uint32_t*            sbuActiveDrawables;
 
     // bvh data
     plBVH       tBvh;
@@ -564,9 +566,17 @@ typedef struct _plScene
     plRendererLight*        sbtSpotLights;
     plRendererLight*        sbtDirectionLights;
     plEnvironmentProbeData* sbtProbeData;
-    plSkinData*             sbtSkinData;
-    uint32_t                uNextTransformIndex;
+    uint32_t*               sbuFreeProbeDataSlots;
     uint64_t                uLastProbeAddFrame;
+
+    // skin data management
+    plSkinData* sbtSkinData;
+    uint32_t*   sbuFreeSkinSlots;
+
+    // transform index management
+    uint32_t  uCurrentTransformIndex;
+    bool      bTransformRecyclingStarted;
+    uint32_t* sbuFreeTransformIndices;
 
     // terrain
     plEntity   tTerrain;
@@ -700,6 +710,18 @@ static plRefRendererData* gptData = NULL;
 static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice, uint32_t uSize){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock, uSize);}
 static bool pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex, uint32_t uSubmeshIndex);
 
+// transform index management
+static uint32_t pl__renderer_get_transform_slot(plScene*);
+static void     pl__renderer_return_transform_slot(plScene*, uint32_t);
+
+// drawable index management
+static uint32_t pl__renderer_get_drawable_slot   (plScene*);
+static void     pl__renderer_return_drawable_slot(plScene*, uint32_t);
+
+// skin index management
+static uint32_t pl__renderer_get_skin_slot   (plScene*);
+static void     pl__renderer_return_skin_slot(plScene*, uint32_t);
+
 // job system tasks
 static void pl__renderer_cull_job            (plInvocationData, void*, void*);
 static void pl__renderer_cull_point_light_job(plInvocationData, void*, void*);
@@ -762,6 +784,6 @@ static void pl__renderer_add_lights_to_scene          (plScene*, uint32_t count,
 plBindGroupHandle pl_renderer_get_view_color_bind_group  (plView* ptView, plVec2* ptMaxUVOut);
 void              pl_renderer_editor_reload_scene_shaders(plScene*);
 void              pl_renderer_editor_rebuild_scene_bvh   (plScene*);
-void              pl_renderer_update_scene_material      (plScene*, plAssetHandle);
+void              pl_renderer_update_scene_asset         (plScene*, plAssetHandle);
 
 #endif // PL_RENDERER_INTERNAL_H

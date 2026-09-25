@@ -168,7 +168,12 @@ typedef struct _plRendererI
     void                 (*destroy_scene)  (plScene*);
     plRenderSceneFlags   (*get_scene_flags)(const plScene*);
     void                 (*set_scene_flags)(plScene*, plRenderSceneFlags);
-    void                 (*load_component_library)(plScene*, plComponentLibrary*);
+
+    // scene modifications
+    void (*load_component_library)  (plScene*, plComponentLibrary*);
+    void (*add_entity_to_scene)     (plScene*, plEntity);
+    bool (*remove_entity_from_scene)(plScene*, plEntity);
+    void (*update_scene_asset)      (plScene*, plAssetHandle);
 
     // views
     plView*           (*create_view)               (plScene*, const plViewDesc*);
@@ -186,9 +191,6 @@ typedef struct _plRendererI
     void (*prepare_view) (plView*, const plCamera*);
     void (*render_view)      (plView*, const plRenderViewDesc*);
     void (*render_debug_view)(plView*, const plRenderViewDesc*);
-
-    // materials
-    void (*update_scene_material)(plScene*, plAssetHandle);
 
     // assets
     void           (*register_asset_types)(void);
@@ -469,13 +471,10 @@ typedef struct _plObjectComponent
 {
     plObjectFlags tFlags;
     plAssetHandle tMesh;
-    // plAssetHandle tSkin;
     plEntityId    tTransformId;
     uint32_t      uFirstSubmesh;
     uint32_t      uSubmeshCount;
-
     plAABB        tAABB;
-    // plEntity      tSkinComponent;
     plEntity      tTransform;
 } plObjectComponent;
 
