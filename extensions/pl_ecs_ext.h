@@ -13,6 +13,7 @@ Index of this file:
 // [SECTION] public api struct
 // [SECTION] components
 // [SECTION] structs
+// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------
@@ -79,6 +80,7 @@ extern "C" {
 typedef struct _plEcsInit          plEcsInit;          // reserved for future use
 typedef struct _plComponentDesc    plComponentDesc;    // describes a component
 typedef struct _plComponentLibrary plComponentLibrary; // opaque
+typedef struct _plEcsChange        plEcsChange;        // ECS changes
 
 // ecs components
 typedef struct _plTagComponent     plTagComponent;
@@ -86,6 +88,9 @@ typedef struct _plLibraryComponent plLibraryComponent;
 
 // callbacks
 typedef void (*plEcsLibraryDataCleanup)(void*);
+
+// enums/flags
+typedef int plEcsChangeType; // -> enum _plEcsChangeType // Enum: ECS change type (PL_ECS_CHANGE_XXXX)
 
 // external
 typedef struct _plJsonObject plJsonObject; // pl_json_ext.h
@@ -172,6 +177,11 @@ typedef struct _plEcsI
     size_t   (*get_index)     (const plComponentLibrary*, plEcsTypeKey, plEntity);
     uint32_t (*get_components)(const plComponentLibrary*, plEcsTypeKey, void**, const plEntity**); // do not store
 
+    // changes
+    void (*get_changes)           (const plComponentLibrary*, plEcsChange**, uint32_t*, plEcsTypeKey**);
+    void (*clear_changes)         (const plComponentLibrary*);
+    void (*mark_component_changed)(const plComponentLibrary*, plEntity, plEcsTypeKey);
+
     // utilities
 
     // generates an unique ID if using library (will ignore path & seed) or will create a hash
@@ -241,6 +251,40 @@ typedef struct _plComponentDesc
     // [INTERNAL]
     void* _pTemplate;
 } plComponentDesc;
+
+typedef struct _plEcsChange
+{
+    plEcsChangeType eType;
+    plEntity        tEntity;
+    plEcsTypeKey    tComponentType;
+
+    union
+    {
+        struct
+        {
+            plEcsTypeKey tType;
+        } tComponent;
+
+        struct
+        {
+            uint32_t uComponentOffset;
+            uint32_t uComponentCount;
+        } tEntityRemoved;
+    };
+} plEcsChange;
+
+//-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
+
+enum _plEcsChangeType
+{
+    PL_ECS_CHANGE_ENTITY_ADDED,
+    PL_ECS_CHANGE_ENTITY_REMOVED,
+    PL_ECS_CHANGE_COMPONENT_ADDED,
+    PL_ECS_CHANGE_COMPONENT_REMOVED,
+    PL_ECS_CHANGE_COMPONENT_CHANGED,
+};
 
 #ifdef __cplusplus
 }
