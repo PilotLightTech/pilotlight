@@ -1721,8 +1721,7 @@ pl_ui_labeled_text_v(const char* pcLabel, const char* pcFmt, va_list args)
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
         const plVec2 tStartLocation = {tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y};
-        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartLocation, tStartLocation, pl_add_vec2(tStartLocation, (plVec2){(2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y}), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTempBuffer, -1.0f);
-        // pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartLocation, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTempBuffer, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartLocation, tStartPos, pl_add_vec2(tStartPos, (plVec2){(2.0f * tWidgetSize.x / 3.0f), tWidgetSize.y}), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTempBuffer, -1.0f);
         pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_add_vec2(tStartLocation, (plVec2){(2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, 0.0f}), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
     }
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);

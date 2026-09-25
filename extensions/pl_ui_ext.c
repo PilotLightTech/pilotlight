@@ -1282,16 +1282,18 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     // new window needs to be created
     if(ptWindow == NULL)
     {
+        
         // allocate new window
         ptWindow = PL_ALLOC(sizeof(plUiWindow));
         memset(ptWindow, 0, sizeof(plUiWindow));
+        ptWindow->uFocusOrder                   = pl_sb_size(gptCtx->sbptFocusedWindows);
         ptWindow->uId                           = uWindowID;
         ptWindow->szNameBufferLength            = strlen(pcName) + 1;
         ptWindow->pcName                        = PL_ALLOC(ptWindow->szNameBufferLength);
-        ptWindow->tPos                          = (plVec2){ 200.0f, 200.0f};
-        ptWindow->tMinSize                      = (plVec2){ 200.0f, 200.0f};
-        ptWindow->tMaxSize                      = (plVec2){ 10000.0f, 10000.0f};
-        ptWindow->tSize                         = (plVec2){ 500.0f, 500.0f};
+        ptWindow->tPos                          = (plVec2){ gptIO->tMainViewportSize.x * 0.25f, gptIO->tMainViewportSize.y * 0.25f};
+        ptWindow->tMinSize                      = (plVec2){ 200.0f, 200.0f };
+        ptWindow->tMaxSize                      = (plVec2){ 10000.0f, 10000.0f };
+        ptWindow->tSize                         = (plVec2){ gptIO->tMainViewportSize.x * 0.50f, gptIO->tMainViewportSize.y * 0.50f};
         ptWindow->ptBgLayer                     = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
         ptWindow->ptFgLayer                     = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
         ptWindow->tPosAllowableFlags            = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
@@ -1301,7 +1303,6 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->ptRootWindow                  = NULL;
         ptWindow->ptRootWindowPopupTree         = NULL;
         ptWindow->ptRootWindowTitleBarHighlight = NULL;
-        ptWindow->uFocusOrder                   = pl_sb_size(gptCtx->sbptFocusedWindows);
         ptWindow->tFlags                        = PL_UI_WINDOW_FLAGS_NONE;
         ptWindow->bAppearing                    = true;
 
