@@ -55,10 +55,12 @@ extern "C" {
 typedef struct _plAssetInit     plAssetInit; 
 typedef struct _plAssetDesc     plAssetDesc;
 typedef struct _plAssetTypeDesc plAssetTypeDesc;
+typedef struct _plAssetChange   plAssetChange; // asset changes
 
 // enums/flags
 typedef int plAssetFlags;
 typedef int plAssetEncoding;
+typedef int plAssetChangeType; // -> enum _plAssetChangeType // Enum: asset change type (PL_ASSET_CHANGE_XXXX)
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -90,6 +92,12 @@ typedef struct _plAssetI
     const char*   (*get_path)       (plAssetHandle);
     const char*   (*get_source_path)(plAssetHandle);
     void*         (*get_data)       (plAssetHandle); // can be stored
+    uint32_t      (*get_version)    (plAssetHandle);
+
+    // changes
+    void (*get_changes)  (plAssetChange**, uint32_t*);
+    void (*clear_changes)(void);
+    void (*mark_changed) (plAssetHandle);
 
     // serialization
     plAssetHandle (*load)(const char*);
@@ -145,6 +153,14 @@ typedef struct _plAssetFileHeader // for binary assets
     uint32_t uAssetMagic;
 } plAssetFileHeader;
 
+typedef struct _plAssetChange
+{
+    plAssetChangeType eType;
+    plAssetHandle     tAsset;
+    plAssetTypeKey    tAssetType;
+    uint32_t          uVersion;
+} plAssetChange;
+
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
@@ -159,6 +175,14 @@ enum _plAssetEncoding
     PL_ASSET_ENCODING_TEXT = 0,
     PL_ASSET_ENCODING_BINARY,
     PL_ASSET_ENCODING_AUTO = 256,
+};
+
+enum _plAssetChangeType
+{
+    PL_ASSET_CHANGE_ADDED,
+    PL_ASSET_CHANGE_REMOVED,
+    PL_ASSET_CHANGE_CHANGED,
+    // PL_ASSET_CHANGE_RELOADED
 };
 
 #ifdef __cplusplus

@@ -64,6 +64,7 @@ typedef struct _plAsset
     const char*    pcName;
     const char*    pcSource;
     uint32_t       uDataIndex;
+    uint32_t       uVersion;
 } plAsset;
 
 typedef struct _plAssetRegisteredType
@@ -92,6 +93,8 @@ typedef struct _plAssetContext
     plAssetHandle* sbtToolingAssetsByType; // for retrieval
     bool           bToolsDirty;
     plAssetTypeKey tTooledType;
+
+    plAssetChange*  sbtChanges;
 } plAssetContext;
 
 //-----------------------------------------------------------------------------
@@ -311,7 +314,43 @@ pl_asset_cleanup(void)
     pl_sb_free(gptAssetCtx->sbtTypeUserDescriptions);
     pl_sb_free(gptAssetCtx->sbtAssets);
     pl_sb_free(gptAssetCtx->sbtToolingAssets);
+    pl_sb_free(gptAssetCtx->sbtChanges);
     pl_temp_allocator_free(&gptAssetCtx->tTempAllocator);
+}
+
+void
+pl_asset_get_changes(plAssetChange** pptChanges, uint32_t* puCountOut)
+{
+    if(pptChanges)
+    {
+        *pptChanges = gptAssetCtx->sbtChanges;
+    }
+
+    if(puCountOut)
+    {
+        *puCountOut = pl_sb_size(gptAssetCtx->sbtChanges);
+    }
+}
+
+void
+pl_asset_clear_changes(void)
+{
+    pl_sb_reset(gptAssetCtx->sbtChanges);
+}
+
+void
+pl_asset_mark_changed(plAssetHandle tAsset)
+{
+    if(tAsset.uGeneration != gptAssetCtx->sbtAssetGenerations[tAsset.uIndex])
+        return;
+
+    plAssetChange tChange = {
+        .eType      = PL_ASSET_CHANGE_CHANGED,
+        .tAsset     = tAsset,
+        .tAssetType = gptAssetCtx->sbtAssets[tAsset.uIndex].tType,
+        .uVersion   = ++gptAssetCtx->sbtAssets[tAsset.uIndex].uVersion
+    };
+    pl_sb_push(gptAssetCtx->sbtChanges, tChange);
 }
 
 void*
@@ -323,6 +362,16 @@ pl_asset_get_data(plAssetHandle tHandle)
     plAsset* ptAsset = &gptAssetCtx->sbtAssets[tHandle.uIndex];
     plAssetRegisteredType* ptType = &gptAssetCtx->sbtTypeDescriptions[ptAsset->tType];
     return &((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize];
+}
+
+uint32_t
+pl_asset_get_version(plAssetHandle tHandle)
+{
+    if(tHandle.uGeneration != gptAssetCtx->sbtAssetGenerations[tHandle.uIndex])
+        return UINT32_MAX;
+
+    plAsset* ptAsset = &gptAssetCtx->sbtAssets[tHandle.uIndex];
+    return ptAsset->uVersion;
 }
 
 plAssetHandle
@@ -387,6 +436,14 @@ pl_asset_create(const plAssetDesc* ptDesc, const void* pData)
         else
             memset(&((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize], 0, ptType->tDesc.szSize);
     }
+
+    plAssetChange tChange = {
+        .eType      = PL_ASSET_CHANGE_ADDED,
+        .tAsset     = tNewAsset,
+        .tAssetType = ptDesc->tType,
+        .uVersion   = 0
+    };
+    pl_sb_push(gptAssetCtx->sbtChanges, tChange);
     return tNewAsset;
 }
 
@@ -398,6 +455,14 @@ pl_asset_destroy(plAssetHandle tHandle)
 
     plAssetTypeKey tType = pl_asset_get_type_key(tHandle);
     gptAssetCtx->bToolsDirty = true;
+
+    plAssetChange tChange = {
+        .eType      = PL_ASSET_CHANGE_REMOVED,
+        .tAsset     = tHandle,
+        .tAssetType = tType,
+        .uVersion   = gptAssetCtx->sbtAssets[tHandle.uIndex].uVersion
+    };
+    pl_sb_push(gptAssetCtx->sbtChanges, tChange);
 
     uint32_t uDataIndex = gptAssetCtx->sbtAssets[tHandle.uIndex].uDataIndex;
 
@@ -417,6 +482,7 @@ pl_asset_destroy(plAssetHandle tHandle)
     if(gptAssetCtx->sbtAssets[tHandle.uIndex].pcSource)
         gptString->remove_ex(gptAssetCtx->sbtAssets[tHandle.uIndex].pcSource, gptAssetCtx->ptStringRepo);
     gptAssetCtx->sbtAssets[tHandle.uIndex].pcSource = NULL;
+    gptAssetCtx->sbtAssets[tHandle.uIndex].uVersion = UINT32_MAX;
 }
 
 plAssetHandle
@@ -484,6 +550,15 @@ pl_asset_load(const char* pcFile)
     plAssetHandle tNewAsset = {0};
     tNewAsset.uIndex      = (uint32_t)uIndex;
     tNewAsset.uGeneration = gptAssetCtx->sbtAssetGenerations[uIndex];
+
+    plAssetChange tChange = {
+        .eType      = PL_ASSET_CHANGE_ADDED,
+        .tAsset     = tNewAsset,
+        .tAssetType = tType,
+        .uVersion   = 0
+    };
+    pl_sb_push(gptAssetCtx->sbtChanges, tChange);
+
     return tNewAsset;
 }
 
@@ -555,6 +630,10 @@ pl_load_asset_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create                = pl_asset_create,
         .destroy               = pl_asset_destroy,
         .get_data              = pl_asset_get_data,
+        .get_version           = pl_asset_get_version,
+        .get_changes           = pl_asset_get_changes,
+        .clear_changes         = pl_asset_clear_changes,
+        .mark_changed          = pl_asset_mark_changed,
         .save                  = pl_asset_save,
         .get_path              = pl_asset_get_path,
         .get_source_path       = pl_asset_get_source_path,
