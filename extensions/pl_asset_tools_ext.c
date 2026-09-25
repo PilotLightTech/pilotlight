@@ -877,6 +877,12 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                     gptUI->end_collapsing_header();
                 }
 
+                gptUI->layout_static(0.0f, 100.0f, 1);
+                if(gptUI->button("Delete"))
+                {
+                    gptEcs->remove_entity(ptLibrary, *ptSelectedEntity);
+                }
+
                 gptUI->pop_id();
             }
             
@@ -1081,11 +1087,17 @@ pl_asset_tools_show_assets(bool* bValue)
                 gptUI->labeled_text("Path", "%s", gptAsset->get_path(tAssetHandle));
                 gptUI->labeled_text("Type", "%u", gptAsset->get_type_key(tAssetHandle));
 
-                gptUI->layout_dynamic(0.0f, 2);
+                gptUI->layout_static(0.0f, 150.0f, 2);
                 if(gptUI->button("Load"))          gptAsset->load(gptAsset->get_path(tAssetHandle));
                 if(gptUI->button("Save"))          gptAsset->save(tAssetHandle, PL_ASSET_ENCODING_AUTO);
                 if(gptUI->button("Save (text)"))   gptAsset->save(tAssetHandle, PL_ASSET_ENCODING_TEXT);
                 if(gptUI->button("Save (binary)")) gptAsset->save(tAssetHandle, PL_ASSET_ENCODING_BINARY);
+
+                gptUI->layout_static(0.0f, 150.0f, 1);
+                if(gptUI->button("Update"))
+                {
+                    gptAsset->mark_changed(tAssetHandle);
+                }
                 gptUI->layout_dynamic(0.0f, 1);
 
                 if(tAssetType == gptMaterial->get_asset_type_key())
@@ -1093,7 +1105,8 @@ pl_asset_tools_show_assets(bool* bValue)
                     plMaterial* ptMaterial = gptAsset->get_data(tAssetHandle);
 
                     gptUI->separator_text("base");
-                    gptUI->text("NOTE: edits don't work at the moment");
+
+                    gptUI->layout_dynamic(0.0f, 1);
                     gptUI->labeled_text("material model", "PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS");
 
                     const char* apcAlphaMode[] = {
@@ -1502,6 +1515,13 @@ pl_asset_tools_show_assets(bool* bValue)
                 {
                     plRenderEnvironment* ptEnvironment = gptAsset->get_data(tAssetHandle);
 
+                    gptUI->layout_static(0.0f, 75.0f, 1);
+                    if(gptUI->button("Update"))
+                    {
+                        gptAsset->mark_changed(tAssetHandle);
+                    }
+
+                    gptUI->layout_dynamic(0.0f, 1);
                     gptUI->radio_button("Method: None", &ptEnvironment->eMode, PL_RENDERER_SKY_MODE_NONE);
                     gptUI->radio_button("Method: Skybox", &ptEnvironment->eMode, PL_RENDERER_SKY_MODE_SKYBOX);
                     gptUI->radio_button("Method: Realistic", &ptEnvironment->eMode, PL_RENDERER_SKY_MODE_REALISTIC);

@@ -649,6 +649,68 @@ pl_app_update(plAppData* ptAppData)
 
         gptAssetTools->run();
 
+        plEcsChange* atEcsChanges = NULL;
+        uint32_t uEcsChangeCount = 0;
+        plEcsTypeKey* atEcsTypes = NULL;
+
+        gptEcs->get_changes(ptLibrary, &atEcsChanges, &uEcsChangeCount, &atEcsTypes);
+
+        for(uint32_t i = 0; i < uEcsChangeCount; i++)
+        {
+            switch(atEcsChanges[i].eType)
+            {
+                case PL_ECS_CHANGE_ENTITY_ADDED:
+                    break;
+                case PL_ECS_CHANGE_ENTITY_REMOVED:
+                {
+                    gptRenderer->remove_entity_from_scene(ptAppData->ptScene, atEcsChanges[i].tEntity);
+                    // // check if contains object
+                    // for(uint32_t j = 0; j < atEcsChanges[i].tEntityRemoved.uComponentCount; j++)
+                    // {
+                    //     if(atEcsTypes[atEcsChanges[i].tEntityRemoved.uComponentOffset + j] == gptRenderer->get_ecs_type_key_object())
+                    //     {
+                    //         gptRenderer->remove_entity_from_scene(ptAppData->ptScene, atEcsChanges[i].tEntity);
+                    //         break;
+                    //     }
+                    // }
+                    break;
+                }
+                case PL_ECS_CHANGE_COMPONENT_CHANGED:
+                    break;
+                case PL_ECS_CHANGE_COMPONENT_ADDED:
+                    if(atEcsChanges[i].tComponentType == gptRenderer->get_ecs_type_key_object())
+                        gptRenderer->add_entity_to_scene(ptAppData->ptScene, atEcsChanges[i].tEntity);
+                        break;
+                case PL_ECS_CHANGE_COMPONENT_REMOVED:
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        gptEcs->clear_changes(ptLibrary);
+
+
+        plAssetChange* atAssetChanges = NULL;
+        uint32_t uAssetChangeCount = 0;
+
+        gptAsset->get_changes(&atAssetChanges, &uAssetChangeCount);
+        for(uint32_t i = 0; i < uAssetChangeCount; i++)
+        {
+            switch(atAssetChanges[i].eType)
+            {
+                case PL_ASSET_CHANGE_CHANGED:
+                {
+                    gptRenderer->update_scene_asset(ptAppData->ptScene, atAssetChanges[i].tAsset);
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+
+        gptAsset->clear_changes();
+
         if(gptEcs->is_entity_valid(ptLibrary, ptAppData->tSelectedEntity))
         {
             plDrawList3D* ptGizmoDrawlist =  gptRenderer->get_gizmo_drawlist(ptAppData->ptView);
@@ -718,7 +780,7 @@ pl_app_update(plAppData* ptAppData)
                         pl_sprintf(ptAppData->acCurrentScene, "%s", ptAppData->sbtSceneFilesCore[n].acTemplate);
 
                         ptAppData->tSceneHandle = gptAsset->load(ptAppData->acCurrentScene);
-                        plComponentLibrary* ptLibrary = (plComponentLibrary*)gptAsset->get_data(ptAppData->tSceneHandle);
+                        plComponentLibrary* ptLibrary = gptAsset->get_data(ptAppData->tSceneHandle);
 
                         plSceneDesc tSceneInit = {0};
 
@@ -729,6 +791,7 @@ pl_app_update(plAppData* ptAppData)
                         ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, &tViewDesc);
                         
                         gptRenderer->load_component_library(ptAppData->ptScene, ptLibrary);
+                        gptEcs->clear_changes(ptLibrary);
 
                         const plEntity* ptCameraEntities = NULL;
                         uint32_t uCameraCount = gptEcs->get_components(ptLibrary, gptCameraEcs->get_ecs_type_key(), NULL, &ptCameraEntities);
@@ -819,6 +882,26 @@ pl_app_update(plAppData* ptAppData)
             gptUI->end_window();
         }
         gptUI->pop_theme_color(1);
+
+
+        // if(gptUI->begin_window("Add Object", NULL, 0))
+        // {
+        //     if(gptUI->button("add object")) 
+        //     {
+        //         plEntity tNewEntity = gptEcs->create_entity_with_id(ptLibrary, "New Object 0", 8008);
+
+        //         plTransformComponent* ptNewTransform = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity);
+        //         ptNewTransform->tTranslation.x = 10.0f;
+
+        //         plObjectComponent* ptNewObject = gptEcs->add_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), tNewEntity);
+        //         ptNewObject->tMesh = gptAsset->load("/assets/meshes/sphere.plmesh");
+        //         ptNewObject->tTransformId = 8008;
+        //         ptNewObject->uFirstSubmesh = 0;
+        //         ptNewObject->uSubmeshCount = 1;
+        //         ptNewObject->tTransform = tNewEntity;
+        //     }
+        //     gptUI->end_window();
+        // }
     }
 
     if(ptAppData->bShowUiDemo)
@@ -935,6 +1018,81 @@ pl__load_assets(plAppData* ptAppData)
 
     {
         plDirectoryInfo tDirectoryInfo = {0};
+        gptFile->get_directory_info("../assets/settings/", &tDirectoryInfo);
+        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
+        {
+            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+            {
+                pl_sb_reset(sbcBuffer);
+                pl_sb_sprintf(sbcBuffer, "/assets/settings/%s", tDirectoryInfo.sbtEntries[i].acName);
+                gptAsset->load(sbcBuffer);
+            }
+        }
+        gptFile->cleanup_directory_info(&tDirectoryInfo);
+    }
+
+    {
+        plDirectoryInfo tDirectoryInfo = {0};
+        gptFile->get_directory_info("../assets/environments/", &tDirectoryInfo);
+        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
+        {
+            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+            {
+                pl_sb_reset(sbcBuffer);
+                pl_sb_sprintf(sbcBuffer, "/assets/environments/%s", tDirectoryInfo.sbtEntries[i].acName);
+                gptAsset->load(sbcBuffer);
+            }
+        }
+        gptFile->cleanup_directory_info(&tDirectoryInfo);
+    }
+
+    {
+        plDirectoryInfo tDirectoryInfo = {0};
+        gptFile->get_directory_info("../assets/scenes/", &tDirectoryInfo);
+        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
+        {
+            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+            {
+                pl_sb_reset(sbcBuffer);
+                pl_sb_sprintf(sbcBuffer, "/assets/scenes/%s", tDirectoryInfo.sbtEntries[i].acName);
+                gptAsset->load(sbcBuffer);
+            }
+        }
+        gptFile->cleanup_directory_info(&tDirectoryInfo);
+    }
+
+    {
+        plDirectoryInfo tDirectoryInfo = {0};
+        gptFile->get_directory_info("../assets/animations/", &tDirectoryInfo);
+        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
+        {
+            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+            {
+                pl_sb_reset(sbcBuffer);
+                pl_sb_sprintf(sbcBuffer, "/assets/animations/%s", tDirectoryInfo.sbtEntries[i].acName);
+                gptAsset->load(sbcBuffer);
+            }
+        }
+        gptFile->cleanup_directory_info(&tDirectoryInfo);
+    }
+
+    {
+        plDirectoryInfo tDirectoryInfo = {0};
+        gptFile->get_directory_info("../assets/terrains/", &tDirectoryInfo);
+        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
+        {
+            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+            {
+                pl_sb_reset(sbcBuffer);
+                pl_sb_sprintf(sbcBuffer, "/assets/terrains/%s", tDirectoryInfo.sbtEntries[i].acName);
+                gptAsset->load(sbcBuffer);
+            }
+        }
+        gptFile->cleanup_directory_info(&tDirectoryInfo);
+    }
+
+    {
+        plDirectoryInfo tDirectoryInfo = {0};
         gptFile->get_directory_info("../assets/textures/", &tDirectoryInfo);
         for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
         {
@@ -980,36 +1138,6 @@ pl__load_assets(plAppData* ptAppData)
 
     {
         plDirectoryInfo tDirectoryInfo = {0};
-        gptFile->get_directory_info("../assets/animations/", &tDirectoryInfo);
-        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
-        {
-            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
-            {
-                pl_sb_reset(sbcBuffer);
-                pl_sb_sprintf(sbcBuffer, "/assets/animations/%s", tDirectoryInfo.sbtEntries[i].acName);
-                gptAsset->load(sbcBuffer);
-            }
-        }
-        gptFile->cleanup_directory_info(&tDirectoryInfo);
-    }
-
-    {
-        plDirectoryInfo tDirectoryInfo = {0};
-        gptFile->get_directory_info("../assets/environments/", &tDirectoryInfo);
-        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
-        {
-            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
-            {
-                pl_sb_reset(sbcBuffer);
-                pl_sb_sprintf(sbcBuffer, "/assets/environments/%s", tDirectoryInfo.sbtEntries[i].acName);
-                gptAsset->load(sbcBuffer);
-            }
-        }
-        gptFile->cleanup_directory_info(&tDirectoryInfo);
-    }
-
-    {
-        plDirectoryInfo tDirectoryInfo = {0};
         gptFile->get_directory_info("../assets/skeletons/", &tDirectoryInfo);
         for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
         {
@@ -1038,37 +1166,8 @@ pl__load_assets(plAppData* ptAppData)
         gptFile->cleanup_directory_info(&tDirectoryInfo);
     }
 
-    {
-        plDirectoryInfo tDirectoryInfo = {0};
-        gptFile->get_directory_info("../assets/terrains/", &tDirectoryInfo);
-        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
-        {
-            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
-            {
-                pl_sb_reset(sbcBuffer);
-                pl_sb_sprintf(sbcBuffer, "/assets/terrains/%s", tDirectoryInfo.sbtEntries[i].acName);
-                gptAsset->load(sbcBuffer);
-            }
-        }
-        gptFile->cleanup_directory_info(&tDirectoryInfo);
-    }
-
-    {
-        plDirectoryInfo tDirectoryInfo = {0};
-        gptFile->get_directory_info("../assets/scenes/", &tDirectoryInfo);
-        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
-        {
-            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
-            {
-                pl_sb_reset(sbcBuffer);
-                pl_sb_sprintf(sbcBuffer, "/assets/scenes/%s", tDirectoryInfo.sbtEntries[i].acName);
-                gptAsset->load(sbcBuffer);
-            }
-        }
-        gptFile->cleanup_directory_info(&tDirectoryInfo);
-    }
-
     pl_sb_free(sbcBuffer);
+    gptAsset->clear_changes();
 }
 
 //-----------------------------------------------------------------------------
