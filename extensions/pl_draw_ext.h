@@ -186,17 +186,19 @@ typedef struct _plDrawI
     void (*add_bezier_cubic)  (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, uint32_t segments, plDrawLineOptions);
 
     // drawing (solids)
-    void (*add_triangle_filled)      (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plDrawSolidOptions);
-    void (*add_triangles_filled)     (plDrawLayer2D*, plVec2* points, uint32_t count, plDrawSolidOptions);
-    void (*add_rect_filled)          (plDrawLayer2D*, plVec2 minP, plVec2 maxP, plDrawSolidOptions);
-    void (*add_rect_rounded_filled)  (plDrawLayer2D*, plVec2 minP, plVec2 maxP, float radius, uint32_t segments, plDrawRectFlags, plDrawSolidOptions);
-    void (*add_quad_filled)          (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plDrawSolidOptions);
-    void (*add_circle_filled)        (plDrawLayer2D*, plVec2 p, float radius, uint32_t segments, plDrawSolidOptions);
-    void (*add_convex_polygon_filled)(plDrawLayer2D*, plVec2* points, uint32_t count, plDrawSolidOptions);
-    void (*add_image)                (plDrawLayer2D*, plTextureID, plVec2 minP, plVec2 maxP);
-    void (*add_image_ex)             (plDrawLayer2D*, plTextureID, plVec2 minP, plVec2 maxP, plVec2 minUV, plVec2 maxUV, uint32_t color);
-    void (*add_image_quad)           (plDrawLayer2D*, plTextureID, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3);
-    void (*add_image_quad_ex)        (plDrawLayer2D*, plTextureID, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plVec2 p0UV, plVec2 p1UV, plVec2 p2UV, plVec2 p3UV, uint32_t color);
+    void (*add_triangle_filled)         (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plDrawSolidOptions);
+    void (*add_triangle_filled_gradient)(plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, uint32_t uColor0, uint32_t uColor1, uint32_t uColor2);
+    void (*add_triangles_filled)        (plDrawLayer2D*, plVec2* points, uint32_t count, plDrawSolidOptions);
+    void (*add_rect_filled)             (plDrawLayer2D*, plVec2 minP, plVec2 maxP, plDrawSolidOptions);
+    void (*add_rect_filled_gradient)    (plDrawLayer2D*, plVec2 minP, plVec2 maxP, uint32_t topLeftColor, uint32_t topRightColor, uint32_t bottomLeftColor, uint32_t bottomRightColor);
+    void (*add_rect_rounded_filled)     (plDrawLayer2D*, plVec2 minP, plVec2 maxP, float radius, uint32_t segments, plDrawRectFlags, plDrawSolidOptions);
+    void (*add_quad_filled)             (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plDrawSolidOptions);
+    void (*add_circle_filled)           (plDrawLayer2D*, plVec2 p, float radius, uint32_t segments, plDrawSolidOptions);
+    void (*add_convex_polygon_filled)   (plDrawLayer2D*, plVec2* points, uint32_t count, plDrawSolidOptions);
+    void (*add_image)                   (plDrawLayer2D*, plTextureID, plVec2 minP, plVec2 maxP);
+    void (*add_image_ex)                (plDrawLayer2D*, plTextureID, plVec2 minP, plVec2 maxP, plVec2 minUV, plVec2 maxUV, uint32_t color);
+    void (*add_image_quad)              (plDrawLayer2D*, plTextureID, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3);
+    void (*add_image_quad_ex)           (plDrawLayer2D*, plTextureID, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plVec2 p0UV, plVec2 p1UV, plVec2 p2UV, plVec2 p3UV, uint32_t color);
 
     // drawing (text)
     void (*add_text)        (plDrawLayer2D*, plVec2 p, const char* text, plDrawTextOptions);
