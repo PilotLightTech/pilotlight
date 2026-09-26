@@ -76,6 +76,7 @@ typedef int plUiColor;           // -> enum plUiColor_            // Enum:  An i
 typedef int plUiChildFlags;      // -> enum plUiChildFlags_       // Flags: reserved for future use
 typedef int plUiSelectableFlags; // -> enum plUiSelectableFlags_  // Flags: reserved for future use
 typedef int plUiSliderFlags;     // -> enum plUiSliderFlags_      // Flags: reserved for future use
+typedef int plUiColorEditFlags;  // -> enum plUiColorEditFlags_   // Flags: color edit/picker options (PL_UI_COLOR_EDIT_FLAGS_XXXX)
 typedef int plUiTreeNodeFlags;   // -> enum plUiTreeNodeFlags_    // Flags: reserved for future use
 typedef int plUiTabBarFlags;     // -> enum plUiTabBarFlags_      // Flags: reserved for future use
 typedef int plUiTabFlags;        // -> enum plUiTabFlags_         // Flags: reserved for future use
@@ -241,6 +242,10 @@ typedef struct _plUiI
     // drag sliders
     bool (*drag_float)  (const char* label, float* value, float speed, float minValue, float maxValue, plUiSliderFlags);
     bool (*drag_float_f)(const char* label, float* value, float speed, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
+
+    // color picker
+    bool (*color_picker3)(const char* label, float colRGB[3], plUiColorEditFlags);
+    bool (*color_picker4)(const char* label, float colRGBA[4], plUiColorEditFlags, const float* refColRGBA);
 
     // combo
     bool (*begin_combo)(const char* label, const char* preview, plUiComboFlags);
@@ -436,6 +441,39 @@ enum plUiComboFlags_
     PL_UI_COMBO_FLAGS_HEIGHT_REGULAR  = 1 << 1, // max ~8 items visible (default)
     PL_UI_COMBO_FLAGS_HEIGHT_LARGE    = 1 << 2, // max ~20 items visible
     PL_UI_COMBO_FLAGS_NO_ARROW_BUTTON = 1 << 3, // hide arrow button
+};
+
+// mirrors Dear ImGui's ImGuiColorEditFlags_ (same names/bit positions where they map onto
+// this codebase's color widgets). Put into place to avoid breaking changes when they are 
+// implemented down the road
+enum plUiColorEditFlags_
+{
+    PL_UI_COLOR_EDIT_FLAGS_NONE               = 0,
+    PL_UI_COLOR_EDIT_FLAGS_NO_ALPHA           = 1 << 1,  // [implemented]         color_picker3/4: ignore/hide the alpha channel & bar
+    PL_UI_COLOR_EDIT_FLAGS_NO_PICKER          = 1 << 2,  // [not yet implemented]
+    PL_UI_COLOR_EDIT_FLAGS_NO_OPTIONS         = 1 << 3,  // [not yet implemented]
+    PL_UI_COLOR_EDIT_FLAGS_NO_SMALL_PREVIEW   = 1 << 4,  // [not yet implemented]
+    PL_UI_COLOR_EDIT_FLAGS_NO_INPUTS          = 1 << 5,  // [not yet implemented]
+    PL_UI_COLOR_EDIT_FLAGS_NO_TOOLTIP         = 1 << 6,  // [not yet implemented]
+    PL_UI_COLOR_EDIT_FLAGS_NO_LABEL           = 1 << 7,  // [implemented]         color_picker4: suppress the inline label text
+    PL_UI_COLOR_EDIT_FLAGS_NO_SIDE_PREVIEW    = 1 << 8,  // [implemented]         color_picker4: suppress the ref/current preview swatch, even if refColRGBA is non-NULL
+    PL_UI_COLOR_EDIT_FLAGS_NO_DRAG_DROP       = 1 << 9,  // [not yet implemented]
+    PL_UI_COLOR_EDIT_FLAGS_NO_BORDER          = 1 << 10, // [not yet implemented]
+
+    // user options (right-click menu equivalent, in ImGui)
+    PL_UI_COLOR_EDIT_FLAGS_ALPHA_BAR          = 1 << 16, // [not yet implemented] (this widget always shows the alpha bar unless NO_ALPHA is set)
+    PL_UI_COLOR_EDIT_FLAGS_ALPHA_PREVIEW      = 1 << 17, // [not yet implemented]
+    PL_UI_COLOR_EDIT_FLAGS_ALPHA_PREVIEW_HALF = 1 << 18, // [not yet implemented]
+    PL_UI_COLOR_EDIT_FLAGS_HDR                = 1 << 19, // [not yet implemented]
+    PL_UI_COLOR_EDIT_FLAGS_DISPLAY_RGB        = 1 << 20, // [not yet implemented] [Display]
+    PL_UI_COLOR_EDIT_FLAGS_DISPLAY_HSV        = 1 << 21, // [not yet implemented] [Display]
+    PL_UI_COLOR_EDIT_FLAGS_DISPLAY_HEX        = 1 << 22, // [not yet implemented] [Display]
+    PL_UI_COLOR_EDIT_FLAGS_UINT8              = 1 << 23, // [not yet implemented] [DataType]
+    PL_UI_COLOR_EDIT_FLAGS_FLOAT              = 1 << 24, // [not yet implemented] [DataType]
+    PL_UI_COLOR_EDIT_FLAGS_PICKER_HUE_BAR     = 1 << 25, // [not yet implemented] [Picker]  (this widget's only shape today; would become the default once wired up)
+    PL_UI_COLOR_EDIT_FLAGS_PICKER_HUE_WHEEL   = 1 << 26, // [not yet implemented] [Picker]
+    PL_UI_COLOR_EDIT_FLAGS_INPUT_RGB          = 1 << 27, // [not yet implemented] [Input]
+    PL_UI_COLOR_EDIT_FLAGS_INPUT_HSV          = 1 << 28, // [not yet implemented] [Input]
 };
 
 enum plUiConditionFlags_

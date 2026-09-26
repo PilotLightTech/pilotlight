@@ -3550,6 +3550,357 @@ pl_ui_drag_float(const char* pcLabel, float* pfValue, float fSpeed, float fMin, 
     return pl_ui_drag_float_f(pcLabel, pfValue, fSpeed, fMin, fMax, "%.3f", tFlags);
 }
 
+static void
+pl__ui_rgb_to_hsv(float fR, float fG, float fB, float* pfH, float* pfS, float* pfV)
+{
+    const float fMax = pl_maxf(fR, pl_maxf(fG, fB));
+    const float fMin = pl_minf(fR, pl_minf(fG, fB));
+    const float fDelta = fMax - fMin;
+    *pfV = fMax;
+    *pfS = (fMax > 0.0f) ? (fDelta / fMax) : 0.0f;
+    if(fDelta < 1e-6f) { *pfH = 0.0f; return; }
+    if(fMax == fR)      *pfH = fmodf((fG - fB) / fDelta, 6.0f);
+    else if(fMax == fG) *pfH = (fB - fR) / fDelta + 2.0f;
+    else                *pfH = (fR - fG) / fDelta + 4.0f;
+    *pfH /= 6.0f;
+    if(*pfH < 0.0f) *pfH += 1.0f;
+}
+
+static void
+pl__ui_hsv_to_rgb(float fH, float fS, float fV, float* pfR, float* pfG, float* pfB)
+{
+    const float fC = fV * fS;
+    const float fHPrime = fmodf(fH * 6.0f, 6.0f);
+    const float fX = fC * (1.0f - fabsf(fmodf(fHPrime, 2.0f) - 1.0f));
+    const float fM = fV - fC;
+    float fR = 0.0f, fG = 0.0f, fB = 0.0f;
+    if(fHPrime < 1.0f)      { fR = fC; fG = fX; fB = 0.0f; }
+    else if(fHPrime < 2.0f) { fR = fX; fG = fC; fB = 0.0f; }
+    else if(fHPrime < 3.0f) { fR = 0.0f; fG = fC; fB = fX; }
+    else if(fHPrime < 4.0f) { fR = 0.0f; fG = fX; fB = fC; }
+    else if(fHPrime < 5.0f) { fR = fX; fG = 0.0f; fB = fC; }
+    else                    { fR = fC; fG = 0.0f; fB = fX; }
+    *pfR = fR + fM;
+    *pfG = fG + fM;
+    *pfB = fB + fM;
+}
+
+bool
+pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tFlags, const float* refColRGBA)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    pl_ui_push_id_string(pcLabel);
+    bool bChanged = false;
+
+    const bool bNoAlpha        = (tFlags & PL_UI_COLOR_EDIT_FLAGS_NO_ALPHA) != 0;
+    const bool bNoLabel        = (tFlags & PL_UI_COLOR_EDIT_FLAGS_NO_LABEL) != 0;
+    const bool bNoSidePreview  = (tFlags & PL_UI_COLOR_EDIT_FLAGS_NO_SIDE_PREVIEW) != 0;
+    const bool bShowPreview    = refColRGBA && !bNoSidePreview;
+
+    if(!bNoLabel)
+        pl_ui_text("%s", pcLabel);
+
+    float fH;
+    float fS;
+    float fV;
+    float fAlpha = bNoAlpha ? 1.0f : colRGBA[3];
+    pl__ui_rgb_to_hsv(colRGBA[0], colRGBA[1], colRGBA[2], &fH, &fS, &fV);
+
+    const float fPickerSize     = 200.0f;
+    const float fHueBarWidth    = 24.0f;
+    const float fAlphaBarHeight = bNoAlpha ? 0.0f : 24.0f;
+    const float fPreviewWidth   = bShowPreview ? 24.0f : 0.0f;
+    const float fTotalWidth     = fPickerSize + gptCtx->tStyle.tInnerSpacing.x + fHueBarWidth + (bShowPreview ? (gptCtx->tStyle.tInnerSpacing.x + fPreviewWidth) : 0.0f);
+    const float fTotalHeight    = fPickerSize + (bNoAlpha ? 0.0f : (gptCtx->tStyle.tInnerSpacing.y + fAlphaBarHeight));
+
+    const plVec2 tCursorPos    = pl__get_cursor_pos();
+    const plVec2 tSvPos        = tCursorPos;
+    const plVec2 tHuePos       = { tCursorPos.x + fPickerSize + gptCtx->tStyle.tInnerSpacing.x, tCursorPos.y };
+    const plVec2 tPreviewPos   = { tHuePos.x + fHueBarWidth + gptCtx->tStyle.tInnerSpacing.x, tCursorPos.y };
+    const plVec2 tAplphaBarPos = { tCursorPos.x, tCursorPos.y + fPickerSize + gptCtx->tStyle.tInnerSpacing.y };
+
+    plDrawLayer2D* ptDrawLayer = ptWindow->ptFgLayer;
+    const plRect* ptClipRect = gptDraw->get_clip_rect(gptCtx->ptDrawlist);
+
+    float fR;
+    float fG;
+    float fB; // reused scratch for every gradient loop below
+
+    // SV SQUARE
+    const uint32_t uSvHash = pl_str_hash("##sv", 0, pl_sb_top(gptCtx->sbuIdStack));
+    plVec2 tSvMarker = { 0 };
+
+    // -- gradient --
+    pl__ui_hsv_to_rgb(fH, 1.0f, 1.0f, &fR, &fG, &fB); // pure hue color (S=1, V=1)
+
+    const uint32_t uSvSatWhite       = PL_COLOR_32_RGBA(1.0f, 1.0f, 1.0f, 1.0f);
+    const uint32_t uSvSatHue         = PL_COLOR_32_RGBA(fR, fG, fB, 1.0f);
+    const uint32_t uSvValTransparent = PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, 0.0f);
+    const uint32_t uSvValBlack       = PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, 1.0f);
+    const plVec2   tSvMax            = { tSvPos.x + fPickerSize, tSvPos.y + fPickerSize };
+
+    // saturation: white (S=0) -> hue color (S=1), left to right
+    gptDraw->add_rect_filled_gradient(ptDrawLayer, tSvPos, tSvMax, uSvSatWhite, uSvSatHue, uSvSatWhite, uSvSatHue);
+
+    // value: transparent (V=1) -> black (V=0), top to bottom, blended over the saturation layer
+    gptDraw->add_rect_filled_gradient(ptDrawLayer, tSvPos, tSvMax, uSvValTransparent, uSvValTransparent, uSvValBlack, uSvValBlack);
+
+    plRect tPickerHitBox = pl_calculate_rect(tSvPos, (plVec2){ fPickerSize, fPickerSize });
+    tPickerHitBox = pl_rect_clip_full(&tPickerHitBox, ptClipRect);
+
+    bool bHovered;
+    bool bHeld;
+    bool bPressed = pl__button_behavior(&tPickerHitBox, uSvHash, &bHovered, &bHeld);
+
+    if(gptCtx->uActiveId == uSvHash && gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
+    {
+        plVec2 tClickedMousePos = gptIOI->get_mouse_pos();
+
+        bool bMouseInsideBox =
+            tClickedMousePos.x >= tSvPos.x &&
+            tClickedMousePos.x <= tSvPos.x + fPickerSize &&
+            tClickedMousePos.y >= tSvPos.y &&
+            tClickedMousePos.y <= tSvPos.y + fPickerSize;
+
+        if(bMouseInsideBox)
+        {
+            fS = pl_clampf(0.0f, (tClickedMousePos.x - tSvPos.x) / fPickerSize, 1.0f);
+            fV = pl_clampf(0.0f, 1.0f - ((tClickedMousePos.y - tSvPos.y) / fPickerSize), 1.0f);
+            bChanged = true;
+        }
+
+        pl__set_active_id(uSvHash, ptWindow);
+        pl__set_nav_id(uSvHash, ptWindow);
+
+        if(gptCtx->bActiveIdJustActivated)
+        {
+            pl__focus_window(ptWindow);
+        }
+    }
+
+    tSvMarker.x = tSvPos.x + fS * fPickerSize;
+    tSvMarker.y = tSvPos.y + (1.0f - fV) * fPickerSize;
+    gptDraw->add_circle(ptDrawLayer, tSvMarker, 5.0f, 12, (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, 1.0f), .fThickness = 2.0f});
+    gptDraw->add_circle(ptDrawLayer, tSvMarker, 4.0f, 12, (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 1.0f, 1.0f), .fThickness = 1.5f});
+
+    pl__add_widget(uSvHash);
+
+    // HUE BAR
+    const uint32_t uHueHash = pl_str_hash("##hue", 0, pl_sb_top(gptCtx->sbuIdStack));
+    plVec2 tHueBarMarker = { 0 };
+
+    // -- gradient --
+    const uint32_t auHueStops[7] = {
+        PL_COLOR_32_RGBA(1.0f, 0.0f, 0.0f, 1.0f), // hue 1.0 (== 0.0) - red
+        PL_COLOR_32_RGBA(1.0f, 0.0f, 1.0f, 1.0f), // hue 5/6 - magenta
+        PL_COLOR_32_RGBA(0.0f, 0.0f, 1.0f, 1.0f), // hue 4/6 - blue
+        PL_COLOR_32_RGBA(0.0f, 1.0f, 1.0f, 1.0f), // hue 3/6 - cyan
+        PL_COLOR_32_RGBA(0.0f, 1.0f, 0.0f, 1.0f), // hue 2/6 - green
+        PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 1.0f), // hue 1/6 - yellow
+        PL_COLOR_32_RGBA(1.0f, 0.0f, 0.0f, 1.0f), // hue 0.0 - red
+    };
+
+    for(uint32_t uSector = 0; uSector < 6; uSector++)
+    {
+        plVec2 tMin = { tHuePos.x, tHuePos.y + (float)uSector / 6.0f * fPickerSize };
+        plVec2 tMax = { tHuePos.x + fHueBarWidth, tHuePos.y + (float)(uSector + 1) / 6.0f * fPickerSize };
+
+        gptDraw->add_rect_filled_gradient(ptDrawLayer, tMin, tMax,
+            auHueStops[uSector], auHueStops[uSector], auHueStops[uSector + 1], auHueStops[uSector + 1]);
+    }
+
+    plRect tHueBarHitBox = pl_calculate_rect(tHuePos, (plVec2){ fHueBarWidth, fPickerSize });
+    tHueBarHitBox = pl_rect_clip_full(&tHueBarHitBox, ptClipRect);
+
+    bool bHoveredHue;
+    bool bHeldHue;
+    bool bPressedHue = pl__button_behavior(&tHueBarHitBox, uHueHash, &bHoveredHue, &bHeldHue);
+
+    if(gptCtx->uActiveId == uHueHash && gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
+    {
+        plVec2 tClickedMousePos = gptIOI->get_mouse_pos();
+
+        bool bMouseInsideBar =
+            tClickedMousePos.x >= tHuePos.x &&
+            tClickedMousePos.x <= tHuePos.x + fHueBarWidth &&
+            tClickedMousePos.y >= tHuePos.y &&
+            tClickedMousePos.y <= tHuePos.y + fPickerSize;
+
+        if(bMouseInsideBar)
+        {
+            fH = pl_clampf(0.0f, 1.0f - ((tClickedMousePos.y - tHuePos.y) / fPickerSize), 1.0f);
+            bChanged = true;
+        }
+
+        pl__set_active_id(uHueHash, ptWindow);
+        pl__set_nav_id(uHueHash, ptWindow);
+
+        if(gptCtx->bActiveIdJustActivated)
+        {
+            pl__focus_window(ptWindow);
+        }
+    }
+
+    tHueBarMarker.x = tHuePos.x;
+    tHueBarMarker.y = tHuePos.y + (1.0f - fH) * fPickerSize;
+
+    gptDraw->add_rect(ptDrawLayer,
+        (plVec2){ tHueBarMarker.x - 2.0f, tHueBarMarker.y - 2.0f },
+        (plVec2){ tHueBarMarker.x + fHueBarWidth + 2.0f, tHueBarMarker.y + 2.0f },
+        (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 1.0f, 1.0f), .fThickness = 2.0f}
+    );
+
+    pl__add_widget(uHueHash);
+
+    // ALPHA BAR
+    const float fCheckerSize = 6.0f;
+    const uint32_t uAlphaHash = pl_str_hash("##alpha", 0, pl_sb_top(gptCtx->sbuIdStack));
+    plVec2 tAlphaBarMarker = { 0 };
+
+    // current color, in RGB — needed by the gradient below AND by the preview swatch further down,
+    // so it's computed unconditionally rather than inside the bNoAlpha-gated block
+    float fCurrentR;
+    float fCurrentG;
+    float fCurrentB;
+    pl__ui_hsv_to_rgb(fH, fS, fV, &fCurrentR, &fCurrentG, &fCurrentB);
+
+    if(!bNoAlpha)
+    {
+
+        gptDraw->add_rect_filled(ptDrawLayer,
+            tAplphaBarPos,
+            (plVec2){ tAplphaBarPos.x + fTotalWidth, tAplphaBarPos.y + fAlphaBarHeight },
+            (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.66f, 0.66f, 0.66f, 1.0f)}
+        );
+
+        // -- gradient --
+        const uint32_t uAlphaBarStart = PL_COLOR_32_RGBA(fCurrentR, fCurrentG, fCurrentB, 0.0f);
+        const uint32_t uAlphaBarEnd   = PL_COLOR_32_RGBA(fCurrentR, fCurrentG, fCurrentB, 1.0f);
+
+        gptDraw->add_rect_filled_gradient(ptDrawLayer, tAplphaBarPos,
+            (plVec2){ tAplphaBarPos.x + fTotalWidth, tAplphaBarPos.y + fAlphaBarHeight },
+            uAlphaBarStart, uAlphaBarEnd, uAlphaBarStart, uAlphaBarEnd);
+
+        plRect tAlphaBarHitBox = pl_calculate_rect(tAplphaBarPos, (plVec2){ fTotalWidth, fAlphaBarHeight });
+        tAlphaBarHitBox = pl_rect_clip_full(&tAlphaBarHitBox, ptClipRect);
+
+        bool bHoveredAlpha;
+        bool bHeldAlpha;
+        bool bPressedAlpha = pl__button_behavior(&tAlphaBarHitBox, uAlphaHash, &bHoveredAlpha, &bHeldAlpha);
+
+        if(gptCtx->uActiveId == uAlphaHash && gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
+        {
+            plVec2 tClickedMousePos = gptIOI->get_mouse_pos();
+
+            bool bMouseInsideBar =
+                tClickedMousePos.x >= tAplphaBarPos.x &&
+                tClickedMousePos.x <= tAplphaBarPos.x + fTotalWidth &&
+                tClickedMousePos.y >= tAplphaBarPos.y &&
+                tClickedMousePos.y <= tAplphaBarPos.y + fAlphaBarHeight;
+
+            if(bMouseInsideBar)
+            {
+                fAlpha = pl_clampf(0.0f, (tClickedMousePos.x - tAplphaBarPos.x) / fTotalWidth, 1.0f);
+                bChanged = true;
+            }
+
+            pl__set_active_id(uAlphaHash, ptWindow);
+            pl__set_nav_id(uAlphaHash, ptWindow);
+
+            if(gptCtx->bActiveIdJustActivated)
+            {
+                pl__focus_window(ptWindow);
+            }
+        }
+
+        tAlphaBarMarker.x = tAplphaBarPos.x + fAlpha * fTotalWidth;
+        tAlphaBarMarker.y = tAplphaBarPos.y;
+
+        gptDraw->add_rect(ptDrawLayer,
+            (plVec2){ tAlphaBarMarker.x - 2.0f, tAlphaBarMarker.y - 2.0f },
+            (plVec2){ tAlphaBarMarker.x + 2.0f, tAlphaBarMarker.y + fAlphaBarHeight + 2.0f },
+            (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 1.0f, 1.0f), .fThickness = 2.0f}
+        );
+
+        pl__add_widget(uAlphaHash);
+    } 
+    // !bNoAlpha
+    // REFERENCE / PREVIEW SWATCH (optional, only if refColRGBA given and not suppressed)
+    if(bShowPreview)
+    {
+        const float fPreviewHalfHeight = fPickerSize * 0.5f;
+
+        // -- backdrop --
+        gptDraw->add_rect_filled(ptDrawLayer,
+            tPreviewPos,
+            (plVec2){ tPreviewPos.x + fPreviewWidth, tPreviewPos.y + fPickerSize },
+            (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.66f, 0.66f, 0.66f, 1.0f)}
+        );
+
+        // -- current color, top half, just a display, not clickable --
+        gptDraw->add_rect_filled(ptDrawLayer,
+            tPreviewPos,
+            (plVec2){ tPreviewPos.x + fPreviewWidth, tPreviewPos.y + fPreviewHalfHeight },
+            (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(fCurrentR, fCurrentG, fCurrentB, fAlpha)}
+        );
+
+        // -- reference color, bottom half, click to revert --
+        const plVec2 tRefMin = { tPreviewPos.x, tPreviewPos.y + fPreviewHalfHeight };
+        const plVec2 tRefMax = { tPreviewPos.x + fPreviewWidth, tPreviewPos.y + fPickerSize };
+        gptDraw->add_rect_filled(ptDrawLayer, tRefMin, tRefMax,
+            (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(refColRGBA[0], refColRGBA[1], refColRGBA[2], refColRGBA[3])});
+
+        const uint32_t uRefHash = pl_str_hash("##ref", 0, pl_sb_top(gptCtx->sbuIdStack));
+        plRect tRefBox = pl_calculate_rect(tRefMin, (plVec2){ fPreviewWidth, fPreviewHalfHeight });
+        tRefBox = pl_rect_clip_full(&tRefBox, ptClipRect);
+
+        bool bHoveredRef;
+        bool bHeldRef;
+        bool bPressedRef = pl__button_behavior(&tRefBox, uRefHash, &bHoveredRef, &bHeldRef);
+
+        if(bPressedRef)
+        {
+            pl__ui_rgb_to_hsv(refColRGBA[0], refColRGBA[1], refColRGBA[2], &fH, &fS, &fV);
+            fAlpha = refColRGBA[3];
+            bChanged = true;
+        }
+
+        pl__add_widget(uRefHash);
+
+        gptDraw->add_rect(ptDrawLayer,
+            tPreviewPos,
+            (plVec2){ tPreviewPos.x + fPreviewWidth, tPreviewPos.y + fPickerSize },
+            (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, 1.0f), .fThickness = 1.0f}
+        );
+    }
+
+    if(bChanged)
+    {
+        pl__ui_hsv_to_rgb(fH, fS, fV, &colRGBA[0], &colRGBA[1], &colRGBA[2]);
+        if(!bNoAlpha)
+            colRGBA[3] = fAlpha;
+    }
+
+    pl__smart_advance_cursor(fTotalWidth, fTotalHeight);
+    pl_ui_pop_id();
+    return bChanged;
+}
+
+bool
+pl_ui_color_picker3(const char* pcLabel, float colRGB[3], plUiColorEditFlags tFlags)
+{
+    // thin wrapper: pack into a local 4-float buffer, force NO_ALPHA, no side preview
+    float atLocalColRGBA[4] = { colRGB[0], colRGB[1], colRGB[2], 1.0f };
+
+    const bool bChanged = pl_ui_color_picker4(pcLabel, atLocalColRGBA, tFlags | PL_UI_COLOR_EDIT_FLAGS_NO_ALPHA, NULL);
+
+    colRGB[0] = atLocalColRGBA[0];
+    colRGB[1] = atLocalColRGBA[1];
+    colRGB[2] = atLocalColRGBA[2];
+
+    return bChanged;
+}
+
 void
 pl_ui_image_ex(plTextureID tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor)
 {
