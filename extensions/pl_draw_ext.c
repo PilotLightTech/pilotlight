@@ -1226,6 +1226,20 @@ pl_draw_add_triangle_filled(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plVec2
 }
 
 void
+pl_draw_add_triangle_filled_gradient(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plVec2 p2, uint32_t uColor0, uint32_t uColor1, uint32_t uColor2)
+{
+    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
+    pl__reserve_triangles(ptLayer, 3, 3);
+
+    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+    pl__add_vertex(ptLayer, p0, uColor0, gptDrawCtx->ptAtlas->_tWhiteUv);
+    pl__add_vertex(ptLayer, p1, uColor1, gptDrawCtx->ptAtlas->_tWhiteUv);
+    pl__add_vertex(ptLayer, p2, uColor2, gptDrawCtx->ptAtlas->_tWhiteUv);
+
+    pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
+}
+
+void
 pl_draw_add_triangles_filled(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCount, plDrawSolidOptions tOptions)
 {
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
@@ -1269,6 +1283,25 @@ pl_draw_add_rect_filled(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plDr
     pl__add_vertex(ptLayer, tBottomLeft, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
     pl__add_vertex(ptLayer, tMaxP,       tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
     pl__add_vertex(ptLayer, tTopRight,   tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
+
+    pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
+    pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
+}
+
+void
+pl_draw_add_rect_filled_gradient(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, uint32_t uTL, uint32_t uTR, uint32_t uBL, uint32_t uBR)
+{
+    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
+    pl__reserve_triangles(ptLayer, 6, 4);
+
+    const plVec2 tBottomLeft = { tMinP.x, tMaxP.y };
+    const plVec2 tTopRight =   { tMaxP.x, tMinP.y };
+
+    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+    pl__add_vertex(ptLayer, tMinP,       uTL, gptDrawCtx->ptAtlas->_tWhiteUv);
+    pl__add_vertex(ptLayer, tBottomLeft, uBL, gptDrawCtx->ptAtlas->_tWhiteUv);
+    pl__add_vertex(ptLayer, tMaxP,       uBR, gptDrawCtx->ptAtlas->_tWhiteUv);
+    pl__add_vertex(ptLayer, tTopRight,   uTR, gptDrawCtx->ptAtlas->_tWhiteUv);
 
     pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
     pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
@@ -5055,11 +5088,13 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .add_text_clipped              = pl_draw_add_text_clipped,
         .add_triangle                  = pl_draw_add_triangle,
         .add_triangle_filled           = pl_draw_add_triangle_filled,
+        .add_triangle_filled_gradient  = pl_draw_add_triangle_filled_gradient,
         .add_triangles_filled          = pl_draw_add_triangles_filled,
         .add_rect_rounded              = pl_draw_add_rect_rounded,
         .add_rect_rounded_filled       = pl_draw_add_rect_rounded_filled,
         .add_rect                      = pl_draw_add_rect,
         .add_rect_filled               = pl_draw_add_rect_filled,
+        .add_rect_filled_gradient      = pl_draw_add_rect_filled_gradient,
         .add_quad                      = pl_draw_add_quad,
         .add_quad_filled               = pl_draw_add_quad_filled,
         .add_circle                    = pl_draw_add_circle,
