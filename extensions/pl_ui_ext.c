@@ -2776,6 +2776,8 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .slider_angle                          = pl_ui_slider_angle,
         .drag_float                            = pl_ui_drag_float,
         .drag_float_f                          = pl_ui_drag_float_f,
+        .color_picker3                         = pl_ui_color_picker3,
+        .color_picker4                         = pl_ui_color_picker4,
         .begin_collapsing_header               = pl_ui_begin_collapsing_header,
         .end_collapsing_header                 = pl_ui_end_collapsing_header,
         .tree_node                             = pl_ui_tree_node,
