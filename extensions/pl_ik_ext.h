@@ -94,10 +94,12 @@ typedef struct _plIkI
 
 typedef struct _plInverseKinematicsComponent
 {
-    bool     bEnabled;
+    bool       bEnabled;
+    plEntityId tTargetId;
+    uint32_t   uChainLength;
+    uint32_t   uIterationCount;
+
     plEntity tTarget;
-    uint32_t uChainLength;
-    uint32_t uIterationCount;
 } plInverseKinematicsComponent;
 
 #ifdef __cplusplus

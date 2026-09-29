@@ -26,6 +26,7 @@ Index of this file:
 #include "pl_ecs_ext.h"
 #include "pl_profile_ext.h"
 #include "pl_transform_ext.h"
+#include "pl_json_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -44,6 +45,7 @@ Index of this file:
     static const plProfileI*   gptProfile   = NULL;
     static const plEcsI*       gptEcs       = NULL;
     static const plTransformI* gptTransform = NULL;
+    static const plJsonI*      gptJson      = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -59,8 +61,6 @@ typedef struct _plComponentLibraryData
 
 typedef struct _plIkContext
 {
-    plEcsTypeKey tHierarchyComponentType;
-    plEcsTypeKey tTransformComponentType;
     plEcsTypeKey tInverseKinematicsComponentType;
 } plIkContext;
 
@@ -104,6 +104,9 @@ pl_ik_run_update_system(plComponentLibrary* ptLibrary)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
+    plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
+    plEcsTypeKey tHierarchyComponentType = gptTransform->get_ecs_type_key_hierarchy();
+
     plInverseKinematicsComponent* ptComponents = NULL;
     const plEntity* ptEntities = NULL;
     const uint32_t uComponentCount = gptEcs->get_components(ptLibrary, gptIkCtx->tInverseKinematicsComponentType, (void**)&ptComponents, &ptEntities);
@@ -116,7 +119,7 @@ pl_ik_run_update_system(plComponentLibrary* ptLibrary)
 
 
     plTransformComponent* ptTransforms = NULL;
-    const uint32_t uTransformCount = gptEcs->get_components(ptLibrary, gptIkCtx->tTransformComponentType, (void**)&ptTransforms, NULL);
+    const uint32_t uTransformCount = gptEcs->get_components(ptLibrary, tTransformComponentType, (void**)&ptTransforms, NULL);
 
     plComponentLibraryData* ptData = gptEcs->get_library_type_data(ptLibrary, gptIkCtx->tInverseKinematicsComponentType);
     if(ptData == NULL) // lazily create
@@ -143,15 +146,18 @@ pl_ik_run_update_system(plComponentLibrary* ptLibrary)
         if(!ptInverseKinematicsComponent->bEnabled)
             continue;
 
-        const size_t uTransformIndex = gptEcs->get_index(ptLibrary, gptIkCtx->tTransformComponentType, tIKEntity);
-        const size_t uTargetIndex = gptEcs->get_index(ptLibrary, gptIkCtx->tTransformComponentType, ptInverseKinematicsComponent->tTarget);
+        const size_t uTransformIndex = gptEcs->get_index(ptLibrary, tTransformComponentType, tIKEntity);
+        const size_t uTargetIndex = gptEcs->get_index(ptLibrary, tTransformComponentType, ptInverseKinematicsComponent->tTarget);
 
         plTransformComponent* ptTransform = &ptData->sbtTransformsCopy[uTransformIndex];
         plTransformComponent* ptTarget = &ptData->sbtTransformsCopy[uTargetIndex];
-        plHierarchyComponent* ptHierComp = gptEcs->get_component(ptLibrary, gptIkCtx->tHierarchyComponentType, tIKEntity);
+        plHierarchyComponent* ptHierComp = gptEcs->get_component(ptLibrary, tHierarchyComponentType, tIKEntity);
         
         PL_ASSERT(uTransformIndex != UINT64_MAX);
-        PL_ASSERT(uTargetIndex != UINT64_MAX);
+
+        if(uTargetIndex == UINT64_MAX)
+            continue;
+
         PL_ASSERT(ptHierComp);
 
         const plVec3 tTargetPos = ptTarget->tWorld.col[3].xyz;
@@ -162,13 +168,22 @@ pl_ik_run_update_system(plComponentLibrary* ptLibrary)
             plTransformComponent* ptChildTransform = ptTransform;
             for(uint32_t uChain = 0; uChain < pl_min(ptInverseKinematicsComponent->uChainLength, 32); ++uChain)
             {
+
+
+                if(tParentEntity.uIndex == UINT32_MAX)
+                    break;
+
+                const size_t uParentIndex = gptEcs->get_index(ptLibrary, tTransformComponentType, tParentEntity);
+
+                if(uParentIndex == UINT64_MAX)
+                    break;
+
                 bRecomputeHierarchy = true;
 
                 // stack stores all traversed chain links so far
                 aptStack[uChain] = ptChildTransform;
 
                 // compute required parent rotation that moves ik transform closer to target transform
-                const size_t uParentIndex = gptEcs->get_index(ptLibrary, gptIkCtx->tTransformComponentType, tParentEntity);
                 PL_ASSERT(uParentIndex != UINT64_MAX);
                 plTransformComponent* ptParentTransform =  &ptData->sbtTransformsCopy[uParentIndex];
                 const plVec3 tParentPos = ptParentTransform->tWorld.col[3].xyz;
@@ -192,18 +207,21 @@ pl_ik_run_update_system(plComponentLibrary* ptLibrary)
                 ptParentTransform->tWorld = pl_rotation_translation_scale(ptParentTransform->tRotation, ptParentTransform->tTranslation, ptParentTransform->tScale);
 
                 // parent back to local space (if parent has parent)
-                plHierarchyComponent* ptHierParentComp = gptEcs->get_component(ptLibrary, gptIkCtx->tHierarchyComponentType, tParentEntity);
+                plHierarchyComponent* ptHierParentComp = gptEcs->get_component(ptLibrary, tHierarchyComponentType, tParentEntity);
                 if(ptHierParentComp)
                 {
                     plEntity tParentOfParentEntity = ptHierParentComp->tParent;
-                    const size_t uGrandParentIndex = gptEcs->get_index(ptLibrary, gptIkCtx->tTransformComponentType, tParentOfParentEntity);
-                    PL_ASSERT(uGrandParentIndex != UINT64_MAX);
-                    plTransformComponent* ptParentOfParentTransform = &ptData->sbtTransformsCopy[uGrandParentIndex];
-                    const plMat4 tParentOfParentInverse = pl_mat4_invert(&ptParentOfParentTransform->tWorld);
-                    plMat4 tW = pl_rotation_translation_scale(ptParentTransform->tRotation, ptParentTransform->tTranslation, ptParentTransform->tScale);
-                    plMat4 tNewMatrix = pl_mul_mat4(&tParentOfParentInverse, &tW);
-                    pl_decompose_matrix(&tNewMatrix, &ptParentTransform->tScale, &ptParentTransform->tRotation, &ptParentTransform->tTranslation);
-                    // keep parent world matrix in world space!
+                    const size_t uGrandParentIndex = gptEcs->get_index(ptLibrary, tTransformComponentType, tParentOfParentEntity);
+                    if(uGrandParentIndex != UINT64_MAX)
+                    {
+                        PL_ASSERT(uGrandParentIndex != UINT64_MAX);
+                        plTransformComponent* ptParentOfParentTransform = &ptData->sbtTransformsCopy[uGrandParentIndex];
+                        const plMat4 tParentOfParentInverse = pl_mat4_invert(&ptParentOfParentTransform->tWorld);
+                        plMat4 tW = pl_rotation_translation_scale(ptParentTransform->tRotation, ptParentTransform->tTranslation, ptParentTransform->tScale);
+                        plMat4 tNewMatrix = pl_mul_mat4(&tParentOfParentInverse, &tW);
+                        pl_decompose_matrix(&tNewMatrix, &ptParentTransform->tScale, &ptParentTransform->tRotation, &ptParentTransform->tTranslation);
+                        // keep parent world matrix in world space!
+                    }
                 }
 
                 // update chain from parent to children
@@ -215,7 +233,7 @@ pl_ik_run_update_system(plComponentLibrary* ptLibrary)
                     ptRecurseParent = aptStack[recurse_chain];
                 }
 
-                if(ptHierParentComp == NULL)
+                if(ptHierParentComp == NULL || ptHierParentComp->tParent.uIndex == UINT32_MAX)
                 {
                     // chain root reached, exit
                     break;
@@ -233,31 +251,31 @@ pl_ik_run_update_system(plComponentLibrary* ptLibrary)
     if(bRecomputeHierarchy)
     {
         const plEntity* ptHierarchyEntities = NULL;
-        const uint32_t uHierarchyCount = gptEcs->get_components(ptLibrary, gptIkCtx->tHierarchyComponentType, NULL, &ptHierarchyEntities);
+        const uint32_t uHierarchyCount = gptEcs->get_components(ptLibrary, tHierarchyComponentType, NULL, &ptHierarchyEntities);
         for(uint32_t i = 0; i < uHierarchyCount; i++)
         {
             const plEntity tChildEntity = ptHierarchyEntities[i];
             
-            const size_t uChildIndex = gptEcs->get_index(ptLibrary, gptIkCtx->tTransformComponentType, tChildEntity);
+            const size_t uChildIndex = gptEcs->get_index(ptLibrary, tTransformComponentType, tChildEntity);
             PL_ASSERT(uChildIndex != UINT64_MAX);
 
             const plTransformComponent* ptTransformChild = &ptData->sbtTransformsCopy[uChildIndex];
 
             plMat4 tWorldMatrix = pl_rotation_translation_scale(ptTransformChild->tRotation, ptTransformChild->tTranslation, ptTransformChild->tScale);
 
-            plHierarchyComponent* ptHierarchyComponent = gptEcs->get_component(ptLibrary, gptIkCtx->tHierarchyComponentType, tChildEntity);
+            plHierarchyComponent* ptHierarchyComponent = gptEcs->get_component(ptLibrary, tHierarchyComponentType, tChildEntity);
             
             plEntity tParentID = ptHierarchyComponent->tParent;
             while(tParentID.uIndex != UINT32_MAX)
             {
-                const size_t uParentIndex = gptEcs->get_index(ptLibrary, gptIkCtx->tTransformComponentType, tParentID);
+                const size_t uParentIndex = gptEcs->get_index(ptLibrary, tTransformComponentType, tParentID);
                 if(uParentIndex == UINT64_MAX)
                     break;
                 plTransformComponent* ptTransformParent = &ptData->sbtTransformsCopy[uParentIndex];
                 plMat4 tLocalMatrix = pl_rotation_translation_scale(ptTransformParent->tRotation, ptTransformParent->tTranslation, ptTransformParent->tScale);
                 tWorldMatrix = pl_mul_mat4(&tLocalMatrix, &tWorldMatrix);
 
-                const plHierarchyComponent* ptHierarchyRecursive = gptEcs->get_component(ptLibrary, gptIkCtx->tHierarchyComponentType, tParentID);
+                const plHierarchyComponent* ptHierarchyRecursive = gptEcs->get_component(ptLibrary, tHierarchyComponentType, tParentID);
                 if(ptHierarchyRecursive)
                     tParentID = ptHierarchyRecursive->tParent;
                 else
@@ -275,22 +293,57 @@ pl_ik_run_update_system(plComponentLibrary* ptLibrary)
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
+static void
+pl__ik_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
+{
+    plInverseKinematicsComponent* ptComponent = pComponent;
+    gptJson->add_uint64_member(ptJson, "target", ptComponent->tTargetId);
+    gptJson->add_uint32_member(ptJson, "chain_length", ptComponent->uChainLength);
+    gptJson->add_uint32_member(ptJson, "iterations", ptComponent->uIterationCount);
+    gptJson->add_bool_member(ptJson, "enabled", ptComponent->bEnabled);
+}
+
+static void
+pl__ik_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
+{
+    plInverseKinematicsComponent* ptComponent = pComponent;
+    ptComponent->uChainLength = gptJson->uint32_member(ptJson, "chain_length", 1);
+    ptComponent->uIterationCount = gptJson->uint32_member(ptJson, "iterations", 3);
+    ptComponent->tTargetId = gptJson->uint64_member(ptJson, "target", UINT64_MAX);
+    ptComponent->bEnabled = gptJson->bool_member(ptJson, "enabled", false);
+}
+
+static void
+pl__ik_resolve(plComponentLibrary* ptLibrary, plEntityId tEntityId, plHashMap64* ptHashmap, void* pComponent)
+{
+    plInverseKinematicsComponent* ptComponent = pComponent;
+    if(ptHashmap)
+    {
+        plEntityId tOldTransformID = ptComponent->tTargetId;
+        if(pl_hm_has_key(ptHashmap, tOldTransformID))
+        {
+            ptComponent->tTargetId = pl_hm_lookup(ptHashmap, tOldTransformID);
+        }
+    }
+    
+    ptComponent->tTarget = gptEcs->get_entity_by_id(ptLibrary, ptComponent->tTargetId);
+}
+
 void
 pl_ik_register_ecs_components(void)
 {
-
-    gptIkCtx->tTransformComponentType = gptTransform->get_ecs_type_key_transform();
-    gptIkCtx->tHierarchyComponentType = gptTransform->get_ecs_type_key_hierarchy();
-
     const plComponentDesc tIKDesc = {
         .pcName = "inverse_kinematics",
-        .szSize = sizeof(plInverseKinematicsComponent)
+        .szSize = sizeof(plInverseKinematicsComponent),
+        .serialize = pl__ik_serialize,
+        .deserialize = pl__ik_deserialize,
+        .resolve = pl__ik_resolve
     };
 
     static const plInverseKinematicsComponent tIkComponentDefault = {
-        .bEnabled = true,
-        .tTarget = UINT32_MAX,
-        .uIterationCount = 1
+        .bEnabled = false,
+        .tTargetId = UINT64_MAX,
+        .uIterationCount = 3
     };
     gptIkCtx->tInverseKinematicsComponentType = gptEcs->register_type(tIKDesc, &tIkComponentDefault);
 }
@@ -314,6 +367,7 @@ pl_load_ik_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptTransform = pl_get_api_latest(ptApiRegistry, plTransformI);
+    gptJson = pl_get_api_latest(ptApiRegistry, plJsonI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
