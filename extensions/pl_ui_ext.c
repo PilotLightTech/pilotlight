@@ -2141,8 +2141,8 @@ pl__add_widget(uint32_t uHash)
             }
         }
 
-        if(gptCtx->uActiveId == uHash)
-            gptCtx->uActiveIdIsAlive = uHash;
+        // if(gptCtx->uActiveId == uHash)
+        //     gptCtx->uActiveIdIsAlive = uHash;
     }
 
     gptCtx->tPrevItemData.uHash = uHash;
