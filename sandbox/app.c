@@ -872,26 +872,63 @@ pl_app_update(plAppData* ptAppData)
         }
         gptUI->pop_theme_color(1);
 
+#if 0
+        if(gptUI->begin_window("Add Object", NULL, 0))
+        {
+            if(gptUI->button("add object")) 
+            {
+                plEntity tNewEntity = gptEcs->create_entity_with_id(ptLibrary, "New Object 0", 8008);
 
-        // if(gptUI->begin_window("Add Object", NULL, 0))
-        // {
-        //     if(gptUI->button("add object")) 
-        //     {
-        //         plEntity tNewEntity = gptEcs->create_entity_with_id(ptLibrary, "New Object 0", 8008);
+                plTransformComponent* ptNewTransform = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity);
+                ptNewTransform->tTranslation.x = 10.0f;
 
-        //         plTransformComponent* ptNewTransform = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity);
-        //         ptNewTransform->tTranslation.x = 10.0f;
+                plObjectComponent* ptNewObject = gptEcs->add_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), tNewEntity);
+                ptNewObject->tMesh = gptAsset->load("/assets/meshes/sphere.plmesh");
+                ptNewObject->tTransformId = 8008;
+                ptNewObject->uFirstSubmesh = 0;
+                ptNewObject->uSubmeshCount = 1;
+                ptNewObject->tTransform = tNewEntity;
+            }
 
-        //         plObjectComponent* ptNewObject = gptEcs->add_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), tNewEntity);
-        //         ptNewObject->tMesh = gptAsset->load("/assets/meshes/sphere.plmesh");
-        //         ptNewObject->tTransformId = 8008;
-        //         ptNewObject->uFirstSubmesh = 0;
-        //         ptNewObject->uSubmeshCount = 1;
-        //         ptNewObject->tTransform = tNewEntity;
-        //     }
-        //     gptUI->end_window();
-        // }
+            if(gptUI->button("add light")) 
+            {
+                plEntity tNewEntity = gptEcs->create_entity_with_id(ptLibrary, "New Light 0", 8009);
+
+                plLightComponent* ptNewLight = gptEcs->add_component(ptLibrary, gptRenderer->get_ecs_type_key_light(), tNewEntity);
+                ptNewLight->tType = PL_LIGHT_TYPE_POINT;
+                ptNewLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+                ptNewLight->tColor = (plVec3){1.0f, 0.0f, 1.0f};
+                ptNewLight->fIntensity = 20.0f;
+                ptNewLight->fRange = 10.0f;
+                ptNewLight->fRadius = 0.25f;
+                ptNewLight->uShadowResolution = 256;
+                ptNewLight->tPosition = (plVec3){0.0f, 0.0f, 0.0f};
+
+                plTransformComponent* ptNewTransform = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity);
+                ptNewTransform->tTranslation.y = 8.0f;
+
+            }
+
+            if(gptUI->button("add probe")) 
+            {
+                plEntity tNewEntity = gptEcs->create_entity_with_id(ptLibrary, "New Probe 0", 8010);
+
+                plEnvironmentProbeComponent* ptNewProbe = gptEcs->add_component(ptLibrary, gptRenderer->get_ecs_type_key_environment_probe(), tNewEntity);
+                ptNewProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_REALTIME | PL_ENVIRONMENT_PROBE_FLAGS_DIRTY | PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+                ptNewProbe->fRange = 10.0f;
+                ptNewProbe->uResolution = 128;
+                ptNewProbe->uSamples = 128;
+                ptNewProbe->uInterval = 6;
+
+                plTransformComponent* ptNewTransform = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity);
+                ptNewTransform->tTranslation.y = 8.0f;
+
+            }
+            gptUI->end_window();
+        }
+#endif
     }
+
 
     if(ptAppData->bShowUiDemo)
         pl__show_ui_demo_window(ptAppData);
