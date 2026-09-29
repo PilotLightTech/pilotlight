@@ -171,11 +171,12 @@ typedef struct _plEcsI
     void (*get_entities)(const plComponentLibrary*, plEntity*, uint32_t*);
 
     // components
-    void*    (*add_component) (plComponentLibrary*, plEcsTypeKey, plEntity); // do not store
-    void*    (*get_component) (const plComponentLibrary*, plEcsTypeKey, plEntity); // do not store
-    bool     (*has_component) (const plComponentLibrary*, plEcsTypeKey, plEntity);
-    size_t   (*get_index)     (const plComponentLibrary*, plEcsTypeKey, plEntity);
-    uint32_t (*get_components)(const plComponentLibrary*, plEcsTypeKey, void**, const plEntity**); // do not store
+    void*    (*add_component)   (plComponentLibrary*, plEcsTypeKey, plEntity); // do not store
+    void*    (*get_component)   (const plComponentLibrary*, plEcsTypeKey, plEntity); // do not store
+    bool     (*has_component)   (const plComponentLibrary*, plEcsTypeKey, plEntity);
+    bool     (*remove_component)(plComponentLibrary*, plEcsTypeKey, plEntity);
+    size_t   (*get_index)       (const plComponentLibrary*, plEcsTypeKey, plEntity);
+    uint32_t (*get_components)  (const plComponentLibrary*, plEcsTypeKey, void**, const plEntity**); // do not store
 
     // changes
     void (*get_changes)           (const plComponentLibrary*, plEcsChange**, uint32_t*, plEcsTypeKey**);
