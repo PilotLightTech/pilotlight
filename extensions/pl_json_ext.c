@@ -106,6 +106,7 @@ void pl_json_as_string_array(plJsonObject*,    char** pcOut, uint32_t* puSizeOut
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~writing~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 // simple
+void pl_json_add_null_member  (plJsonObject*, const char* pcName);
 void pl_json_add_int_member   (plJsonObject*, const char* pcName,         int);
 void pl_json_add_uint32_member(plJsonObject*, const char* pcName,    uint32_t);
 void pl_json_add_uint64_member(plJsonObject*, const char* pcName,    uint64_t);
@@ -1309,6 +1310,26 @@ pl_json_as_bool_array(plJsonObject* ptJson, bool* pbOut, uint32_t* puSizeOut)
 }
 
 void
+pl_json_add_null_member(plJsonObject* ptJson, const char* pcName)
+{
+    ptJson->uChildCount++;
+    ptJson->uChildrenFound++;
+    ptJson->tType = PL_JSON_TYPE_OBJECT;
+
+    plJsonObject tNewJsonObject = {0};
+    tNewJsonObject.tType = PL_JSON_TYPE_NULL;
+    tNewJsonObject.ptRootObject = ptJson->ptRootObject;
+    snprintf(tNewJsonObject.acName, PL_JSON_MAX_NAME_LENGTH, "%s", pcName);
+    tNewJsonObject.sbcBuffer = NULL;
+    tNewJsonObject.uValueOffset = pl_sb_size(ptJson->ptRootObject->sbcBuffer);
+    tNewJsonObject.uValueLength = snprintf(NULL, 0, "null");
+    pl_sb_resize(ptJson->ptRootObject->sbcBuffer, tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength + 1);
+    snprintf(&ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset], tNewJsonObject.uValueLength + 1, "null");
+    ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength] = ' ';
+    pl_sb_push(ptJson->sbtChildren, tNewJsonObject);
+}
+
+void
 pl_json_add_int_member(plJsonObject* ptJson, const char* pcName, int iValue)
 {
     ptJson->uChildCount++;
@@ -2095,6 +2116,7 @@ pl_load_json_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .as_bool_array = pl_json_as_bool_array,
         .as_string_array = pl_json_as_string_array,
         .add_int_member = pl_json_add_int_member,
+        .add_null_member = pl_json_add_null_member,
         .add_uint32_member = pl_json_add_uint32_member,
         .add_uint64_member = pl_json_add_uint64_member,
         .add_float_member = pl_json_add_float_member,

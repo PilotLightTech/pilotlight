@@ -118,6 +118,7 @@ typedef struct _plJsonI
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~writing~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // simple
+    void (*add_null_member)  (plJsonObject*, const char* pcName);
     void (*add_int_member)   (plJsonObject*, const char* pcName,         int);
     void (*add_uint32_member)(plJsonObject*, const char* pcName,    uint32_t);
     void (*add_uint64_member)(plJsonObject*, const char* pcName,    uint64_t);
