@@ -102,6 +102,7 @@ static const plConsoleI*       gptConsole       = NULL;
 #define PL_ICON_FA_CHESS_BOARD "\xef\x90\xbc"	// U+f43c
 #define PL_ICON_FA_DRAW_POLYGON "\xef\x97\xae"	// U+f5ee
 #define PL_ICON_FA_BONE "\xef\x97\x97"	// U+f5d7
+#define PL_ICON_FA_TRASH_CAN "\xef\x8b\xad"	// U+f2ed
 
 static const char* apcComponentNames[] = {
     "None",
@@ -429,7 +430,8 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
             const float pfRatiosInner[] = {1.0f};
             gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
 
-            if(ptSelectedEntity->uData != UINT64_MAX)
+            // if(ptSelectedEntity->uData != UINT64_MAX)
+            if(gptEcs->is_entity_valid(ptLibrary, *ptSelectedEntity))
             {
                 gptUI->push_id_uint(ptSelectedEntity->uIndex);
 
@@ -452,313 +454,266 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                 plRendererComponent*          ptRenderer          = gptEcs->get_component(ptLibrary, tRendererComponentType, *ptSelectedEntity);
                 plTerrainComponent*           ptTerrain           = gptEcs->get_component(ptLibrary, tTerrainComponentType, *ptSelectedEntity);
 
+
+
+                gptUI->layout_template_begin(0.0f);
+                gptUI->layout_template_push_dynamic();
+                gptUI->layout_template_push_static(25.0f);
+                gptUI->layout_template_end();
+
+                gptUI->text("Entity: {i-%u, g-%u}", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
+
                 static char acEntityIdBuffer[64] = {0};
                 snprintf(acEntityIdBuffer, 64, "%" PRIu64, gptEcs->get_entity_id(ptLibrary, *ptSelectedEntity));
+
+                if(gptUI->button(PL_ICON_FA_TRASH_CAN "##entity"))
+                {
+                    gptEcs->remove_entity(ptLibrary, *ptSelectedEntity);
+                    ptTagComp           = NULL;
+                    ptTransformComp     = NULL;
+                    ptObjectComp        = NULL;
+                    ptHierarchyComp     = NULL;
+                    ptSkinComp          = NULL;
+                    ptCameraComp        = NULL;
+                    ptAnimationComp     = NULL;
+                    ptIKComp            = NULL;
+                    ptLightComp         = NULL;
+                    ptProbeComp         = NULL;
+                    ptHumanComp         = NULL;
+                    ptScriptComp        = NULL;
+                    ptRigidComp         = NULL;
+                    ptForceField        = NULL;
+                    ptLibraryComp       = NULL;
+                    ptEnvironment       = NULL;
+                    ptRenderer          = NULL;
+                    ptTerrain           = NULL;
+                }
+
+                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
                 gptUI->input_text("ID", acEntityIdBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
-                gptUI->text("Entity: {i-%u, g-%u}", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
+
+                gptUI->layout_template_begin(0.0f);
+                gptUI->layout_template_push_dynamic();
+                gptUI->layout_template_push_static(25.0f);
+                gptUI->layout_template_end();
                 
                 gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
 
-                if(ptTagComp && gptUI->begin_collapsing_header("Tag", 0))
+                if(ptTagComp)
                 {
-                    gptUI->text("Name: %s", ptTagComp->pcName);
-                    gptUI->end_collapsing_header();
-                }
-
-                if(ptLibraryComp && gptUI->begin_collapsing_header("Library", 0))
-                {
-                    gptUI->text("Library: %s", gptAsset->get_path(ptLibraryComp->tSourceLibrary));
-                    gptUI->end_collapsing_header();
-                }
-
-                if(ptEnvironment && gptUI->begin_collapsing_header("Environment", 0))
-                {
-                    gptUI->text("Environment: %s", gptAsset->get_path(ptEnvironment->tEnvironment));
-                    
-                    gptUI->end_collapsing_header();
-                }
-
-                if(ptRenderer && gptUI->begin_collapsing_header("Renderer", 0))
-                {
-                    gptUI->text("Renderer: %s", gptAsset->get_path(ptRenderer->tRenderer));
-                    gptUI->end_collapsing_header();
-                }
-
-                if(ptTerrain && gptUI->begin_collapsing_header("Terrain", 0))
-                {
-                    gptUI->text("Terrain: %s", gptAsset->get_path(ptTerrain->tTerrain));
-                    gptUI->slider_float("fTau", &ptTerrain->fTau, 0.0f, 1.0f, 0);
-
-                    gptUI->checkbox_flags("Wireframe", &ptTerrain->tFlags, PL_TERRAIN_FLAGS_WIREFRAME);
-                    gptUI->checkbox_flags("Show Levels", &ptTerrain->tFlags, PL_TERRAIN_FLAGS_SHOW_LEVELS);
-
-                    gptUI->slider_float("fSlopeStart", &ptTerrain->fSlopeStart, 0.0f, 1.0f, 0);
-                    gptUI->slider_float("fSlopeEnd", &ptTerrain->fSlopeEnd, 0.0f, 1.0f, 0);
-
-                    gptUI->input_float("Terrain Depth Bias", &ptTerrain->fTerrainShadowConstantDepthBias, "%g", 0);
-                    gptUI->input_float("Terrain Slope Depth Bias", &ptTerrain->fTerrainShadowSlopeDepthBias, "%g", 0);
-
-                    gptUI->end_collapsing_header();
-                }
-
-                if(ptScriptComp && gptUI->begin_collapsing_header("Script", 0))
-                {
-                    gptUI->text("File: %s", ptScriptComp->pcPath);
-
-                    gptUI->checkbox_flags("Playing", &ptScriptComp->tFlags, PL_SCRIPT_FLAG_PLAYING);
-                    gptUI->checkbox_flags("Play Once", &ptScriptComp->tFlags, PL_SCRIPT_FLAG_PLAY_ONCE);
-                    gptUI->checkbox_flags("Reloadable", &ptScriptComp->tFlags, PL_SCRIPT_FLAG_RELOADABLE);
-                    gptUI->end_collapsing_header();
-                }
-
-                if(ptHumanComp && gptUI->begin_collapsing_header("Humanoid", 0))
-                {
-                    gptUI->end_collapsing_header();
-                }
-
-                if(ptRigidComp && gptUI->begin_collapsing_header("Rigid Body Physics", 0))
-                {
-                    if(gptUI->checkbox_flags("No Sleeping", &ptRigidComp->tFlags, PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING))
+                    if(gptUI->begin_collapsing_header("Tag", 0))
                     {
-                        if(ptRigidComp->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING)
-                            gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
+                        gptUI->text("Name: %s", ptTagComp->pcName);
+                        gptUI->end_collapsing_header();
+                    }
+                }
+
+                gptUI->layout_template_begin(0.0f);
+                gptUI->layout_template_push_dynamic();
+                gptUI->layout_template_push_static(25.0f);
+                gptUI->layout_template_end();
+
+                if(ptLibraryComp)
+                {
+                    if(gptUI->begin_collapsing_header("Library", 0))
+                    {
+                        gptUI->text("Library: %s", gptAsset->get_path(ptLibraryComp->tSourceLibrary));
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##0"))
+                    {
+                        gptEcs->remove_component(ptLibrary, gptEcs->get_ecs_type_key_library(), *ptSelectedEntity);
+                        ptLibraryComp = NULL;
+                    }
+                }
+
+                if(ptEnvironment)
+                {
+                    if(gptUI->begin_collapsing_header("Environment", 0))
+                    {
+                        gptUI->text("Environment: %s", gptAsset->get_path(ptEnvironment->tEnvironment));
+                        
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##1"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tEnvironmentProbeComponentType, *ptSelectedEntity);
+                        ptEnvironment = NULL;
+                    }
+                }
+
+                if(ptRenderer)
+                {
+                    if(gptUI->begin_collapsing_header("Renderer", 0))
+                    {
+                        gptUI->text("Renderer: %s", gptAsset->get_path(ptRenderer->tRenderer));
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##2"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tRendererComponentType, *ptSelectedEntity);
+                        ptRenderer = NULL;
+                    }
+                }
+
+                if(ptTerrain)
+                {
+                    if(gptUI->begin_collapsing_header("Terrain", 0))
+                    {
+                        gptUI->text("Terrain: %s", gptAsset->get_path(ptTerrain->tTerrain));
+                        gptUI->slider_float("fTau", &ptTerrain->fTau, 0.0f, 1.0f, 0);
+
+                        gptUI->checkbox_flags("Wireframe", &ptTerrain->tFlags, PL_TERRAIN_FLAGS_WIREFRAME);
+                        gptUI->checkbox_flags("Show Levels", &ptTerrain->tFlags, PL_TERRAIN_FLAGS_SHOW_LEVELS);
+
+                        gptUI->slider_float("fSlopeStart", &ptTerrain->fSlopeStart, 0.0f, 1.0f, 0);
+                        gptUI->slider_float("fSlopeEnd", &ptTerrain->fSlopeEnd, 0.0f, 1.0f, 0);
+
+                        gptUI->input_float("Terrain Depth Bias", &ptTerrain->fTerrainShadowConstantDepthBias, "%g", 0);
+                        gptUI->input_float("Terrain Slope Depth Bias", &ptTerrain->fTerrainShadowSlopeDepthBias, "%g", 0);
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##3"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tTerrainComponentType, *ptSelectedEntity);
+                        ptTerrain = NULL;
                     }
 
-                    if(gptUI->checkbox_flags("Kinematic", &ptRigidComp->tFlags, PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC))
-                    {
-                        if(ptRigidComp->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC)
-                            gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
-                    }
-                    gptUI->input_float("Mass", &ptRigidComp->fMass, "%g", 0);
-                    gptUI->slider_float("Friction", &ptRigidComp->fFriction, 0.0f, 1.0f, 0);
-                    gptUI->slider_float("Restitution", &ptRigidComp->fRestitution, 0.0f, 1.0f, 0);
-                    gptUI->slider_float("Linear Damping", &ptRigidComp->fLinearDamping, 0.0f, 1.0f, 0);
-                    gptUI->slider_float("Angluar Damping", &ptRigidComp->fAngularDamping, 0.0f, 1.0f, 0);
-                    gptUI->input_float3("Gravity", ptRigidComp->tGravity.d, NULL, 0);
-                    gptUI->input_float3("Local Offset", ptRigidComp->tLocalOffset.d, "%g", 0);
-
-                    gptUI->vertical_spacing();
-
-                    gptUI->separator_text("Collision Shape");
-                    gptUI->radio_button("Box", &ptRigidComp->tShape, PL_COLLISION_SHAPE_BOX);
-                    gptUI->radio_button("Sphere", &ptRigidComp->tShape, PL_COLLISION_SHAPE_SPHERE);
-
-                    gptUI->vertical_spacing();
-
-                    if(ptRigidComp->tShape == PL_COLLISION_SHAPE_BOX)
-                    {
-                        gptUI->input_float3("Extents", ptRigidComp->tExtents.d, "%g", 0);
-                    }
-                    else if(ptRigidComp->tShape == PL_COLLISION_SHAPE_SPHERE)
-                    {
-                        gptUI->input_float("Radius", &ptRigidComp->fRadius, "%g", 0);
-                    }
-
-                    static plVec3 tPoint = {0};
-                    static plVec3 tForce = {1000.0f};
-                    static plVec3 tTorque = {0.0f, 100.0f, 0.0f};
-                    static plVec3 tLinearVelocity = {0.0f, 0.0f, 0.0f};
-                    static plVec3 tAngularVelocity = {0.0f, 0.0f, 0.0f};
-                    gptUI->input_float3("Point", tPoint.d, NULL, 0);
-                    gptUI->input_float3("Force", tForce.d, NULL, 0);
-                    gptUI->input_float3("Torque", tTorque.d, NULL, 0);
-                    gptUI->input_float3("Velocity", tLinearVelocity.d, NULL, 0);
-                    gptUI->input_float3("Angular Velocity", tAngularVelocity.d, NULL, 0);
-
-                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON, (plVec4){0.02f, 0.51f, 0.10f, 1.00f});
-                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, (plVec4){ 0.02f, 0.61f, 0.10f, 1.00f});
-                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, (plVec4){0.02f, 0.87f, 0.10f, 1.00f});
-
-                    gptUI->layout_dynamic(0.0f, 2);
-                    if(gptUI->button("Stop"))
-                    {
-                        gptPhysics->set_linear_velocity(ptLibrary, *ptSelectedEntity, (plVec3){0});
-                        gptPhysics->set_angular_velocity(ptLibrary, *ptSelectedEntity, (plVec3){0});
-                    }
-                    
-                    if(gptUI->button("Set Velocity"))          gptPhysics->set_linear_velocity(ptLibrary, *ptSelectedEntity, tLinearVelocity);
-                    if(gptUI->button("Set A. Velocity"))       gptPhysics->set_angular_velocity(ptLibrary, *ptSelectedEntity, tAngularVelocity);
-                    if(gptUI->button("torque"))                gptPhysics->apply_torque(ptLibrary, *ptSelectedEntity, tTorque);
-                    if(gptUI->button("impulse torque"))        gptPhysics->apply_impulse_torque(ptLibrary, *ptSelectedEntity, tTorque);
-                    if(gptUI->button("force"))                 gptPhysics->apply_force(ptLibrary, *ptSelectedEntity, tForce);
-                    if(gptUI->button("force at point"))        gptPhysics->apply_force_at_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
-                    if(gptUI->button("force at body point"))   gptPhysics->apply_force_at_body_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
-                    if(gptUI->button("impulse"))               gptPhysics->apply_impulse(ptLibrary, *ptSelectedEntity, tForce);
-                    if(gptUI->button("impulse at point"))      gptPhysics->apply_impulse_at_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
-                    if(gptUI->button("impulse at body point")) gptPhysics->apply_impulse_at_body_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
-                    if(gptUI->button("wake up"))               gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
-                    if(gptUI->button("sleep"))                 gptPhysics->sleep_body(ptLibrary, *ptSelectedEntity);
-                    gptUI->invisible_button("not_used", (plVec2){1.0f, 1.0f});
-
-                    gptUI->pop_theme_color(3);
-
                     gptUI->end_collapsing_header();
                 }
 
-                if(ptProbeComp && gptUI->begin_collapsing_header("Environment Probe", 0))
+                if(ptScriptComp)
                 {
-                    gptUI->checkbox_flags("Real Time", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_REALTIME);
-                    gptUI->checkbox_flags("Include Sky", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY);
-                    gptUI->checkbox_flags("Box Parallax Correction", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX);
-
-                    if(gptUI->button("Update"))
-                        ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
-                    gptUI->input_float("Range", &ptProbeComp->fRange, NULL, 0);
-
-                    uint32_t auSamples[] = {
-                        32,
-                        64,
-                        128,
-                        256,
-                        512,
-                        1024,
-                        2048,
-                        4096,
-                    };
-                    int iSelection = 0;
-                    if(ptProbeComp->uSamples == 32)        iSelection = 0;
-                    else if(ptProbeComp->uSamples == 64)   iSelection = 1;
-                    else if(ptProbeComp->uSamples == 128)  iSelection = 2;
-                    else if(ptProbeComp->uSamples == 256)  iSelection = 3;
-                    else if(ptProbeComp->uSamples == 512)  iSelection = 4;
-                    else if(ptProbeComp->uSamples == 1024) iSelection = 5;
-                    else if(ptProbeComp->uSamples == 2048) iSelection = 6;
-                    else if(ptProbeComp->uSamples == 4096) iSelection = 7;
-                    gptUI->separator_text("Samples");
-                    gptUI->radio_button("32", &iSelection, 0);
-                    gptUI->radio_button("64", &iSelection, 1);
-                    gptUI->radio_button("128", &iSelection, 2);
-                    gptUI->radio_button("256", &iSelection, 3);
-                    gptUI->radio_button("512", &iSelection, 4);
-                    gptUI->radio_button("1024", &iSelection, 5);
-                    gptUI->radio_button("2048", &iSelection, 6);
-                    gptUI->radio_button("4096", &iSelection, 7);
-                    ptProbeComp->uSamples = auSamples[iSelection];
-
-                    gptUI->separator_text("Intervals");
-
-                    int iSelection0 = (int)ptProbeComp->uInterval;
-                    gptUI->radio_button("1", &iSelection0, 1);
-                    gptUI->radio_button("2", &iSelection0, 2);
-                    gptUI->radio_button("3", &iSelection0, 3);
-                    gptUI->radio_button("4", &iSelection0, 4);
-                    gptUI->radio_button("5", &iSelection0, 5);
-                    gptUI->radio_button("6", &iSelection0, 6);
-
-                    ptProbeComp->uInterval = (uint32_t)iSelection0;
-
-                    gptUI->end_collapsing_header();
-                }
-
-                if(ptTransformComp && gptUI->begin_collapsing_header("Transform", 0))
-                {
-                    gptUI->text("Scale:       (%+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tScale.x, ptTransformComp->tScale.y, ptTransformComp->tScale.z);
-                    gptUI->text("Translation: (%+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tTranslation.x, ptTransformComp->tTranslation.y, ptTransformComp->tTranslation.z);
-                    gptUI->text("Rotation:    (%+0.3f, %+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tRotation.x, ptTransformComp->tRotation.y, ptTransformComp->tRotation.z, ptTransformComp->tRotation.w);
-                    gptUI->vertical_spacing();
-                    gptUI->text("Local World: |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].x, ptTransformComp->tWorld.col[1].x, ptTransformComp->tWorld.col[2].x, ptTransformComp->tWorld.col[3].x);
-                    gptUI->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].y, ptTransformComp->tWorld.col[1].y, ptTransformComp->tWorld.col[2].y, ptTransformComp->tWorld.col[3].y);
-                    gptUI->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].z, ptTransformComp->tWorld.col[1].z, ptTransformComp->tWorld.col[2].z, ptTransformComp->tWorld.col[3].z);
-                    gptUI->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].w, ptTransformComp->tWorld.col[1].w, ptTransformComp->tWorld.col[2].w, ptTransformComp->tWorld.col[3].w);
-                    gptUI->end_collapsing_header();
-                }
-
-
-                if(ptForceField && gptUI->begin_collapsing_header("Force Field", 0))
-                {
-                    gptUI->radio_button("Type: PL_FORCE_FIELD_TYPE_POINT", &ptForceField->tType, PL_FORCE_FIELD_TYPE_POINT);
-                    gptUI->radio_button("Type: PL_FORCE_FIELD_TYPE_PLANE", &ptForceField->tType, PL_FORCE_FIELD_TYPE_PLANE);
-                    gptUI->input_float("Gravity", &ptForceField->fGravity, NULL, 0);
-                    gptUI->input_float("Range", &ptForceField->fRange, NULL, 0);
-                    gptUI->end_collapsing_header();
-                }
-
-                if(ptObjectComp && gptUI->begin_collapsing_header("Object", 0))
-                {
-                    plTagComponent* ptTransformTagComp = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptObjectComp->tTransform);
-
-                    plMesh* ptMesh = gptAsset->get_data(ptObjectComp->tMesh);
-                    gptUI->text("Mesh Asset:       %s", gptAsset->get_path(ptObjectComp->tMesh));
-                    gptUI->text("Submeshes:       %u", ptMesh->uSubmeshCount);
-                    gptUI->text("Transform Entity: %s, %u", ptTransformTagComp->pcName, ptObjectComp->tTransform.uIndex);
-
-                    bool bObjectRenderable = ptObjectComp->tFlags & PL_OBJECT_FLAGS_RENDERABLE;
-                    bool bObjectCastShadow = ptObjectComp->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW;
-                    bool bObjectDynamic = ptObjectComp->tFlags & PL_OBJECT_FLAGS_DYNAMIC;
-                    bool bObjectForeground = ptObjectComp->tFlags & PL_OBJECT_FLAGS_FOREGROUND;
-                    bool bObjectUpdateRequired = false;
-
-                    if(gptUI->checkbox_flags("Renderable", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RENDERABLE))
-                        bObjectUpdateRequired = true;
-
-                    if(gptUI->checkbox_flags("Cast Shadow", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_CAST_SHADOW))
-                        bObjectUpdateRequired = true;
-
-                    if(gptUI->checkbox_flags("Dynamic", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_DYNAMIC))
-                        bObjectUpdateRequired = true;
-
-                    if(gptUI->checkbox_flags("Foreground", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_FOREGROUND))
-                        bObjectUpdateRequired = true;
-                    // if(bObjectUpdateRequired)
-                    //     gptRenderer->update_scene_objects(ptScene, 1, ptSelectedEntity);
-                    gptUI->end_collapsing_header();
-                }
-
-                if(ptHierarchyComp && gptUI->begin_collapsing_header("Hierarchy", 0))
-                {
-                    plTagComponent* ptParentTagComp = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptHierarchyComp->tParent);
-                    gptUI->text("Parent Entity: %s , %u", ptParentTagComp->pcName, ptHierarchyComp->tParent.uIndex);
-                    gptUI->end_collapsing_header();
-                }
-
-                if(ptLightComp && gptUI->begin_collapsing_header("Light", 0))
-                {
-                    static const char* apcLightTypes[] = {
-                        "PL_LIGHT_TYPE_DIRECTIONAL",
-                        "PL_LIGHT_TYPE_POINT",
-                        "PL_LIGHT_TYPE_SPOT",
-                    };
-                    gptUI->labeled_text("Type", "%s", apcLightTypes[ptLightComp->tType]);
-
-                    gptUI->checkbox_flags("Visualizer", &ptLightComp->tFlags, PL_LIGHT_FLAG_VISUALIZER);
-
-                    gptUI->input_float3("Position", ptLightComp->tPosition.d, NULL, 0);
-
-                    gptUI->separator_text("Color");
-                    gptUI->slider_float("r", &ptLightComp->tColor.x, 0.0f, 1.0f, 0);
-                    gptUI->slider_float("g", &ptLightComp->tColor.y, 0.0f, 1.0f, 0);
-                    gptUI->slider_float("b", &ptLightComp->tColor.z, 0.0f, 1.0f, 0);
-
-                    gptUI->slider_float("Intensity", &ptLightComp->fIntensity, 0.0f, 20.0f, 0);
-
-                    if(ptLightComp->tType != PL_LIGHT_TYPE_DIRECTIONAL)
+                    if(gptUI->begin_collapsing_header("Script", 0))
                     {
-                        gptUI->input_float("Radius", &ptLightComp->fRadius, NULL, 0);
-                        gptUI->input_float("Range", &ptLightComp->fRange, NULL, 0);
+                        gptUI->text("File: %s", ptScriptComp->pcPath);
+
+                        gptUI->checkbox_flags("Playing", &ptScriptComp->tFlags, PL_SCRIPT_FLAG_PLAYING);
+                        gptUI->checkbox_flags("Play Once", &ptScriptComp->tFlags, PL_SCRIPT_FLAG_PLAY_ONCE);
+                        gptUI->checkbox_flags("Reloadable", &ptScriptComp->tFlags, PL_SCRIPT_FLAG_RELOADABLE);
+                        gptUI->end_collapsing_header();
                     }
-
-                    if(ptLightComp->tType == PL_LIGHT_TYPE_SPOT)
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##4"))
                     {
-                        gptUI->slider_float("Inner Cone Angle", &ptLightComp->fInnerConeAngle, 0.0f, PL_PI_2, 0);
-                        gptUI->slider_float("Outer Cone Angle", &ptLightComp->fOuterConeAngle, 0.0f, PL_PI_2, 0);
+                        gptEcs->remove_component(ptLibrary, tScriptComponentType, *ptSelectedEntity);
+                        ptScriptComp = NULL;
                     }
+                }
 
-
-                    if(ptLightComp->tType != PL_LIGHT_TYPE_POINT)
+                if(ptHumanComp)
+                {
+                    if(gptUI->begin_collapsing_header("Humanoid", 0))
                     {
-                        gptUI->separator_text("Direction");
-                        gptUI->slider_float("x", &ptLightComp->tDirection.x, -1.0f, 1.0f, 0);
-                        gptUI->slider_float("y", &ptLightComp->tDirection.y, -1.0f, 1.0f, 0);
-                        gptUI->slider_float("z", &ptLightComp->tDirection.z, -1.0f, 1.0f, 0);
+                        gptUI->end_collapsing_header();
                     }
-
-                    gptUI->separator_text("Shadows");
-
-                    gptUI->checkbox_flags("Cast Shadow", &ptLightComp->tFlags, PL_LIGHT_FLAG_CAST_SHADOW);
-
-                    if(ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW)
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##5"))
                     {
-                        uint32_t auResolutions[] = {
+                        gptEcs->remove_component(ptLibrary, tHumanoidComponentType, *ptSelectedEntity);
+                        ptHumanComp = NULL;
+                    }
+                }
+
+                if(ptRigidComp)
+                {
+                    if(gptUI->begin_collapsing_header("Rigid Body Physics", 0))
+                    {
+                        if(gptUI->checkbox_flags("No Sleeping", &ptRigidComp->tFlags, PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING))
+                        {
+                            if(ptRigidComp->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING)
+                                gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
+                        }
+
+                        if(gptUI->checkbox_flags("Kinematic", &ptRigidComp->tFlags, PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC))
+                        {
+                            if(ptRigidComp->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC)
+                                gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
+                        }
+                        gptUI->input_float("Mass", &ptRigidComp->fMass, "%g", 0);
+                        gptUI->slider_float("Friction", &ptRigidComp->fFriction, 0.0f, 1.0f, 0);
+                        gptUI->slider_float("Restitution", &ptRigidComp->fRestitution, 0.0f, 1.0f, 0);
+                        gptUI->slider_float("Linear Damping", &ptRigidComp->fLinearDamping, 0.0f, 1.0f, 0);
+                        gptUI->slider_float("Angluar Damping", &ptRigidComp->fAngularDamping, 0.0f, 1.0f, 0);
+                        gptUI->input_float3("Gravity", ptRigidComp->tGravity.d, NULL, 0);
+                        gptUI->input_float3("Local Offset", ptRigidComp->tLocalOffset.d, "%g", 0);
+
+                        gptUI->vertical_spacing();
+
+                        gptUI->separator_text("Collision Shape");
+                        gptUI->radio_button("Box", &ptRigidComp->tShape, PL_COLLISION_SHAPE_BOX);
+                        gptUI->radio_button("Sphere", &ptRigidComp->tShape, PL_COLLISION_SHAPE_SPHERE);
+
+                        gptUI->vertical_spacing();
+
+                        if(ptRigidComp->tShape == PL_COLLISION_SHAPE_BOX)
+                        {
+                            gptUI->input_float3("Extents", ptRigidComp->tExtents.d, "%g", 0);
+                        }
+                        else if(ptRigidComp->tShape == PL_COLLISION_SHAPE_SPHERE)
+                        {
+                            gptUI->input_float("Radius", &ptRigidComp->fRadius, "%g", 0);
+                        }
+
+                        static plVec3 tPoint = {0};
+                        static plVec3 tForce = {1000.0f};
+                        static plVec3 tTorque = {0.0f, 100.0f, 0.0f};
+                        static plVec3 tLinearVelocity = {0.0f, 0.0f, 0.0f};
+                        static plVec3 tAngularVelocity = {0.0f, 0.0f, 0.0f};
+                        gptUI->input_float3("Point", tPoint.d, NULL, 0);
+                        gptUI->input_float3("Force", tForce.d, NULL, 0);
+                        gptUI->input_float3("Torque", tTorque.d, NULL, 0);
+                        gptUI->input_float3("Velocity", tLinearVelocity.d, NULL, 0);
+                        gptUI->input_float3("Angular Velocity", tAngularVelocity.d, NULL, 0);
+
+                        gptUI->push_theme_color(PL_UI_COLOR_BUTTON, (plVec4){0.02f, 0.51f, 0.10f, 1.00f});
+                        gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, (plVec4){ 0.02f, 0.61f, 0.10f, 1.00f});
+                        gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, (plVec4){0.02f, 0.87f, 0.10f, 1.00f});
+
+                        gptUI->layout_dynamic(0.0f, 2);
+                        if(gptUI->button("Stop"))
+                        {
+                            gptPhysics->set_linear_velocity(ptLibrary, *ptSelectedEntity, (plVec3){0});
+                            gptPhysics->set_angular_velocity(ptLibrary, *ptSelectedEntity, (plVec3){0});
+                        }
+                        
+                        if(gptUI->button("Set Velocity"))          gptPhysics->set_linear_velocity(ptLibrary, *ptSelectedEntity, tLinearVelocity);
+                        if(gptUI->button("Set A. Velocity"))       gptPhysics->set_angular_velocity(ptLibrary, *ptSelectedEntity, tAngularVelocity);
+                        if(gptUI->button("torque"))                gptPhysics->apply_torque(ptLibrary, *ptSelectedEntity, tTorque);
+                        if(gptUI->button("impulse torque"))        gptPhysics->apply_impulse_torque(ptLibrary, *ptSelectedEntity, tTorque);
+                        if(gptUI->button("force"))                 gptPhysics->apply_force(ptLibrary, *ptSelectedEntity, tForce);
+                        if(gptUI->button("force at point"))        gptPhysics->apply_force_at_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
+                        if(gptUI->button("force at body point"))   gptPhysics->apply_force_at_body_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
+                        if(gptUI->button("impulse"))               gptPhysics->apply_impulse(ptLibrary, *ptSelectedEntity, tForce);
+                        if(gptUI->button("impulse at point"))      gptPhysics->apply_impulse_at_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
+                        if(gptUI->button("impulse at body point")) gptPhysics->apply_impulse_at_body_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
+                        if(gptUI->button("wake up"))               gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
+                        if(gptUI->button("sleep"))                 gptPhysics->sleep_body(ptLibrary, *ptSelectedEntity);
+                        gptUI->invisible_button("not_used", (plVec2){1.0f, 1.0f});
+
+                        gptUI->pop_theme_color(3);
+
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##5"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tRigidBodyComponentType, *ptSelectedEntity);
+                        ptRigidComp = NULL;
+                    }
+                }
+
+                if(ptProbeComp)
+                {
+                    if(gptUI->begin_collapsing_header("Environment Probe", 0))
+                    {
+                        gptUI->checkbox_flags("Real Time", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_REALTIME);
+                        gptUI->checkbox_flags("Include Sky", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY);
+                        gptUI->checkbox_flags("Box Parallax Correction", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX);
+
+                        if(gptUI->button("Update"))
+                            ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+                        gptUI->input_float("Range", &ptProbeComp->fRange, NULL, 0);
+
+                        uint32_t auSamples[] = {
+                            32,
+                            64,
                             128,
                             256,
                             512,
@@ -767,120 +722,339 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                             4096,
                         };
                         int iSelection = 0;
-                        if(ptLightComp->uShadowResolution == 128)       iSelection = 0;
-                        else if(ptLightComp->uShadowResolution == 256)  iSelection = 1;
-                        else if(ptLightComp->uShadowResolution == 512)  iSelection = 2;
-                        else if(ptLightComp->uShadowResolution == 1024) iSelection = 3;
-                        else if(ptLightComp->uShadowResolution == 2048) iSelection = 4;
-                        else if(ptLightComp->uShadowResolution == 4096) iSelection = 5;
-                        gptUI->radio_button("Resolution: 128", &iSelection, 0);
-                        gptUI->radio_button("Resolution: 256", &iSelection, 1);
-                        gptUI->radio_button("Resolution: 512", &iSelection, 2);
-                        gptUI->radio_button("Resolution: 1024", &iSelection, 3);
-                        gptUI->radio_button("Resolution: 2048", &iSelection, 4);
-                        gptUI->radio_button("Resolution: 4096", &iSelection, 5);
-                        ptLightComp->uShadowResolution = auResolutions[iSelection];
+                        if(ptProbeComp->uSamples == 32)        iSelection = 0;
+                        else if(ptProbeComp->uSamples == 64)   iSelection = 1;
+                        else if(ptProbeComp->uSamples == 128)  iSelection = 2;
+                        else if(ptProbeComp->uSamples == 256)  iSelection = 3;
+                        else if(ptProbeComp->uSamples == 512)  iSelection = 4;
+                        else if(ptProbeComp->uSamples == 1024) iSelection = 5;
+                        else if(ptProbeComp->uSamples == 2048) iSelection = 6;
+                        else if(ptProbeComp->uSamples == 4096) iSelection = 7;
+                        gptUI->separator_text("Samples");
+                        gptUI->radio_button("32", &iSelection, 0);
+                        gptUI->radio_button("64", &iSelection, 1);
+                        gptUI->radio_button("128", &iSelection, 2);
+                        gptUI->radio_button("256", &iSelection, 3);
+                        gptUI->radio_button("512", &iSelection, 4);
+                        gptUI->radio_button("1024", &iSelection, 5);
+                        gptUI->radio_button("2048", &iSelection, 6);
+                        gptUI->radio_button("4096", &iSelection, 7);
+                        ptProbeComp->uSamples = auSamples[iSelection];
+
+                        gptUI->separator_text("Intervals");
+
+                        int iSelection0 = (int)ptProbeComp->uInterval;
+                        gptUI->radio_button("1", &iSelection0, 1);
+                        gptUI->radio_button("2", &iSelection0, 2);
+                        gptUI->radio_button("3", &iSelection0, 3);
+                        gptUI->radio_button("4", &iSelection0, 4);
+                        gptUI->radio_button("5", &iSelection0, 5);
+                        gptUI->radio_button("6", &iSelection0, 6);
+
+                        ptProbeComp->uInterval = (uint32_t)iSelection0;
+
+                        gptUI->end_collapsing_header();
                     }
-                    gptUI->end_collapsing_header();
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##6"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tEnvironmentProbeComponentType, *ptSelectedEntity);
+                        ptProbeComp = NULL;
+                    }
                 }
 
-                if(ptSkinComp && gptUI->begin_collapsing_header("Skin", 0))
+                if(ptTransformComp)
                 {
-                    if(gptUI->tree_node("Joints", 0))
+                    if(gptUI->begin_collapsing_header("Transform", 0))
                     {
-                        plSkin* ptSkin = gptAsset->get_data(ptSkinComp->tSkin);
-                        for(uint32_t i = 0; i < ptSkin->uJointCount; i++)
-                        {
-                            plTagComponent* ptJointTagComp = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptSkinComp->_atJoints[i]);
-                            gptUI->text("%s", ptJointTagComp->pcName);  
-                        }
-                        gptUI->tree_pop();
+                        gptUI->text("Scale:       (%+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tScale.x, ptTransformComp->tScale.y, ptTransformComp->tScale.z);
+                        gptUI->text("Translation: (%+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tTranslation.x, ptTransformComp->tTranslation.y, ptTransformComp->tTranslation.z);
+                        gptUI->text("Rotation:    (%+0.3f, %+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tRotation.x, ptTransformComp->tRotation.y, ptTransformComp->tRotation.z, ptTransformComp->tRotation.w);
+                        gptUI->vertical_spacing();
+                        gptUI->text("Local World: |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].x, ptTransformComp->tWorld.col[1].x, ptTransformComp->tWorld.col[2].x, ptTransformComp->tWorld.col[3].x);
+                        gptUI->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].y, ptTransformComp->tWorld.col[1].y, ptTransformComp->tWorld.col[2].y, ptTransformComp->tWorld.col[3].y);
+                        gptUI->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].z, ptTransformComp->tWorld.col[1].z, ptTransformComp->tWorld.col[2].z, ptTransformComp->tWorld.col[3].z);
+                        gptUI->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].w, ptTransformComp->tWorld.col[1].w, ptTransformComp->tWorld.col[2].w, ptTransformComp->tWorld.col[3].w);
+                        gptUI->end_collapsing_header();
                     }
-                    gptUI->end_collapsing_header();
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##7"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tTransformComponentType, *ptSelectedEntity);
+                        ptTransformComp = NULL;
+                    }
                 }
 
-                if(ptCameraComp && gptUI->begin_collapsing_header("Camera", 0))
+                if(ptForceField)
+                {
+                    if(gptUI->begin_collapsing_header("Force Field", 0))
+                    {
+                        gptUI->radio_button("Type: PL_FORCE_FIELD_TYPE_POINT", &ptForceField->tType, PL_FORCE_FIELD_TYPE_POINT);
+                        gptUI->radio_button("Type: PL_FORCE_FIELD_TYPE_PLANE", &ptForceField->tType, PL_FORCE_FIELD_TYPE_PLANE);
+                        gptUI->input_float("Gravity", &ptForceField->fGravity, NULL, 0);
+                        gptUI->input_float("Range", &ptForceField->fRange, NULL, 0);
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##8"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tForceFieldComponentType, *ptSelectedEntity);
+                        ptForceField = NULL;
+                    }
+                }
+
+                if(ptObjectComp)
+                {
+                    if(gptUI->begin_collapsing_header("Object", 0))
+                    {
+                        plTagComponent* ptTransformTagComp = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptObjectComp->tTransform);
+
+                        plMesh* ptMesh = gptAsset->get_data(ptObjectComp->tMesh);
+                        gptUI->text("Mesh Asset:       %s", gptAsset->get_path(ptObjectComp->tMesh));
+                        gptUI->text("Submeshes:       %u", ptMesh->uSubmeshCount);
+                        gptUI->text("Transform Entity: %s, %u", ptTransformTagComp->pcName, ptObjectComp->tTransform.uIndex);
+
+                        bool bObjectRenderable = ptObjectComp->tFlags & PL_OBJECT_FLAGS_RENDERABLE;
+                        bool bObjectCastShadow = ptObjectComp->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW;
+                        bool bObjectDynamic = ptObjectComp->tFlags & PL_OBJECT_FLAGS_DYNAMIC;
+                        bool bObjectForeground = ptObjectComp->tFlags & PL_OBJECT_FLAGS_FOREGROUND;
+                        bool bObjectUpdateRequired = false;
+
+                        if(gptUI->checkbox_flags("Renderable", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RENDERABLE))
+                            bObjectUpdateRequired = true;
+
+                        if(gptUI->checkbox_flags("Cast Shadow", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_CAST_SHADOW))
+                            bObjectUpdateRequired = true;
+
+                        if(gptUI->checkbox_flags("Dynamic", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_DYNAMIC))
+                            bObjectUpdateRequired = true;
+
+                        if(gptUI->checkbox_flags("Foreground", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_FOREGROUND))
+                            bObjectUpdateRequired = true;
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##9"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tObjectComponentType, *ptSelectedEntity);
+                        ptObjectComp = NULL;
+                    }
+                }
+
+                if(ptHierarchyComp)
+                {
+                    if(gptUI->begin_collapsing_header("Hierarchy", 0))
+                    {
+                        plTagComponent* ptParentTagComp = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptHierarchyComp->tParent);
+                        gptUI->text("Parent Entity: %s , %u", ptParentTagComp->pcName, ptHierarchyComp->tParent.uIndex);
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##10"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tHierarchyComponentType, *ptSelectedEntity);
+                        ptHierarchyComp = NULL;
+                    }
+                }
+
+                if(ptLightComp)
+                {
+                    if(gptUI->begin_collapsing_header("Light", 0))
+                    {
+                        static const char* apcLightTypes[] = {
+                            "PL_LIGHT_TYPE_DIRECTIONAL",
+                            "PL_LIGHT_TYPE_POINT",
+                            "PL_LIGHT_TYPE_SPOT",
+                        };
+                        gptUI->labeled_text("Type", "%s", apcLightTypes[ptLightComp->tType]);
+
+                        gptUI->checkbox_flags("Visualizer", &ptLightComp->tFlags, PL_LIGHT_FLAG_VISUALIZER);
+
+                        gptUI->input_float3("Position", ptLightComp->tPosition.d, NULL, 0);
+
+                        gptUI->separator_text("Color");
+                        gptUI->slider_float("r", &ptLightComp->tColor.x, 0.0f, 1.0f, 0);
+                        gptUI->slider_float("g", &ptLightComp->tColor.y, 0.0f, 1.0f, 0);
+                        gptUI->slider_float("b", &ptLightComp->tColor.z, 0.0f, 1.0f, 0);
+
+                        gptUI->slider_float("Intensity", &ptLightComp->fIntensity, 0.0f, 20.0f, 0);
+
+                        if(ptLightComp->tType != PL_LIGHT_TYPE_DIRECTIONAL)
+                        {
+                            gptUI->input_float("Radius", &ptLightComp->fRadius, NULL, 0);
+                            gptUI->input_float("Range", &ptLightComp->fRange, NULL, 0);
+                        }
+
+                        if(ptLightComp->tType == PL_LIGHT_TYPE_SPOT)
+                        {
+                            gptUI->slider_float("Inner Cone Angle", &ptLightComp->fInnerConeAngle, 0.0f, PL_PI_2, 0);
+                            gptUI->slider_float("Outer Cone Angle", &ptLightComp->fOuterConeAngle, 0.0f, PL_PI_2, 0);
+                        }
+
+
+                        if(ptLightComp->tType != PL_LIGHT_TYPE_POINT)
+                        {
+                            gptUI->separator_text("Direction");
+                            gptUI->slider_float("x", &ptLightComp->tDirection.x, -1.0f, 1.0f, 0);
+                            gptUI->slider_float("y", &ptLightComp->tDirection.y, -1.0f, 1.0f, 0);
+                            gptUI->slider_float("z", &ptLightComp->tDirection.z, -1.0f, 1.0f, 0);
+                        }
+
+                        gptUI->separator_text("Shadows");
+
+                        gptUI->checkbox_flags("Cast Shadow", &ptLightComp->tFlags, PL_LIGHT_FLAG_CAST_SHADOW);
+
+                        if(ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW)
+                        {
+                            uint32_t auResolutions[] = {
+                                128,
+                                256,
+                                512,
+                                1024,
+                                2048,
+                                4096,
+                            };
+                            int iSelection = 0;
+                            if(ptLightComp->uShadowResolution == 128)       iSelection = 0;
+                            else if(ptLightComp->uShadowResolution == 256)  iSelection = 1;
+                            else if(ptLightComp->uShadowResolution == 512)  iSelection = 2;
+                            else if(ptLightComp->uShadowResolution == 1024) iSelection = 3;
+                            else if(ptLightComp->uShadowResolution == 2048) iSelection = 4;
+                            else if(ptLightComp->uShadowResolution == 4096) iSelection = 5;
+                            gptUI->radio_button("Resolution: 128", &iSelection, 0);
+                            gptUI->radio_button("Resolution: 256", &iSelection, 1);
+                            gptUI->radio_button("Resolution: 512", &iSelection, 2);
+                            gptUI->radio_button("Resolution: 1024", &iSelection, 3);
+                            gptUI->radio_button("Resolution: 2048", &iSelection, 4);
+                            gptUI->radio_button("Resolution: 4096", &iSelection, 5);
+                            ptLightComp->uShadowResolution = auResolutions[iSelection];
+                        }
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##11"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tLightComponentType, *ptSelectedEntity);
+                        ptLightComp = NULL;
+                    }
+                }
+
+                if(ptSkinComp)
+                {
+                    if(gptUI->begin_collapsing_header("Skin", 0))
+                    {
+                        if(gptUI->tree_node("Joints", 0))
+                        {
+                            plSkin* ptSkin = gptAsset->get_data(ptSkinComp->tSkin);
+                            for(uint32_t i = 0; i < ptSkin->uJointCount; i++)
+                            {
+                                plTagComponent* ptJointTagComp = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptSkinComp->_atJoints[i]);
+                                gptUI->text("%s", ptJointTagComp->pcName);  
+                            }
+                            gptUI->tree_pop();
+                        }
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##12"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tSkinComponentType, *ptSelectedEntity);
+                        ptSkinComp = NULL;
+                    }
+                }
+
+                if(ptCameraComp)
                 { 
-                    gptUI->labeled_text("Near Z", "%+0.3f", ptCameraComp->fNearZ);
-                    gptUI->labeled_text("Far Z", "%+0.3f", ptCameraComp->fFarZ);
-                    if(gptUI->radio_button("Projection: Perspective", &ptCameraComp->eProjectionType, PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE))
+                    if(gptUI->begin_collapsing_header("Camera", 0))
                     {
-                        ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
-                    }
-                    if(gptUI->radio_button("Projection: Orthographic", &ptCameraComp->eProjectionType, PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC))
-                    {
-                        ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
-                    }
-                    if(gptUI->radio_button("Depth Mode: Standard", &ptCameraComp->eDepthMode, PL_CAMERA_DEPTH_MODE_STANDARD))
-                    {
-                        gptCamera->set_depth_mode(ptCameraComp, PL_CAMERA_DEPTH_MODE_STANDARD);
+                        gptUI->labeled_text("Near Z", "%+0.3f", ptCameraComp->fNearZ);
+                        gptUI->labeled_text("Far Z", "%+0.3f", ptCameraComp->fFarZ);
+                        if(gptUI->radio_button("Projection: Perspective", &ptCameraComp->eProjectionType, PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE))
+                        {
+                            ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
+                        }
+                        if(gptUI->radio_button("Projection: Orthographic", &ptCameraComp->eProjectionType, PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC))
+                        {
+                            ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
+                        }
+                        if(gptUI->radio_button("Depth Mode: Standard", &ptCameraComp->eDepthMode, PL_CAMERA_DEPTH_MODE_STANDARD))
+                        {
+                            gptCamera->set_depth_mode(ptCameraComp, PL_CAMERA_DEPTH_MODE_STANDARD);
+                            ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
+                            
+                        }
+                        if(gptUI->radio_button("Depth Mode: Reverse Z", &ptCameraComp->eDepthMode, PL_CAMERA_DEPTH_MODE_REVERSE_Z))
+                        {
+                            gptCamera->set_depth_mode(ptCameraComp, PL_CAMERA_DEPTH_MODE_REVERSE_Z);
+                            ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
+                        }
+                        gptUI->labeled_text("Aspect Ratio", "%+0.3f", ptCameraComp->fAspectRatio);
+                        gptUI->labeled_text("Pitch", "%+0.3f", ptCameraComp->fPitch);
+                        gptUI->labeled_text("Yaw", "%+0.3f", ptCameraComp->fYaw);
+                        gptUI->labeled_text("Roll", "%+0.3f", ptCameraComp->fRoll);
+                        gptUI->labeled_text("Position", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tPositionF.x, ptCameraComp->tPositionF.y, ptCameraComp->tPositionF.z);
+                        gptUI->labeled_text("Up", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tUpVec.x, ptCameraComp->tUpVec.y, ptCameraComp->tUpVec.z);
+                        gptUI->labeled_text("Forward", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tForwardVec.x, ptCameraComp->tForwardVec.y, ptCameraComp->tForwardVec.z);
+                        gptUI->labeled_text("Right", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tRightVec.x, ptCameraComp->tRightVec.y, ptCameraComp->tRightVec.z);
+
+                        if(ptCameraComp->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
+                        {
+                            gptUI->labeled_text("Vertical Field of View", "%+0.3f", ptCameraComp->fYFov);
+                            gptUI->labeled_text("Aspect Ratio", "%+0.3f", ptCameraComp->fAspectRatio);
+                        }
+                        else
+                        {
+                            gptUI->input_float("Width", &ptCameraComp->fWidth, NULL, 0);
+                            gptUI->input_float("Height", &ptCameraComp->fHeight, NULL, 0);
+                        }
+
+                        gptUI->input_float3("Position", ptCameraComp->tPositionF.d, NULL, 0);
+                        gptUI->input_float("Near Z Plane", &ptCameraComp->fNearZ, NULL, 0);
+                        gptUI->input_float("Far Z Plane", &ptCameraComp->fFarZ, NULL, 0);
+
                         ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
                         
+                        gptUI->end_collapsing_header();
                     }
-                    if(gptUI->radio_button("Depth Mode: Reverse Z", &ptCameraComp->eDepthMode, PL_CAMERA_DEPTH_MODE_REVERSE_Z))
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##13"))
                     {
-                        gptCamera->set_depth_mode(ptCameraComp, PL_CAMERA_DEPTH_MODE_REVERSE_Z);
-                        ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
+                        gptEcs->remove_component(ptLibrary, tCameraComponentType, *ptSelectedEntity);
+                        ptCameraComp = NULL;
                     }
-                    gptUI->labeled_text("Aspect Ratio", "%+0.3f", ptCameraComp->fAspectRatio);
-                    gptUI->labeled_text("Pitch", "%+0.3f", ptCameraComp->fPitch);
-                    gptUI->labeled_text("Yaw", "%+0.3f", ptCameraComp->fYaw);
-                    gptUI->labeled_text("Roll", "%+0.3f", ptCameraComp->fRoll);
-                    gptUI->labeled_text("Position", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tPositionF.x, ptCameraComp->tPositionF.y, ptCameraComp->tPositionF.z);
-                    gptUI->labeled_text("Up", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tUpVec.x, ptCameraComp->tUpVec.y, ptCameraComp->tUpVec.z);
-                    gptUI->labeled_text("Forward", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tForwardVec.x, ptCameraComp->tForwardVec.y, ptCameraComp->tForwardVec.z);
-                    gptUI->labeled_text("Right", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tRightVec.x, ptCameraComp->tRightVec.y, ptCameraComp->tRightVec.z);
-
-                    if(ptCameraComp->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
-                    {
-                        gptUI->labeled_text("Vertical Field of View", "%+0.3f", ptCameraComp->fYFov);
-                        gptUI->labeled_text("Aspect Ratio", "%+0.3f", ptCameraComp->fAspectRatio);
-                    }
-                    else
-                    {
-                        gptUI->input_float("Width", &ptCameraComp->fWidth, NULL, 0);
-                        gptUI->input_float("Height", &ptCameraComp->fHeight, NULL, 0);
-                    }
-
-                    gptUI->input_float3("Position", ptCameraComp->tPositionF.d, NULL, 0);
-                    gptUI->input_float("Near Z Plane", &ptCameraComp->fNearZ, NULL, 0);
-                    gptUI->input_float("Far Z Plane", &ptCameraComp->fFarZ, NULL, 0);
-
-                    ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
-                    
-                    
-                    gptUI->end_collapsing_header();
                 }
 
-                if(ptAnimationComp && gptUI->begin_collapsing_header("Animation", 0))
+                if(ptAnimationComp)
                 { 
-                    gptUI->checkbox_flags("Playing", &ptAnimationComp->tFlags, PL_ANIMATION_FLAG_PLAYING);
-                    gptUI->checkbox_flags("Looped", &ptAnimationComp->tFlags, PL_ANIMATION_FLAG_LOOPED);
-                    plAnimation* ptAnimation = gptAsset->get_data(ptAnimationComp->tAnimation);
-                    gptUI->labeled_text("Start", "%0.3f s", ptAnimation->fStart);
-                    gptUI->labeled_text("End", "%0.3f s", ptAnimation->fEnd);
-                    // gptUI->labeled_text("Speed", "%0.3f s", ptAnimationComp->fSpeed);
-                    gptUI->slider_float("Speed", &ptAnimationComp->fSpeed, 0.0f, 2.0f, 0);
-                    gptUI->slider_float("Time", &ptAnimationComp->fTimer, ptAnimation->fStart, ptAnimation->fEnd, 0);
-                    gptUI->progress_bar(ptAnimationComp->fTimer / (ptAnimation->fEnd - ptAnimation->fStart), (plVec2){-1.0f, 0.0f}, NULL);
-                    gptUI->end_collapsing_header();
+                    if(gptUI->begin_collapsing_header("Animation", 0))
+                    {
+                        gptUI->checkbox_flags("Playing", &ptAnimationComp->tFlags, PL_ANIMATION_FLAG_PLAYING);
+                        gptUI->checkbox_flags("Looped", &ptAnimationComp->tFlags, PL_ANIMATION_FLAG_LOOPED);
+                        plAnimation* ptAnimation = gptAsset->get_data(ptAnimationComp->tAnimation);
+                        gptUI->labeled_text("Start", "%0.3f s", ptAnimation->fStart);
+                        gptUI->labeled_text("End", "%0.3f s", ptAnimation->fEnd);
+                        // gptUI->labeled_text("Speed", "%0.3f s", ptAnimationComp->fSpeed);
+                        gptUI->slider_float("Speed", &ptAnimationComp->fSpeed, 0.0f, 2.0f, 0);
+                        gptUI->slider_float("Time", &ptAnimationComp->fTimer, ptAnimation->fStart, ptAnimation->fEnd, 0);
+                        gptUI->progress_bar(ptAnimationComp->fTimer / (ptAnimation->fEnd - ptAnimation->fStart), (plVec2){-1.0f, 0.0f}, NULL);
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##14"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tAnimationComponentType, *ptSelectedEntity);
+                        ptAnimationComp = NULL;
+                    }
                 }
 
-                if(ptIKComp && gptUI->begin_collapsing_header("Inverse Kinematics", 0))
+                if(ptIKComp)
                 { 
-                    plTagComponent* ptTargetComp = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptIKComp->tTarget);
-                    gptUI->text("Target Entity: %s , %u", ptTargetComp->pcName, ptIKComp->tTarget.uIndex);
-                    gptUI->slider_uint("Chain Length", &ptIKComp->uChainLength, 1, 5, 0);
-                    gptUI->text("Iterations: %u", ptIKComp->uIterationCount);
+                    if(gptUI->begin_collapsing_header("Inverse Kinematics", 0))
+                    {
+                        plTagComponent* ptTargetComp = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptIKComp->tTarget);
+                        gptUI->text("Target Entity: %s , %u", ptTargetComp->pcName, ptIKComp->tTarget.uIndex);
+                        gptUI->slider_uint("Chain Length", &ptIKComp->uChainLength, 1, 10, 0);
+                        gptUI->text("Iterations: %u", ptIKComp->uIterationCount);
 
-                    gptUI->checkbox("Enabled", &ptIKComp->bEnabled);
-                    gptUI->end_collapsing_header();
-                }
-
-                gptUI->layout_static(0.0f, 100.0f, 1);
-                if(gptUI->button("Delete"))
-                {
-                    gptEcs->remove_entity(ptLibrary, *ptSelectedEntity);
+                        gptUI->checkbox("Enabled", &ptIKComp->bEnabled);
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##15"))
+                    {
+                        gptEcs->remove_component(ptLibrary, tInverseKinematicsComponentType, *ptSelectedEntity);
+                        ptIKComp = NULL;
+                    }
                 }
 
                 gptUI->pop_id();

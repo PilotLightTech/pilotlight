@@ -660,29 +660,18 @@ pl_app_update(plAppData* ptAppData)
             switch(atEcsChanges[i].eType)
             {
                 case PL_ECS_CHANGE_ENTITY_ADDED:
+                    // gptRenderer->add_entity_to_scene(ptAppData->ptScene, atEcsChanges[i].tEntity);
                     break;
                 case PL_ECS_CHANGE_ENTITY_REMOVED:
-                {
                     gptRenderer->remove_entity_from_scene(ptAppData->ptScene, atEcsChanges[i].tEntity);
-                    // // check if contains object
-                    // for(uint32_t j = 0; j < atEcsChanges[i].tEntityRemoved.uComponentCount; j++)
-                    // {
-                    //     if(atEcsTypes[atEcsChanges[i].tEntityRemoved.uComponentOffset + j] == gptRenderer->get_ecs_type_key_object())
-                    //     {
-                    //         gptRenderer->remove_entity_from_scene(ptAppData->ptScene, atEcsChanges[i].tEntity);
-                    //         break;
-                    //     }
-                    // }
-                    break;
-                }
-                case PL_ECS_CHANGE_COMPONENT_CHANGED:
                     break;
                 case PL_ECS_CHANGE_COMPONENT_ADDED:
-                    if(atEcsChanges[i].tComponentType == gptRenderer->get_ecs_type_key_object())
-                        gptRenderer->add_entity_to_scene(ptAppData->ptScene, atEcsChanges[i].tEntity);
-                        break;
-                case PL_ECS_CHANGE_COMPONENT_REMOVED:
+                    gptRenderer->add_component_to_scene(ptAppData->ptScene, atEcsChanges[i].tEntity, atEcsChanges[i].tComponentType);
                     break;
+                case PL_ECS_CHANGE_COMPONENT_REMOVED:
+                    gptRenderer->remove_component_from_scene(ptAppData->ptScene, atEcsChanges[i].tEntity, atEcsChanges[i].tComponentType);
+                    break;
+                case PL_ECS_CHANGE_COMPONENT_CHANGED:
                 default:
                     break;
             }

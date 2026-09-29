@@ -2382,6 +2382,7 @@ pl__renderer_get_drawable_slot(plScene* ptScene)
     pl_sb_add(ptScene->sbtShadowShaders);
     pl_sb_add(ptScene->sbtProbeShaders);
     pl_sb_add(ptScene->sbtOutlineShaders);
+
     pl_sb_push(ptScene->sbuActiveDrawables, uNewIndex);
     return uNewIndex;
 }
@@ -4853,7 +4854,6 @@ pl__renderer_probe_update_all(plScene* ptScene)
     {
         plEnvironmentProbeData* ptProbeData = &ptScene->sbtProbeData[i];
         plEnvironmentProbeComponent* ptProbe = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbeData->tEntity);
-        plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptProbeData->tEntity);
         plTransformComponent* ptProbeTransform = gptEcs->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptProbeData->tEntity);
         plEnvironmentProbeDataPack* ptPack = &ptScene->sbtProbeDataPacks[ptProbeData->uDataPackIndex];
         plGpuProbe tProbeData = {
@@ -4862,8 +4862,8 @@ pl__renderer_probe_update_all(plScene* ptScene)
             .uGGXEnvSampler         = ptProbeData->uGGXEnvSampler,
             .uLambertianEnvSampler  = ptProbeData->uLambertianEnvSampler,
             .uCharlieEnvSampler     = ptProbeData->uSheenEnvSampler,
-            .tMin.xyz               = ptObject->tAABB.tMin,
-            .tMax.xyz               = ptObject->tAABB.tMax,
+            .tMin.xyz               = (plVec3){ptProbeTransform->tTranslation.x - ptProbe->fRange, ptProbeTransform->tTranslation.y - ptProbe->fRange, ptProbeTransform->tTranslation.z - ptProbe->fRange},
+            .tMax.xyz               = (plVec3){ptProbeTransform->tTranslation.x + ptProbe->fRange, ptProbeTransform->tTranslation.y + ptProbe->fRange, ptProbeTransform->tTranslation.z + ptProbe->fRange},
             .iMips                  = ptProbeData->iMips,
             .iParallaxCorrection    = (int)(ptProbe->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX)
         };
@@ -6840,6 +6840,10 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
             plEntity tEntity = ptDrawableResources->tEntity;
 
             uint64_t uDrawHash = pl_hm_hash(&tEntity.uData, sizeof(uint64_t), uSubmeshIndex);
+            if(pl_hm_has_key(&ptScene->tDrawableHashmap, uDrawHash))
+                continue;
+
+
             pl_hm_insert(&ptScene->tDrawableHashmap, uDrawHash, uDrawableIndex);
 
             bool bResult = pl__renderer_add_drawable_data_to_global_buffer(ptScene, uDrawableIndex, uSubmeshIndex);

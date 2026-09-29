@@ -1745,8 +1745,7 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
         {
             plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
             plEnvironmentProbeComponent* ptProbeComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
-            plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptProbe->tEntity);
-            plTransformComponent* ptTransform = gptEcs->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
+            plTransformComponent* ptTransform = gptEcs->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptProbe->tEntity);
             // gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.0f, 1.0f, 0.0f), .fThickness = 0.02f});
 
             if(ptScene->bShowProbeRange)
@@ -3279,6 +3278,11 @@ pl__object_update_job(plInvocationData tInvoData, void* pData, void* pGroupShare
     const plEntity* ptEntities = NULL;
     const uint32_t uComponentCount = gptEcs->get_components(ptLibrary, gptData->tObjectComponentType, (void**)&ptComponents, &ptEntities);
 
+    if(!gptEcs->is_entity_valid(ptLibrary, ptEntities[tInvoData.uGlobalIndex]))
+    {
+        return;
+    }
+
     plObjectComponent* ptObject = &ptComponents[tInvoData.uGlobalIndex];
     plTransformComponent* ptTransform = gptEcs->get_component(ptLibrary,gptTransform->get_ecs_type_key_transform(), ptObject->tTransform);
     plMesh* ptMesh = gptAsset->get_data(ptObject->tMesh);
@@ -3734,30 +3738,44 @@ pl_renderer_get_asset_type_key_settings(void)
 }
 
 void
-pl_renderer_add_entity_to_scene(plScene* ptScene, plEntity tObject)
+pl_renderer_add_component_to_scene(plScene* ptScene, plEntity tEntity, plEcsTypeKey tType)
 {
-    if(gptEcs->has_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tObject))
-        pl__renderer_add_drawable_objects_to_scene(ptScene, 1, &tObject);
+    if(!gptEcs->has_component(ptScene->ptComponentLibrary, tType, tEntity))
+        return;
+
+    if(tType == gptData->tObjectComponentType)
+        pl__renderer_add_drawable_objects_to_scene(ptScene, 1, &tEntity);
+    else if(tType == gptData->tLightComponentType)
+        pl__renderer_add_lights_to_scene(ptScene, 1, &tEntity);
+    else if(tType == gptData->tEnvironmentProbeComponentType)
+        pl__renderer_add_probes_to_scene(ptScene, 1, &tEntity);
+}
+
+void
+pl_renderer_add_entity_to_scene(plScene* ptScene, plEntity tEntity)
+{
+    pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tObjectComponentType);
+    pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tLightComponentType);
+    pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tEnvironmentProbeComponentType);
 }
 
 bool
-pl_renderer_remove_entity_from_scene(plScene* ptScene, plEntity tObject)
+pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEcsTypeKey tType)
 {
-
-    // check if object
     bool bFound = false;
+
+    if(tType == gptData->tObjectComponentType)
     {
-        uint64_t uMainDrawHash = pl_hm_hash(&tObject.uData, sizeof(uint64_t), 0);
+        uint64_t uMainDrawHash = pl_hm_hash(&tEntity.uData, sizeof(uint64_t), 0);
         if(pl_hm_has_key(&ptScene->tDrawableHashmap, uMainDrawHash))
         {
             bFound = true;
-
             uint64_t uMainDrawableIndex = pl_hm_lookup(&ptScene->tDrawableHashmap, uMainDrawHash);
             plDrawableResources* ptMainDrawableResources = &ptScene->sbtDrawableResources[uMainDrawableIndex];
 
             for(uint32_t uSubmeshIndex = 0; uSubmeshIndex < ptMainDrawableResources->uSubmeshCount; uSubmeshIndex++)
             {
-                uint64_t uDrawHash = pl_hm_hash(&tObject.uData, sizeof(uint64_t), uSubmeshIndex);
+                uint64_t uDrawHash = pl_hm_hash(&tEntity.uData, sizeof(uint64_t), uSubmeshIndex);
 
                 if(pl_hm_has_key(&ptScene->tDrawableHashmap, uDrawHash))
                 {
@@ -3794,13 +3812,12 @@ pl_renderer_remove_entity_from_scene(plScene* ptScene, plEntity tObject)
             }
         }
     }
-
-    // check if light
+    else if(tType == gptData->tLightComponentType)
     {
         const uint32_t uPointLightCount = pl_sb_size(ptScene->sbtPointLights);
         for(uint32_t i = 0; i < uPointLightCount; i++)
         {
-            if(ptScene->sbtPointLights[i].tEntity.uData == tObject.uData)
+            if(ptScene->sbtPointLights[i].tEntity.uData == tEntity.uData)
             {
                 if(ptScene->sbtPointLights[i].ptShadowBufferOffset)
                     gptFreeList->return_node(&ptScene->tShadowCameraFreeList, ptScene->sbtPointLights[i].ptShadowBufferOffset);
@@ -3813,7 +3830,7 @@ pl_renderer_remove_entity_from_scene(plScene* ptScene, plEntity tObject)
         const uint32_t uSpotLightCount = pl_sb_size(ptScene->sbtSpotLights);
         for(uint32_t i = 0; i < uSpotLightCount; i++)
         {
-            if(ptScene->sbtSpotLights[i].tEntity.uData == tObject.uData)
+            if(ptScene->sbtSpotLights[i].tEntity.uData == tEntity.uData)
             {
                 if(ptScene->sbtSpotLights[i].ptShadowBufferOffset)
                     gptFreeList->return_node(&ptScene->tShadowCameraFreeList, ptScene->sbtSpotLights[i].ptShadowBufferOffset);
@@ -3826,7 +3843,7 @@ pl_renderer_remove_entity_from_scene(plScene* ptScene, plEntity tObject)
         const uint32_t uDirLightCount = pl_sb_size(ptScene->sbtDirectionLights);
         for(uint32_t i = 0; i < uDirLightCount; i++)
         {
-            if(ptScene->sbtDirectionLights[i].tEntity.uData == tObject.uData)
+            if(ptScene->sbtDirectionLights[i].tEntity.uData == tEntity.uData)
             {
                 if(ptScene->sbtDirectionLights[i].ptShadowBufferOffset)
                     gptFreeList->return_node(&ptScene->tShadowCameraFreeList, ptScene->sbtDirectionLights[i].ptShadowBufferOffset);
@@ -3836,14 +3853,13 @@ pl_renderer_remove_entity_from_scene(plScene* ptScene, plEntity tObject)
             }
         }
     }
-
-    // check for probe
+    else if(tType == gptData->tEnvironmentProbeComponentType)
     {
         const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
         for(uint32_t i = 0; i < uProbeCount; i++)
         {
             plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[i];
-            if(ptProbe->tEntity.uData == tObject.uData)
+            if(ptProbe->tEntity.uData == tEntity.uData)
             {
                 pl_sb_free(ptProbe->sbtDLightShadowData);
                 gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tRawOutputTexture);
@@ -3870,6 +3886,26 @@ pl_renderer_remove_entity_from_scene(plScene* ptScene, plEntity tObject)
             }
         }
     }
+
+    return bFound;
+}
+
+bool
+pl_renderer_remove_entity_from_scene(plScene* ptScene, plEntity tObject)
+{
+    bool bFound = false;
+
+    // check if object
+    if(pl_renderer_remove_component_from_scene(ptScene, tObject, gptData->tObjectComponentType))
+        bFound = true;
+
+    // check if light
+    if(pl_renderer_remove_component_from_scene(ptScene, tObject, gptData->tLightComponentType))
+        bFound = true;
+
+    // check for probe
+    if(pl_renderer_remove_component_from_scene(ptScene, tObject, gptData->tEnvironmentProbeComponentType))
+        bFound = true;
 
     return bFound;
 }
@@ -3920,7 +3956,9 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi0.get_gizmo_drawlist                 = pl_renderer_editor_get_gizmo_drawlist;
     tApi0.rebuild_scene_bvh                  = pl_renderer_editor_rebuild_scene_bvh;
     tApi0.add_entity_to_scene                = pl_renderer_add_entity_to_scene;
+    tApi0.add_component_to_scene             = pl_renderer_add_component_to_scene;
     tApi0.remove_entity_from_scene           = pl_renderer_remove_entity_from_scene;
+    tApi0.remove_component_from_scene        = pl_renderer_remove_component_from_scene;
 
 
     pl_set_api(ptApiRegistry, plRendererI, &tApi0);

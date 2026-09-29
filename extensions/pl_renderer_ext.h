@@ -170,10 +170,12 @@ typedef struct _plRendererI
     void                 (*set_scene_flags)(plScene*, plRenderSceneFlags);
 
     // scene modifications
-    void (*load_component_library)  (plScene*, plComponentLibrary*);
-    void (*add_entity_to_scene)     (plScene*, plEntity);
-    bool (*remove_entity_from_scene)(plScene*, plEntity);
-    void (*update_scene_asset)      (plScene*, plAssetHandle);
+    void (*load_component_library)     (plScene*, plComponentLibrary*);
+    void (*add_entity_to_scene)        (plScene*, plEntity);
+    void (*add_component_to_scene)     (plScene*, plEntity, plEcsTypeKey);
+    bool (*remove_entity_from_scene)   (plScene*, plEntity);
+    bool (*remove_component_from_scene)(plScene*, plEntity, plEcsTypeKey);
+    void (*update_scene_asset)         (plScene*, plAssetHandle);
 
     // views
     plView*           (*create_view)               (plScene*, const plViewDesc*);
