@@ -802,7 +802,7 @@ pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
 
     gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_CYAN, 1.0f, "%s", "reloaded shaders");
 
-    gptShaderVariant->unload_manifest("/shaders/shaders.pls");
+    gptShaderVariant->unload_manifest("/shaders/shaders.pls"); // removes/deletes shaders
     gptShaderVariant->load_manifest("/shaders/shaders.pls");
     gptData->tViewBGLayout = gptShaderVariant->get_bind_group_layout("view");
     gptData->tShadowGlobalBGLayout = gptShaderVariant->get_bind_group_layout("shadow");
@@ -2877,6 +2877,7 @@ pl_renderer_begin_frame(void)
 
                 gptStage->flush();
             }
+            pl_renderer_editor_reload_scene_shaders(ptScene);
             pl_sb_reset(ptScene->sbtDirtyMaterials);
             PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
         }

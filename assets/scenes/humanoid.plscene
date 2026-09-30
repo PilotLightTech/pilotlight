@@ -41,7 +41,13 @@
                         "tag": {
                             "name": "LeftHandIndex4"
                         },
-                        "inverse_kinematics": null
+                        "inverse_kinematics": {
+                            "enabled": true,
+                            "target": 8,
+                            "iterations": 8,
+                            "chain_length": 7
+
+                        }
                     }
                 ]
             }
