@@ -258,6 +258,15 @@ pl__asset_tools_blah(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, 
     if(ptTerrain)       { pl_sb_sprintf(gptAssetToolsCtx->sbcBuffer, "%s", PL_ICON_FA_GLOBE);                      pl_sb_pop(gptAssetToolsCtx->sbcBuffer); }
     pl_sb_sprintf(gptAssetToolsCtx->sbcBuffer, " %s", pcName);
 
+    bool bLocal = gptEcs->is_local(ptLibrary, tEntity);
+
+    gptUI->push_theme_color(PL_UI_COLOR_HEADER, (plVec4){0.0f, 0.51f, 0.0f, 1.00f});
+
+    if(!bLocal)
+    {
+        gptUI->push_theme_color(PL_UI_COLOR_TEXT, (plVec4){0.4f, 0.9f, 0.4f, 1.00f});
+    }
+
     // gptUI->push_id_uint(i);
     if(gptUI->selectable(gptAssetToolsCtx->sbcBuffer, &bSelected, 0))
     {
@@ -274,6 +283,11 @@ pl__asset_tools_blah(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, 
             bResult = true;
         }
     }
+
+    if(!bLocal)
+        gptUI->pop_theme_color(1);
+    gptUI->pop_theme_color(1);
+
     // gptUI->pop_id();
     return bResult;
 }
@@ -376,7 +390,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
             gptUI->end_combo();
         }
 
-        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 105.0f, 2, pfRatios);
+        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 135.0f, 2, pfRatios);
 
         if(gptUI->begin_child("Entities", 0, 0))
         {
@@ -1045,7 +1059,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         plTagComponent* ptTargetComp = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptIKComp->tTarget);
                         gptUI->text("Target Entity: %s , %u", ptTargetComp->pcName, ptIKComp->tTarget.uIndex);
                         gptUI->slider_uint("Chain Length", &ptIKComp->uChainLength, 1, 10, 0);
-                        gptUI->text("Iterations: %u", ptIKComp->uIterationCount);
+                        gptUI->slider_uint("Iterations", &ptIKComp->uIterationCount, 1, 10, 0);
 
                         gptUI->checkbox("Enabled", &ptIKComp->bEnabled);
                         gptUI->end_collapsing_header();
@@ -1292,12 +1306,13 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->labeled_text("alpha mode", apcAlphaMode[ptMaterial->eAlphaMode]);
                     gptUI->input_float("alpha cutoff", &ptMaterial->fAlphaCutoff, "%g", 0);
                     gptUI->checkbox_flags("double sided", &ptMaterial->eFlags, PL_MATERIAL_FLAG_DOUBLE_SIDED);
-                    gptUI->input_float4("base color", ptMaterial->tBaseColor.d, "%g", 0);
+                    gptUI->color_picker4("base color", ptMaterial->tBaseColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE, NULL);
+                    // gptUI->input_float4("base color2", ptMaterial->tBaseColor.d, "%g", 0);
                     gptUI->input_float("metalness", &ptMaterial->fMetalness, "%g", 0);
                     gptUI->input_float("roughness", &ptMaterial->fRoughness, "%g", 0);
                     gptUI->input_float("normal map strength", &ptMaterial->fNormalMapStrength, "%g", 0);
                     gptUI->input_float("occlusion strength", &ptMaterial->fOcclusionStrength, "%g", 0);
-                    gptUI->input_float3("emissive color", ptMaterial->tEmissiveColor.d, "%g", 0);
+                    gptUI->color_picker3("emissive color", ptMaterial->tEmissiveColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE);
                     gptUI->input_float("emissive strength", &ptMaterial->fEmissiveStrength, "%g", 0);
                     gptUI->input_float("ior", &ptMaterial->fIor, "%g", 0);
 
@@ -1453,7 +1468,7 @@ pl_asset_tools_show_assets(bool* bValue)
 
                                 gptUI->labeled_text("Texture", "%s", gptAsset->get_path(ptMaterial->atTextures[i].tTexture));
 
-                                // if(gptUI->is_popup_open("Select Texture Popup"))
+                                if(gptUI->is_popup_open("Select Texture Popup"))
                                 {
                                     // plVec2 tCurrentCursorPos = gptUI->get_cursor_pos();
                                     uint32_t uTypeAssetCount = 0;
@@ -1708,8 +1723,7 @@ pl_asset_tools_show_assets(bool* bValue)
                     if(ptEnvironment->eMode != PL_RENDERER_SKY_MODE_NONE)
                     {
                         gptUI->input_float("Sun Intensity", &ptEnvironment->fSunIntensity, "%g", 0);
-                        gptUI->input_float3("Sun Color", ptEnvironment->tSunColor.d, "%g", 0);
-                        gptUI->input_float3("Sun Color", ptEnvironment->tSunColor.d, "%g", 0);
+                        gptUI->color_picker3("Sun Color", ptEnvironment->tSunColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE);
 
                         ptEnvironment->tSunDirection = pl_norm_vec3(ptEnvironment->tSunDirection);
                         float fSunPitch = asinf(pl_clampf(-1.0f, ptEnvironment->tSunDirection.y, 1.0f));

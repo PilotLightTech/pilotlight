@@ -314,6 +314,7 @@ pl_asset_cleanup(void)
     pl_sb_free(gptAssetCtx->sbtTypeUserDescriptions);
     pl_sb_free(gptAssetCtx->sbtAssets);
     pl_sb_free(gptAssetCtx->sbtToolingAssets);
+    pl_sb_free(gptAssetCtx->sbtToolingAssetsByType);
     pl_sb_free(gptAssetCtx->sbtChanges);
     pl_temp_allocator_free(&gptAssetCtx->tTempAllocator);
 }
