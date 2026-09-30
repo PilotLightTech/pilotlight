@@ -248,6 +248,15 @@ pl__ecs_hierarchy_resolve(plComponentLibrary* ptLibrary, plEntityId tEntityId, p
 
 }
 
+static void
+pl__ecs_hierarchy_destroy(void* pComponent, const plComponentLibrary* ptLibrary)
+{
+    plComponentLibraryHierarchyData* ptData = gptEcs->get_library_type_data((plComponentLibrary*)ptLibrary, gptTransformCtx->tHierarchyComponentType);
+
+    if(ptData)
+        ptData->bDirty = true;
+}
+
 void
 pl_transform_register_ecs_components(void)
 {
@@ -271,7 +280,8 @@ pl_transform_register_ecs_components(void)
         .szSize        = sizeof(plHierarchyComponent),
         .serialize     = pl__ecs_hierarchy_serialize,
         .deserialize   = pl__ecs_hierarchy_deserialize,
-        .resolve       = pl__ecs_hierarchy_resolve
+        .resolve       = pl__ecs_hierarchy_resolve,
+        .destroy       = pl__ecs_hierarchy_destroy
     };
     gptTransformCtx->tHierarchyComponentType = gptEcs->register_type(tHierarchyDesc, NULL);
 }
@@ -390,20 +400,7 @@ pl_transform_attach_component(plComponentLibrary* ptLibrary, plEntity tEntity, p
 void
 pl_transform_detach_component(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
-    plHierarchyComponent* ptHierarchyComponent = NULL;
-
-    // check if entity already has a hierarchy component
-    if(gptEcs->has_component(ptLibrary, gptTransformCtx->tHierarchyComponentType, tEntity))
-    {
-        ptHierarchyComponent = gptEcs->get_component(ptLibrary, gptTransformCtx->tHierarchyComponentType, tEntity);
-    }
-    else
-    {
-        ptHierarchyComponent = gptEcs->add_component(ptLibrary, gptTransformCtx->tHierarchyComponentType, tEntity);
-    }
-    ptHierarchyComponent->tParent.uIndex = UINT32_MAX;
-    plComponentLibraryHierarchyData* ptData = gptEcs->get_library_type_data(ptLibrary, gptTransformCtx->tHierarchyComponentType);
-    ptData->bDirty = true;
+    gptEcs->remove_component(ptLibrary, gptTransformCtx->tHierarchyComponentType, tEntity);
 }
 
 void
