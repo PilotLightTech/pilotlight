@@ -82,9 +82,14 @@ typedef struct _plComponentManager
 
 typedef struct _plEntityData
 {
-    uint32_t   uGeneration;
-    plEntityId tId;
-    bool       bNotOwned;
+    uint32_t            uGeneration;
+    plEntityId          tId;
+    bool                bNotOwned;
+
+    // only meaningful for entities instantiated from a library
+    plComponentLibrary* ptPatchLibrary;
+    plComponentLibrary* ptSourceLibrary;
+    plEntityId          tSourceEntityId;
 } plEntityData;
 
 typedef struct _plEcsComponentRemoval
@@ -165,6 +170,7 @@ plEntity   pl_ecs_create_entity        (plComponentLibrary*, const char* name);
 void       pl_ecs_init_library         (plComponentLibrary*);
 void       pl_ecs_cleanup_library      (plComponentLibrary*);
 bool       pl_ecs_remove_component     (plComponentLibrary*, plEcsTypeKey, plEntity);
+bool       pl_ecs_has_component        (const plComponentLibrary*, plEcsTypeKey, plEntity);
 
 bool
 pl_ecs_is_entity_valid(const plComponentLibrary* ptLibrary, plEntity tEntity)
@@ -206,6 +212,54 @@ pl__generate_entity_id(plComponentLibrary* ptLibrary)
 
     return ulId;
 }
+
+static plEntity
+pl__ecs_get_patch_entity(plEntityData* ptData)
+{
+    plEntity tPatchEntity = pl_ecs_get_entity_by_id(ptData->ptPatchLibrary, ptData->tSourceEntityId);
+
+    if(!pl_ecs_is_entity_valid(ptData->ptPatchLibrary, tPatchEntity))
+    {
+        tPatchEntity = pl_ecs_create_entity_with_id(ptData->ptPatchLibrary, NULL, ptData->tSourceEntityId);
+    }
+
+    return tPatchEntity;
+}
+
+static void
+pl__ecs_remove_removal_tombstone(plComponentLibrary* ptPatch, plEntityId tEntityId, plEcsTypeKey tType)
+{
+    for(uint32_t i = 0; i < pl_sb_size(ptPatch->sbtComponentRemovals); i++)
+    {
+        plEcsComponentRemoval* ptRemoval = &ptPatch->sbtComponentRemovals[i];
+
+        if(ptRemoval->tEntityId == tEntityId && ptRemoval->tType == tType)
+        {
+            pl_sb_del_swap(ptPatch->sbtComponentRemovals, i);
+            return;
+        }
+    }
+}
+
+static void
+pl__ecs_add_removal(plComponentLibrary* ptPatchLibrary, plEntityId tEntityId, plEcsTypeKey tType)
+{
+    for(uint32_t i = 0; i < pl_sb_size(ptPatchLibrary->sbtComponentRemovals); i++)
+    {
+        plEcsComponentRemoval* ptRemoval = &ptPatchLibrary->sbtComponentRemovals[i];
+
+        if(ptRemoval->tEntityId == tEntityId && ptRemoval->tType == tType)
+        {
+            return;
+        }
+    }
+
+    pl_sb_push(ptPatchLibrary->sbtComponentRemovals,
+        ((plEcsComponentRemoval){
+        .tEntityId = tEntityId,
+        .tType     = tType
+    }));
+}
  
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -228,9 +282,6 @@ pl_ecs_merge_library(plComponentLibrary* ptLibrary, plComponentLibrary* ptPatch)
         plEntity tPatchEntity = atPatchEntities[uEntityIndex];
         plEntityId tEntityId = pl_ecs_get_entity_id(ptPatch, tPatchEntity);
         plEntity tDestEntity = pl_ecs_get_entity_by_id(ptLibrary, tEntityId);
-
-        // if(ptPatch->_sbtEntityData[tPatchEntity.uIndex].bNotOwned)
-        //     continue;
 
         bool bEntityExists = pl_ecs_is_entity_valid(ptLibrary, tDestEntity);
 
@@ -583,6 +634,18 @@ pl_ecs_clear_changes(const plComponentLibrary* ptLibrary)
 void
 pl_ecs_mark_component_changed(const plComponentLibrary* ptLibrary, plEntity tEntity, plEcsTypeKey tType)
 {
+
+    plEntityData* ptData = &ptLibrary->_sbtEntityData[tEntity.uIndex];
+    if(ptData->bNotOwned)
+    {
+        plEntity tPatchEntity = pl__ecs_get_patch_entity(ptData);
+
+        if(!pl_ecs_has_component(ptData->ptPatchLibrary, tType, tPatchEntity))
+            pl__ecs_add_component(ptData->ptPatchLibrary, tType, tPatchEntity);
+
+        pl__ecs_remove_removal_tombstone(ptData->ptPatchLibrary, ptData->tSourceEntityId, tType);
+    }
+
     plEcsChange tChange = {
         .eType = PL_ECS_CHANGE_COMPONENT_CHANGED,
         .tEntity = tEntity,
@@ -718,8 +781,55 @@ pl_ecs_get_components(const plComponentLibrary* ptLibrary, plEcsTypeKey tType, v
 }
 
 bool
+pl_ecs_is_local(plComponentLibrary* ptLibrary, plEntity tEntity)
+{
+    if(!pl_ecs_is_entity_valid(ptLibrary, tEntity))
+        return false;
+    plEntityData* ptData = &ptLibrary->_sbtEntityData[tEntity.uIndex];
+    return !ptData->bNotOwned;
+}
+
+bool
 pl_ecs_remove_component(plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity tEntity)
 {
+    if(!pl_ecs_is_entity_valid(ptLibrary, tEntity))
+        return false;
+
+    if(!pl_ecs_has_component(ptLibrary, tType, tEntity))
+        return false;
+
+    plEntityData* ptData = &ptLibrary->_sbtEntityData[tEntity.uIndex];
+
+    if(ptData->bNotOwned)
+    {
+        // Remove the component override from the patch library.
+        plEntity tPatchEntity = pl_ecs_get_entity_by_id(ptData->ptPatchLibrary, ptData->tSourceEntityId);
+
+        if(pl_ecs_is_entity_valid(ptData->ptPatchLibrary, tPatchEntity))
+        {
+            pl__ecs_remove_component(ptData->ptPatchLibrary, tType, tPatchEntity);
+        }
+
+        // Did the original source have this component?
+        plEntity tSourceEntity = pl_ecs_get_entity_by_id(ptData->ptSourceLibrary, ptData->tSourceEntityId);
+
+        bool bOriginallyHadComponent = pl_ecs_has_component(ptData->ptSourceLibrary, tType, tSourceEntity);
+
+        if(bOriginallyHadComponent)
+        {
+            // Explicitly remove inherited component.
+            pl__ecs_get_patch_entity(ptData);
+
+            pl__ecs_add_removal(ptData->ptPatchLibrary, ptData->tSourceEntityId, tType);
+        }
+        else
+        {
+            // Component was added by this instance and is now gone,
+            // so we're back to the original state.
+            pl__ecs_remove_removal_tombstone(ptData->ptPatchLibrary, ptData->tSourceEntityId, tType);
+        }
+    }
+
     if(!pl__ecs_remove_component(ptLibrary, tType, tEntity))
         return false;
 
@@ -749,6 +859,22 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity
             .tComponentType = tType
         };
         pl_sb_push(ptLibrary->sbtChanges, tChange);
+    }
+
+    if(pNewComponent && ptLibrary->_sbtEntityData[tEntity.uIndex].bNotOwned)
+    {
+        plEntityData* ptData = &ptLibrary->_sbtEntityData[tEntity.uIndex];
+
+        plEntity tPatchEntity = pl__ecs_get_patch_entity(ptData);
+
+        // component is now explicitly part of the patch
+        if(!pl_ecs_has_component(ptData->ptPatchLibrary, tType, tPatchEntity))
+        {
+            pl__ecs_add_component(ptData->ptPatchLibrary, tType, tPatchEntity);
+        }
+
+        // it can no longer simultaneously be removed
+        pl__ecs_remove_removal_tombstone(ptData->ptPatchLibrary, ptData->tSourceEntityId, tType);
     }
 
     return pNewComponent;
@@ -1272,6 +1398,11 @@ pl__ecs_library_resolve(plComponentLibrary* ptLibrary, plEntityId tEntityId, plH
     plLibraryComponent* ptComponent = pComponent;
     plComponentLibrary* ptSrcLibrary = ptComponent->_ptLibrary;
 
+    plComponentLibrary* ptAssetLibrary = gptAsset->get_data(ptComponent->tSourceLibrary);
+
+    if(ptComponent->_ptPatchLibrary == NULL)
+        ptComponent->_ptPatchLibrary = pl_ecs_create_library();
+
     plHashMap64 tHashmap = {0};
     pl_ecs_clone_library_into(ptLibrary, ptSrcLibrary, &tHashmap);
 
@@ -1293,6 +1424,13 @@ pl__ecs_library_resolve(plComponentLibrary* ptLibrary, plEntityId tEntityId, plH
         plEntityId tOldEntityId = pl_ecs_get_entity_id(ptSrcLibrary, tEntity);
         plEntityId tNewEntityId = pl_hm_lookup(&tHashmap, tOldEntityId);
         plEntity tNewEntity = pl_ecs_get_entity_by_id(ptLibrary, tNewEntityId);
+
+        plEntityData* ptData = &ptLibrary->_sbtEntityData[tNewEntity.uIndex];
+        ptData->bNotOwned       = true;
+        ptData->ptPatchLibrary  = ptComponent->_ptPatchLibrary;
+        ptData->ptSourceLibrary = ptAssetLibrary;
+        ptData->tSourceEntityId = tOldEntityId;
+
         pl__ecs_resolve_components(ptLibrary, tNewEntity, &tHashmap);
         pl_hm_insert(ptComponent->_ptPatchHash, tOldEntityId, tNewEntityId);
     }
@@ -1468,6 +1606,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_component             = pl_ecs_get_component,
         .add_component             = pl_ecs_add_component,
         .remove_component          = pl_ecs_remove_component,
+        .is_local                  = pl_ecs_is_local,
         .set_library_type_data     = pl_ecs_set_library_type_data,
         .get_library_type_data     = pl_ecs_get_library_type_data,
         .create_entity             = pl_ecs_create_entity,

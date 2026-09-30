@@ -356,9 +356,9 @@ void
 pl_load_ik_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plIkI tApi = {
-        .register_ecs_components   = pl_ik_register_ecs_components,
-        .run_ecs_update_system = pl_ik_run_update_system,
-        .get_ecs_type_key      = pl_ik_get_ecs_type_key,
+        .register_ecs_components = pl_ik_register_ecs_components,
+        .run_ecs_update_system   = pl_ik_run_update_system,
+        .get_ecs_type_key        = pl_ik_get_ecs_type_key,
     };
     pl_set_api(ptApiRegistry, plIkI, &tApi);
 
