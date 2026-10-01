@@ -245,16 +245,6 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     // create probe meshes & resources
     //-----------------------------------------------------------------------------
 
-    plMesh tUnitSphere = {0};
-    gptMesh->create_sphere(1.0f, 16, 16, &tUnitSphere);
-    tUnitSphere.atSubmeshes[0].tMaterial = gptAsset->load("/assets/materials/default.plmaterial");
-    plAssetDesc tMeshAsset = {
-        .tType = gptMesh->get_asset_type_key(),
-        .pcPath = "/assets/meshes/sphere.plmesh"
-    };
-    plAssetHandle tBlah = gptAsset->create(&tMeshAsset, &tUnitSphere);
-    gptAsset->save(tBlah, PL_ASSET_ENCODING_TEXT);
-
     // create probe material & mesh
     ptScene->tSphereMesh = gptAsset->load("/assets/meshes/sphere.plmesh");
     ptScene->tProbeMesh = gptAsset->load("/assets/meshes/probe.plmesh");

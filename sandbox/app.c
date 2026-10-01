@@ -400,6 +400,16 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptStl->import("/resources/cube.stl");
         gptGltf->import("/resources/DamagedHelmet.glb", NULL);
         gptGltf->import("/resources/humanoid.gltf", NULL);
+
+        plMesh tUnitSphere = {0};
+        gptMesh->create_sphere(1.0f, 16, 16, &tUnitSphere);
+        tUnitSphere.atSubmeshes[0].tMaterial = gptAsset->load("/assets/materials/default.plmaterial");
+        plAssetDesc tMeshAsset = {
+            .tType = gptMesh->get_asset_type_key(),
+            .pcPath = "/assets/meshes/sphere.plmesh"
+        };
+        plAssetHandle tBlah = gptAsset->create(&tMeshAsset, &tUnitSphere);
+        gptAsset->save(tBlah, PL_ASSET_ENCODING_TEXT);
     }
 
     // gptGltf->import("/resources/gltf-samples/Models/Sponza/glTF/sponza.gltf", NULL);
@@ -747,7 +757,7 @@ pl_app_update(plAppData* ptAppData)
         gptUI->push_theme_color(PL_UI_COLOR_TITLE_ACTIVE, (plVec4){0});
         gptUI->set_next_window_pos((plVec2){ptIO->tMainViewportSize.x * 0.4f, ptIO->tMainViewportSize.y * 0.25f}, PL_UI_COND_ALWAYS);
         gptUI->set_next_window_size((plVec2){ptIO->tMainViewportSize.x * 0.2f, ptIO->tMainViewportSize.y * 0.5f}, PL_UI_COND_ALWAYS);
-        if(gptUI->begin_window("Select Scene", NULL, PL_UI_WINDOW_FLAGS_NO_MOVE | PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE))
+        if(gptUI->begin_window("Select Dev Scene", NULL, PL_UI_WINDOW_FLAGS_NO_MOVE | PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE))
         { 
             gptUI->layout_static(0.0f, 100.0f, 1);
             if(gptUI->button("Refresh"))
