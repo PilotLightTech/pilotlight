@@ -382,7 +382,7 @@ pl__material_deserialize(const char* pcName, void* pMaterial)
         if(ptAdvanced)
         {
             ptMaterial->eFlags |= PL_MATERIAL_FLAG_TRANSMISSION;
-            ptMaterial->tTransmission.fFactor = gptJson->float_member(ptAdvanced, "strength", ptMaterial->tTransmission.fFactor);
+            ptMaterial->tTransmission.fFactor = gptJson->float_member(ptAdvanced, "factor", ptMaterial->tTransmission.fFactor);
         }
     }
 
