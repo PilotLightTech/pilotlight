@@ -175,7 +175,7 @@ bool       pl_ecs_has_component        (const plComponentLibrary*, plEcsTypeKey,
 bool
 pl_ecs_is_entity_valid(const plComponentLibrary* ptLibrary, plEntity tEntity)
 {
-    if(tEntity.uIndex == UINT32_MAX || tEntity.uIndex >= pl_sb_size(ptLibrary->_sbtEntityData))
+    if(tEntity.uGeneration >= UINT32_MAX - 1 || tEntity.uIndex == UINT32_MAX || tEntity.uIndex >= pl_sb_size(ptLibrary->_sbtEntityData))
         return false;
     const plEntityData* ptData = &ptLibrary->_sbtEntityData[tEntity.uIndex];
     return ptData->tId != 0 && ptData->uGeneration == tEntity.uGeneration;
