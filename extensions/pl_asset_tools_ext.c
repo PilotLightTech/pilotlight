@@ -822,26 +822,16 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                         plMesh* ptMesh = gptAsset->get_data(ptObjectComp->tMesh);
                         gptUI->text("Mesh Asset:       %s", gptAsset->get_path(ptObjectComp->tMesh));
-                        gptUI->text("Submeshes:       %u", ptMesh->uSubmeshCount);
+                        gptUI->text("First Submesh:    %u", ptObjectComp->uFirstSubmesh);
+                        gptUI->text("Submeshes:       %u", ptObjectComp->uSubmeshCount);
                         gptUI->text("Transform Entity: %s, %u", ptTransformTagComp->pcName, ptObjectComp->tTransform.uIndex);
 
-                        bool bObjectRenderable = ptObjectComp->tFlags & PL_OBJECT_FLAGS_RENDERABLE;
-                        bool bObjectCastShadow = ptObjectComp->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW;
-                        bool bObjectDynamic = ptObjectComp->tFlags & PL_OBJECT_FLAGS_DYNAMIC;
-                        bool bObjectForeground = ptObjectComp->tFlags & PL_OBJECT_FLAGS_FOREGROUND;
-                        bool bObjectUpdateRequired = false;
-
-                        if(gptUI->checkbox_flags("Renderable", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RENDERABLE))
-                            bObjectUpdateRequired = true;
-
-                        if(gptUI->checkbox_flags("Cast Shadow", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_CAST_SHADOW))
-                            bObjectUpdateRequired = true;
-
-                        if(gptUI->checkbox_flags("Dynamic", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_DYNAMIC))
-                            bObjectUpdateRequired = true;
-
-                        if(gptUI->checkbox_flags("Foreground", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_FOREGROUND))
-                            bObjectUpdateRequired = true;
+                        gptUI->checkbox_flags("Renderable", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RENDERABLE);
+                        gptUI->checkbox_flags("Cast Shadow", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_CAST_SHADOW);
+                        gptUI->checkbox_flags("Receive Shadow", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RECEIVE_SHADOW);
+                        gptUI->checkbox_flags("Dynamic", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_DYNAMIC);
+                        gptUI->checkbox_flags("Foreground", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_FOREGROUND);
+                        gptUI->checkbox_flags("Outline", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_OUTLINE);
                         gptUI->end_collapsing_header();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##9"))
@@ -1546,8 +1536,7 @@ pl_asset_tools_show_assets(bool* bValue)
                     if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL) gptUI->text("Normals");
                     if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TANGENT) gptUI->text("Tangents");
                     if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0) gptUI->text("Texture Coordinates");
-                    if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0) gptUI->text("Colors 0");
-                    if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_1) gptUI->text("Colors 1");
+                    if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR) gptUI->text("Colors");
                     if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0) gptUI->text("Joints 0");
                     if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1) gptUI->text("Joints 1");
                     if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0) gptUI->text("Weights 0");
