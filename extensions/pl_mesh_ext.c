@@ -110,6 +110,16 @@ void pl_mesh_allocate (plMesh*, const plSubmeshAllocationDesc*, uint32_t count);
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
+static inline plVec4
+pl__mesh_fallback_tangent(plVec3 tNormal)
+{
+    plVec3 tAxis = fabsf(tNormal.z) < 0.999f ? (plVec3){ 0.0f, 0.0f, 1.0f } : (plVec3){ 0.0f, 1.0f, 0.0f };
+
+    plVec3 tTangent = pl_norm_vec3(pl_cross_vec3(tAxis, tNormal));
+
+    return (plVec4){ tTangent.x, tTangent.y, tTangent.z, 1.0f };
+}
+
 static bool
 pl__mesh_serialize(const char* pcName, const void* pMesh, plAssetEncoding eEncoding)
 {
@@ -198,14 +208,9 @@ pl__mesh_serialize(const char* pcName, const void* pMesh, plAssetEncoding eEncod
                 gptJson->add_float_array(ptSubmesh, "tangents", (float*)ptMesh->atSubmeshes[i].ptVertexTangents, (uint32_t)ptMesh->atSubmeshes[i].szVertexCount * 4);
             }
 
-            if(ptMesh->atSubmeshes[i].ptVertexColors[0])
+            if(ptMesh->atSubmeshes[i].ptVertexColors)
             {
-                gptJson->add_float_array(ptSubmesh, "colors_0", (float*)ptMesh->atSubmeshes[i].ptVertexColors[0], (uint32_t)ptMesh->atSubmeshes[i].szVertexCount * 4);
-            }
-
-            if(ptMesh->atSubmeshes[i].ptVertexColors[1])
-            {
-                gptJson->add_float_array(ptSubmesh, "colors_1", (float*)ptMesh->atSubmeshes[i].ptVertexColors[1], (uint32_t)ptMesh->atSubmeshes[i].szVertexCount * 4);
+                gptJson->add_float_array(ptSubmesh, "colors", (float*)ptMesh->atSubmeshes[i].ptVertexColors, (uint32_t)ptMesh->atSubmeshes[i].szVertexCount * 4);
             }
 
             if(ptMesh->atSubmeshes[i].ptVertexJoints[0])
@@ -368,8 +373,7 @@ pl__mesh_deserialize(const char* pcName, void* pMesh)
             
             if(gptJson->member_exist(ptJsonSubmesh, "normals"))  sbtAllocDesc[i].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL;
             if(gptJson->member_exist(ptJsonSubmesh, "tangents")) sbtAllocDesc[i].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT;
-            if(gptJson->member_exist(ptJsonSubmesh, "colors_0")) sbtAllocDesc[i].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_0;
-            if(gptJson->member_exist(ptJsonSubmesh, "colors_1")) sbtAllocDesc[i].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_1;
+            if(gptJson->member_exist(ptJsonSubmesh, "colors")) sbtAllocDesc[i].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR;
             if(gptJson->member_exist(ptJsonSubmesh, "joints_0")) sbtAllocDesc[i].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_0;
             if(gptJson->member_exist(ptJsonSubmesh, "joints_1")) sbtAllocDesc[i].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_1;
             if(gptJson->member_exist(ptJsonSubmesh, "weights_0"))sbtAllocDesc[i].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0;
@@ -414,8 +418,7 @@ pl__mesh_deserialize(const char* pcName, void* pMesh)
             
             if(gptJson->member_exist(ptJsonSubmesh, "normals"))   gptJson->float_array_member(ptJsonSubmesh, "normals", (float*)ptMesh->atSubmeshes[i].ptVertexNormals, NULL);
             if(gptJson->member_exist(ptJsonSubmesh, "tangents"))  gptJson->float_array_member(ptJsonSubmesh, "tangents", (float*)ptMesh->atSubmeshes[i].ptVertexTangents, NULL);
-            if(gptJson->member_exist(ptJsonSubmesh, "colors_0"))  gptJson->float_array_member(ptJsonSubmesh, "colors_0", (float*)ptMesh->atSubmeshes[i].ptVertexColors[0], NULL);
-            if(gptJson->member_exist(ptJsonSubmesh, "colors_1"))  gptJson->float_array_member(ptJsonSubmesh, "colors_1", (float*)ptMesh->atSubmeshes[i].ptVertexColors[1], NULL);
+            if(gptJson->member_exist(ptJsonSubmesh, "colors"))    gptJson->float_array_member(ptJsonSubmesh, "colors", (float*)ptMesh->atSubmeshes[i].ptVertexColors, NULL);
             if(gptJson->member_exist(ptJsonSubmesh, "joints_0"))  gptJson->float_array_member(ptJsonSubmesh, "joints_0", (float*)ptMesh->atSubmeshes[i].ptVertexJoints[0], NULL);
             if(gptJson->member_exist(ptJsonSubmesh, "joints_1"))  gptJson->float_array_member(ptJsonSubmesh, "joints_1", (float*)ptMesh->atSubmeshes[i].ptVertexJoints[1], NULL);
             if(gptJson->member_exist(ptJsonSubmesh, "weights_0")) gptJson->float_array_member(ptJsonSubmesh, "weights_0", (float*)ptMesh->atSubmeshes[i].ptVertexWeights[0], NULL);
@@ -434,70 +437,358 @@ pl__mesh_deserialize(const char* pcName, void* pMesh)
 }
 
 void
-pl_mesh_calculate_normals(plMesh* ptMesh)
+pl__mesh_cleanup(void* pMesh)
 {
+    plMesh* ptMesh = pMesh;
+    if(ptMesh->puRawData)
+    {
+        PL_FREE(ptMesh->puRawData);
+        ptMesh->puRawData = NULL;
+    }
+    ptMesh->atSubmeshes = NULL;
+    ptMesh->uSubmeshCount = 0;
+    ptMesh->szRawDataSize = 0;
+    ptMesh->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
+    ptMesh->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
+}
+
+bool
+pl_mesh_generate_uvs(plMesh* ptMesh)
+{
+
+    // check if uvs are needed
+    bool bUVsNeeded = false;
+    for(uint32_t i = 0; i < ptMesh->uSubmeshCount; i++)
+    {
+        if(ptMesh->atSubmeshes[i].ptVertexTextureCoordinates[0] == NULL)
+        {
+            bUVsNeeded = true;
+            break;
+        }
+    }
+
+    if(!bUVsNeeded)
+        return false;
+
+    plSubmeshAllocationDesc* atSubmeshAllocDescs = PL_ALLOC(sizeof(plSubmeshAllocationDesc) * ptMesh->uSubmeshCount);
+    memset(atSubmeshAllocDescs, 0, sizeof(plSubmeshAllocationDesc) * ptMesh->uSubmeshCount);
+
+    for(uint32_t i = 0; i < ptMesh->uSubmeshCount; i++)
+    {
+        atSubmeshAllocDescs[i].uVertexStreamMask = ptMesh->atSubmeshes[i].uVertexStreamMask;
+        atSubmeshAllocDescs[i].szVertexCount = ptMesh->atSubmeshes[i].szVertexCount;
+        atSubmeshAllocDescs[i].szIndexCount = ptMesh->atSubmeshes[i].szIndexCount;
+        if(ptMesh->atSubmeshes[i].ptVertexTextureCoordinates[0] == NULL)
+        {
+            atSubmeshAllocDescs[i].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0;
+        }
+    }
+
+    plMesh tNewMesh = {0};
+    pl_mesh_allocate(&tNewMesh, atSubmeshAllocDescs, ptMesh->uSubmeshCount);
+    PL_FREE(atSubmeshAllocDescs);
+    atSubmeshAllocDescs = NULL;
+    tNewMesh.tAABB = ptMesh->tAABB;
 
     for(uint32_t uSubmeshIndex = 0; uSubmeshIndex < ptMesh->uSubmeshCount; uSubmeshIndex++)
     {
-        plSubmesh* ptSubmesh = &ptMesh->atSubmeshes[uSubmeshIndex];
-        PL_ASSERT(ptSubmesh->ptVertexNormals);
 
-        if(ptSubmesh->ptVertexNormals)
+        plSubmesh* ptNewSubmesh = &tNewMesh.atSubmeshes[uSubmeshIndex];
+        plSubmesh* ptOldSubmesh = &ptMesh->atSubmeshes[uSubmeshIndex];
+
+        ptNewSubmesh->tMaterial = ptOldSubmesh->tMaterial;
+        ptNewSubmesh->tAABB = ptOldSubmesh->tAABB;
+
+        if(ptNewSubmesh->ptVertexPositions)             memcpy(ptNewSubmesh->ptVertexPositions, ptOldSubmesh->ptVertexPositions, sizeof(plVec3) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexTangents)              memcpy(ptNewSubmesh->ptVertexTangents, ptOldSubmesh->ptVertexTangents, sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexColors)                memcpy(ptNewSubmesh->ptVertexColors, ptOldSubmesh->ptVertexColors, sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexWeights[0])            memcpy(ptNewSubmesh->ptVertexWeights[0], ptOldSubmesh->ptVertexWeights[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexWeights[1])            memcpy(ptNewSubmesh->ptVertexWeights[1], ptOldSubmesh->ptVertexWeights[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexJoints[0])             memcpy(ptNewSubmesh->ptVertexJoints[0], ptOldSubmesh->ptVertexJoints[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexJoints[1])             memcpy(ptNewSubmesh->ptVertexJoints[1], ptOldSubmesh->ptVertexJoints[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptOldSubmesh->puIndices)                     memcpy(ptNewSubmesh->puIndices, ptOldSubmesh->puIndices, sizeof(uint32_t) * ptOldSubmesh->szIndexCount);
+        if(ptOldSubmesh->ptVertexNormals)               memcpy(ptNewSubmesh->ptVertexNormals, ptOldSubmesh->ptVertexNormals, sizeof(plVec3) * ptOldSubmesh->szVertexCount);
+
+
+        if(ptOldSubmesh->ptVertexTextureCoordinates[0])
+            memcpy(ptNewSubmesh->ptVertexTextureCoordinates[0], ptOldSubmesh->ptVertexTextureCoordinates[0], sizeof(plVec2) * ptOldSubmesh->szVertexCount);
+        else
+            memset(ptNewSubmesh->ptVertexTextureCoordinates[0], 0, sizeof(plVec2) * ptNewSubmesh->szVertexCount);
+
+        if(ptOldSubmesh->ptVertexTextureCoordinates[1])
+            memcpy(ptNewSubmesh->ptVertexTextureCoordinates[1], ptOldSubmesh->ptVertexTextureCoordinates[1], sizeof(plVec2) * ptOldSubmesh->szVertexCount);
+        else
+            memset(ptNewSubmesh->ptVertexTextureCoordinates[1], 0, sizeof(plVec2) * ptNewSubmesh->szVertexCount);
+    }
+
+    pl__mesh_cleanup(ptMesh);
+    *ptMesh = tNewMesh;
+    return true;
+}
+
+bool
+pl_mesh_generate_colors(plMesh* ptMesh)
+{
+
+    // check if uvs are needed
+    bool bColorsNeeded = false;
+    for(uint32_t i = 0; i < ptMesh->uSubmeshCount; i++)
+    {
+        if(ptMesh->atSubmeshes[i].ptVertexColors == NULL)
         {
-            for(uint32_t i = 0; i < ptSubmesh->szIndexCount - 2; i += 3)
-            {
-                const uint32_t uIndex0 = ptSubmesh->puIndices[i + 0];
-                const uint32_t uIndex1 = ptSubmesh->puIndices[i + 1];
-                const uint32_t uIndex2 = ptSubmesh->puIndices[i + 2];
+            bColorsNeeded = true;
+            break;
+        }
+    }
 
-                const plVec3 tP0 = ptSubmesh->ptVertexPositions[uIndex0];
-                const plVec3 tP1 = ptSubmesh->ptVertexPositions[uIndex1];
-                const plVec3 tP2 = ptSubmesh->ptVertexPositions[uIndex2];
+    if(!bColorsNeeded)
+        return false;
+
+    plSubmeshAllocationDesc* atSubmeshAllocDescs = PL_ALLOC(sizeof(plSubmeshAllocationDesc) * ptMesh->uSubmeshCount);
+    memset(atSubmeshAllocDescs, 0, sizeof(plSubmeshAllocationDesc) * ptMesh->uSubmeshCount);
+
+    for(uint32_t i = 0; i < ptMesh->uSubmeshCount; i++)
+    {
+        atSubmeshAllocDescs[i].uVertexStreamMask = ptMesh->atSubmeshes[i].uVertexStreamMask;
+        atSubmeshAllocDescs[i].szVertexCount = ptMesh->atSubmeshes[i].szVertexCount;
+        atSubmeshAllocDescs[i].szIndexCount = ptMesh->atSubmeshes[i].szIndexCount;
+        if(ptMesh->atSubmeshes[i].ptVertexColors == NULL)
+        {
+            atSubmeshAllocDescs[i].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR;
+        }
+    }
+
+    plMesh tNewMesh = {0};
+    pl_mesh_allocate(&tNewMesh, atSubmeshAllocDescs, ptMesh->uSubmeshCount);
+    PL_FREE(atSubmeshAllocDescs);
+    atSubmeshAllocDescs = NULL;
+    tNewMesh.tAABB = ptMesh->tAABB;
+
+    for(uint32_t uSubmeshIndex = 0; uSubmeshIndex < ptMesh->uSubmeshCount; uSubmeshIndex++)
+    {
+
+        plSubmesh* ptNewSubmesh = &tNewMesh.atSubmeshes[uSubmeshIndex];
+        plSubmesh* ptOldSubmesh = &ptMesh->atSubmeshes[uSubmeshIndex];
+
+        ptNewSubmesh->tMaterial = ptOldSubmesh->tMaterial;
+        ptNewSubmesh->tAABB = ptOldSubmesh->tAABB;
+
+        if(ptNewSubmesh->ptVertexPositions)             memcpy(ptNewSubmesh->ptVertexPositions, ptOldSubmesh->ptVertexPositions, sizeof(plVec3) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexTangents)              memcpy(ptNewSubmesh->ptVertexTangents, ptOldSubmesh->ptVertexTangents, sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexWeights[0])            memcpy(ptNewSubmesh->ptVertexWeights[0], ptOldSubmesh->ptVertexWeights[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexWeights[1])            memcpy(ptNewSubmesh->ptVertexWeights[1], ptOldSubmesh->ptVertexWeights[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexJoints[0])             memcpy(ptNewSubmesh->ptVertexJoints[0], ptOldSubmesh->ptVertexJoints[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexJoints[1])             memcpy(ptNewSubmesh->ptVertexJoints[1], ptOldSubmesh->ptVertexJoints[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->puIndices)                     memcpy(ptNewSubmesh->puIndices, ptOldSubmesh->puIndices, sizeof(uint32_t) * ptOldSubmesh->szIndexCount);
+        if(ptNewSubmesh->ptVertexNormals)               memcpy(ptNewSubmesh->ptVertexNormals, ptOldSubmesh->ptVertexNormals, sizeof(plVec3) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexTextureCoordinates[0]) memcpy(ptNewSubmesh->ptVertexTextureCoordinates[0], ptOldSubmesh->ptVertexTextureCoordinates[0], sizeof(plVec2) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexTextureCoordinates[1]) memcpy(ptNewSubmesh->ptVertexTextureCoordinates[1], ptOldSubmesh->ptVertexTextureCoordinates[1], sizeof(plVec2) * ptOldSubmesh->szVertexCount);
+
+        if(ptOldSubmesh->ptVertexColors)
+            memcpy(ptNewSubmesh->ptVertexColors, ptOldSubmesh->ptVertexColors, sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        else
+        {
+            for(uint32_t i = 0; i < ptNewSubmesh->szVertexCount; i++)
+            {
+                ptNewSubmesh->ptVertexColors[i] = (plVec4){1.0f, 1.0f, 1.0f, 1.0f};
+            }
+        }
+
+    }
+
+    pl__mesh_cleanup(ptMesh);
+    *ptMesh = tNewMesh;
+    return true;
+}
+
+bool
+pl_mesh_generate_normals(plMesh* ptMesh)
+{
+
+    // check if normals are needed
+    bool bNormalsNeeded = false;
+    for(uint32_t i = 0; i < ptMesh->uSubmeshCount; i++)
+    {
+        if(ptMesh->atSubmeshes[i].ptVertexNormals == NULL)
+        {
+            bNormalsNeeded = true;
+            break;
+        }
+    }
+
+    if(!bNormalsNeeded)
+        return false;
+
+    plSubmeshAllocationDesc* atSubmeshAllocDescs = PL_ALLOC(sizeof(plSubmeshAllocationDesc) * ptMesh->uSubmeshCount);
+    memset(atSubmeshAllocDescs, 0, sizeof(plSubmeshAllocationDesc) * ptMesh->uSubmeshCount);
+
+    for(uint32_t i = 0; i < ptMesh->uSubmeshCount; i++)
+    {
+        atSubmeshAllocDescs[i].uVertexStreamMask = ptMesh->atSubmeshes[i].uVertexStreamMask;
+        atSubmeshAllocDescs[i].szVertexCount = ptMesh->atSubmeshes[i].szVertexCount;
+        atSubmeshAllocDescs[i].szIndexCount = ptMesh->atSubmeshes[i].szIndexCount;
+        if(ptMesh->atSubmeshes[i].ptVertexNormals == NULL)
+        {
+            atSubmeshAllocDescs[i].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL;
+        }
+    }
+
+    plMesh tNewMesh = {0};
+    pl_mesh_allocate(&tNewMesh, atSubmeshAllocDescs, ptMesh->uSubmeshCount);
+    PL_FREE(atSubmeshAllocDescs);
+    atSubmeshAllocDescs = NULL;
+    tNewMesh.tAABB = ptMesh->tAABB;
+
+    for(uint32_t uSubmeshIndex = 0; uSubmeshIndex < ptMesh->uSubmeshCount; uSubmeshIndex++)
+    {
+
+        plSubmesh* ptNewSubmesh = &tNewMesh.atSubmeshes[uSubmeshIndex];
+        plSubmesh* ptOldSubmesh = &ptMesh->atSubmeshes[uSubmeshIndex];
+
+        ptNewSubmesh->tMaterial = ptOldSubmesh->tMaterial;
+        ptNewSubmesh->tAABB = ptOldSubmesh->tAABB;
+
+        if(ptNewSubmesh->ptVertexPositions)             memcpy(ptNewSubmesh->ptVertexPositions, ptOldSubmesh->ptVertexPositions, sizeof(plVec3) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexTangents)              memcpy(ptNewSubmesh->ptVertexTangents, ptOldSubmesh->ptVertexTangents, sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexColors)                memcpy(ptNewSubmesh->ptVertexColors, ptOldSubmesh->ptVertexColors, sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexWeights[0])            memcpy(ptNewSubmesh->ptVertexWeights[0], ptOldSubmesh->ptVertexWeights[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexWeights[1])            memcpy(ptNewSubmesh->ptVertexWeights[1], ptOldSubmesh->ptVertexWeights[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexJoints[0])             memcpy(ptNewSubmesh->ptVertexJoints[0], ptOldSubmesh->ptVertexJoints[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexJoints[1])             memcpy(ptNewSubmesh->ptVertexJoints[1], ptOldSubmesh->ptVertexJoints[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexTextureCoordinates[0]) memcpy(ptNewSubmesh->ptVertexTextureCoordinates[0], ptOldSubmesh->ptVertexTextureCoordinates[0], sizeof(plVec2) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexTextureCoordinates[1]) memcpy(ptNewSubmesh->ptVertexTextureCoordinates[1], ptOldSubmesh->ptVertexTextureCoordinates[1], sizeof(plVec2) * ptOldSubmesh->szVertexCount);
+        if(ptOldSubmesh->puIndices)                     memcpy(ptNewSubmesh->puIndices, ptOldSubmesh->puIndices, sizeof(uint32_t) * ptOldSubmesh->szIndexCount);
+
+        if(ptOldSubmesh->ptVertexNormals)
+            memcpy(ptNewSubmesh->ptVertexNormals, ptOldSubmesh->ptVertexNormals, sizeof(plVec3) * ptOldSubmesh->szVertexCount);
+        else
+        {
+            memset(ptNewSubmesh->ptVertexNormals, 0, sizeof(plVec3) * ptNewSubmesh->szVertexCount);
+
+            for(uint32_t i = 0; i < ptNewSubmesh->szIndexCount - 2; i += 3)
+            {
+                const uint32_t uIndex0 = ptNewSubmesh->puIndices[i + 0];
+                const uint32_t uIndex1 = ptNewSubmesh->puIndices[i + 1];
+                const uint32_t uIndex2 = ptNewSubmesh->puIndices[i + 2];
+
+                const plVec3 tP0 = ptNewSubmesh->ptVertexPositions[uIndex0];
+                const plVec3 tP1 = ptNewSubmesh->ptVertexPositions[uIndex1];
+                const plVec3 tP2 = ptNewSubmesh->ptVertexPositions[uIndex2];
 
                 const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
                 const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
 
                 const plVec3 tNorm = pl_cross_vec3(tEdge1, tEdge2);
 
-                ptSubmesh->ptVertexNormals[uIndex0] = tNorm;
-                ptSubmesh->ptVertexNormals[uIndex1] = tNorm;
-                ptSubmesh->ptVertexNormals[uIndex2] = tNorm;
+                ptNewSubmesh->ptVertexNormals[uIndex0] = pl_add_vec3(ptNewSubmesh->ptVertexNormals[uIndex0], tNorm);
+                ptNewSubmesh->ptVertexNormals[uIndex1] = pl_add_vec3(ptNewSubmesh->ptVertexNormals[uIndex1], tNorm);
+                ptNewSubmesh->ptVertexNormals[uIndex2] = pl_add_vec3(ptNewSubmesh->ptVertexNormals[uIndex2], tNorm);
+            }
+
+            for(uint32_t i = 0; i < ptNewSubmesh->szVertexCount; i++)
+            {
+                ptNewSubmesh->ptVertexNormals[i] = pl_norm_vec3(ptNewSubmesh->ptVertexNormals[i]);
             }
         }
     }
+
+    pl__mesh_cleanup(ptMesh);
+    *ptMesh = tNewMesh;
+    return true;
 }
 
-void
-pl_mesh_calculate_tangents(plMesh* ptMesh)
+bool
+pl_mesh_generate_tangents(plMesh* ptMesh)
 {
+
+    // check if normals are needed
+    bool bTangentsNeeded = false;
+    for(uint32_t i = 0; i < ptMesh->uSubmeshCount; i++)
+    {
+        if(ptMesh->atSubmeshes[i].ptVertexTangents == NULL)
+        {
+            bTangentsNeeded = true;
+            break;
+        }
+    }
+
+    if(!bTangentsNeeded)
+        return false;
+
+    pl_mesh_generate_normals(ptMesh);
+    
+    plSubmeshAllocationDesc* atSubmeshAllocDescs = PL_ALLOC(sizeof(plSubmeshAllocationDesc) * ptMesh->uSubmeshCount);
+    memset(atSubmeshAllocDescs, 0, sizeof(plSubmeshAllocationDesc) * ptMesh->uSubmeshCount);
+
+    for(uint32_t i = 0; i < ptMesh->uSubmeshCount; i++)
+    {
+        atSubmeshAllocDescs[i].uVertexStreamMask = ptMesh->atSubmeshes[i].uVertexStreamMask;
+        atSubmeshAllocDescs[i].szVertexCount = ptMesh->atSubmeshes[i].szVertexCount;
+        atSubmeshAllocDescs[i].szIndexCount = ptMesh->atSubmeshes[i].szIndexCount;
+        if(ptMesh->atSubmeshes[i].ptVertexTangents == NULL)
+        {
+            atSubmeshAllocDescs[i].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT;
+        }
+    }
+
+    plMesh tNewMesh = {0};
+    pl_mesh_allocate(&tNewMesh, atSubmeshAllocDescs, ptMesh->uSubmeshCount);
+    PL_FREE(atSubmeshAllocDescs);
+    atSubmeshAllocDescs = NULL;
+    tNewMesh.tAABB = ptMesh->tAABB;
 
     for(uint32_t uSubmeshIndex = 0; uSubmeshIndex < ptMesh->uSubmeshCount; uSubmeshIndex++)
     {
-        plSubmesh* ptSubmesh = &ptMesh->atSubmeshes[uSubmeshIndex];
 
-        PL_ASSERT(ptSubmesh->ptVertexTangents);
+        plSubmesh* ptNewSubmesh = &tNewMesh.atSubmeshes[uSubmeshIndex];
+        plSubmesh* ptOldSubmesh = &ptMesh->atSubmeshes[uSubmeshIndex];
 
-        if(ptSubmesh->ptVertexTangents && ptSubmesh->ptVertexTextureCoordinates[0])
+        ptNewSubmesh->tMaterial = ptOldSubmesh->tMaterial;
+        ptNewSubmesh->tAABB = ptOldSubmesh->tAABB;
+
+        if(ptNewSubmesh->ptVertexPositions)             memcpy(ptNewSubmesh->ptVertexPositions, ptOldSubmesh->ptVertexPositions, sizeof(plVec3) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexColors)                memcpy(ptNewSubmesh->ptVertexColors, ptOldSubmesh->ptVertexColors, sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexWeights[0])            memcpy(ptNewSubmesh->ptVertexWeights[0], ptOldSubmesh->ptVertexWeights[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexWeights[1])            memcpy(ptNewSubmesh->ptVertexWeights[1], ptOldSubmesh->ptVertexWeights[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexJoints[0])             memcpy(ptNewSubmesh->ptVertexJoints[0], ptOldSubmesh->ptVertexJoints[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexJoints[1])             memcpy(ptNewSubmesh->ptVertexJoints[1], ptOldSubmesh->ptVertexJoints[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexTextureCoordinates[0]) memcpy(ptNewSubmesh->ptVertexTextureCoordinates[0], ptOldSubmesh->ptVertexTextureCoordinates[0], sizeof(plVec2) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexTextureCoordinates[1]) memcpy(ptNewSubmesh->ptVertexTextureCoordinates[1], ptOldSubmesh->ptVertexTextureCoordinates[1], sizeof(plVec2) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->puIndices)                     memcpy(ptNewSubmesh->puIndices, ptOldSubmesh->puIndices, sizeof(uint32_t) * ptOldSubmesh->szIndexCount);
+        if(ptNewSubmesh->ptVertexNormals)               memcpy(ptNewSubmesh->ptVertexNormals, ptOldSubmesh->ptVertexNormals, sizeof(plVec3) * ptOldSubmesh->szVertexCount);
+
+
+        if(ptOldSubmesh->ptVertexTangents)
         {
-            for(uint32_t i = 0; i < ptSubmesh->szIndexCount - 2; i += 3)
+            memcpy(ptNewSubmesh->ptVertexTangents, ptOldSubmesh->ptVertexTangents, sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        }
+        else
+        {
+
+            // no UVs -> arbitrary tangent basis
+            if(!ptNewSubmesh->ptVertexTextureCoordinates[0])
             {
-                const uint32_t uIndex0 = ptSubmesh->puIndices[i + 0];
-                const uint32_t uIndex1 = ptSubmesh->puIndices[i + 1];
-                const uint32_t uIndex2 = ptSubmesh->puIndices[i + 2];
+                for(uint32_t i = 0; i < ptNewSubmesh->szVertexCount; i++)
+                    ptNewSubmesh->ptVertexTangents[i] = pl__mesh_fallback_tangent(ptNewSubmesh->ptVertexNormals[i]);
+                
+                continue;
+            }
 
-                const plVec3 tP0 = ptSubmesh->ptVertexPositions[uIndex0];
-                const plVec3 tP1 = ptSubmesh->ptVertexPositions[uIndex1];
-                const plVec3 tP2 = ptSubmesh->ptVertexPositions[uIndex2];
+            memset(ptNewSubmesh->ptVertexTangents, 0, sizeof(plVec4) * ptNewSubmesh->szVertexCount);
 
-                const plVec2 tTex0 = ptSubmesh->ptVertexTextureCoordinates[0][uIndex0];
-                const plVec2 tTex1 = ptSubmesh->ptVertexTextureCoordinates[0][uIndex1];
-                const plVec2 tTex2 = ptSubmesh->ptVertexTextureCoordinates[0][uIndex2];
+            for(uint32_t i = 0; i < ptNewSubmesh->szIndexCount - 2; i += 3)
+            {
+                const uint32_t uIndex0 = ptNewSubmesh->puIndices[i + 0];
+                const uint32_t uIndex1 = ptNewSubmesh->puIndices[i + 1];
+                const uint32_t uIndex2 = ptNewSubmesh->puIndices[i + 2];
 
-                const plVec3 atNormals[3] = { 
-                    ptSubmesh->ptVertexNormals[uIndex0],
-                    ptSubmesh->ptVertexNormals[uIndex1],
-                    ptSubmesh->ptVertexNormals[uIndex2],
-                };
+                const plVec3 tP0 = ptNewSubmesh->ptVertexPositions[uIndex0];
+                const plVec3 tP1 = ptNewSubmesh->ptVertexPositions[uIndex1];
+                const plVec3 tP2 = ptNewSubmesh->ptVertexPositions[uIndex2];
+
+                const plVec2 tTex0 = ptNewSubmesh->ptVertexTextureCoordinates[0][uIndex0];
+                const plVec2 tTex1 = ptNewSubmesh->ptVertexTextureCoordinates[0][uIndex1];
+                const plVec2 tTex2 = ptNewSubmesh->ptVertexTextureCoordinates[0][uIndex2];
 
                 const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
                 const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
@@ -507,33 +798,76 @@ pl_mesh_calculate_tangents(plMesh* ptMesh)
                 const float fDeltaU2 = tTex2.x - tTex0.x;
                 const float fDeltaV2 = tTex2.y - tTex0.y;
 
-                const float fSx = fDeltaU1;
-                const float fSy = fDeltaU2;
-                const float fTx = fDeltaV1;
-                const float fTy = fDeltaV2;
-                const float fHandedness = ((fSx * fTy - fTx * fSy) < 0.0f) ? -1.0f : 1.0f;
+                const float fDet = fDeltaU1 * fDeltaV2 - fDeltaV1 * fDeltaU2;
+
+                // degenerate UV triangle
+                if(fabsf(fDet) < 1e-8f)
+                    continue;
+
+                const float fR = 1.0f / fDet;
 
                 const plVec3 tTangent = {
-                        fHandedness * (fDeltaV2 * tEdge1.x - fDeltaV1 * tEdge2.x),
-                        fHandedness * (fDeltaV2 * tEdge1.y - fDeltaV1 * tEdge2.y),
-                        fHandedness * (fDeltaV2 * tEdge1.z - fDeltaV1 * tEdge2.z)
+                    fR * (fDeltaV2 * tEdge1.x - fDeltaV1 * tEdge2.x),
+                    fR * (fDeltaV2 * tEdge1.y - fDeltaV1 * tEdge2.y),
+                    fR * (fDeltaV2 * tEdge1.z - fDeltaV1 * tEdge2.z)
+                };
+
+                ptNewSubmesh->ptVertexTangents[uIndex0].xyz = pl_add_vec3(ptNewSubmesh->ptVertexTangents[uIndex0].xyz, tTangent);
+                ptNewSubmesh->ptVertexTangents[uIndex1].xyz = pl_add_vec3(ptNewSubmesh->ptVertexTangents[uIndex1].xyz, tTangent);
+                ptNewSubmesh->ptVertexTangents[uIndex2].xyz = pl_add_vec3(ptNewSubmesh->ptVertexTangents[uIndex2].xyz, tTangent);
+
+                // This is adequate if mirrored UV regions have split vertices.
+                const float fHandedness = fDet < 0.0f ? -1.0f : 1.0f;
+
+                ptNewSubmesh->ptVertexTangents[uIndex0].w += fHandedness;
+                ptNewSubmesh->ptVertexTangents[uIndex1].w += fHandedness;
+                ptNewSubmesh->ptVertexTangents[uIndex2].w += fHandedness;
+
+                const plVec3 atNormals[3] = { 
+                    ptNewSubmesh->ptVertexNormals[uIndex0],
+                    ptNewSubmesh->ptVertexNormals[uIndex1],
+                    ptNewSubmesh->ptVertexNormals[uIndex2],
                 };
 
                 plVec4 atFinalTangents[3] = {0};
                 for(uint32_t j = 0; j < 3; j++)
                 {
-                    atFinalTangents[j].xyz = pl_mul_vec3(tTangent, atNormals[j]);
-                    atFinalTangents[j].xyz = pl_mul_vec3(atNormals[j], atFinalTangents[j].xyz);
-                    atFinalTangents[j].xyz = pl_norm_vec3(pl_sub_vec3(tTangent, atFinalTangents[j].xyz));
+                    const float fD = pl_dot_vec3(atNormals[j], tTangent);
+                    const plVec3 tProjected = pl_mul_vec3_scalarf(atNormals[j], fD);
+                    atFinalTangents[j].xyz = pl_norm_vec3(pl_sub_vec3(tTangent, tProjected));
                     atFinalTangents[j].w = fHandedness;
                 }
 
-                ptSubmesh->ptVertexTangents[uIndex0] = atFinalTangents[0];
-                ptSubmesh->ptVertexTangents[uIndex1] = atFinalTangents[1];
-                ptSubmesh->ptVertexTangents[uIndex2] = atFinalTangents[2];
-            } 
+                ptNewSubmesh->ptVertexTangents[uIndex0] = pl_add_vec4(ptNewSubmesh->ptVertexTangents[uIndex0], atFinalTangents[0]);
+                ptNewSubmesh->ptVertexTangents[uIndex1] = pl_add_vec4(ptNewSubmesh->ptVertexTangents[uIndex1], atFinalTangents[1]);
+                ptNewSubmesh->ptVertexTangents[uIndex2] = pl_add_vec4(ptNewSubmesh->ptVertexTangents[uIndex2], atFinalTangents[2]);
+            }
+
+            for(uint32_t i = 0; i < ptNewSubmesh->szVertexCount; i++)
+            {
+                const plVec3 tNormal = ptNewSubmesh->ptVertexNormals[i];
+                plVec3 tTangent = ptNewSubmesh->ptVertexTangents[i].xyz;
+
+                if(pl_dot_vec3(tTangent, tTangent) < 1e-12f)
+                {
+                    ptNewSubmesh->ptVertexTangents[i] = pl__mesh_fallback_tangent(tNormal);
+                    continue;
+                }
+
+                // Gram-Schmidt
+                tTangent = pl_sub_vec3(tTangent, pl_mul_vec3_scalarf(tNormal, pl_dot_vec3(tNormal, tTangent)));
+
+                tTangent = pl_norm_vec3(tTangent);
+
+                ptNewSubmesh->ptVertexTangents[i].xyz = tTangent;
+                ptNewSubmesh->ptVertexTangents[i].w = ptNewSubmesh->ptVertexTangents[i].w < 0.0f ? -1.0f : 1.0f;
+            }
         }
     }
+
+    pl__mesh_cleanup(ptMesh);
+    *ptMesh = tNewMesh;
+    return true;
 }
 
 void
@@ -567,22 +901,6 @@ pl_mesh_calculate_bounds(plMesh* ptMesh)
         if(ptSubmesh->tAABB.tMax.x > ptMesh->tAABB.tMax.x) ptMesh->tAABB.tMax.x = ptSubmesh->tAABB.tMax.x;
         if(ptSubmesh->tAABB.tMax.y > ptMesh->tAABB.tMax.y) ptMesh->tAABB.tMax.y = ptSubmesh->tAABB.tMax.y;
     }
-}
-
-void
-pl__mesh_cleanup(void* pMesh)
-{
-    plMesh* ptMesh = pMesh;
-    if(ptMesh->puRawData)
-    {
-        PL_FREE(ptMesh->puRawData);
-        ptMesh->puRawData = NULL;
-    }
-    ptMesh->atSubmeshes = NULL;
-    ptMesh->uSubmeshCount = 0;
-    ptMesh->szRawDataSize = 0;
-    ptMesh->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
-    ptMesh->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
 }
 
 bool
@@ -633,8 +951,7 @@ pl_mesh_generate_indices(plMesh* ptMesh)
         if(ptNewSubmesh->ptVertexPositions)             memcpy(ptNewSubmesh->ptVertexPositions, ptOldSubmesh->ptVertexPositions, sizeof(plVec3) * ptOldSubmesh->szVertexCount);
         if(ptNewSubmesh->ptVertexNormals)               memcpy(ptNewSubmesh->ptVertexNormals, ptOldSubmesh->ptVertexNormals, sizeof(plVec3) * ptOldSubmesh->szVertexCount);
         if(ptNewSubmesh->ptVertexTangents)              memcpy(ptNewSubmesh->ptVertexTangents, ptOldSubmesh->ptVertexTangents, sizeof(plVec4) * ptOldSubmesh->szVertexCount);
-        if(ptNewSubmesh->ptVertexColors[0])             memcpy(ptNewSubmesh->ptVertexColors[0], ptOldSubmesh->ptVertexColors[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
-        if(ptNewSubmesh->ptVertexColors[1])             memcpy(ptNewSubmesh->ptVertexColors[1], ptOldSubmesh->ptVertexColors[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
+        if(ptNewSubmesh->ptVertexColors)                memcpy(ptNewSubmesh->ptVertexColors, ptOldSubmesh->ptVertexColors, sizeof(plVec4) * ptOldSubmesh->szVertexCount);
         if(ptNewSubmesh->ptVertexWeights[0])            memcpy(ptNewSubmesh->ptVertexWeights[0], ptOldSubmesh->ptVertexWeights[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
         if(ptNewSubmesh->ptVertexWeights[1])            memcpy(ptNewSubmesh->ptVertexWeights[1], ptOldSubmesh->ptVertexWeights[1], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
         if(ptNewSubmesh->ptVertexJoints[0])             memcpy(ptNewSubmesh->ptVertexJoints[0], ptOldSubmesh->ptVertexJoints[0], sizeof(plVec4) * ptOldSubmesh->szVertexCount);
@@ -671,15 +988,14 @@ pl_mesh_allocate(plMesh* ptMesh, const plSubmeshAllocationDesc* atAllocDesc, uin
 
         size_t szBytesPerVertex = sizeof(plVec3);
 
-        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL)  szBytesPerVertex += sizeof(plVec3);
-        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TANGENT) szBytesPerVertex += sizeof(plVec4);
+        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL)     szBytesPerVertex += sizeof(plVec3);
+        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TANGENT)    szBytesPerVertex += sizeof(plVec4);
         if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0) szBytesPerVertex += sizeof(plVec4);
-        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0) szBytesPerVertex += sizeof(plVec4);
-        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_1) szBytesPerVertex += sizeof(plVec4);
-        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0) szBytesPerVertex += sizeof(plVec4);
-        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1) szBytesPerVertex += sizeof(plVec4);
-        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0) szBytesPerVertex += sizeof(plVec4);
-        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1) szBytesPerVertex += sizeof(plVec4);
+        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR)      szBytesPerVertex += sizeof(plVec4);
+        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0)   szBytesPerVertex += sizeof(plVec4);
+        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1)   szBytesPerVertex += sizeof(plVec4);
+        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0)  szBytesPerVertex += sizeof(plVec4);
+        if(ptDesc->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1)  szBytesPerVertex += sizeof(plVec4);
         
         ptMesh->szRawDataSize += szBytesPerVertex * ptDesc->szVertexCount + ptDesc->szIndexCount * sizeof(uint32_t);
     }
@@ -725,15 +1041,9 @@ pl_mesh_allocate(plMesh* ptMesh, const plSubmeshAllocationDesc* atAllocDesc, uin
             szBufferOffset += ptSubmesh->szVertexCount * sizeof(plVec2);
         }
 
-        if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0)
+        if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR)
         {
-            ptSubmesh->ptVertexColors[0] = (plVec4*)&ptMesh->puRawData[szBufferOffset];
-            szBufferOffset += ptSubmesh->szVertexCount * sizeof(plVec4);
-        }
-
-        if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_1)
-        {
-            ptSubmesh->ptVertexColors[1] = (plVec4*)&ptMesh->puRawData[szBufferOffset];
+            ptSubmesh->ptVertexColors = (plVec4*)&ptMesh->puRawData[szBufferOffset];
             szBufferOffset += ptSubmesh->szVertexCount * sizeof(plVec4);
         }
 
@@ -1233,8 +1543,10 @@ pl_load_mesh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_sphere         = pl_mesh_create_sphere,
         .create_cube           = pl_mesh_create_cube,
         .create_plane          = pl_mesh_create_plane,
-        .calculate_normals     = pl_mesh_calculate_normals,
-        .calculate_tangents    = pl_mesh_calculate_tangents,
+        .generate_normals      = pl_mesh_generate_normals,
+        .generate_tangents     = pl_mesh_generate_tangents,
+        .generate_colors       = pl_mesh_generate_colors,
+        .generate_uvs          = pl_mesh_generate_uvs,
         .calculate_bounds      = pl_mesh_calculate_bounds,
         .allocate              = pl_mesh_allocate,
         .cleanup               = pl_mesh_cleanup,

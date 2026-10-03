@@ -89,8 +89,10 @@ typedef struct _plMeshI
     // operations
     void (*allocate)          (plMesh*, const plSubmeshAllocationDesc*, uint32_t count);
     void (*cleanup)           (plMesh*);
-    void (*calculate_normals) (plMesh*);
-    void (*calculate_tangents)(plMesh*);
+    bool (*generate_colors)   (plMesh*);
+    bool (*generate_normals)  (plMesh*);
+    bool (*generate_tangents) (plMesh*);
+    bool (*generate_uvs)      (plMesh*);
     void (*calculate_bounds)  (plMesh*);
     bool (*generate_indices)  (plMesh*);
     // void (*split_submeshes)     (plMesh*, plMesh* meshesOut);
@@ -143,7 +145,7 @@ typedef struct _plSubmesh
     plVec3*       ptVertexPositions;
     plVec3*       ptVertexNormals;
     plVec4*       ptVertexTangents;
-    plVec4*       ptVertexColors[2];
+    plVec4*       ptVertexColors;
     plVec4*       ptVertexWeights[2];
     plVec4*       ptVertexJoints[2];
     plVec2*       ptVertexTextureCoordinates[2];
