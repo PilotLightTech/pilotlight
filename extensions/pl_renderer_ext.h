@@ -221,7 +221,6 @@ typedef struct _plRendererI
     // editor stuff
     void          (*update_hovered_entity)(plView*, plVec2 offset, plVec2 windowScale);
     bool          (*get_hovered_entity)   (plView*, plEntity*);
-    void          (*outline_entities)     (plScene*, uint32_t count, const plEntity*);
     void          (*reload_scene_shaders) (plScene*);
     plDrawList3D* (*get_gizmo_drawlist)   (plView*);
     void          (*rebuild_scene_bvh)    (plScene*);

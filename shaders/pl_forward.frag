@@ -7,16 +7,6 @@
 #include "pl_brdf.glsl"
 #include "pl_math.glsl"
 
-
-//-----------------------------------------------------------------------------
-// [SECTION] specialication constants
-//-----------------------------------------------------------------------------
-
-layout(constant_id = 0) const int iMeshVariantFlags = 0;
-layout(constant_id = 1) const int iTextureMappingFlags = 0;
-layout(constant_id = 2) const int iMaterialFlags = 0;
-layout(constant_id = 3) const int iRenderingFlags = 0;
-
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
@@ -222,37 +212,37 @@ void main()
         materialInfo = getMetallicRoughnessInfo(materialInfo, material.fMetallicFactor, material.fRoughnessFactor);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
     {
         materialInfo = getSheenInfo(materialInfo, material.tSheenColorFactor, material.fSheenRoughnessFactor);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
     {
         materialInfo = getClearCoatInfo(materialInfo, tNormalInfo, material.fClearcoatFactor, material.fClearcoatRoughnessFactor);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
     {
         materialInfo = getTransmissionInfo(materialInfo, material.fTransmissionFactor);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
     {
         materialInfo = getVolumeInfo(materialInfo);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
     {
         materialInfo = getIridescenceInfo(materialInfo, material.fIridescenceFactor, material.fIridescenceIor, material.fIridescenceThicknessMax, material.fIridescenceThicknessMin);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
     {
         materialInfo = getDiffuseTransmissionInfo(materialInfo);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
     {
         materialInfo = getAnisotropyInfo(materialInfo, tNormalInfo, material.tAnisotropy);
     }
@@ -289,7 +279,7 @@ void main()
     vec3 iridescenceFresnel_dielectric = vec3(0);
     vec3 iridescenceFresnel_metallic = vec3(0);
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
     {
         iridescenceFresnel_dielectric = evalIridescence(1.0, materialInfo.iridescenceIor, NdotV, materialInfo.iridescenceThickness, materialInfo.f0_dielectric);
         iridescenceFresnel_metallic = evalIridescence(1.0, materialInfo.iridescenceIor, NdotV, materialInfo.iridescenceThickness, tBaseColor.rgb);
@@ -304,16 +294,16 @@ void main()
     mat4 u_ProjectionMatrix = tViewInfo.tData.tCameraProjection[tObjectInfo.tData.uGlobalIndex];
     mat4 u_ModelMatrix = tShaderIn.tModel;
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
     {
-        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+        if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
         {
             diffuseTransmissionThickness = materialInfo.thickness *
                 (length(vec3(u_ModelMatrix[0].xyz)) + length(vec3(u_ModelMatrix[1].xyz)) + length(vec3(u_ModelMatrix[2].xyz))) / 3.0;
         }
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
     {
         clearcoatFactor = materialInfo.clearcoatFactor;
         clearcoatFresnel = pl_fresnel_schlick(materialInfo.clearcoatF0, materialInfo.clearcoatF90, clampedDot(materialInfo.clearcoatNormal, v));
@@ -321,17 +311,17 @@ void main()
 
 
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
     {
-        
-        f_specular_transmission = getIBLVolumeRefraction(n, v, materialInfo.perceptualRoughness,
+        bool bDispersion = bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DISPERSION);
+        f_specular_transmission = getIBLVolumeRefraction(bDispersion, n, v, materialInfo.perceptualRoughness,
             tBaseColor.rgb, tShaderIn.tWorldPosition, u_ModelMatrix, u_ViewMatrix, u_ProjectionMatrix,
             materialInfo.ior, materialInfo.thickness, materialInfo.attenuationColor, materialInfo.attenuationDistance, materialInfo.dispersion);
     }
 
 
     // Calculate lighting contribution from image based lighting source (IBL)
-    if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && tObjectInfo.tData.iProbeCount > 0)
+    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_USE_IBL) && tObjectInfo.tData.iProbeCount > 0)
     {
 
         int aiActiveProbes[3];
@@ -394,7 +384,7 @@ void main()
         int iClosestProbeIndex = aiActiveProbes[iClosestIndex];
 
         int iMips2 = tProbeData.atData[iClosestProbeIndex].iMips;
-        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+        if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
         {
             f_specular_metal = getIBLRadianceAnisotropy(n, v, materialInfo.perceptualRoughness, materialInfo.anisotropyStrength, materialInfo.anisotropicB, iMips2, tShaderIn.tWorldPosition.xyz, iClosestProbeIndex);
             f_specular_dielectric = f_specular_metal;
@@ -415,17 +405,17 @@ void main()
             int iMips = tProbeData.atData[iClosestProbeIndex].iMips;
 
 
-            if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
+            if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
             {
                 vec3 diffuseTransmissionIBL = getDiffuseLight(-n, iProbeIndex) * materialInfo.diffuseTransmissionColorFactor;
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
                 {
                     diffuseTransmissionIBL = applyVolumeAttenuation(diffuseTransmissionIBL, diffuseTransmissionThickness, materialInfo.attenuationColor, materialInfo.attenuationDistance);
                 }
                 f_diffuse = mix(f_diffuse, diffuseTransmissionIBL, materialInfo.diffuseTransmissionFactor);
             }
 
-            if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
+            if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
             {
                 f_diffuse = mix(f_diffuse, f_specular_transmission, materialInfo.transmissionFactor);
             }
@@ -440,18 +430,18 @@ void main()
             vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, iProbeIndex);
             f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);
 
-            if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
+            if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
             {
                 f_metal_brdf_ibl = mix(f_metal_brdf_ibl, f_specular_metal * iridescenceFresnel_metallic, materialInfo.iridescenceFactor);
                 f_dielectric_brdf_ibl = mix(f_dielectric_brdf_ibl, pl_rgb_mix(f_diffuse, f_specular_dielectric, iridescenceFresnel_dielectric), materialInfo.iridescenceFactor);
             }
 
-            if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
+            if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
             {
                 clearcoat_brdf = getIBLRadianceGGX(materialInfo.clearcoatNormal, v, materialInfo.clearcoatRoughness, iMips, tShaderIn.tWorldPosition.xyz, iProbeIndex);
             }
 
-            if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+            if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
             {
                 f_sheen = getIBLRadianceCharlie(n, v, materialInfo.sheenRoughnessFactor, materialInfo.sheenColorFactor, iMips, iProbeIndex);
                 albedoSheenScaling = 1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor);
@@ -467,7 +457,7 @@ void main()
     // ambient occlusion
     
     float ao = 1.0;
-    if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
         ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_OCCLUSION])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_OCCLUSION)).r;
         color = color * (1.0 + material.fOcclusionStrength * (ao - 1.0)); 
@@ -481,8 +471,8 @@ void main()
     vec3 f_metal_brdf = vec3(0.0);
 
     uint cascadeIndex = tGpuScene.tData.iCascadeCount - 1;
-    const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
-    const bool bPunctual = bool(iRenderingFlags & PL_RENDERING_FLAG_PUNCTUAL);
+    const bool bShadows = bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_SHADOWS) && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS);
+    const bool bPunctual = bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PUNCTUAL);
     if(bPunctual)
     {
 
@@ -494,7 +484,7 @@ void main()
             vec3 pointToLight = -tGpuScene.tData.tDirection;
 
             int iCascadeCount = tGpuScene.tData.iCascadeCount;
-            if(tObjectInfo.tData.iProbe == 1)
+            if(bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
             {
                 iCascadeCount = 1;
             }
@@ -515,7 +505,7 @@ void main()
                 float viewDepth = (inViewPos.z - tViewInfo.tData.fCameraNearZ) / tViewInfo.tData.fCameraRange;
 
                 vec4 tWorldPos2 = vec4(tShaderIn.tWorldPosition.xyz, 1.0);
-                if(tObjectInfo.tData.iProbe == 0)
+                if(!bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
                 {
                     for(int j = 0; j < iCascadeCount - 1; j++)
                     {
@@ -536,7 +526,7 @@ void main()
                     vec4 shadowCoord = (abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex]) * tWorldPos2;
                     // cascadeIndex = j;
                 
-                    if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
                     {
                         shadow = filterPCF(
                             shadowCoord,
@@ -551,7 +541,7 @@ void main()
 
                     
                     // if(abs(rawshadowCoord.x - pl_saturate(rawshadowCoord.x)) < 0.00001 && abs(rawshadowCoord.y - pl_saturate(rawshadowCoord.y)) < 0.00001 && abs(rawshadowCoord.z - pl_saturate(rawshadowCoord.z)) < 0.00001)
-                    if(tObjectInfo.tData.iProbe == 0 && cascadeIndex < (iCascadeCount - 1))
+                    if(!bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE) && cascadeIndex < (iCascadeCount - 1))
                     {
                         float splitStart = (cascadeIndex == 0) ? 0.0 : tViewInfo.tData.afCascadeSplits[cascadeIndex - 1];
                         float splitEnd   = tViewInfo.tData.afCascadeSplits[cascadeIndex];
@@ -608,7 +598,7 @@ void main()
                 vec3 l_sheen = vec3(0.0);
                 float l_albedoSheenScaling = 1.0;
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
                 {
                     l_diffuse = l_diffuse * (1.0 - materialInfo.diffuseTransmissionFactor);
                     if (dot(n, l) < 0.0)
@@ -619,7 +609,7 @@ void main()
                         vec3 l_mirror = normalize(l + 2.0 * n * dot(-l, n)); // Mirror light reflection vector on surface
                         float diffuseVdotH = clampedDot(v, normalize(l_mirror + v));
                         dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(diffuseVdotH));
-                        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                        if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
                         {
                             diffuse_btdf = applyVolumeAttenuation(diffuse_btdf, diffuseTransmissionThickness, materialInfo.attenuationColor, materialInfo.attenuationDistance);
                         }
@@ -627,7 +617,7 @@ void main()
                     }
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
                 {
                         // If the light ray travels through the geometry, use the point it exits the geometry again.
                         // That will change the angle to the light source, if the material refracts the light ray.
@@ -637,7 +627,7 @@ void main()
 
                         vec3 transmittedLight = shadow * intensity * getPunctualRadianceTransmission(n, v, l, materialInfo.alphaRoughness, tBaseColor.rgb, materialInfo.ior);
 
-                        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                        if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
                         {
                             transmittedLight = applyVolumeAttenuation(transmittedLight, length(transmissionRay), materialInfo.attenuationColor, materialInfo.attenuationDistance);
                         }
@@ -646,7 +636,7 @@ void main()
 
                 if(NdotV > 0.0)
                 {
-                    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+                    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
                     {
                         l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGXAnisotropy(materialInfo.alphaRoughness, materialInfo.anisotropyStrength, n, v, l, h, materialInfo.anisotropicT, materialInfo.anisotropicB);
                         l_specular_dielectric = l_specular_metal;
@@ -661,19 +651,19 @@ void main()
                 l_metal_brdf = metal_fresnel * l_specular_metal;
                 l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
                 {
                     l_metal_brdf = mix(l_metal_brdf, l_specular_metal * iridescenceFresnel_metallic, materialInfo.iridescenceFactor);
                     l_dielectric_brdf = mix(l_dielectric_brdf, pl_rgb_mix(l_diffuse, l_specular_dielectric, iridescenceFresnel_dielectric), materialInfo.iridescenceFactor);
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
                 {
                     l_clearcoat_brdf = intensity * getPunctualRadianceClearCoat(materialInfo.clearcoatNormal, v, l, h, VdotH,
                         materialInfo.clearcoatF0, materialInfo.clearcoatF90, materialInfo.clearcoatRoughness);
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
                 {
                     l_sheen = intensity * getPunctualRadianceSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor, NdotL, NdotV, NdotH);
                     l_albedoSheenScaling = min(1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor),
@@ -718,7 +708,7 @@ void main()
                     shadowCoord.xyz /= shadowCoord.w;
                     result.xy *= tShadowData.fFactor;
                     shadowCoord.xy = result.xy;
-                    if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
                     {
                         shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
                     }
@@ -756,7 +746,7 @@ void main()
                 vec3 l_sheen = vec3(0.0);
                 float l_albedoSheenScaling = 1.0;
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
                 {
                     l_diffuse = l_diffuse * (1.0 - materialInfo.diffuseTransmissionFactor);
                     if (dot(n, l) < 0.0)
@@ -767,7 +757,7 @@ void main()
                         vec3 l_mirror = normalize(l + 2.0 * n * dot(-l, n)); // Mirror light reflection vector on surface
                         float diffuseVdotH = clampedDot(v, normalize(l_mirror + v));
                         dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(diffuseVdotH));
-                        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                        if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
                         {
                             diffuse_btdf = applyVolumeAttenuation(diffuse_btdf, diffuseTransmissionThickness, materialInfo.attenuationColor, materialInfo.attenuationDistance);
                         }
@@ -775,7 +765,7 @@ void main()
                     }
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
                 {
                         // If the light ray travels through the geometry, use the point it exits the geometry again.
                         // That will change the angle to the light source, if the material refracts the light ray.
@@ -785,14 +775,14 @@ void main()
 
                         vec3 transmittedLight = shadow * intensity * getPunctualRadianceTransmission(n, v, l, materialInfo.alphaRoughness, tBaseColor.rgb, materialInfo.ior);
 
-                        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                        if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
                         {
                             transmittedLight = applyVolumeAttenuation(transmittedLight, length(transmissionRay), materialInfo.attenuationColor, materialInfo.attenuationDistance);
                         }
                         l_diffuse = mix(l_diffuse, transmittedLight, materialInfo.transmissionFactor);
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
                 {
                     l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGXAnisotropy(materialInfo.alphaRoughness, materialInfo.anisotropyStrength, n, v, l, h, materialInfo.anisotropicT, materialInfo.anisotropicB);
                     l_specular_dielectric = l_specular_metal;
@@ -806,19 +796,19 @@ void main()
                 l_metal_brdf = metal_fresnel * l_specular_metal;
                 l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
                 {
                     l_metal_brdf = mix(l_metal_brdf, l_specular_metal * iridescenceFresnel_metallic, materialInfo.iridescenceFactor);
                     l_dielectric_brdf = mix(l_dielectric_brdf, pl_rgb_mix(l_diffuse, l_specular_dielectric, iridescenceFresnel_dielectric), materialInfo.iridescenceFactor);
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
                 {
                     l_clearcoat_brdf = intensity * getPunctualRadianceClearCoat(materialInfo.clearcoatNormal, v, l, h, VdotH,
                         materialInfo.clearcoatF0, materialInfo.clearcoatF90, materialInfo.clearcoatRoughness);
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
                 {
                     l_sheen = intensity * getPunctualRadianceSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor, NdotL, NdotV, NdotH);
                     l_albedoSheenScaling = min(1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor),
@@ -856,7 +846,7 @@ void main()
                     shadowCoord.xy *= tShadowData.fFactor;
                     // shadow = (shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
 
-                    if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
                     {
                         shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
                     }
@@ -893,7 +883,7 @@ void main()
                 vec3 l_sheen = vec3(0.0);
                 float l_albedoSheenScaling = 1.0;
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
                 {
                     l_diffuse = l_diffuse * (1.0 - materialInfo.diffuseTransmissionFactor);
                     if (dot(n, l) < 0.0)
@@ -904,7 +894,7 @@ void main()
                         vec3 l_mirror = normalize(l + 2.0 * n * dot(-l, n)); // Mirror light reflection vector on surface
                         float diffuseVdotH = clampedDot(v, normalize(l_mirror + v));
                         dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(diffuseVdotH));
-                        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                        if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
                         {
                             diffuse_btdf = applyVolumeAttenuation(diffuse_btdf, diffuseTransmissionThickness, materialInfo.attenuationColor, materialInfo.attenuationDistance);
                         }
@@ -912,7 +902,7 @@ void main()
                     }
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
                 {
                         // If the light ray travels through the geometry, use the point it exits the geometry again.
                         // That will change the angle to the light source, if the material refracts the light ray.
@@ -922,14 +912,14 @@ void main()
 
                         vec3 transmittedLight = shadow * intensity * getPunctualRadianceTransmission(n, v, l, materialInfo.alphaRoughness, tBaseColor.rgb, materialInfo.ior);
 
-                        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                        if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
                         {
                             transmittedLight = applyVolumeAttenuation(transmittedLight, length(transmissionRay), materialInfo.attenuationColor, materialInfo.attenuationDistance);
                         }
                         l_diffuse = mix(l_diffuse, transmittedLight, materialInfo.transmissionFactor);
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
                 {
                     l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGXAnisotropy(materialInfo.alphaRoughness, materialInfo.anisotropyStrength, n, v, l, h, materialInfo.anisotropicT, materialInfo.anisotropicB);
                     l_specular_dielectric = l_specular_metal;
@@ -943,19 +933,19 @@ void main()
                 l_metal_brdf = metal_fresnel * l_specular_metal;
                 l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
                 {
                     l_metal_brdf = mix(l_metal_brdf, l_specular_metal * iridescenceFresnel_metallic, materialInfo.iridescenceFactor);
                     l_dielectric_brdf = mix(l_dielectric_brdf, pl_rgb_mix(l_diffuse, l_specular_dielectric, iridescenceFresnel_dielectric), materialInfo.iridescenceFactor);
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
                 {
                     l_clearcoat_brdf = intensity * getPunctualRadianceClearCoat(materialInfo.clearcoatNormal, v, l, h, VdotH,
                         materialInfo.clearcoatF0, materialInfo.clearcoatF90, materialInfo.clearcoatRoughness);
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
                 {
                     l_sheen = intensity * getPunctualRadianceSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor, NdotL, NdotV, NdotH);
                     l_albedoSheenScaling = min(1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor),
@@ -1001,7 +991,7 @@ void main()
 
                 vec4 shadowCoord = (abiasMat * tDirectionShadowData.atData[iShadowIndex].viewProjMat) * tWorldPos2;
             
-                if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
                 {
                     shadow = filterPCF(
                         shadowCoord,
@@ -1041,7 +1031,7 @@ void main()
                 vec3 l_sheen = vec3(0.0);
                 float l_albedoSheenScaling = 1.0;
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
                 {
                     l_diffuse = l_diffuse * (1.0 - materialInfo.diffuseTransmissionFactor);
                     if (dot(n, l) < 0.0)
@@ -1052,7 +1042,7 @@ void main()
                         vec3 l_mirror = normalize(l + 2.0 * n * dot(-l, n)); // Mirror light reflection vector on surface
                         float diffuseVdotH = clampedDot(v, normalize(l_mirror + v));
                         dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(diffuseVdotH));
-                        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                        if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
                         {
                             diffuse_btdf = applyVolumeAttenuation(diffuse_btdf, diffuseTransmissionThickness, materialInfo.attenuationColor, materialInfo.attenuationDistance);
                         }
@@ -1060,7 +1050,7 @@ void main()
                     }
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
                 {
                         // If the light ray travels through the geometry, use the point it exits the geometry again.
                         // That will change the angle to the light source, if the material refracts the light ray.
@@ -1070,14 +1060,14 @@ void main()
 
                         vec3 transmittedLight = shadow * intensity * getPunctualRadianceTransmission(n, v, l, materialInfo.alphaRoughness, tBaseColor.rgb, materialInfo.ior);
 
-                        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                        if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
                         {
                             transmittedLight = applyVolumeAttenuation(transmittedLight, length(transmissionRay), materialInfo.attenuationColor, materialInfo.attenuationDistance);
                         }
                         l_diffuse = mix(l_diffuse, transmittedLight, materialInfo.transmissionFactor);
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
                 {
                     l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGXAnisotropy(materialInfo.alphaRoughness, materialInfo.anisotropyStrength, n, v, l, h, materialInfo.anisotropicT, materialInfo.anisotropicB);
                     l_specular_dielectric = l_specular_metal;
@@ -1091,19 +1081,19 @@ void main()
                 l_metal_brdf = metal_fresnel * l_specular_metal;
                 l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
                 {
                     l_metal_brdf = mix(l_metal_brdf, l_specular_metal * iridescenceFresnel_metallic, materialInfo.iridescenceFactor);
                     l_dielectric_brdf = mix(l_dielectric_brdf, pl_rgb_mix(l_diffuse, l_specular_dielectric, iridescenceFresnel_dielectric), materialInfo.iridescenceFactor);
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
                 {
                     l_clearcoat_brdf = shadow * intensity * getPunctualRadianceClearCoat(materialInfo.clearcoatNormal, v, l, h, VdotH,
                         materialInfo.clearcoatF0, materialInfo.clearcoatF90, materialInfo.clearcoatRoughness);
                 }
 
-                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+                if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
                 {
                     l_sheen = shadow * intensity * getPunctualRadianceSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor, NdotL, NdotV, NdotH);
                     l_albedoSheenScaling = min(1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor),
@@ -1121,9 +1111,9 @@ void main()
 
     // emissive
     f_emissive = material.tEmissiveFactor * material.fEmissiveStrength;
-    if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
     {
-        f_emissive *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_EMISSIVE])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_EMISSIVE)).rgb);
+        f_emissive = pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_EMISSIVE])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_EMISSIVE)).rgb);
     }
 
     if(material.eAlphaMode == PL_SHADER_ALPHA_MODE_MASK)

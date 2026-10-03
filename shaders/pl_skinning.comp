@@ -4,15 +4,6 @@
 #include "pl_shader_interop_renderer.h"
 
 //-----------------------------------------------------------------------------
-// [SECTION] specialication constants
-//-----------------------------------------------------------------------------
-
-layout(constant_id = 0) const int iSourceMeshVariantFlags = 0;
-layout(constant_id = 1) const int iSourceDataStride = 0;
-layout(constant_id = 2) const int iDestMeshVariantFlags = 0;
-layout(constant_id = 3) const int iDestDataStride = 0;
-
-//-----------------------------------------------------------------------------
 // [SECTION] bind group 0
 //-----------------------------------------------------------------------------
 
@@ -82,25 +73,22 @@ layout (local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 void
 main()
 {
+    const int iSourceDataStride = 5;
+    const int iDestDataStride = 4;
 
     const uint iVertexIndex = gl_WorkGroupID.x * 64 + gl_LocalInvocationID.x;
 
     if(iVertexIndex >= tObjectInfo.tData.uMaxSize)
         return;
 
-    vec4 inPosition  = vec4(0.0, 0.0, 0.0, 1.0);
-    vec3 inNormal    = vec3(0.0, 0.0, 0.0);
-    vec4 inTangent   = vec4(0.0, 0.0, 0.0, 0.0);
-    vec4 inJoints0   = vec4(0.0, 0.0, 0.0, 0.0);
-    vec4 inWeights0  = vec4(0.0, 0.0, 0.0, 0.0);
 
     const uint iSourceVertexDataOffset = iSourceDataStride * iVertexIndex + tObjectInfo.tData.iSourceDataOffset;
-    int iCurrentAttribute = 0;
-    if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition.xyz = tDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal       = tDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))   { inTangent      = tDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0))  { inJoints0      = tDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0)) { inWeights0     = tDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+
+    vec4 inPosition  = vec4(tDataBuffer.atVertexData[iSourceVertexDataOffset + 0].xyz, 1.0);
+    vec3 inNormal    = tDataBuffer.atVertexData[iSourceVertexDataOffset + 1].xyz;
+    vec4 inTangent   = tDataBuffer.atVertexData[iSourceVertexDataOffset + 2];
+    vec4 inJoints0   = tDataBuffer.atVertexData[iSourceVertexDataOffset + 3];
+    vec4 inWeights0  = tDataBuffer.atVertexData[iSourceVertexDataOffset + 4];
 
     mat4 skin = get_skinning_matrix(inJoints0, inWeights0);
 
@@ -109,9 +97,8 @@ main()
     vec3 outTangent = normalize(mat3(skin) * inTangent.xyz);
 
     const uint iDestVertexDataOffset = iDestDataStride * iVertexIndex + tObjectInfo.tData.iDestDataOffset;
-    iCurrentAttribute = 0;
     tOutputPosBuffer.atVertexData[iVertexIndex + tObjectInfo.tData.iDestVertexOffset] = outPosition.xyz;
-    if(bool(iDestMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION)){ iCurrentAttribute++;}
-    if(bool(iDestMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))  { tDataBuffer.atVertexData[iDestVertexDataOffset + iCurrentAttribute].xyz = outNormal; iCurrentAttribute++;}
-    if(bool(iDestMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)) { tDataBuffer.atVertexData[iDestVertexDataOffset + iCurrentAttribute].xyz = outTangent; iCurrentAttribute++;}
+
+    tDataBuffer.atVertexData[iDestVertexDataOffset + 0].xyz = outNormal;
+    tDataBuffer.atVertexData[iDestVertexDataOffset + 1].xyz = outTangent;
 }

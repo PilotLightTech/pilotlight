@@ -85,6 +85,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #define PL_MAX_LIGHTS 100
+#define PL_DRAWABLE_OBJECT_KEY UINT32_MAX
 
 //-----------------------------------------------------------------------------
 // [SECTION] global APIs
@@ -171,6 +172,7 @@ typedef struct _plEnvironmentProbeData  plEnvironmentProbeData;
 // enums & flags
 typedef int plDrawableFlags;
 typedef int plSceneInternalFlags;
+typedef int plRenderBucket;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -195,9 +197,30 @@ enum _plSceneInternalFlags
     PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY    = 1 << 3
 };
 
+enum _plRenderBucket
+{
+    PL_RENDER_BUCKET_DEFERRED,
+    PL_RENDER_BUCKET_DEFERRED_DOUBLE_SIDED,
+    PL_RENDER_BUCKET_FORWARD,
+    PL_RENDER_BUCKET_FORWARD_DOUBLE_SIDED,
+    PL_RENDER_BUCKET_TRANSMISSION,
+    PL_RENDER_BUCKET_OUTLINE,
+    PL_RENDER_BUCKET_OUTLINE_DOUBLE_SIDED,
+    PL_RENDER_BUCKET_OUTLINE_TRANSMISSION,
+
+    PL_RENDER_BUCKET_COUNT
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plDrawableKey
+{
+    uint64_t uEntity;
+    uint32_t uSubmesh;
+    uint32_t _padding;
+} plDrawableKey;
 
 typedef struct _plOBB
 {
@@ -210,7 +233,6 @@ typedef struct _plRendererLight
 {
     plEntity tEntity;
     plFreeListNode* ptShadowBufferOffset;
-    // uint32_t uShadowBufferOffset;
 } plRendererLight;
 
 typedef struct _plShadowPackData
@@ -221,15 +243,14 @@ typedef struct _plShadowPackData
 
 typedef struct _plSkinData
 {
-    bool                  bActive;
-    plEntity              tEntity;
-    plEntity              tObjectEntity;
-    plComputeShaderHandle tShader;
-    uint32_t              uVertexCount;
-    int                   iSourceDataOffset;
-    int                   iDestDataOffset;
-    int                   iDestVertexOffset;
-    plFreeListNode*       ptFreeListNode;
+    bool            bActive;
+    plEntity        tEntity;
+    plEntity        tObjectEntity;
+    uint32_t        uVertexCount;
+    int             iSourceDataOffset;
+    int             iDestDataOffset;
+    int             iDestVertexOffset;
+    plFreeListNode* ptFreeListNode;
 } plSkinData;
 
 typedef struct _plVisibleDrawable
@@ -381,7 +402,6 @@ typedef struct _plView
     // view based options
     bool bDrawLightsDebug;
     bool bDrawBoundingBoxesDebug;
-    bool bDrawSelectedBoundingBoxesDebug;
     bool bDrawBvhDebug;
     bool bFrustumCulling;
     bool bFreezeCameraNextFrame;
@@ -421,9 +441,7 @@ typedef struct _plScene
 
     plEnvironmentProbeDataPack* sbtProbeDataPacks;
     uint32_t* sbtVisibleDrawables;
-    uint32_t* sbuVisibleDeferredEntities;
-    uint32_t* sbuVisibleForwardEntities;
-    uint32_t* sbuVisibleTransmissionEntities;
+    uint32_t* asbuRenderBuckets[PL_RENDER_BUCKET_COUNT];
 
     // shadow atlas
     uint32_t          uShadowAtlasIndex;
@@ -460,6 +478,18 @@ typedef struct _plScene
     plAssetHandle tSphereMesh;
 
     // shaders
+    plShaderHandle tGBufferFillShader;
+    plShaderHandle tGBufferFillNoCullShader;
+    plShaderHandle tForwardShader;
+    plShaderHandle tForwardNoCullShader;
+    plShaderHandle tTransmissionShader;
+    plShaderHandle tGBufferFillWireframeShader;
+    plShaderHandle tGBufferFillNoCullWireframeShader;
+    plShaderHandle tForwardWireframeShader;
+    plShaderHandle tForwardNoCullWireframeShader;
+    plShaderHandle tTransmissionWireframeShader;
+    plShaderHandle tOutlineShader;
+    plShaderHandle tOutlineNoCullShader;
     plShaderHandle tSunShader;
     plShaderHandle tDirectionalLightingShader;
     plShaderHandle tSpotLightingShader;
@@ -468,6 +498,11 @@ typedef struct _plScene
     plShaderHandle tTerrainShader;
     plShaderHandle tTerrainShadowShader;
     plShaderHandle tTerrainWireframeShader;
+    plShaderHandle tShadowShader;
+    plShaderHandle tShadowAlphaShader;
+
+    // compute shaders
+    plComputeShaderHandle tSkinningShader;
 
     // atmosphere rendering stuff
     plShaderHandle        tSkyShader;
@@ -539,10 +574,6 @@ typedef struct _plScene
     // SOA drawables
     plDrawable*          sbtDrawables;
     plDrawableResources* sbtDrawableResources;
-    plShaderHandle*      sbtRegularShaders;
-    plShaderHandle*      sbtShadowShaders;
-    plShaderHandle*      sbtProbeShaders;
-    plShaderHandle*      sbtOutlineShaders;
     uint32_t*            sbuFreeDrawableSlots;
     uint32_t*            sbuActiveDrawables;
 
@@ -550,9 +581,6 @@ typedef struct _plScene
     plBVH       tBvh;
     plAABB*     sbtBvhAABBs;
     plBVHNode** sbtNodeStack;
-
-    // outlines
-    plEntity* sbtOutlinedEntities;
 
     // CPU-side data for GPU buffers
     plGpuSceneData       tSceneData;
@@ -757,6 +785,7 @@ static void     pl__renderer_scene_create_sky_luts_textures  (plScene*);
 static void     pl__renderer_scene_update_sky_luts_bindgroups(plScene*);
 static void     pl__renderer_scene_load_skybox_from_panorama (plScene*, const char* path, int res);
 static uint32_t pl__renderer_get_or_create_material_slot     (plScene*, plAssetHandle);
+static void     pl__renderer_load_shaders                    (plScene*);
 
 // view helpers
 static void pl__renderer_view_create_textures           (plView*);

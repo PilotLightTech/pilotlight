@@ -26,15 +26,6 @@ Index of this file:
 #include "pl_bg_view.inc"
 
 //-----------------------------------------------------------------------------
-// [SECTION] specialication constants
-//-----------------------------------------------------------------------------
-
-layout(constant_id = 0) const int iMeshVariantFlags = 0;
-layout(constant_id = 1) const int iTextureMappingFlags = 0;
-layout(constant_id = 2) const int iMaterialFlags = 0;
-layout(constant_id = 3) const int iRenderingFlags = 0;
-
-//-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
@@ -104,7 +95,7 @@ void main()
 
     // ambient occlusion
     float ao = 1.0;
-    if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
         ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_OCCLUSION])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_OCCLUSION)).r;
         ao = (1.0 + material.fOcclusionStrength * (ao - 1.0)); 

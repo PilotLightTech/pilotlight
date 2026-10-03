@@ -197,7 +197,6 @@ typedef struct _plAppData
     plDrawLayer2D* ptDrawLayer;
 
     // selection stuff
-    plEntityId tSelectedEntityId;
     plEntity tSelectedEntity;
     
     // fonts
@@ -411,34 +410,34 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         plAssetHandle tBlah = gptAsset->create(&tMeshAsset, &tUnitSphere);
         gptAsset->save(tBlah, PL_ASSET_ENCODING_TEXT);
     }
-
     // gptGltf->import("/resources/gltf-samples/Models/Sponza/glTF/sponza.gltf", NULL);
 
-    // animations
+    // // animations
     // gptGltf->import("/resources/gltf-samples/Models/InterpolationTest/glTF/InterpolationTest.gltf", NULL);
     // gptGltf->import("/resources/gltf-samples/Models/CesiumMan/glTF/CesiumMan.gltf", NULL);
-    // gptGltf->import("/resources/gltf-samples/Models/BrainStem/glTF/BrainStem.gltf", NULL); // broke
+    // // gptGltf->import("/resources/gltf-samples/Models/BrainStem/glTF/BrainStem.gltf", NULL); // broke
     // gptGltf->import("/resources/gltf-samples/Models/CommercialRefrigerator/glTF/CommercialRefrigerator.gltf", NULL);
 
-    // anisotropy
+    // // anisotropy
     // gptGltf->import("/resources/gltf-samples/Models/AnisotropyBarnLamp/glTF/AnisotropyBarnLamp.gltf", NULL);
     // gptGltf->import("/resources/gltf-samples/Models/AnisotropyDiscTest/glTF/AnisotropyDiscTest.gltf", NULL);
-    // gptGltf->import("/resources/gltf-samples/Models/AnisotropyStrengthTest/glTF/AnisotropyStrengthTest.gltf", NULL); // broke
+    // // gptGltf->import("/resources/gltf-samples/Models/AnisotropyStrengthTest/glTF/AnisotropyStrengthTest.gltf", NULL); // broke
     // gptGltf->import("/resources/gltf-samples/Models/AnisotropyRotationTest/glTF/AnisotropyRotationTest.gltf", NULL);
     
-    // basic tests
+    // // basic tests
     // gptGltf->import("/resources/gltf-samples/Models/AlphaBLendModeTest/glTF/AlphaBLendModeTest.gltf", NULL);
     // gptGltf->import("/resources/gltf-samples/Models/OrientationTest/glTF/OrientationTest.gltf", NULL);
     // gptGltf->import("/resources/gltf-samples/Models/EnvironmentTest/glTF/EnvironmentTest.gltf", NULL);
 
-    // car
+    // // car
     // gptGltf->import("/resources/gltf-samples/Models/CarConcept/glTF/CarConcept.gltf", NULL);
     
-    // chess
+    // // chess
     // gptGltf->import("/resources/gltf-samples/Models/ABeautifulGame/glTF/ABeautifulGame.gltf", NULL);
 
-    // clear coat
+    // // clear coat
     // gptGltf->import("/resources/gltf-samples/Models/ClearCoatWicker/glTF/ClearCoatWicker.gltf", NULL);
+    
 
     plToolsInit tToolsInit = {
         .ptDevice = ptAppData->ptDevice
@@ -635,23 +634,30 @@ pl_app_update(plAppData* ptAppData)
         plEntity tNextEntity = {0};
         if(gptRenderer->get_hovered_entity(ptAppData->ptView, &tNextEntity))
         {
+
+
+            plObjectComponent* ptSelectedObject = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
+            if(ptSelectedObject)
+                ptSelectedObject->tFlags &= ~PL_OBJECT_FLAGS_OUTLINE;
             
-            if(tNextEntity.uData == 0)
+            if(!gptEcs->is_entity_valid(ptLibrary, tNextEntity))
             {
                 ptAppData->tSelectedEntity.uData = UINT64_MAX;
-                gptRenderer->outline_entities(ptAppData->ptScene, 0, NULL);
                 gptScreenLog->add_message_ex(565168477883, 1.0, PL_COLOR_32_RED, 1.0f, "Unselected Entity");
             }
             else if(ptAppData->tSelectedEntity.uData != tNextEntity.uData)
             {
                 plTagComponent* ptSelectedTag = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), tNextEntity);
                 gptScreenLog->add_message_ex(565168477883, -1.0, PL_COLOR_32_GREEN, 1.0f, "Selected Entity \"%s\" {%u, %u}", ptSelectedTag ? ptSelectedTag->pcName : "No Name", tNextEntity.uIndex, tNextEntity.uGeneration);
-                gptRenderer->outline_entities(ptAppData->ptScene, 1, &tNextEntity);
                 ptAppData->tSelectedEntity = tNextEntity;
                 gptPhysics->set_angular_velocity(ptLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
                 gptPhysics->set_linear_velocity(ptLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
-            }
 
+
+            }
+            ptSelectedObject = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
+            if(ptSelectedObject)
+                ptSelectedObject->tFlags |= PL_OBJECT_FLAGS_OUTLINE;
         }
 
         if(gptIO->is_key_pressed(PL_KEY_M, true))
@@ -737,15 +743,27 @@ pl_app_update(plAppData* ptAppData)
 
         gptRenderer->render_debug_view(ptAppData->ptView, &tViewDesc0);
         gptRenderer->render_view(ptAppData->ptView, &tViewDesc0);
-    }
 
-    if(ptAppData->ptScene)
-    {
         plVec2 tStartPos = {0};
         plVec2 tEndPos = ptIO->tMainViewportSize;
         plVec2 tUV = {0};
         plBindGroupHandle tTexture = gptRenderer->get_view_color_bind_group(ptAppData->ptView, &tUV);
         gptDraw->add_image_ex(ptAppData->ptDrawLayer, tTexture.uData, tStartPos, tEndPos, (plVec2){0}, tUV, PL_COLOR_32_WHITE);
+
+        if(gptIO->is_key_pressed(PL_KEY_ESCAPE, false))
+        {
+            if(!gptUI->wants_keyboard_capture())
+            {
+                gptPhysics->reset();
+                gptRenderer->destroy_view(ptAppData->ptView);
+                gptRenderer->destroy_scene(ptAppData->ptScene);
+                ptAppData->ptView = NULL;
+                ptAppData->ptScene = NULL;
+                gptAsset->destroy(ptAppData->tSceneHandle);
+                pl__refresh_files(ptAppData);
+                gptScreenLog->add_message_ex(565168477883, 2.0, PL_COLOR_32_RED, 0.1f, "reset");
+            }
+        }
     }
 
     // ui windows
@@ -808,79 +826,35 @@ pl_app_update(plAppData* ptAppData)
     {
         plComponentLibrary* ptLibrary = (plComponentLibrary*)gptAsset->get_data(ptAppData->tSceneHandle);
 
-        plUiWindowFlags tWindowFlags = PL_UI_WINDOW_FLAGS_NONE;
+        plDrawTextOptions tTextOptions = {
+            .fSize = 13.0f,
+            .ptFont = ptAppData->tDefaultFont,
+            .uColor = PL_COLOR_32_WHITE
+        };
 
-        float fWidth = ptIO->tMainViewportSize.x * 0.5f;
-        fWidth = pl_clampf(150.0f, fWidth, 500.0f);
-        gptUI->set_next_window_pos((plVec2){0.0f, 0.0f}, PL_UI_COND_ALWAYS);
-        gptUI->set_next_window_size((plVec2){fWidth, 650.0f}, PL_UI_COND_ALWAYS);
-        tWindowFlags= PL_UI_WINDOW_FLAGS_NO_MOVE | PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE | PL_UI_WINDOW_FLAGS_NO_TITLE_BAR;
+        float fCurrentY = 10.0f;
+        float fSpacing = 15.0f;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, PILOT_LIGHT_VERSION_STRING, tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, gptGfx->get_backend_string(), tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "Controls", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* F1  - bring up console", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* M   - change gizmo mode", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* ESC - unload scene", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "Camera Controls", tTextOptions); fCurrentY += fSpacing;
 
-        gptUI->push_theme_color(PL_UI_COLOR_WINDOW_BG, (plVec4){0});
-        if(gptUI->begin_window("Pilot Light", NULL, tWindowFlags))
-        {
-            gptUI->layout_dynamic(0.0f, 1);
-
-            gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-            gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
-
-            gptUI->separator_text("Controls");
-            gptUI->text("* F1 - bring up console");
-            gptUI->text("* M  - change gizmo mode");
-            gptUI->separator_text("Camera Controls");
-            gptUI->text("* LMB + Drag: Moves camera forward & backward and rotates left & right.");
-            gptUI->text("* RMB + Drag: Rotates camera.");
-            gptUI->text("* LMB + RMB + Drag: Pans Camera");
-            gptUI->text("Mouse Wheel: Speed");
-            gptUI->vertical_spacing();
-            gptUI->text("Game style (when holding RMB)");
-            gptUI->separator();
-            gptUI->text("* W    Moves the camera forward.");
-            gptUI->text("* S    Moves the camera backward.");
-            gptUI->text("* A    Moves the camera left.");
-            gptUI->text("* D    Moves the camera right.");
-            gptUI->text("* E    Moves the camera up.");
-            gptUI->text("* Q    Moves the camera down.");
-            gptUI->text("* Z    Zooms the camera out (raises FOV).");
-            gptUI->text("* C    Zooms the camera in (lowers FOV).");
-
-            static char acEntityIdBuffer[64] = {0};
-            if(gptUI->input_text("Select Entity", acEntityIdBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL | PL_UI_INPUT_TEXT_FLAGS_ENTER_RETURNS_TRUE))
-            {
-                ptAppData->tSelectedEntityId = (uint64_t)strtoull(acEntityIdBuffer, NULL, 0);
-                plEntity tNextEntity = gptEcs->get_entity_by_id(ptLibrary, ptAppData->tSelectedEntityId);
-                if(gptEcs->is_entity_valid(ptLibrary, tNextEntity))
-                {
-                    ptAppData->tSelectedEntity = tNextEntity;
-                    plTagComponent* ptSelectedTag = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptAppData->tSelectedEntity);
-                    gptScreenLog->add_message_ex(565168477883, -1.0, PL_COLOR_32_GREEN, 1.0f, "Selected Entity \"%s\" {%u, %u}", ptSelectedTag ? ptSelectedTag->pcName : "No Name", ptAppData->tSelectedEntity.uIndex, ptAppData->tSelectedEntity.uGeneration);
-                    gptRenderer->outline_entities(ptAppData->ptScene, 1, &ptAppData->tSelectedEntity);
-                    gptPhysics->set_angular_velocity(ptLibrary, ptAppData->tSelectedEntity, pl_create_vec3(0, 0, 0));
-                    gptPhysics->set_linear_velocity(ptLibrary, ptAppData->tSelectedEntity, pl_create_vec3(0, 0, 0));
-                }
-                else
-                {
-                    gptScreenLog->add_message_ex(565168477884, 2.0, PL_COLOR_32_RED, 1.0f, "Invalid Entity Id: %" PRIu64, ptAppData->tSelectedEntityId);
-                    memset(acEntityIdBuffer, 0, 64);
-                }
-            }
-
-            gptUI->layout_static(0.0f, 100.0f, 1);
-            if(gptUI->button("Unload"))
-            {
-                gptPhysics->reset();
-                gptRenderer->destroy_view(ptAppData->ptView);
-                gptRenderer->destroy_scene(ptAppData->ptScene);
-                ptAppData->ptView = NULL;
-                ptAppData->ptScene = NULL;
-                gptAsset->destroy(ptAppData->tSceneHandle);
-                pl__refresh_files(ptAppData);
-                gptScreenLog->add_message_ex(565168477883, 2.0, PL_COLOR_32_RED, 0.1f, "reset");
-            }
-
-            gptUI->end_window();
-        }
-        gptUI->pop_theme_color(1);
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* LMB + Drag: Moves camera forward & backward and rotates left & right.", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* RMB + Drag: Rotates camera.", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* LMB + RMB + Drag: Pans Camera", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "Mouse Wheel: Speed", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "Game style (when holding RMB)", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* W    Moves the camera forward.", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* S    Moves the camera backward.", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* A    Moves the camera left.", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* D    Moves the camera right.", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* E    Moves the camera up.", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* Q    Moves the camera down.", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* Z    Zooms the camera out (raises FOV).", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* C    Zooms the camera in (lowers FOV).", tTextOptions); fCurrentY += fSpacing;
 
 #if 0
         if(gptUI->begin_window("Add Object", NULL, 0))

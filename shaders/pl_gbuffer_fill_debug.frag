@@ -29,11 +29,7 @@ Index of this file:
 // [SECTION] specialication constants
 //-----------------------------------------------------------------------------
 
-layout(constant_id = 0) const int iMeshVariantFlags = 0;
-layout(constant_id = 1) const int iTextureMappingFlags = 0;
-layout(constant_id = 2) const int iMaterialFlags = 0;
-layout(constant_id = 3) const int tShaderDebugMode = 0;
-layout(constant_id = 4) const int iRenderingFlags = 0;
+layout(constant_id = 0) const int tShaderDebugMode = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -105,7 +101,7 @@ void main()
 
     // ambient occlusion
     float ao = 1.0;
-    if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
         ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_OCCLUSION])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_OCCLUSION)).r;
         ao = (1.0 + material.fOcclusionStrength * (ao - 1.0)); 
@@ -165,8 +161,7 @@ void main()
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_UV0)
     {
-        if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0))
-            outAlbedo.rgb = vec3(tShaderIn.tUV[0], 0.0);
+        outAlbedo.rgb = vec3(tShaderIn.tUV[0], 0.0);
     }
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_NORMAL)
@@ -186,7 +181,7 @@ void main()
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_TEXTURE_NORMAL)
     {
-        if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP))
+        if(bool(material.iTextureMappingFlags & PL_HAS_NORMAL_MAP))
         {
             outAlbedo.rgb = (tNormalInfo.ntex + 1.0) / 2.0;
         }

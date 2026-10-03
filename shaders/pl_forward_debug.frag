@@ -12,11 +12,7 @@
 // [SECTION] specialication constants
 //-----------------------------------------------------------------------------
 
-layout(constant_id = 0) const int iMeshVariantFlags = 0;
-layout(constant_id = 1) const int iTextureMappingFlags = 0;
-layout(constant_id = 2) const int iMaterialFlags = 0;
-layout(constant_id = 3) const int iRenderingFlags = 0;
-layout(constant_id = 4) const int tShaderDebugMode = 0;
+layout(constant_id = 0) const int tShaderDebugMode = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -94,37 +90,37 @@ void main()
         materialInfo = getMetallicRoughnessInfo(materialInfo, material.fMetallicFactor, material.fRoughnessFactor);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
     {
         materialInfo = getSheenInfo(materialInfo, material.tSheenColorFactor, material.fSheenRoughnessFactor);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
     {
         materialInfo = getClearCoatInfo(materialInfo, tNormalInfo, material.fClearcoatFactor, material.fClearcoatRoughnessFactor);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
     {
         materialInfo = getTransmissionInfo(materialInfo, material.fTransmissionFactor);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
     {
         materialInfo = getVolumeInfo(materialInfo);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
     {
         materialInfo = getIridescenceInfo(materialInfo, material.fIridescenceFactor, material.fIridescenceIor, material.fIridescenceThicknessMax, material.fIridescenceThicknessMin);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
     {
         materialInfo = getDiffuseTransmissionInfo(materialInfo);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
     {
         materialInfo = getAnisotropyInfo(materialInfo, tNormalInfo, material.tAnisotropy);
     }
@@ -147,7 +143,7 @@ void main()
 
 
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
     {
         if (materialInfo.iridescenceThickness == 0.0)
         {
@@ -159,7 +155,7 @@ void main()
     mat4 u_ProjectionMatrix = tViewInfo.tData.tCameraProjection[tObjectInfo.tData.uGlobalIndex];
     mat4 u_ModelMatrix = tShaderIn.tModel;
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
     {
         clearcoatFactor = materialInfo.clearcoatFactor;
     }
@@ -167,7 +163,7 @@ void main()
     // ambient occlusion
     
     float ao = 1.0;
-    if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
         ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_OCCLUSION])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_OCCLUSION)).r;
         color = color * (1.0 + material.fOcclusionStrength * (ao - 1.0)); 
@@ -176,9 +172,9 @@ void main()
 
     // emissive
     f_emissive = material.tEmissiveFactor * material.fEmissiveStrength;
-    if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
     {
-        f_emissive *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_EMISSIVE])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_EMISSIVE)).rgb);
+        f_emissive = pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_EMISSIVE])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_EMISSIVE)).rgb);
     }
 
 
@@ -221,7 +217,7 @@ void main()
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_TEXTURE_NORMAL)
     {
-        if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP))
+        if(bool(material.iTextureMappingFlags & PL_HAS_NORMAL_MAP))
         {
             outColor = vec4((tNormalInfo.ntex + 1.0) / 2.0, tBaseColor.a);
         }
@@ -239,20 +235,19 @@ void main()
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_UV0)
     {
-        if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0))
-        {
-            outColor.rgb = vec3(tShaderIn.tUV[0], 0.0);
-        }
+        outColor.rgb = vec3(tShaderIn.tUV[0], 0.0);
     }
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_ALPHA)
     {
         outColor.rgb = vec3(tBaseColor.a);
+        outColor.a = 1.0;
     }
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_EMMISSIVE)
     {
         outColor.rgb = pl_linear_to_srgb(f_emissive);
+        outColor.a = 1.0;
     }
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_OCCLUSION)
@@ -260,7 +255,7 @@ void main()
         outColor.rgb = vec3(ao);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
     {
 
         if(tShaderDebugMode == PL_SHADER_DEBUG_CLEARCOAT)
@@ -279,7 +274,7 @@ void main()
         }
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
     {
         if(tShaderDebugMode == PL_SHADER_DEBUG_SHEEN_COLOR)
         {
@@ -301,7 +296,7 @@ void main()
         outColor.rgb = vec3(materialInfo.iridescenceThickness / 1200.0);
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
     {
         if(tShaderDebugMode == PL_SHADER_DEBUG_ANISOTROPY_STRENGTH)
         {
@@ -310,7 +305,7 @@ void main()
         if(tShaderDebugMode == PL_SHADER_DEBUG_ANISOTROPY_DIRECTION)
         {
             vec2 direction = vec2(1.0, 0.0);
-            if(bool(iTextureMappingFlags & PL_HAS_ANISOTROPY_MAP))
+            if(bool(material.iTextureMappingFlags & PL_HAS_ANISOTROPY_MAP))
             {
                 direction = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_ANISOTROPY])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_ANISOTROPY)).xy;
                 direction = direction * 2.0 - vec2(1.0); // [0, 1] -> [-1, 1]
@@ -322,7 +317,7 @@ void main()
         }
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
     {
         if(tShaderDebugMode == PL_SHADER_DEBUG_TRANSMISSION_STRENGTH)
         {
@@ -330,7 +325,7 @@ void main()
         }
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
     {
         if(tShaderDebugMode == PL_SHADER_DEBUG_VOLUME_THICKNESS)
         {
@@ -338,7 +333,7 @@ void main()
         }
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
     {
         if(tShaderDebugMode == PL_SHADER_DEBUG_DIFFUSE_TRANSMISSION_STRENGTH)
         {

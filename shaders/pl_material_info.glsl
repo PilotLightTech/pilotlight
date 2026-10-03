@@ -88,34 +88,12 @@ pl_get_normal_info()
     vec3 t_ = (uv_dy.t * dFdx(tShaderIn.tWorldPosition) - uv_dx.t * dFdy(tShaderIn.tWorldPosition)) /
         (uv_dx.s * uv_dy.t - uv_dy.s * uv_dx.t);
 
-    vec3 n, t, b, ng;
-
     // Compute geometrical TBN:
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))
-    {
-
-        if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))
-        {
             // Trivial TBN computation, present as vertex attribute.
             // Normalize eigenvectors as matrix is linearly interpolated.
-            t = normalize(tShaderIn.tTBN[0]);
-            b = normalize(tShaderIn.tTBN[1]);
-            ng = normalize(tShaderIn.tTBN[2]);
-        }
-        else
-        {
-            // Normals are either present as vertex attributes or approximated.
-            ng = normalize(tShaderIn.tWorldNormal);
-            t = normalize(t_ - ng * dot(ng, t_));
-            b = cross(ng, t);
-        }
-    }
-    else
-    {
-        ng = normalize(cross(dFdx(tShaderIn.tWorldPosition), dFdy(tShaderIn.tWorldPosition)));
-        t = normalize(t_ - ng * dot(ng, t_));
-        b = cross(ng, t);
-    }
+    vec3 t = normalize(tShaderIn.tTBN[0]);
+    vec3 b = normalize(tShaderIn.tTBN[1]);
+    vec3 ng = normalize(tShaderIn.tTBN[2]);
 
 
     // For a back-facing surface, the tangential basis vectors are negated.
@@ -129,7 +107,7 @@ pl_get_normal_info()
     // Compute normals:
     NormalInfo info;
     info.ng = ng;
-    if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP) && bool(iRenderingFlags & PL_RENDERING_FLAG_USE_NORMAL_MAPS)) 
+    if(bool(material.iTextureMappingFlags & PL_HAS_NORMAL_MAP) && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_USE_NORMAL_MAPS)) 
     {
         info.ntex = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_NORMAL])], tSamplerLinearRepeat), UV).rgb * 2.0 - vec3(1.0);
         info.ntex *= vec3(material.fNormalMapStrength, material.fNormalMapStrength, 1.0);
@@ -170,7 +148,7 @@ getBaseColor(vec4 u_ColorFactor, int iUVSet)
     // }
     // else if(bool(MATERIAL_METALLICROUGHNESS) && bool(HAS_BASE_COLOR_MAP))
     // if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
-    if(bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
         baseColor *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_BASE_COLOR])], tSamplerLinearRepeat), UV));
     }
@@ -186,7 +164,7 @@ getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor, float u_Roug
     info.metallic = u_MetallicFactor;
     info.perceptualRoughness = u_RoughnessFactor;
 
-    if(bool(iTextureMappingFlags & PL_HAS_METALLIC_ROUGHNESS_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_METALLIC_ROUGHNESS_MAP))
     {
         // Roughness is stored in the 'g' channel, metallic is stored in the 'b' channel.
         // This layout intentionally reserves the 'r' channel for (optional) occlusion map data
@@ -211,13 +189,13 @@ getSheenInfo(MaterialInfo info, vec3 u_SheenColorFactor, float u_SheenRoughnessF
     info.sheenRoughnessFactor = u_SheenRoughnessFactor;
     
 
-    if(bool(iTextureMappingFlags & PL_HAS_SHEEN_COLOR_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_SHEEN_COLOR_MAP))
     {
         vec4 sheenColorSample = pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_SHEEN_COLOR])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_SHEEN_COLOR)));
         info.sheenColorFactor *= sheenColorSample.rgb;
     }
 
-    if(bool(iTextureMappingFlags & PL_HAS_SHEEN_ROUGHNESS_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_SHEEN_ROUGHNESS_MAP))
     {
         vec4 sheenRoughnessSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_SHEEN_ROUGHNESS])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_SHEEN_ROUGHNESS));
         info.sheenRoughnessFactor *= sheenRoughnessSample.a;
@@ -229,7 +207,7 @@ vec3
 getClearcoatNormal(NormalInfo normalInfo)
 {
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
-    if(bool(iTextureMappingFlags & PL_HAS_CLEARCOAT_NORMAL_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_CLEARCOAT_NORMAL_MAP))
     {
         vec3 n = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_CLEARCOAT_NORMAL])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_CLEARCOAT_NORMAL)).rgb * 2.0 - vec3(1.0);
         // n *= vec3(u_ClearcoatNormalScale, u_ClearcoatNormalScale, 1.0);
@@ -252,13 +230,13 @@ getClearCoatInfo(MaterialInfo info, NormalInfo tNormalInfo, float u_ClearcoatFac
 
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
 
-    if(bool(iTextureMappingFlags & PL_HAS_CLEARCOAT_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_CLEARCOAT_MAP))
     {
         vec4 clearcoatSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_CLEARCOAT])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_CLEARCOAT));
         info.clearcoatFactor *= clearcoatSample.r;
     }
 
-    if(bool(iTextureMappingFlags & PL_HAS_CLEARCOAT_ROUGHNESS_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_CLEARCOAT_ROUGHNESS_MAP))
     {
         vec4 clearcoatSampleRoughness = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_CLEARCOAT_ROUGHNESS])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_CLEARCOAT_ROUGHNESS));
         info.clearcoatRoughness *= clearcoatSampleRoughness.g;
@@ -277,12 +255,12 @@ getIridescenceInfo(MaterialInfo info, float u_IridescenceFactor, float u_Iridesc
     info.iridescenceIor = u_IridescenceIor;
     info.iridescenceThickness = u_IridescenceThicknessMaximum;
 
-    if(bool(iTextureMappingFlags & PL_HAS_CLEARCOAT_ROUGHNESS_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_CLEARCOAT_ROUGHNESS_MAP))
     {
         info.iridescenceFactor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_IRIDESCENCE])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_IRIDESCENCE)).r;
     }
 
-    if(bool(iTextureMappingFlags & PL_HAS_CLEARCOAT_ROUGHNESS_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_CLEARCOAT_ROUGHNESS_MAP))
     {
         float thicknessSampled = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_IRIDESCENCE_THICKNESS])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_IRIDESCENCE_THICKNESS)).g;
         float thickness = mix(u_IridescenceThicknessMinimum, u_IridescenceThicknessMaximum, thicknessSampled);
@@ -298,7 +276,7 @@ getAnisotropyInfo(MaterialInfo info, NormalInfo normalInfo, vec3 u_Anisotropy)
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
     vec2 direction = vec2(1.0, 0.0);
     float strengthFactor = 1.0;
-    if(bool(iTextureMappingFlags & PL_HAS_ANISOTROPY_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_ANISOTROPY_MAP))
     {
         vec3 anisotropySample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_ANISOTROPY])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_ANISOTROPY)).xyz;
         direction = anisotropySample.xy * 2.0 - vec2(1.0);
@@ -329,7 +307,7 @@ getTransmissionInfo(MaterialInfo info, float u_TransmissionFactor)
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
     info.transmissionFactor = u_TransmissionFactor;
 
-    if(bool(iTextureMappingFlags & PL_HAS_TRANSMISSION_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_TRANSMISSION_MAP))
     {
         vec4 transmissionSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_TRANSMISSION])], tSamplerLinearClamp), pl_get_uv(PL_TEXTURE_TRANSMISSION));
         info.transmissionFactor *= transmissionSample.r;
@@ -343,7 +321,7 @@ MaterialInfo
 getVolumeInfo(MaterialInfo info)
 {
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
-    if(bool(iTextureMappingFlags & PL_HAS_THICKNESS_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_THICKNESS_MAP))
     {
         vec4 thicknessSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_THICKNESS])], tSamplerLinearClamp), pl_get_uv(PL_TEXTURE_THICKNESS));
         info.thickness *= thicknessSample.g;
@@ -358,12 +336,12 @@ getDiffuseTransmissionInfo(MaterialInfo info)
     info.diffuseTransmissionFactor = material.fDiffuseTransmission;
     info.diffuseTransmissionColorFactor = material.tDiffuseTransmissionColor;
 
-    if(bool(iTextureMappingFlags & PL_HAS_DIFFUSE_TRANSMISSION_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_DIFFUSE_TRANSMISSION_MAP))
     {
         info.diffuseTransmissionFactor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_DIFFUSE_TRANSMISSION])], tSamplerLinearClamp), pl_get_uv(PL_TEXTURE_DIFFUSE_TRANSMISSION)).a;
     }
 
-    if(bool(iTextureMappingFlags & PL_HAS_DIFFUSE_TRANSMISSION_COLOR_MAP))
+    if(bool(material.iTextureMappingFlags & PL_HAS_DIFFUSE_TRANSMISSION_COLOR_MAP))
     {
         info.diffuseTransmissionColorFactor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_DIFFUSE_TRANSMISSION_COLOR])], tSamplerLinearClamp), pl_get_uv(PL_TEXTURE_DIFFUSE_TRANSMISSION_COLOR)).rgb;
     }

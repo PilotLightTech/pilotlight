@@ -225,12 +225,12 @@ getTransmissionSample(vec2 fragCoord, float roughness, float ior)
 }
 
 vec3
-getIBLVolumeRefraction(vec3 n, vec3 v, float perceptualRoughness, vec3 baseColor, vec3 position, mat4 modelMatrix,
+getIBLVolumeRefraction(bool bDispersion, vec3 n, vec3 v, float perceptualRoughness, vec3 baseColor, vec3 position, mat4 modelMatrix,
     mat4 viewMatrix, mat4 projMatrix, float ior, float thickness, vec3 attenuationColor, float attenuationDistance, float dispersion)
 {
     vec3 transmittedLight;
     float transmissionRayLength;
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DISPERSION))
+    if(bDispersion)
     {
         // Dispersion will spread out the ior values for each r,g,b channel
         float halfSpread = (ior - 1.0) * 0.025 * dispersion;

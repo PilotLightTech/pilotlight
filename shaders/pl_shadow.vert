@@ -6,13 +6,6 @@
 #include "pl_bg_scene.inc"
 
 //-----------------------------------------------------------------------------
-// [SECTION] specialication constants
-//-----------------------------------------------------------------------------
-
-layout(constant_id = 0) const int iMeshVariantFlags = 0;
-layout(constant_id = 1) const int iDataStride = 0;
-
-//-----------------------------------------------------------------------------
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
@@ -54,33 +47,29 @@ layout(location = 0) out struct plShaderOut {
 void main()
 {
 
+    const int iDataStride = 4;
     vec4 inPosition  = vec4(inPos, 1.0);
-    vec2 inTexCoord0 = vec2(0.0, 0.0);
-    vec2 inTexCoord1 = vec2(0.0, 0.0);
 
     uint uTransformIndex = plInstanceInfo.atData[gl_InstanceIndex].uTransformIndex;
     int uViewportIndex = plInstanceInfo.atData[gl_InstanceIndex].iViewportIndex;
 
-    int iCurrentAttribute = 0;
-    
+
     // offset = offset into current mesh + offset into global buffer
     const uint iVertexDataOffset = iDataStride * (gl_VertexIndex - tObjectInfo.tData.iVertexOffset) + tObjectInfo.tData.iDataOffset;
 
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))   { iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0)){
-        inTexCoord0 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;
-        inTexCoord1 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
+    vec3 inNormal = tVertexBuffer.atVertexData[iVertexDataOffset + 0].xyz;
+    vec4 inTangent = tVertexBuffer.atVertexData[iVertexDataOffset + 1];
+    vec2 inTexCoord0 = tVertexBuffer.atVertexData[iVertexDataOffset + 2].xy;
+    vec2 inTexCoord1 = tVertexBuffer.atVertexData[iVertexDataOffset + 2].zw;
+    vec4 inColor = tVertexBuffer.atVertexData[iVertexDataOffset + 3];
 
-        int iUVSet = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex].aiTextureUVSet[PL_TEXTURE_BASE_COLOR];
 
-        tShaderIn.tUV = inTexCoord0;
-        if(iUVSet == 1)
-        {
-            tShaderIn.tUV = inTexCoord1;
-        }
-        iCurrentAttribute++;
+    int iUVSet = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex].aiTextureUVSet[PL_TEXTURE_BASE_COLOR];
+
+    tShaderIn.tUV = inTexCoord0;
+    if(iUVSet == 1)
+    {
+        tShaderIn.tUV = inTexCoord1;
     }
 
     // gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + gl_InstanceIndex] * pos;

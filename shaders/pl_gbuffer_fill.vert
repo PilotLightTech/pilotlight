@@ -24,13 +24,6 @@ Index of this file:
 #include "pl_bg_scene.inc"
 
 //-----------------------------------------------------------------------------
-// [SECTION] specialication constants
-//-----------------------------------------------------------------------------
-
-layout(constant_id = 0) const int iMeshVariantFlags = 0;
-layout(constant_id = 1) const int iDataStride = 0;
-
-//-----------------------------------------------------------------------------
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
@@ -72,43 +65,28 @@ layout(location = 0) out struct plShaderOut {
 void main() 
 {
 
+    const int iDataStride = 4;
+
     vec4 inPosition  = vec4(inPos, 1.0);
-    vec3 inNormal    = vec3(0.0, 0.0, 0.0);
-    vec4 inTangent   = vec4(0.0, 0.0, 0.0, 0.0);
-    vec2 inTexCoord0 = vec2(0.0, 0.0);
-    vec2 inTexCoord1 = vec2(0.0, 0.0);
-    vec4 inColor0    = vec4(1.0, 1.0, 1.0, 1.0);
-    vec4 inColor1    = vec4(0.0, 0.0, 0.0, 0.0);
-    int iCurrentAttribute = 0;
+
     const mat4 tTransform = tTransformBuffer.atTransform[gl_InstanceIndex];
     
     // offset = offset into current mesh + offset into global buffer
     const uint iVertexDataOffset = iDataStride * (gl_VertexIndex - tObjectInfo.tData.iVertexOffset) + tObjectInfo.tData.iDataOffset;
 
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition.xyz = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal       = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))   { inTangent      = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0)){
-        inTexCoord0 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;
-        inTexCoord1 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
-        iCurrentAttribute++;
-    }
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0))   { inColor0       = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1))   { inColor1       = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    vec3 inNormal = tVertexBuffer.atVertexData[iVertexDataOffset + 0].xyz;
+    vec4 inTangent = tVertexBuffer.atVertexData[iVertexDataOffset + 1];
+    vec2 inTexCoord0 = tVertexBuffer.atVertexData[iVertexDataOffset + 2].xy;
+    vec2 inTexCoord1 = tVertexBuffer.atVertexData[iVertexDataOffset + 2].zw;
+    vec4 inColor = tVertexBuffer.atVertexData[iVertexDataOffset + 3];
 
     tShaderIn.tWorldNormal = mat3(tTransform) * normalize(inNormal);
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))
-    {
 
-        if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))
-        {
-            vec3 tangent = normalize(inTangent.xyz);
-            vec3 WorldTangent = mat3(tTransform) * tangent;
-            vec3 WorldBitangent = cross(normalize(inNormal), tangent) * inTangent.w;
-            WorldBitangent = mat3(tTransform) * WorldBitangent;
-            tShaderIn.tTBN = mat3(WorldTangent, WorldBitangent, tShaderIn.tWorldNormal);
-        }
-    }
+    vec3 tangent = normalize(inTangent.xyz);
+    vec3 WorldTangent = mat3(tTransform) * tangent;
+    vec3 WorldBitangent = cross(normalize(inNormal), tangent) * inTangent.w;
+    WorldBitangent = mat3(tTransform) * WorldBitangent;
+    tShaderIn.tTBN = mat3(WorldTangent, WorldBitangent, tShaderIn.tWorldNormal);
 
     vec4 pos = tTransform * inPosition;
     tShaderIn.tWorldPosition = pos.xyz / pos.w;
@@ -116,5 +94,5 @@ void main()
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
     tShaderIn.tViewPosition = gl_Position / gl_Position.w;
-    tShaderIn.tColor = inColor0;
+    tShaderIn.tColor = inColor;
 }

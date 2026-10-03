@@ -105,7 +105,7 @@ void main()
     vec3 f_metal_brdf = vec3(0.0);
 
     // punctual stuff
-    const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
+    const bool bShadows = bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_SHADOWS) && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS);
     {
         plGpuDirectionLight tLightData = tDirectionLightInfo.atData[tObjectInfo.tData.iLightIndex];
         int iShadowIndex = tLightData.iShadowIndex; 
@@ -132,7 +132,7 @@ void main()
 
             vec4 shadowCoord = (abiasMat * tDirectionShadowData.atData[iShadowIndex].viewProjMat) * tWorldPos2;
         
-            if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+            if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
             {
                 shadow = filterPCF(
                     shadowCoord,

@@ -67,30 +67,30 @@ PL_BEGIN_ENUM(plMaterialShaderFlags)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plSceneFlags)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_HEIGHT_FOG, 1 << 0)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_LINEAR_FOG, 1 << 1)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_HEIGHT_FOG,      1 << 0)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_LINEAR_FOG,      1 << 1)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_USE_IBL,         1 << 2)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_SHADOWS,         1 << 3)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_USE_NORMAL_MAPS, 1 << 4)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_PCF_SHADOWS,     1 << 5)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_PUNCTUAL,        1 << 6)
 PL_END_ENUM
 
-PL_BEGIN_ENUM(plRenderingFlags)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_IBL,         1 << 1)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_SHADOWS,         1 << 2)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_NORMAL_MAPS, 1 << 3)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_PCF_SHADOWS,     1 << 4)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_PUNCTUAL,        1 << 5)
+PL_BEGIN_ENUM(plObjectShaderFlags)
+    PL_ENUM_ITEM(PL_OBJECT_SHADER_FLAG_PROBE,   1 << 0)
+    PL_ENUM_ITEM(PL_OBJECT_SHADER_FLAG_SHADOWS, 1 << 1)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plMeshFormatFlags)
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_NONE,                 0)
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_POSITION,   1 <<  0) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_NORMAL,     1 <<  1) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TANGENT,    1 <<  2) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0, 1 <<  3) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_COLOR_0,    1 <<  4) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_COLOR_1,    1 <<  5) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_JOINTS_0,   1 <<  6) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_JOINTS_1,   1 <<  7)
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0,  1 <<  8)
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1,  1 <<  9)
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_NONE,                     0)
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_NORMAL,         1 <<  0) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TANGENT,        1 <<  1) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0,     1 <<  2) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_COLOR,          1 <<  3)
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_JOINTS_0,       1 <<  4) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_JOINTS_1,       1 <<  5)
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0,      1 <<  6)
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1,      1 <<  7)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plTonemapMode)
@@ -209,7 +209,7 @@ PL_BEGIN_STRUCT(plGpuDynForwardData)
     int _iUnused0;
     int _iUnused1;
     int _iUnused2;
-    int iProbe;
+    int iObjectShaderFlags;
 PL_END_STRUCT(plGpuDynForwardData)
 
 //-----------------------------------------------------------------------------
@@ -655,7 +655,7 @@ PL_BEGIN_STRUCT(plGpuDynDeferredLighting)
     uint uGlobalIndex;
     int  iLightIndex;
     int iProbeCount;
-    int iProbe; // cascade help
+    int iObjectShaderFlags;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynDeferredLighting)
 
@@ -714,7 +714,12 @@ PL_BEGIN_STRUCT(plGpuMaterial)
     float fDispersion;
     float fIor;
     int   eAlphaMode;
-    uint _uUnused0;
+    int   iTextureMappingFlags;
+
+    int iMaterialFlags;
+    int _iUnused0;
+    int _iUnused1;
+    int _iUnused2;
 
     vec3 tDiffuseTransmissionColor;
     float fDiffuseTransmission;

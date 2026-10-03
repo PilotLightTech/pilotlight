@@ -108,7 +108,7 @@ void main()
 
     // punctual stuff
     // uint cascadeIndex = 4;
-    const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
+    const bool bShadows = bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_SHADOWS) && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS);
     {
         plGpuPointLight tLightData = tPointLightInfo.atData[tObjectInfo.tData.iLightIndex];
         float shadow = 1.0;
@@ -135,7 +135,7 @@ void main()
                 shadowCoord.xyz /= shadowCoord.w;
                 result.xy *= tShadowData.fFactor;
                 shadowCoord.xy = result.xy;
-                if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
                 {
                     shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
                 }

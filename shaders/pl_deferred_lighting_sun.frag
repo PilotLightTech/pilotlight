@@ -106,7 +106,7 @@ void main()
 
     // punctual stuff
     uint cascadeIndex = tGpuScene.tData.iCascadeCount - 1;
-    const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
+    const bool bShadows = bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_SHADOWS) && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS);
     {
         float shadow = 1.0;
         vec3 pointToLight = -tGpuScene.tData.tDirection;
@@ -129,7 +129,7 @@ void main()
 
             vec4 tWorldPos2 = vec4(tWorldPosition.xyz, 1.0);
 
-            if(tObjectInfo.tData.iProbe == 0)
+            if(!bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
             {
                 for(int j = 0; j < iCascadeCount - 1; j++)
                 {
@@ -150,7 +150,7 @@ void main()
                 vec4 shadowCoord = (abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex]) * tWorldPos2;
                 // cascadeIndex = j;
             
-                if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
                 {
                     shadow = filterPCF(
                         shadowCoord,

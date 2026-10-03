@@ -5,13 +5,6 @@
 #include "pl_bg_scene.inc"
 
 //-----------------------------------------------------------------------------
-// [SECTION] specialication constants
-//-----------------------------------------------------------------------------
-
-layout(constant_id = 0) const int iTextureMappingFlags = 0;
-layout(constant_id = 1) const int iMaterialFlags = 0;
-
-//-----------------------------------------------------------------------------
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
@@ -58,7 +51,7 @@ vec4 getBaseColor(vec4 u_ColorFactor)
     }
 
     // if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
-    if(bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
+    if(bool(tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex].iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
         plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
         baseColor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_BASE_COLOR])], tSamplerLinearRepeat), tShaderIn.tUV);

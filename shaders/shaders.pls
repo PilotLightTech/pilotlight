@@ -250,12 +250,6 @@
         {
             "pcName": "skinning",
             "tShader": { "file": "pl_skinning.comp"},
-            "atConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" }
-            ],
             "atBindGroupLayouts": [
                 {
                     "atSamplerBindings": [
@@ -398,16 +392,6 @@
                 { "bBlendEnabled": false },
                 { "bBlendEnabled": false }
             ],
-            "atVertexConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" }
-            ],
-            "atFragmentConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" }
-            ],
             "atBindGroupLayouts": [
                 { "pcName": "scene" },
                 {
@@ -435,14 +419,9 @@
                 { "bBlendEnabled": false }
             ],
             "atVertexConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
                 { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
                 { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
@@ -476,17 +455,6 @@
                     "eAlphaOp":        "PL_BLEND_OP_ADD"
                 }
             ],
-            "atVertexConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" }
-            ],
-            "atFragmentConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" }
-            ],
             "atBindGroupLayouts": [
                 { "pcName": "scene" },
                 { "pcName": "view"  }
@@ -514,16 +482,7 @@
                     "eAlphaOp":        "PL_BLEND_OP_ADD"
                 }
             ],
-            "atVertexConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" }
-            ],
             "atFragmentConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
                 { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
@@ -544,19 +503,6 @@
             ],
             "atBlendStates": [
                 { "bBlendEnabled": false }
-            ],
-            "atVertexConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" }
-            ],
-            "atFragmentConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 { "pcName": "scene" },
@@ -649,14 +595,6 @@
             "atBlendStates": [
                 { "bBlendEnabled":   false }
             ],
-            "atVertexConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" }
-            ],
-            "atFragmentConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" }
-            ],
             "atBindGroupLayouts": [ 
                 { "pcName": "scene" },
                 { "pcName": "shadow" }
@@ -697,14 +635,6 @@
                     "eDstAlphaFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
                     "eAlphaOp":        "PL_BLEND_OP_ADD"
                 }
-            ],
-            "atVertexConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" }
-            ],
-            "atFragmentConstants": [
-                { "eType": "PL_DATA_TYPE_INT" },
-                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
                 { "pcName": "scene" },
