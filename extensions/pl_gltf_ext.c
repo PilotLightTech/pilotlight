@@ -1260,9 +1260,7 @@ pl__import_gltf_mesh(cgltf_data* ptGltfData, const char* pcFileNameOnly, const c
                     break;
                 case cgltf_attribute_type_color:
                     if(ptAttribute->index == 0)
-                        sbtSubAllocs[szPrimitiveIndex].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_0;
-                    else if(ptAttribute->index == 1)
-                        sbtSubAllocs[szPrimitiveIndex].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_1;
+                        sbtSubAllocs[szPrimitiveIndex].uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR;
                     break;
                 case cgltf_attribute_type_joints:
                     if(ptAttribute->index == 0)
@@ -1497,6 +1495,7 @@ pl__import_gltf_material(cgltf_data* ptGltfData, const char* pcFileNameOnly, con
 
     if(ptGltfMaterial->has_transmission)
     {
+        ptMaterial->eAlphaMode = PL_MATERIAL_ALPHA_MODE_BLEND;
         ptMaterial->eFlags |= PL_MATERIAL_FLAG_TRANSMISSION;
         ptMaterial->tTransmission.fFactor = ptGltfMaterial->transmission.transmission_factor;
         if(ptGltfMaterial->transmission.transmission_texture.texture)
@@ -1706,43 +1705,43 @@ pl__import_attributes(plSubmesh* ptMesh, const cgltf_primitive* ptPrimitive)
 
             case cgltf_attribute_type_color:
             {
-                if(ptAttribute->data->component_type == cgltf_component_type_r_32f)
+                if(ptAttribute->data->component_type == cgltf_component_type_r_32f && ptAttribute->index == 0)
                 {
                     if(szStride == sizeof(plVec4))
                     {
-                        memcpy((ptMesh->ptVertexColors[ptAttribute->index]), pucBufferStart, sizeof(plVec4) * szVertexCount);
+                        memcpy(ptMesh->ptVertexColors, pucBufferStart, sizeof(plVec4) * szVertexCount);
                     }
                     else
                     {
                         for(size_t i = 0; i < szVertexCount; i++)
                         {
                             plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
-                            (ptMesh->ptVertexColors[ptAttribute->index])[i] = *ptRawData;
+                            ptMesh->ptVertexColors[i] = *ptRawData;
                         }
                     }
                 }
-                else if(ptAttribute->data->component_type == cgltf_component_type_r_16u)
+                else if(ptAttribute->data->component_type == cgltf_component_type_r_16u && ptAttribute->index == 0)
                 {
                     const float fConversion = 1.0f / (256.0f * 256.0f);
                     for(size_t i = 0; i < szVertexCount; i++)
                     {
                         uint16_t* puRawData = (uint16_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->ptVertexColors[ptAttribute->index])[i].r = (float)puRawData[0] * fConversion;
-                        (ptMesh->ptVertexColors[ptAttribute->index])[i].g = (float)puRawData[1] * fConversion;
-                        (ptMesh->ptVertexColors[ptAttribute->index])[i].b = (float)puRawData[2] * fConversion;
-                        (ptMesh->ptVertexColors[ptAttribute->index])[i].a = (float)puRawData[3] * fConversion;
+                        ptMesh->ptVertexColors[i].r = (float)puRawData[0] * fConversion;
+                        ptMesh->ptVertexColors[i].g = (float)puRawData[1] * fConversion;
+                        ptMesh->ptVertexColors[i].b = (float)puRawData[2] * fConversion;
+                        ptMesh->ptVertexColors[i].a = (float)puRawData[3] * fConversion;
                     }
                 }
-                else if(ptAttribute->data->component_type == cgltf_component_type_r_8u)
+                else if(ptAttribute->data->component_type == cgltf_component_type_r_8u && ptAttribute->index == 0)
                 {
                     const float fConversion = 1.0f / (256.0f * 256.0f);
                     for(size_t i = 0; i < szVertexCount; i++)
                     {
                         uint8_t* puRawData = (uint8_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->ptVertexColors[ptAttribute->index])[i].r = (float)puRawData[0] * fConversion;
-                        (ptMesh->ptVertexColors[ptAttribute->index])[i].g = (float)puRawData[1] * fConversion;
-                        (ptMesh->ptVertexColors[ptAttribute->index])[i].b = (float)puRawData[2] * fConversion;
-                        (ptMesh->ptVertexColors[ptAttribute->index])[i].a = (float)puRawData[3] * fConversion;
+                        ptMesh->ptVertexColors[i].r = (float)puRawData[0] * fConversion;
+                        ptMesh->ptVertexColors[i].g = (float)puRawData[1] * fConversion;
+                        ptMesh->ptVertexColors[i].b = (float)puRawData[2] * fConversion;
+                        ptMesh->ptVertexColors[i].a = (float)puRawData[3] * fConversion;
                     }
                 }
                 else
