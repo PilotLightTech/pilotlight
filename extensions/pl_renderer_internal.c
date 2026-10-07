@@ -562,7 +562,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
             {
                 plCone tCone = {
                     .tTipPos = ptLight->tPosition,
-                    .fRadius = tanf(ptLight->fOuterConeAngle * 0.5f) * ptLight->fRange,
+                    .fRadius = tanf(ptLight->fOuterConeAngle) * ptLight->fRange,
                     .tBasePos = pl_add_vec3(ptLight->tPosition, pl_mul_vec3_scalarf(ptLight->tDirection, ptLight->fRange))
                 };
 
@@ -594,7 +594,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
             },
             .tCone = {
                 .tTipPos = ptLight->tPosition,
-                .fRadius = tanf(ptLight->fOuterConeAngle * 0.5f) * ptLight->fRange,
+                .fRadius = tanf(ptLight->fOuterConeAngle) * ptLight->fRange,
                 .tBasePos = pl_add_vec3(ptLight->tPosition, pl_mul_vec3_scalarf(ptLight->tDirection, ptLight->fRange))
             }
         };
@@ -3367,6 +3367,9 @@ pl__render_view_deferred_lighting_pass(plScene* ptScene, plCommandBuffer* ptComm
             plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
             ptLightingDynamicData->uGlobalIndex = ptInfo->uGlobalIndex;
             ptLightingDynamicData->iLightIndex = (int)uLightIndex;
+            ptLightingDynamicData->iObjectShaderFlags = PL_OBJECT_SHADER_FLAG_SHADOWS;
+            if(ptInfo->bProbe)
+                ptLightingDynamicData->iObjectShaderFlags |= PL_OBJECT_SHADER_FLAG_PROBE;
             
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
@@ -3401,6 +3404,10 @@ pl__render_view_deferred_lighting_pass(plScene* ptScene, plCommandBuffer* ptComm
             plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
             ptLightingDynamicData->uGlobalIndex = ptInfo->uGlobalIndex;
             ptLightingDynamicData->iLightIndex = (int)uLightIndex;
+            ptLightingDynamicData->iObjectShaderFlags = PL_OBJECT_SHADER_FLAG_SHADOWS;
+            if(ptInfo->bProbe)
+                ptLightingDynamicData->iObjectShaderFlags |= PL_OBJECT_SHADER_FLAG_PROBE;
+
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
                 .tShader = ptScene->tSpotLightingShader,

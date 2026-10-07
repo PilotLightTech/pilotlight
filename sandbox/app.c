@@ -783,7 +783,7 @@ pl_app_update(plAppData* ptAppData)
             gptUI->layout_dynamic(0.0f, 1);
             gptUI->color_text((plVec4){1.0f, 0.0f, 1.0f, 1.0f}, "Note: Terrain takes a while to load first run (do in release)");
 
-            gptUI->layout_dynamic(ptIO->tMainViewportSize.y * 0.4f, 1);
+            gptUI->layout_dynamic(ptIO->tMainViewportSize.y * 0.35f, 1);
 
             if(gptUI->begin_child("Scenes", 0, 0))
             {
