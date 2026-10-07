@@ -2242,7 +2242,7 @@ pl__renderer_probe_data_pack_index(plScene* ptScene, uint32_t uResolution)
     // lighting bind group
     const plBindGroupDesc tLightingBindGroupDesc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptShaderVariant->get_bind_group_layout("deferred lighting 1"),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"),
         .pcDebugName = "lighting bind group"
     };
     
@@ -2796,9 +2796,9 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
     plEnvironmentProbeDataPack* ptPack = &ptScene->sbtProbeDataPacks[ptProbe->uDataPackIndex];
 
     
-    plComputeShaderHandle tCubeFilterSpecularShader = gptShaderVariant->get_compute_shader("cube_filter_specular", NULL);
-    plComputeShaderHandle tCubeFilterDiffuseShader = gptShaderVariant->get_compute_shader("cube_filter_diffuse", NULL);
-    plComputeShaderHandle tCubeFilterSheenShader = gptShaderVariant->get_compute_shader("cube_filter_sheen", NULL);
+    plComputeShaderHandle tCubeFilterSpecularShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cube_filter_specular", NULL);
+    plComputeShaderHandle tCubeFilterDiffuseShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cube_filter_diffuse", NULL);
+    plComputeShaderHandle tCubeFilterSheenShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cube_filter_sheen", NULL);
 
     plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptProbe->tRawOutputTexture);
     const int iResolution = (int)(ptTexture->tDesc.tDimensions.x);
@@ -2929,7 +2929,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
     // source sampler & cube map
     const plBindGroupDesc tCubeFilterBGSet0Desc = {
         .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-        .tLayout     = gptShaderVariant->get_bind_group_layout("cube_filter_set_0"),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "cube_filter_set_0"),
         .pcDebugName = "cube_filter_set_0"
     };
     plBindGroupHandle tCubeFilterBGSet0 = gptGfx->create_bind_group(ptDevice, &tCubeFilterBGSet0Desc);
@@ -2956,7 +2956,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
 
     const plBindGroupDesc tCubeFilterBGSet1Desc = {
         .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-        .tLayout     = gptShaderVariant->get_bind_group_layout("cube_filter_set_1"),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "cube_filter_set_1"),
         .pcDebugName = "cube_filter_set_1"
     };
     plBindGroupHandle tCubeFilterBGSet1 = gptGfx->create_bind_group(ptDevice, &tCubeFilterBGSet1Desc);
@@ -3611,10 +3611,16 @@ pl__render_view_skybox_pass(plScene* ptScene, plCommandBuffer* ptCommandBuffer, 
     ptSkyboxDynamicData->tModel = *ptTransform;
     ptSkyboxDynamicData->uGlobalIndex = uFace;
 
+    plShaderVariantDesc tSkyboxVariant = {
+        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout
+    };
+
+    plShaderHandle tSkyboxShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "skybox", &tSkyboxVariant);
+
     gptGfx->reset_draw_stream(ptStream, 1);
     pl_add_to_draw_stream(ptStream, (plDrawStreamData)
     {
-        .tShader        = gptShaderVariant->get_shader("skybox", NULL, NULL, NULL, &gptData->tTransparentRenderPassLayout),
+        .tShader        = tSkyboxShader,
         .auDynamicBuffers = {
             tSkyboxDynamicData.uBufferHandle
         },
@@ -3817,6 +3823,7 @@ pl__render_view_grid_pass(plView* ptView, plCommandBuffer* ptCommandBuffer, cons
 {
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
+    plScene* ptScene = ptView->ptParentScene;
 
     const plVec2 tDimensions = ptView->tTargetSize;
     plDrawArea tArea = {
@@ -3838,7 +3845,11 @@ pl__render_view_grid_pass(plView* ptView, plCommandBuffer* ptCommandBuffer, cons
         }
     };
 
-    plShaderHandle tGridShader = gptShaderVariant->get_shader("grid", NULL, NULL, NULL, &gptData->tTransparentRenderPassLayout);
+    plShaderVariantDesc tGridVariant = {
+        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout
+    };
+
+    plShaderHandle tGridShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "grid", &tGridVariant);
     gptGfx->bind_shader(ptCommandBuffer, tGridShader);
 
     plDynamicBinding tGridDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynGrid));
@@ -3986,7 +3997,11 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
         }
     };
 
-    plShaderHandle tPickShader = gptShaderVariant->get_shader("picking", NULL, NULL, NULL, &gptData->tPickRenderPassLayout);
+    plShaderVariantDesc tPickingVariant = {
+        .ptAttachmentInfo = &gptData->tPickRenderPassLayout
+    };
+
+    plShaderHandle tPickShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "picking", &tPickingVariant);
 
     plBuffer* ptPickBuffer = gptGfx->get_buffer(ptDevice, ptView->atPickBuffer[uFrameIdx]);
     // memset(ptPickBuffer->tMemoryAllocation.pHostMapped, 0, sizeof(uint32_t) * 2);
@@ -4080,6 +4095,7 @@ pl__render_view_uv_pass(plView* ptView)
     // for convience
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice* ptDevice  = gptData->ptDevice;
+    plScene* ptScene = ptView->ptParentScene;
 
     plCommandBuffer* ptUVCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "uv");
     gptGfx->begin_command_recording(ptUVCmdBuffer);
@@ -4118,7 +4134,12 @@ pl__render_view_uv_pass(plView* ptView)
     gptGfx->push_debug_group(ptUVCmdBuffer, "UV Map", (plVec4){0.33f, 0.72f, 0.10f, 1.0f});
 
     // submit nonindexed draw using basic API
-    plShaderHandle tUVShader = gptShaderVariant->get_shader("uvmap", NULL, NULL, NULL, &gptData->tUVRenderPassLayout);
+
+    plShaderVariantDesc tUVMapVariant = {
+        .ptAttachmentInfo = &gptData->tUVRenderPassLayout
+    };
+
+    plShaderHandle tUVShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "uvmap", &tUVMapVariant);
     gptGfx->bind_shader(ptUVCmdBuffer, tUVShader);
 
     plTexture* ptTargetTexture = gptGfx->get_texture(ptDevice, ptView->tFinalTexture);
@@ -4199,7 +4220,7 @@ pl__render_view_jfa_pass(plView* ptView)
         .uThreadPerGroupZ = 1
     };
 
-    plComputeShaderHandle tJFAShader = gptShaderVariant->get_compute_shader("jumpfloodalgo", NULL);
+    plComputeShaderHandle tJFAShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "jumpfloodalgo", NULL);
     for(uint32_t i = 0; i < uJumpSteps; i++)
     {
         plCommandBuffer* ptJumpCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "JFA");
@@ -4334,7 +4355,11 @@ pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
     ptDynamicData->fXScale = tUVScale.x;
     ptDynamicData->fYScale = tUVScale.y;
 
-    plShaderHandle tTonemapShader = gptShaderVariant->get_shader("jumpfloodalgo2", NULL, NULL, NULL, &gptData->tPostProcessRenderPassLayout);
+    plShaderVariantDesc tTonemapVariant = {
+        .ptAttachmentInfo = &gptData->tPostProcessRenderPassLayout
+    };
+
+    plShaderHandle tTonemapShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "jumpfloodalgo2", &tTonemapVariant);
     gptGfx->bind_shader(ptCommandBuffer, tTonemapShader);
     plBindGroupHandle atBindGroups[] = {ptScene->atSceneBindGroups[uFrameIdx], ptView->atOutlineBG[ptView->uLastUVIndex]};
     gptGfx->bind_graphics_bind_groups(ptCommandBuffer, tTonemapShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
@@ -4389,7 +4414,7 @@ pl__render_view_bloom_pass(plView* ptView)
 
         const plBindGroupDesc tTonemapBGDesc = {
             .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("bloom_downsample", 0),
+            .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "bloom_downsample"),
             .pcDebugName = "temp bind group c0"
         };
         plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
@@ -4435,7 +4460,7 @@ pl__render_view_bloom_pass(plView* ptView)
         plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
         ptTonemapData->iMipLevel = i;
 
-        plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("bloom_downsample", NULL);
+        plComputeShaderHandle tTonemapShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "bloom_downsample", NULL);
         gptGfx->bind_compute_shader(ptPostCmdBuffer, tTonemapShader);
         gptGfx->bind_compute_bind_groups(ptPostCmdBuffer, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
 
@@ -4475,7 +4500,7 @@ pl__render_view_bloom_pass(plView* ptView)
 
         const plBindGroupDesc tTonemapBGDesc = {
             .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("bloom_upsample", 0),
+            .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "bloom_upsample"),
             .pcDebugName = "temp bind group c0"
         };
         plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
@@ -4528,7 +4553,7 @@ pl__render_view_bloom_pass(plView* ptView)
         ptTonemapData->blurRadius = ptSettings->tBloom.fRadius;
         ptTonemapData->isLowestMip = i == 0 ? 1 : 0;
 
-        plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("bloom_upsample", NULL);
+        plComputeShaderHandle tTonemapShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "bloom_upsample", NULL);
         gptGfx->bind_compute_shader(ptPostCmdBuffer, tTonemapShader);
         gptGfx->bind_compute_bind_groups(ptPostCmdBuffer, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
 
@@ -4563,7 +4588,7 @@ pl__render_view_bloom_pass(plView* ptView)
     {
         const plBindGroupDesc tTonemapBGDesc = {
             .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("bloom_apply", 0),
+            .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "bloom_downsample"),
             .pcDebugName = "temp bind group c0"
         };
         plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
@@ -4610,7 +4635,7 @@ pl__render_view_bloom_pass(plView* ptView)
         ptTonemapData->bloomStrength = ptSettings->tBloom.fStrength;
         ptTonemapData->blurRadius = ptSettings->tBloom.fRadius;
 
-        plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("bloom_apply", NULL);
+        plComputeShaderHandle tTonemapShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "bloom_apply", NULL);
         gptGfx->bind_compute_shader(ptPostCmdBuffer, tTonemapShader);
         gptGfx->bind_compute_bind_groups(ptPostCmdBuffer, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
 
@@ -4742,7 +4767,7 @@ pl__render_view_tonemap_pass(plView* ptView)
     ptTonemapData->fContrast = ptSettings->tTonemap.fContrast;
     ptTonemapData->fSaturation = ptSettings->tTonemap.fSaturation;
 
-    plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("tonemap", NULL);
+    plComputeShaderHandle tTonemapShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "tonemap", NULL);
     gptGfx->bind_compute_shader(ptPostCmdBuffer, tTonemapShader);
     gptGfx->bind_compute_bind_groups(ptPostCmdBuffer, tTonemapShader, 0, 1, &ptView->tTonemapBG, 1, &tTonemapDynamicBinding);
 
@@ -5369,9 +5394,9 @@ pl__renderer_probe_update_all(plScene* ptScene)
 static void
 pl__renderer_scene_create_bindgroups(plScene* ptScene)
 {
-    plBindGroupLayoutHandle tGlobalSceneBindGroupLayout = gptShaderVariant->get_bind_group_layout("scene");
-    plBindGroupLayoutHandle tSunTransmissionBindGroupLayout1 = gptShaderVariant->get_compute_bind_group_layout("sky_transmission_lut", 1);
-    plBindGroupLayoutHandle tSunMultiscatterBindGroupLayout1 = gptShaderVariant->get_compute_bind_group_layout("sky_multiscatter_lut", 1);
+    plBindGroupLayoutHandle tGlobalSceneBindGroupLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene");
+    plBindGroupLayoutHandle tSunTransmissionBindGroupLayout1 = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "simple_texture_lut");
+    plBindGroupLayoutHandle tSunMultiscatterBindGroupLayout1 = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "sky_multiscatter_lut");
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -5399,28 +5424,28 @@ pl__renderer_scene_create_bindgroups(plScene* ptScene)
 
         const plBindGroupDesc tSkinBindGroup2Desc = {
             .ptPool      = gptData->ptBindGroupPool,
-            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("skinning", 1),
+            .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "skinning_1"),
             .pcDebugName = "skin bind group 2"
         };
         ptScene->atSkinBindGroup1[i] = gptGfx->create_bind_group(gptData->ptDevice, &tSkinBindGroup2Desc);
 
         const plBindGroupDesc tGlobalBGDesc = {
             .ptPool      = gptData->ptBindGroupPool,
-            .tLayout     = gptData->tShadowGlobalBGLayout,
+            .tLayout     = ptScene->tShadowGlobalBGLayout,
             .pcDebugName = "temporary global bind group 0"
         };
         ptScene->atShadowBG[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
     }
 
     const plBindGroupDesc tSkyLutBG2Desc = {
-        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("sky_lut", 2),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "sky_lut_2"),
         .pcDebugName = "atSkyLutBG2",
         .ptPool      = gptData->ptBindGroupPool
     };
     ptScene->tSkyProbeLutBG2 = gptGfx->create_bind_group(gptData->ptDevice, &tSkyLutBG2Desc);
 
     const plBindGroupDesc tSkyBG2Desc = {
-        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("sky", 2),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "sky_2"),
         .pcDebugName = "tSkyBG1",
         .ptPool      = gptData->ptBindGroupPool
     };
@@ -5428,7 +5453,7 @@ pl__renderer_scene_create_bindgroups(plScene* ptScene)
 
     const plBindGroupDesc tSkinBindGroupDesc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("skinning", 0),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "skinning_0"),
         .pcDebugName = "skin bind group"
     };
     ptScene->tSkinBindGroup0 = gptGfx->create_bind_group(gptData->ptDevice, &tSkinBindGroupDesc);
@@ -5589,6 +5614,1424 @@ pl__renderer_scene_create_sky_luts_textures(plScene* ptScene)
 }
 
 static void
+pl__renderer_scene_create_bindgroup_layouts(plScene* ptScene)
+{
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "cube_filter_set_0",
+            .atTextureBindings = {
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_COMPUTE}
+            },
+            .atSamplerBindings= {
+                {.uSlot = 0, .eStages = PL_SHADER_STAGE_COMPUTE}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "cube_filter_set_0", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "cube_filter_set_1",
+            .atBufferBindings = {
+                {.uSlot = 0, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 2, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 3, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 4, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 5, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "cube_filter_set_1", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "panorama_to_cubemap",
+            .atBufferBindings = {
+                {.uSlot = 0, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 2, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 3, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 4, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 5, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 6, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "panorama_to_cubemap", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "shadow",
+            .atBufferBindings = {
+                {.uSlot = 0, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 1, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "shadow", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "view",
+            .atBufferBindings = {
+                {.uSlot = 0, .eType = PL_BUFFER_BINDING_TYPE_UNIFORM, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_BUFFER_BINDING_TYPE_UNIFORM, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 2, .eType = PL_BUFFER_BINDING_TYPE_UNIFORM, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 3, .eType = PL_BUFFER_BINDING_TYPE_UNIFORM, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 4, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 5, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 6, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 7, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "view", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "scene",
+            .atBufferBindings = {
+                {.uSlot = 0, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 2, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 3, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+            },
+            .atSamplerBindings= {
+                {.uSlot = 4, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 5, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 6, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 7, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX}
+            },
+            .atTextureBindings = {
+                {.uSlot = PL_MAX_BINDLESS_TEXTURE_SLOT, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "scene", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "sky_2",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "sky_2", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "skinning_0",
+            .atBufferBindings = {
+                {.uSlot = 0, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+            },
+            .atSamplerBindings= {
+                {.uSlot = 2, .eStages = PL_SHADER_STAGE_COMPUTE}
+            },
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "skinning_0", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "skinning_1",
+            .atBufferBindings = {
+                {.uSlot = 0, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "skinning_1", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "sky_lut_2",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_COMPUTE}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "sky_lut_2", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "deferred_lighting_2",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT, .eStages = PL_SHADER_STAGE_FRAGMENT},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT, .eStages = PL_SHADER_STAGE_FRAGMENT},
+                {.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT, .eStages = PL_SHADER_STAGE_FRAGMENT},
+                {.uSlot = 3, .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT, .eStages = PL_SHADER_STAGE_FRAGMENT}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "bloom downsample",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_COMPUTE}
+            },
+            .atSamplerBindings= {
+                {.uSlot = 2, .eStages = PL_SHADER_STAGE_COMPUTE}
+            },
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "bloom_downsample", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "bloom upsample",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_COMPUTE}
+            },
+            .atSamplerBindings= {
+                {.uSlot = 3, .eStages = PL_SHADER_STAGE_COMPUTE}
+            },
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "bloom_upsample", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "tonemap",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "tonemap", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "jfa 0",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "jfa_0", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "jfa 1",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_FRAGMENT},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_FRAGMENT}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "jfa_1", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "aerial_luts",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_COMPUTE}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "gbuffer_fill_1",
+            .atBufferBindings = {
+                {.uSlot = 0, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX}
+            },
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "skybox_2",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX}
+            },
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "skybox_2", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "sky_multiscatter_lut",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_COMPUTE}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "sky_multiscatter_lut", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "simple_buffer_lut",
+            .atBufferBindings = {
+                {.uSlot = 0, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE }
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "simple_buffer_lut", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "simple_texture_lut",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "simple_texture_lut", tHandle);
+    }
+}
+
+static void
+pl__renderer_scene_create_compute_shaders(plScene* ptScene)
+{
+    plDevice* ptDevice = gptData->ptDevice;
+
+    plShaderOptions tOriginalOptions = *gptShader->get_options();
+
+    plShaderOptions tNewDefaultShaderOptions = {
+        .apcIncludeDirectories = {
+            "../shaders/"
+        },
+        .apcDirectories = {
+            "../shaders/"
+        },
+        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+
+    };
+    gptShader->set_options(&tNewDefaultShaderOptions);
+
+    {
+        int aiPlaceHolder[3] = {0};
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "panorama_to_cubemap",
+            .tShader = gptShader->load_glsl("pl_panorama_to_cubemap.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "panorama_to_cubemap"))->tDesc,
+            },
+            .atConstants = {
+                { .eType = PL_DATA_TYPE_INT },
+                { .eType = PL_DATA_TYPE_INT },
+                { .eType = PL_DATA_TYPE_INT }
+            },
+            .pTempConstantData = aiPlaceHolder
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "panorama_to_cubemap", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "jumpfloodalgo",
+            .tShader = gptShader->load_glsl("pl_jumpfloodalgo.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "jfa_0"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "jumpfloodalgo", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "bloom_apply",
+            .tShader = gptShader->load_glsl("pl_bloom_apply.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "bloom_downsample"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "bloom_apply", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "bloom_downsample",
+            .tShader = gptShader->load_glsl("pl_bloom_downsample.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "bloom_downsample"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "bloom_downsample", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "bloom_upsample",
+            .tShader = gptShader->load_glsl("pl_bloom_upsample.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "bloom_upsample"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "bloom_upsample", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "brdf_lut",
+            .tShader = gptShader->load_glsl("pl_brdf_lut.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "simple_buffer_lut"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "brdf_lut", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "sky_transmission_lut",
+            .tShader = gptShader->load_glsl("pl_sky_transmission_lut.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "simple_texture_lut"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "sky_transmission_lut", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "sky_multiscatter_lut",
+            .tShader = gptShader->load_glsl("pl_sky_multiscatter_lut.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "sky_multiscatter_lut"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "sky_multiscatter_lut", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "sky_lut",
+            .tShader = gptShader->load_glsl("pl_sky_lut.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "sky_lut_2"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "sky_lut", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "sky_aerial_lut",
+            .tShader = gptShader->load_glsl("pl_sky_aerial_lut.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "sky_aerial_lut", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "sky_aerial",
+            .tShader = gptShader->load_glsl("pl_sky_aerial.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "sky_aerial", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "cube_filter_specular",
+            .tShader = gptShader->load_glsl("pl_cube_filter_specular.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "cube_filter_set_0"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "cube_filter_set_1"))->tDesc
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "cube_filter_specular", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "cube_filter_diffuse",
+            .tShader = gptShader->load_glsl("pl_cube_filter_diffuse.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "cube_filter_set_0"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "cube_filter_set_1"))->tDesc
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "cube_filter_diffuse", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "cube_filter_sheen",
+            .tShader = gptShader->load_glsl("pl_cube_filter_sheen.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "cube_filter_set_0"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "cube_filter_set_1"))->tDesc
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "cube_filter_sheen", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "skinning",
+            .tShader = gptShader->load_glsl("pl_skinning.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "skinning_0"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "skinning_1"))->tDesc
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "skinning", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "tonemap",
+            .tShader = gptShader->load_glsl("pl_tonemap.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "tonemap"))->tDesc
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "tonemap", &tDesc);
+    }
+
+    gptShader->set_options(&tOriginalOptions);
+}
+
+static void
+pl__renderer_scene_create_shaders(plScene* ptScene)
+{
+    plDevice* ptDevice = gptData->ptDevice;
+
+    plShaderOptions tOriginalOptions = *gptShader->get_options();
+
+    plShaderOptions tNewDefaultShaderOptions = {
+        .apcIncludeDirectories = {
+            "../shaders/"
+        },
+        .apcDirectories = {
+            "../shaders/"
+        },
+        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+
+    };
+    gptShader->set_options(&tNewDefaultShaderOptions);
+
+    {
+        plShaderDesc tDesc = {
+            .pcDebugName = "skybox",
+            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_skybox.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = 0,
+                .eDepthMode = PL_COMPARE_MODE_EQUAL,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = 0,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atBlendStates = {
+                {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL}
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "skybox_2"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "skybox", &tDesc);
+    }
+
+    {
+        plShaderDesc tDesc = {
+            .pcDebugName = "jumpfloodalgo2",
+            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_jumpfloodalgo.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = 0,
+                .eDepthMode = PL_COMPARE_MODE_ALWAYS,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = 0,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atBlendStates = {
+                {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL}
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "jfa_1"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "jumpfloodalgo2", &tDesc);
+    }
+
+    {
+        plShaderDesc tDesc = {
+            .pcDebugName = "sky",
+            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_sky.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = 0,
+                .eDepthMode = PL_COMPARE_MODE_EQUAL,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = 0,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atBlendStates = {
+                {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL}
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "sky_2"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "sky", &tDesc);
+    }
+
+    {
+        plShaderDesc tDesc = {
+            .pcDebugName = "gbuffer_fill",
+            .tVertexShader = gptShader->load_glsl("pl_gbuffer_fill.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_gbuffer_fill.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = 0,
+                .eDepthMode = PL_COMPARE_MODE_EQUAL,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = 0,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atBlendStates = {
+                {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_NONE},
+                {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL},
+                {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL},
+                {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL}
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "gbuffer_fill", &tDesc);
+    }
+
+    {
+        int iDataHolder = 0;
+        plShaderDesc tDesc = {
+            .pcDebugName = "gbuffer_fill_debug",
+            .tVertexShader = gptShader->load_glsl("pl_gbuffer_fill.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_gbuffer_fill_debug.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = 0,
+                .eDepthMode = PL_COMPARE_MODE_EQUAL,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = 0,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atFragmentConstants = {
+                { .eType = PL_DATA_TYPE_INT }
+            },
+            .atBlendStates = {
+                {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_NONE},
+                {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL},
+                {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL},
+                {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL}
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"))->tDesc
+            },
+            .pFragmentTempConstantData = &iDataHolder,
+            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "gbuffer_fill_debug", &tDesc);
+    }
+
+    {
+        plShaderDesc tDesc = {
+            .pcDebugName = "forward",
+            .tVertexShader = gptShader->load_glsl("pl_forward.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_forward.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = 0,
+                .eDepthMode = PL_COMPARE_MODE_EQUAL,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = 0,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atBlendStates = {
+                {
+                    .bBlendEnabled = true,
+                    .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
+                }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "forward", &tDesc);
+    }
+
+    {
+        int iPlaceHolder = 0;
+        plShaderDesc tDesc = {
+            .pcDebugName = "forward_debug",
+            .tVertexShader = gptShader->load_glsl("pl_forward.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_forward_debug.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = 0,
+                .eDepthMode = PL_COMPARE_MODE_EQUAL,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = 0,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atFragmentConstants = {
+                { .eType = PL_DATA_TYPE_INT }
+            },
+            .atBlendStates = {
+                {
+                    .bBlendEnabled = true,
+                    .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
+                }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc
+            },
+            .pFragmentTempConstantData = &iPlaceHolder,
+            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "forward_debug", &tDesc);
+    }
+
+    {
+        plShaderDesc tDesc = {
+            .pcDebugName = "grid",
+            .tVertexShader = gptShader->load_glsl("pl_grid.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_grid.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = 0,
+                .eDepthMode = PL_COMPARE_MODE_GREATER,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = 0,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atBlendStates = {
+                {
+                    .bBlendEnabled = true,
+                    .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
+                }
+            },
+            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "grid", &tDesc);
+    }
+
+    {
+        plShaderDesc tDesc = {
+            .pcDebugName = "transmission",
+            .tVertexShader = gptShader->load_glsl("pl_forward.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_forward.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = 0,
+                .eDepthMode = PL_COMPARE_MODE_EQUAL,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = 0,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atBlendStates = {
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "transmission", &tDesc);
+    }
+
+    {
+        plShaderDesc tDesc = {
+            .pcDebugName = "uvmap",
+            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_uvmap.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = 0,
+                .eDepthMode = PL_COMPARE_MODE_ALWAYS,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = 0,
+                .bStencilTestEnabled = 1,
+                .eStencilMode = PL_COMPARE_MODE_LESS,
+                .uStencilRef = 128,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atBlendStates = {
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL }
+            },
+            .tRenderAttachmentInfo = gptData->tUVRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "uvmap", &tDesc);
+    }
+
+    {
+        plShaderDesc tDesc = {
+            .pcDebugName = "picking",
+            .tVertexShader = gptShader->load_glsl("pl_picking.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_picking.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = 0,
+                .eDepthMode = PL_COMPARE_MODE_EQUAL,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = 0,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atBlendStates = {
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tPickRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "picking", &tDesc);
+    }
+
+    {
+        plShaderDesc tDesc = {
+            .pcDebugName = "shadow",
+            .tVertexShader = gptShader->load_glsl("pl_shadow.vert", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = true,
+                .eDepthMode = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = true,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atBlendStates = {
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "shadow"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tDepthRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "shadow", &tDesc);
+    }
+
+    {
+        plShaderDesc tDesc = {
+            .pcDebugName = "alphashadow",
+            .tVertexShader = gptShader->load_glsl("pl_shadow.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_shadow.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = true,
+                .eDepthMode = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = true,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atBlendStates = {
+                {
+                    .bBlendEnabled = true,
+                    .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
+                }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "shadow"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tDepthRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "alphashadow", &tDesc);
+    }
+
+    {
+        plShaderDesc tDesc = {
+            .pcDebugName = "deferred_lighting",
+            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_probe.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = true,
+                .eDepthMode = PL_COMPARE_MODE_ALWAYS,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = false,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atBlendStates = {
+                {
+                    .bBlendEnabled = true,
+                    .eSrcColorFactor = PL_BLEND_FACTOR_ONE,
+                    .eDstColorFactor = PL_BLEND_FACTOR_ONE,
+                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
+                    .eDstAlphaFactor = PL_BLEND_FACTOR_ONE,
+                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .uColorWriteMask = PL_COLOR_WRITE_MASK_R | PL_COLOR_WRITE_MASK_G | PL_COLOR_WRITE_MASK_B
+                },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting", &tDesc);
+    }
+
+   {
+        plShaderDesc tDesc = {
+            .pcDebugName = "deferred_lighting_sun",
+            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_sun.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = false,
+                .eDepthMode = PL_COMPARE_MODE_ALWAYS,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = false,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atBlendStates = {
+                {
+                    .bBlendEnabled = true,
+                    .eSrcColorFactor = PL_BLEND_FACTOR_ONE,
+                    .eDstColorFactor = PL_BLEND_FACTOR_ONE,
+                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
+                    .eDstAlphaFactor = PL_BLEND_FACTOR_ONE,
+                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .uColorWriteMask = PL_COLOR_WRITE_MASK_R | PL_COLOR_WRITE_MASK_G | PL_COLOR_WRITE_MASK_B
+                },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting_sun", &tDesc);
+    }
+
+   {
+        plShaderDesc tDesc = {
+            .pcDebugName = "deferred_lighting_directional",
+            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_directional.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = false,
+                .eDepthMode = PL_COMPARE_MODE_ALWAYS,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = false,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atBlendStates = {
+                {
+                    .bBlendEnabled = true,
+                    .eSrcColorFactor = PL_BLEND_FACTOR_ONE,
+                    .eDstColorFactor = PL_BLEND_FACTOR_ONE,
+                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
+                    .eDstAlphaFactor = PL_BLEND_FACTOR_ONE,
+                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .uColorWriteMask = PL_COLOR_WRITE_MASK_R | PL_COLOR_WRITE_MASK_G | PL_COLOR_WRITE_MASK_B
+                },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting_directional", &tDesc);
+    }
+
+   {
+        plShaderDesc tDesc = {
+            .pcDebugName = "deferred_lighting_spot",
+            .tVertexShader = gptShader->load_glsl("pl_deferred_lighting_spot.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_spot.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = false,
+                .eDepthMode = PL_COMPARE_MODE_LESS,
+                .eCullMode = PL_CULL_MODE_CULL_FRONT,
+                .bWireframe = 0,
+                .bDepthClampEnabled = false,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atBlendStates = {
+                {
+                    .bBlendEnabled = true,
+                    .eSrcColorFactor = PL_BLEND_FACTOR_ONE,
+                    .eDstColorFactor = PL_BLEND_FACTOR_ONE,
+                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
+                    .eDstAlphaFactor = PL_BLEND_FACTOR_ONE,
+                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .uColorWriteMask = PL_COLOR_WRITE_MASK_R | PL_COLOR_WRITE_MASK_G | PL_COLOR_WRITE_MASK_B
+                }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting_spot", &tDesc);
+    }
+
+   {
+        plShaderDesc tDesc = {
+            .pcDebugName = "deferred_lighting_point",
+            .tVertexShader = gptShader->load_glsl("pl_deferred_lighting_point.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_point.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = false,
+                .eDepthMode = PL_COMPARE_MODE_LESS,
+                .eCullMode = PL_CULL_MODE_CULL_FRONT,
+                .bWireframe = 0,
+                .bDepthClampEnabled = true,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atBlendStates = {
+                {
+                    .bBlendEnabled = true,
+                    .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstColorFactor = PL_BLEND_FACTOR_ONE,
+                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstAlphaFactor = PL_BLEND_FACTOR_ONE,
+                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .uColorWriteMask = PL_COLOR_WRITE_MASK_R | PL_COLOR_WRITE_MASK_G | PL_COLOR_WRITE_MASK_B
+                },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting_point", &tDesc);
+    }
+
+   {
+        int aiPlaceHolder[2] = {0};
+        plShaderDesc tDesc = {
+            .pcDebugName = "deferred_lighting_debug",
+            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_debug.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = false,
+                .eDepthMode = PL_COMPARE_MODE_ALWAYS,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = false,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atFragmentConstants = {
+                { .eType = PL_DATA_TYPE_INT },
+                { .eType = PL_DATA_TYPE_INT }
+            },
+            .atBlendStates = {
+                {
+                    .bBlendEnabled = true,
+                    .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstColorFactor = PL_BLEND_FACTOR_ONE,
+                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstAlphaFactor = PL_BLEND_FACTOR_ONE,
+                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
+                },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 },
+                { .bBlendEnabled = false, .uColorWriteMask = 0 }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"))->tDesc
+            },
+            .pFragmentTempConstantData = aiPlaceHolder,
+            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting_debug", &tDesc);
+    }
+
+   {
+        plShaderDesc tDesc = {
+            .pcDebugName = "terrain",
+            .tVertexShader = gptShader->load_glsl("pl_terrain.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_terrain.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = true,
+                .eDepthMode = PL_COMPARE_MODE_GREATER,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = false,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 },
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT2 },
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT2 }
+                    }
+                }
+            },
+            .atBlendStates = {
+                { .bBlendEnabled = false, .uColorWriteMask = 0 },
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL},
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL},
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL}
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "terrain", &tDesc);
+    }
+
+   {
+        plShaderDesc tDesc = {
+            .pcDebugName = "terrain_shadow",
+            .tVertexShader = gptShader->load_glsl("pl_terrain_shadow.vert", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled = true,
+                .eDepthMode = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+                .eCullMode = PL_CULL_MODE_NONE,
+                .bWireframe = 0,
+                .bDepthClampEnabled = true,
+                .bStencilTestEnabled = 0,
+                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef = 0xff,
+                .uStencilMask = 0xff,
+                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 },
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT2 },
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT2 }
+                    }
+                }
+            },
+            .atBlendStates = {
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL}
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "shadow"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tDepthRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "terrain_shadow", &tDesc);
+    }
+
+    gptShader->set_options(&tOriginalOptions);
+}
+
+static void
 pl__renderer_scene_create_textures(plScene* ptScene)
 {
     // shadow atlas
@@ -5698,7 +7141,7 @@ pl__renderer_scene_create_brdf_lut(plScene* ptScene)
 {
     const plBindGroupDesc tBrdfBGSet1Desc = {
         .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("brdf_lut", 0),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "simple_buffer_lut"),
         .pcDebugName = "brdf_lut_set_1"
     };
     plBindGroupHandle tBrdfBGSet1 = gptGfx->create_bind_group(gptData->ptDevice, &tBrdfBGSet1Desc);
@@ -5713,7 +7156,7 @@ pl__renderer_scene_create_brdf_lut(plScene* ptScene)
     gptGfx->update_bind_group(gptData->ptDevice, tBrdfBGSet1, &tBrdfBGSet1Data);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tBrdfBGSet1);
 
-    plComputeShaderHandle tBrdfLutShader = gptShaderVariant->get_compute_shader("brdf_lut", NULL);
+    plComputeShaderHandle tBrdfLutShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "brdf_lut", NULL);
     
     const plDispatch tDispach0 = {
         .uGroupCountX     = (uint32_t)1024 / 16,
@@ -5998,7 +7441,7 @@ pl__renderer_view_create_bindgroups(plView* ptView)
 
     const plBindGroupDesc tJFABindGroupDesc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("jumpfloodalgo", 0),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "jfa_0"),
         .pcDebugName = "temp jfa bind group"
     };
 
@@ -6007,7 +7450,7 @@ pl__renderer_view_create_bindgroups(plView* ptView)
 
     const plBindGroupDesc tOutlineBGDesc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("jumpfloodalgo2", 1),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "jfa_1"),
         .pcDebugName = "temp bind group 0"
     };
     ptView->atOutlineBG[0] = gptGfx->create_bind_group(gptData->ptDevice, &tOutlineBGDesc);
@@ -6016,62 +7459,62 @@ pl__renderer_view_create_bindgroups(plView* ptView)
     // lighting bind group
     const plBindGroupDesc tLightingBindGroupDesc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptShaderVariant->get_bind_group_layout("deferred lighting 1"),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"),
         .pcDebugName = "lighting bind group"
     };
     ptView->tLightingBindGroup = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupDesc);
 
     const plBindGroupDesc tTonemapBGDesc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("tonemap", 0),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "tonemap"),
         .pcDebugName = "tonemap bind group c0"
     };
     ptView->tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
 
     const plBindGroupDesc tGlobalBGDesc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptData->tShadowGlobalBGLayout,
+        .tLayout     = ptScene->tShadowGlobalBGLayout,
         .pcDebugName = "temporary global bind group 0"
     };
 
     const plBindGroupDesc tPickBindGroupDesc = {
         .ptPool = gptData->ptBindGroupPool,
-        .tLayout = gptShaderVariant->get_graphics_bind_group_layout("picking", 1),
+        .tLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"),
         .pcDebugName = "pick bind group"
     };
 
     const plBindGroupDesc tDeferredBG1Desc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("gbuffer_fill", 1),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"),
         .pcDebugName = "view specific bindgroup"
     };
 
     const plBindGroupDesc tViewBGDesc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptData->tViewBGLayout,
+        .tLayout     = ptScene->tViewBGLayout,
         .pcDebugName = "light bind group 2"
     };
 
     const plBindGroupDesc tSkyLutBG2Desc = {
-        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("sky_lut", 2),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "sky_lut_2"),
         .pcDebugName = "atSkyLutBG2",
         .ptPool      = gptData->ptBindGroupPool
     };
 
     const plBindGroupDesc tSkyAerialLutBG2Desc = {
-        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("sky_aerial_lut", 2),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts"),
         .pcDebugName = "atSkyAerialLutBG2",
         .ptPool      = gptData->ptBindGroupPool
     };
 
     const plBindGroupDesc tSkyBG2Desc = {
-        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("sky", 2),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "sky_2"),
         .pcDebugName = "tSkyBG1",
         .ptPool      = gptData->ptBindGroupPool
     };
 
     const plBindGroupDesc tSkyAerialBG2Desc = {
-        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("sky_aerial", 2),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts"),
         .pcDebugName = "tSkyAerialBG2",
         .ptPool      = gptData->ptBindGroupPool
     };
@@ -6395,7 +7838,7 @@ pl__renderer_probe_create_bindgroups(plScene* ptScene, plEnvironmentProbeData* p
 {
     const plBindGroupDesc tGlobalBGDesc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptData->tShadowGlobalBGLayout,
+        .tLayout     = ptScene->tShadowGlobalBGLayout,
         .pcDebugName = "temporary global bind group 0"
     };
     ptProbeData->tDShadowBG = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
@@ -6403,14 +7846,14 @@ pl__renderer_probe_create_bindgroups(plScene* ptScene, plEnvironmentProbeData* p
 
     const plBindGroupDesc tGBufferFillBG1Desc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("gbuffer_fill", 1),
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"),
         .pcDebugName = "gbuffer fill bg1"
     };
     ptProbeData->tGBufferBG = gptGfx->create_bind_group(gptData->ptDevice, &tGBufferFillBG1Desc);
 
     const plBindGroupDesc tViewBGDesc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptData->tViewBGLayout,
+        .tLayout     = ptScene->tViewBGLayout,
         .pcDebugName = "probe scene bg"
     };
     ptProbeData->tViewBG = gptGfx->create_bind_group(gptData->ptDevice, &tViewBGDesc);
@@ -6497,7 +7940,10 @@ pl__renderer_scene_load_skybox_from_panorama(plScene* ptScene, const char* pcPat
     const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
     {
         int aiSkyboxSpecializationData[] = {iResolution, iPanoramaWidth, iPanoramaHeight};
-        plComputeShaderHandle tPanoramaShader = gptShaderVariant->get_compute_shader("panorama_to_cubemap", aiSkyboxSpecializationData);
+        plComputeShaderVariantDesc tPanoramaVariant = {
+            .pConstants = aiSkyboxSpecializationData
+        };
+        plComputeShaderHandle tPanoramaShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "panorama_to_cubemap", &tPanoramaVariant);
         pl_temp_allocator_reset(&gptData->tTempAllocator);
 
         plBufferHandle atComputeBuffers[7] = {0};
@@ -6524,7 +7970,7 @@ pl__renderer_scene_load_skybox_from_panorama(plScene* ptScene, const char* pcPat
 
         const plBindGroupDesc tComputeBindGroupDesc = {
             .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("panorama_to_cubemap", 0),
+            .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "panorama_to_cubemap"),
             .pcDebugName = "compute bind group"
         };
         plBindGroupHandle tComputeBindGroup = gptGfx->create_bind_group(ptDevice, &tComputeBindGroupDesc);
@@ -6622,7 +8068,7 @@ pl__renderer_scene_load_skybox_from_panorama(plScene* ptScene, const char* pcPat
         {
             const plBindGroupDesc tSkyboxBindGroupDesc = {
                 .ptPool = gptData->ptBindGroupPool,
-                .tLayout = gptShaderVariant->get_graphics_bind_group_layout("skybox", 2),
+                .tLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "skybox_2"),
                 .pcDebugName = "skybox bind group"
             };
             ptScene->tSkyboxBindGroup = gptGfx->create_bind_group(ptDevice, &tSkyboxBindGroupDesc);
@@ -6656,12 +8102,6 @@ pl__renderer_initialize(void)
     gptData->bFullyInitialized = true;
 
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "create resources");
-    
-    bool bManifestResult = gptShaderVariant->load_manifest("/shaders/shaders.pls");
-    PL_ASSERT(bManifestResult);
-
-    gptData->tViewBGLayout = gptShaderVariant->get_bind_group_layout("view");
-    gptData->tShadowGlobalBGLayout = gptShaderVariant->get_bind_group_layout("shadow");
 
     // create dummy textures
     const plTextureDesc tDummyTextureDesc = {
@@ -7010,8 +8450,8 @@ pl__renderer_load_shaders(plScene* ptScene)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "create shaders");
 
-    gptData->tViewBGLayout = gptShaderVariant->get_bind_group_layout("view");
-    gptData->tShadowGlobalBGLayout = gptShaderVariant->get_bind_group_layout("shadow");
+    ptScene->tViewBGLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view");
+    ptScene->tShadowGlobalBGLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "shadow");
 
     if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
     {
@@ -7039,28 +8479,47 @@ pl__renderer_load_shaders(plScene* ptScene)
 
 
     int aiLightingConstantData[] = {ptScene->tShaderDebugMode};
+
+    plShaderVariantDesc tDeferredVariant = {
+        .ptAttachmentInfo = &gptData->tDeferredLightingRenderPassLayout,
+        .pFragmentConstants = aiLightingConstantData
+    };
     
     if(ptScene->tShaderDebugMode)
-        ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_debug", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
+        ptScene->tDirectionalLightingShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting_debug", &tDeferredVariant);
     else
     {
-        ptScene->tSunShader = gptShaderVariant->get_shader("deferred_lighting_sun", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
-        ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
+        ptScene->tSunShader                 = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting_sun", &tDeferredVariant);
+        ptScene->tDirectionalLightingShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting_directional", &tDeferredVariant);
     }
 
-    ptScene->tSkinningShader = gptShaderVariant->get_compute_shader("skinning", NULL);
-    ptScene->tSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
-    ptScene->tPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
-    ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, NULL, &gptData->tDeferredLightingRenderPassLayout);
-    ptScene->tTerrainShader = gptShaderVariant->get_shader("terrain", NULL, NULL, NULL, &gptData->tRenderPassLayout);
-    ptScene->tTerrainShadowShader = gptShaderVariant->get_shader("terrain_shadow", NULL, NULL, NULL, &gptData->tDepthRenderPassLayout);
-    ptScene->tSunTransmissionLutShader = gptShaderVariant->get_compute_shader("sky_transmission_lut", NULL);
-    ptScene->tSunMultiscatterShader = gptShaderVariant->get_compute_shader("sky_multiscatter_lut", NULL);
-    ptScene->tSkyViewLutShader = gptShaderVariant->get_compute_shader("sky_lut", NULL);
-    ptScene->tSkyAerialLutShader = gptShaderVariant->get_compute_shader("sky_aerial_lut", NULL);
-    ptScene->tSkyAerialShader = gptShaderVariant->get_compute_shader("sky_aerial", NULL);
-    ptScene->tSkyShader = gptShaderVariant->get_shader("sky", NULL, NULL, NULL, &gptData->tTransparentRenderPassLayout);
-    ptScene->tShadowShader = gptShaderVariant->get_shader("shadow", NULL, NULL, NULL, &gptData->tDepthRenderPassLayout);
+    ptScene->tSpotLightingShader  = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting_spot", &tDeferredVariant);
+    ptScene->tPointLightingShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting_point", &tDeferredVariant);
+    ptScene->tProbeLightingShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting", &tDeferredVariant);
+
+    plShaderVariantDesc tTerrainVariant = {
+        .ptAttachmentInfo = &gptData->tRenderPassLayout
+    };
+    ptScene->tTerrainShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "terrain", &tTerrainVariant);
+
+    plShaderVariantDesc tShadowVariant = {
+        .ptAttachmentInfo = &gptData->tDepthRenderPassLayout
+    };
+    ptScene->tTerrainShadowShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "terrain_shadow", &tShadowVariant);
+    ptScene->tShadowShader        = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "shadow", &tShadowVariant);
+
+    plShaderVariantDesc tTransparentVariant = {
+        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout
+    };
+    ptScene->tSkyShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "sky", &tTransparentVariant);
+
+    // compute
+    ptScene->tSkinningShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "skinning", NULL);
+    ptScene->tSunTransmissionLutShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "sky_transmission_lut", NULL);
+    ptScene->tSunMultiscatterShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "sky_multiscatter_lut", NULL);
+    ptScene->tSkyViewLutShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "sky_lut", NULL);
+    ptScene->tSkyAerialLutShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "sky_aerial_lut", NULL);
+    ptScene->tSkyAerialShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "sky_aerial", NULL);
 
 
     plGraphicsState tAlphaShadowState = {
@@ -7076,7 +8535,12 @@ pl__renderer_load_shaders(plScene* ptScene)
         .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
         .eStencilOpPass      = PL_STENCIL_OP_KEEP
     };
-    ptScene->tShadowAlphaShader = gptShaderVariant->get_shader("alphashadow", &tAlphaShadowState, NULL, NULL, &gptData->tDepthRenderPassLayout);
+
+    plShaderVariantDesc tAlphaShadowVariant = {
+        .ptAttachmentInfo = &gptData->tDepthRenderPassLayout,
+        .ptGraphicsState = &tAlphaShadowState
+    };
+    ptScene->tShadowAlphaShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "alphashadow", &tAlphaShadowVariant);
 
     plGraphicsState tGBufferFileVariantTemp = {
         .bDepthWriteEnabled  = 1,
@@ -7091,31 +8555,39 @@ pl__renderer_load_shaders(plScene* ptScene)
         .bWireframe          = false
     };
 
+    plShaderVariantDesc tGBufferVariant = {
+        .ptAttachmentInfo = &gptData->tDeferredLightingRenderPassLayout,
+        .pVertexConstants = aiLightingConstantData,
+        .pFragmentConstants = aiLightingConstantData,
+        .ptGraphicsState = &tGBufferFileVariantTemp
+    };
+
     if(ptScene->tShaderDebugMode)
     {
-        ptScene->tGBufferFillShader = gptShaderVariant->get_shader("gbuffer_fill_debug", &tGBufferFileVariantTemp, aiLightingConstantData, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
+        ptScene->tGBufferFillShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "gbuffer_fill_debug", &tGBufferVariant);
         tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_NONE;
-        ptScene->tGBufferFillNoCullShader = gptShaderVariant->get_shader("gbuffer_fill_debug", &tGBufferFileVariantTemp, aiLightingConstantData, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
+        ptScene->tGBufferFillNoCullShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "gbuffer_fill_debug", &tGBufferVariant);
 
         tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
         tGBufferFileVariantTemp.bWireframe = true;
-        ptScene->tGBufferFillWireframeShader = gptShaderVariant->get_shader("gbuffer_fill_debug", &tGBufferFileVariantTemp, aiLightingConstantData, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
+        ptScene->tGBufferFillWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "gbuffer_fill_debug", &tGBufferVariant);
         tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_NONE;
-        ptScene->tGBufferFillNoCullWireframeShader = gptShaderVariant->get_shader("gbuffer_fill_debug", &tGBufferFileVariantTemp, aiLightingConstantData, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
+        ptScene->tGBufferFillNoCullWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "gbuffer_fill_debug", &tGBufferVariant);
     }
     else
     {
+        tGBufferVariant.pFragmentConstants = NULL;
         // tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
         tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_NONE;
-        ptScene->tGBufferFillShader = gptShaderVariant->get_shader("gbuffer_fill", &tGBufferFileVariantTemp, aiLightingConstantData, NULL, &gptData->tDeferredLightingRenderPassLayout);
+        ptScene->tGBufferFillShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "gbuffer_fill", &tGBufferVariant);
         tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_NONE;
-        ptScene->tGBufferFillNoCullShader = gptShaderVariant->get_shader("gbuffer_fill", &tGBufferFileVariantTemp, aiLightingConstantData, NULL, &gptData->tDeferredLightingRenderPassLayout);
+        ptScene->tGBufferFillNoCullShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "gbuffer_fill", &tGBufferVariant);
 
         tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
         tGBufferFileVariantTemp.bWireframe = true;
-        ptScene->tGBufferFillWireframeShader = gptShaderVariant->get_shader("gbuffer_fill", &tGBufferFileVariantTemp, aiLightingConstantData, NULL, &gptData->tDeferredLightingRenderPassLayout);
+        ptScene->tGBufferFillWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "gbuffer_fill", &tGBufferVariant);
         tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_NONE;
-        ptScene->tGBufferFillNoCullWireframeShader = gptShaderVariant->get_shader("gbuffer_fill", &tGBufferFileVariantTemp, NULL, NULL, &gptData->tDeferredLightingRenderPassLayout);
+        ptScene->tGBufferFillNoCullWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "gbuffer_fill", &tGBufferVariant);
     }
 
     plGraphicsState tForwardVariantTemp = {
@@ -7131,30 +8603,37 @@ pl__renderer_load_shaders(plScene* ptScene)
         .bWireframe          = false
     };
 
+    plShaderVariantDesc tForwardVariant = {
+        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout,
+        .pVertexConstants = aiLightingConstantData,
+        .pFragmentConstants = aiLightingConstantData,
+        .ptGraphicsState = &tForwardVariantTemp
+    };
+
     if(ptScene->tShaderDebugMode)
     {
-        ptScene->tForwardShader = gptShaderVariant->get_shader("forward_debug", &tForwardVariantTemp, NULL, aiLightingConstantData, &gptData->tTransparentRenderPassLayout);
+        ptScene->tForwardShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward_debug", &tForwardVariant);
         tForwardVariantTemp.eCullMode = PL_CULL_MODE_NONE;
-        ptScene->tForwardNoCullShader = gptShaderVariant->get_shader("forward_debug", &tForwardVariantTemp, NULL, aiLightingConstantData, &gptData->tTransparentRenderPassLayout);
+        ptScene->tForwardNoCullShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward_debug", &tForwardVariant);
 
         tForwardVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
         tForwardVariantTemp.bWireframe = true;
-        ptScene->tForwardWireframeShader = gptShaderVariant->get_shader("forward_debug", &tForwardVariantTemp, NULL, aiLightingConstantData, &gptData->tTransparentRenderPassLayout);
+        ptScene->tForwardWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward_debug", &tForwardVariant);
         tForwardVariantTemp.eCullMode = PL_CULL_MODE_NONE;
-        ptScene->tForwardNoCullWireframeShader = gptShaderVariant->get_shader("forward_debug", &tForwardVariantTemp, NULL, aiLightingConstantData, &gptData->tTransparentRenderPassLayout);
+        ptScene->tForwardNoCullWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward_debug", &tForwardVariant);
     }
     else
     {
         tForwardVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
-        ptScene->tForwardShader = gptShaderVariant->get_shader("forward", &tForwardVariantTemp, NULL, aiLightingConstantData, &gptData->tTransparentRenderPassLayout);
+        ptScene->tForwardShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tForwardVariant);
         tForwardVariantTemp.eCullMode = PL_CULL_MODE_NONE;
-        ptScene->tForwardNoCullShader = gptShaderVariant->get_shader("forward", &tForwardVariantTemp, NULL, aiLightingConstantData, &gptData->tTransparentRenderPassLayout);
+        ptScene->tForwardNoCullShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tForwardVariant);
 
         tForwardVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
         tForwardVariantTemp.bWireframe = true;
-        ptScene->tForwardWireframeShader = gptShaderVariant->get_shader("forward", &tForwardVariantTemp, NULL, aiLightingConstantData, &gptData->tTransparentRenderPassLayout);
+        ptScene->tForwardWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tForwardVariant);
         tForwardVariantTemp.eCullMode = PL_CULL_MODE_NONE;
-        ptScene->tForwardNoCullWireframeShader = gptShaderVariant->get_shader("forward", &tForwardVariantTemp, NULL, aiLightingConstantData, &gptData->tTransparentRenderPassLayout);
+        ptScene->tForwardNoCullWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tForwardVariant);
     }
 
 
@@ -7171,24 +8650,31 @@ pl__renderer_load_shaders(plScene* ptScene)
         .bWireframe          = false
     };
 
+    plShaderVariantDesc tTransmissionVariant = {
+        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout,
+        .pVertexConstants = aiLightingConstantData,
+        .pFragmentConstants = aiLightingConstantData,
+        .ptGraphicsState = &tTransmissionVariantTemp
+    };
+
     if(ptScene->tShaderDebugMode)
     {
-        ptScene->tTransmissionShader = gptShaderVariant->get_shader("forward_debug", &tTransmissionVariantTemp, NULL, aiLightingConstantData, &gptData->tTransparentRenderPassLayout);
+        ptScene->tTransmissionShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward_debug", &tTransmissionVariant);
         tTransmissionVariantTemp.bWireframe = true;
-        ptScene->tTransmissionWireframeShader = gptShaderVariant->get_shader("forward_debug", &tTransmissionVariantTemp, NULL, aiLightingConstantData, &gptData->tTransparentRenderPassLayout);
+        ptScene->tTransmissionWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward_debug", &tTransmissionVariant);
     }
     else
     {
-        ptScene->tTransmissionShader = gptShaderVariant->get_shader("transmission", &tTransmissionVariantTemp, NULL, NULL, &gptData->tTransparentRenderPassLayout);
+        ptScene->tTransmissionShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "transmission", &tTransmissionVariant);
         tTransmissionVariantTemp.bWireframe = true;
-        ptScene->tTransmissionWireframeShader = gptShaderVariant->get_shader("transmission", &tTransmissionVariantTemp, NULL, NULL, &gptData->tTransparentRenderPassLayout);
+        ptScene->tTransmissionWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "transmission", &tTransmissionVariant);
     }
 
     plGraphicsState tOutlineVariantTemp = {
         .bDepthWriteEnabled  = 1,
         .bStencilTestEnabled = 1,
         .eDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
-        .eCullMode           = PL_CULL_MODE_CULL_BACK,
+        .eCullMode           = PL_CULL_MODE_NONE,
         .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
         .uStencilRef         = 0xff,
         .uStencilMask        = 0xff,
@@ -7197,9 +8683,15 @@ pl__renderer_load_shaders(plScene* ptScene)
         .eStencilOpPass      = PL_STENCIL_OP_REPLACE,
         .bWireframe          = false
     };
-    ptScene->tOutlineShader = gptShaderVariant->get_shader("forward", &tOutlineVariantTemp, NULL, NULL, &gptData->tTransparentRenderPassLayout);
+
+    plShaderVariantDesc tOutlineVariant = {
+        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout,
+        .ptGraphicsState = &tOutlineVariantTemp
+    };
+
+    ptScene->tOutlineShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tOutlineVariant);
     tOutlineVariantTemp.eCullMode = PL_CULL_MODE_NONE;
-    ptScene->tOutlineNoCullShader = gptShaderVariant->get_shader("forward", &tOutlineVariantTemp, NULL, NULL, &gptData->tTransparentRenderPassLayout);
+    ptScene->tOutlineNoCullShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tOutlineVariant);
 
     plGraphicsState tTerrainVariantTemp = {
         .bDepthWriteEnabled  = 1,
@@ -7213,7 +8705,13 @@ pl__renderer_load_shaders(plScene* ptScene)
         .eStencilOpPass      = PL_STENCIL_OP_KEEP,
         .bWireframe          = 1
     };
-    ptScene->tTerrainWireframeShader = gptShaderVariant->get_shader("terrain", &tTerrainVariantTemp, NULL, NULL, &gptData->tRenderPassLayout);
+
+    plShaderVariantDesc tTerrainWireframeVariant = {
+        .ptAttachmentInfo = &gptData->tRenderPassLayout,
+        .ptGraphicsState = &tTerrainVariantTemp
+    };
+
+    ptScene->tTerrainWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "terrain", &tTerrainWireframeVariant);
     
     gptShader->set_options(&tOriginalOptions);
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);

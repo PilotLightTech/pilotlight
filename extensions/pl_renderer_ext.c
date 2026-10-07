@@ -155,6 +155,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     pl_sb_push(gptData->sbptScenes, ptScene);
 
     ptScene->tInit = tInit;
+    ptScene->ptShaderLibrary = gptShaderLibrary->create_library();
 
 
     ptScene->tEnvironment = gptAsset->load("/assets/environments/skybox.plenvironment");
@@ -169,6 +170,13 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     ptScene->pcName = "unnamed scene";
     ptScene->tInternalFlags = PL_SCENE_INTERNAL_FLAG_ACTIVE;
 
+    pl__renderer_scene_create_bindgroup_layouts(ptScene);
+
+    ptScene->tViewBGLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view");
+    ptScene->tShadowGlobalBGLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "shadow");
+
+    pl__renderer_scene_create_shaders(ptScene);
+    pl__renderer_scene_create_compute_shaders(ptScene);
     pl__renderer_load_shaders(ptScene);
 
     ptScene->uShadowAtlasResolution = ptInit->uShadowAtlasResolution;
@@ -191,6 +199,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     // create scene resources
     //-----------------------------------------------------------------------------
 
+    
     pl__renderer_scene_create_textures(ptScene);
     pl__renderer_scene_create_buffers(ptScene);
     pl__renderer_scene_create_bindgroups(ptScene);
@@ -513,7 +522,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
     pl_hm_free(&ptScene->tTextureIndexHashmap);
     pl_hm_free(&ptScene->tCubeTextureIndexHashmap);
 
-
+    gptShaderLibrary->cleanup_library(ptScene->ptShaderLibrary);
     gptFreeList->cleanup(&ptScene->tMaterialFreeList);
     gptFreeList->cleanup(&ptScene->tIndexBufferFreeList);
     gptFreeList->cleanup(&ptScene->tVertexBufferFreeList);
@@ -613,7 +622,6 @@ pl_renderer_cleanup(void)
     gptGfx->cleanup_draw_stream(&gptData->tDrawStream);
 
     pl_sb_free(gptData->sbptScenes);
-    gptShaderVariant->unload_manifest("/shaders/shaders.pls");
     gptStage->cleanup();
     gptGfx->flush_device(gptData->ptDevice);
 
@@ -641,8 +649,11 @@ pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
 
     gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_CYAN, 1.0f, "%s", "reloaded shaders");
 
-    gptShaderVariant->unload_manifest("/shaders/shaders.pls"); // removes/deletes shaders
-    gptShaderVariant->load_manifest("/shaders/shaders.pls");
+    gptShaderLibrary->unregister_shaders(ptScene->ptShaderLibrary);
+    gptShaderLibrary->unregister_compute_shaders(ptScene->ptShaderLibrary);
+
+    pl__renderer_scene_create_shaders(ptScene);
+    pl__renderer_scene_create_compute_shaders(ptScene);
 
     pl__renderer_load_shaders(ptScene);
 
@@ -870,6 +881,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         {
 
             plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbuActiveDrawables[i]];
+            ptDrawable->bCulled = false;
             plDrawableResources* ptDrawableResources = &ptScene->sbtDrawableResources[ptScene->sbuActiveDrawables[i]];
 
             plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->tEntity);
@@ -910,6 +922,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         {
 
             plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbuActiveDrawables[i]];
+            ptDrawable->bCulled = false;
             plDrawableResources* ptDrawableResources = &ptScene->sbtDrawableResources[ptScene->sbuActiveDrawables[i]];
 
             plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->tEntity);
@@ -1752,6 +1765,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
                     {
                         pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE], uDrawableIndex);  
                     }
+                    pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
                 }
                 else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_DEFERRED)
                 {
@@ -3637,7 +3651,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptBvh              = pl_get_api_latest(ptApiRegistry, plBVHI);
         gptAnimation        = pl_get_api_latest(ptApiRegistry, plAnimationI);
         gptMesh             = pl_get_api_latest(ptApiRegistry, plMeshI);
-        gptShaderVariant    = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+        gptShaderLibrary    = pl_get_api_latest(ptApiRegistry, plShaderLibraryI);
         gptVfs              = pl_get_api_latest(ptApiRegistry, plVfsI);
         gptStarter          = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptMaterial         = pl_get_api_latest(ptApiRegistry, plMaterialI);

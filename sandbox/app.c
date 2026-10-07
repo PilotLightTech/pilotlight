@@ -75,7 +75,7 @@ Index of this file:
 #include "pl_physics_ext.h"
 #include "pl_collision_ext.h"
 #include "pl_bvh_ext.h"
-#include "pl_shader_variant_ext.h"
+#include "pl_shader_library_ext.h"
 #include "pl_material_ext.h"
 #include "pl_script_ext.h"
 #include "pl_asset_ext.h"
@@ -123,7 +123,7 @@ const plResourceI*          gptResource         = NULL;
 const plStarterI*           gptStarter          = NULL;
 const plAnimationI*         gptAnimation        = NULL;
 const plMeshI*              gptMesh             = NULL;
-const plShaderVariantI*     gptShaderVariant    = NULL;
+const plShaderLibraryI*     gptShaderLibrary    = NULL;
 const plVfsI*               gptVfs              = NULL;
 const plPakI*               gptPak              = NULL;
 const plDateTimeI*          gptDateTime         = NULL;
@@ -358,10 +358,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plJobSystemInit tJobInit = {0};
     gptJobs->initialize(tJobInit);
 
-    const plShaderVariantInit tShaderVariantInit = {
+    const plShaderLibraryInit tShaderVariantInit = {
         ptAppData->ptDevice
     };
-    gptShaderVariant->initialize(tShaderVariantInit);
+    gptShaderLibrary->initialize(tShaderVariantInit);
 
     // setup reference renderer
     plRendererSettings tRenderSettings = PL_ZERO_INIT;
@@ -543,7 +543,6 @@ pl_app_shutdown(plAppData* ptAppData)
     gptEcs->cleanup();
     
     gptRenderer->cleanup();
-    gptShaderVariant->cleanup();
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
     PL_FREE(ptAppData);
@@ -584,9 +583,6 @@ pl_app_update(plAppData* ptAppData)
             gptRenderer->resize_view(ptAppData->ptView, ptIO->tMainViewportSize);
         ptAppData->bResize = false;
     }
-
-    // update statistics
-    gptShaderVariant->update_stats();
 
     if(ptAppData->ptScene)
     {
@@ -970,7 +966,7 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptStarter          = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptAnimation        = pl_get_api_latest(ptApiRegistry, plAnimationI);
     gptMesh             = pl_get_api_latest(ptApiRegistry, plMeshI);
-    gptShaderVariant    = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+    gptShaderLibrary    = pl_get_api_latest(ptApiRegistry, plShaderLibraryI);
     gptVfs              = pl_get_api_latest(ptApiRegistry, plVfsI);
     gptPak              = pl_get_api_latest(ptApiRegistry, plPakI);
     gptDateTime         = pl_get_api_latest(ptApiRegistry, plDateTimeI);

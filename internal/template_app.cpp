@@ -67,7 +67,7 @@ Index of this file:
 #include "pl_physics_ext.h"
 #include "pl_collision_ext.h"
 #include "pl_bvh_ext.h"
-#include "pl_shader_variant_ext.h"
+#include "pl_shader_library_ext.h"
 #include "pl_material_ext.h"
 #include "pl_script_ext.h"
 #include "pl_asset_ext.h"
@@ -120,7 +120,7 @@ const plResourceI*          gptResource         = nullptr;
 const plStarterI*           gptStarter          = nullptr;
 const plAnimationI*         gptAnimation        = nullptr;
 const plMeshI*              gptMesh             = nullptr;
-const plShaderVariantI*     gptShaderVariant    = nullptr;
+const plShaderLibraryI*     gptShaderLibrary    = nullptr;
 const plVfsI*               gptVfs              = nullptr;
 const plPakI*               gptPak              = nullptr;
 const plDateTimeI*          gptDateTime         = nullptr;
@@ -330,7 +330,7 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptStarter          = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptAnimation        = pl_get_api_latest(ptApiRegistry, plAnimationI);
     gptMesh             = pl_get_api_latest(ptApiRegistry, plMeshI);
-    gptShaderVariant    = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+    gptShaderLibrary    = pl_get_api_latest(ptApiRegistry, plShaderLibraryI);
     gptVfs              = pl_get_api_latest(ptApiRegistry, plVfsI);
     gptPak              = pl_get_api_latest(ptApiRegistry, plPakI);
     gptDateTime         = pl_get_api_latest(ptApiRegistry, plDateTimeI);
@@ -381,7 +381,7 @@ pl__load_extensions(plApiRegistryI* ptApiRegistry)
     ptExtensionRegistry->load("pl_bvh_ext", "pl_load_bvh_ext", "pl_unload_bvh_ext", false);
     ptExtensionRegistry->load("pl_config_ext", "pl_load_config_ext", "pl_unload_config_ext", false);
     ptExtensionRegistry->load("pl_mesh_ext", "pl_load_mesh_ext", "pl_unload_mesh_ext", false);
-    ptExtensionRegistry->load("pl_shader_variant_ext", "pl_load_shader_variant_ext", "pl_unload_shader_variant_ext", false);
+    ptExtensionRegistry->load("pl_shader_library_ext", "pl_load_shader_library_ext", "pl_unload_shader_library_ext", false);
     ptExtensionRegistry->load("pl_datetime_ext", "pl_load_datetime_ext", "pl_unload_datetime_ext", false);
     ptExtensionRegistry->load("pl_vfs_ext", "pl_load_vfs_ext", "pl_unload_vfs_ext", false);
     ptExtensionRegistry->load("pl_compress_ext", "pl_load_compress_ext", "pl_unload_compress_ext", false);

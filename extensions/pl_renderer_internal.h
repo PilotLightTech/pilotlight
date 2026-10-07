@@ -65,7 +65,7 @@ Index of this file:
 #include "pl_mesh_ext.h"
 #include "pl_camera_ext.h"
 #include "pl_bvh_ext.h"
-#include "pl_shader_variant_ext.h"
+#include "pl_shader_library_ext.h"
 #include "pl_gjk_ext.h"
 #include "pl_script_ext.h"
 #include "pl_material_ext.h"
@@ -136,7 +136,7 @@ Index of this file:
     static const plBVHI*              gptBvh           = NULL;
     static const plAnimationI*        gptAnimation     = NULL;
     static const plMeshI*             gptMesh          = NULL;
-    static const plShaderVariantI*    gptShaderVariant = NULL;
+    static const plShaderLibraryI*    gptShaderLibrary = NULL;
     static const plMaterialI*         gptMaterial      = NULL;
     static const plTerrainI*          gptTerrain       = NULL;
     static const plStageI*            gptStage         = NULL;
@@ -435,6 +435,11 @@ typedef struct _plScene
     plSceneInternalFlags tInternalFlags;
     plComponentLibrary*  ptComponentLibrary;
     plView**             sbptViews; // child views
+    plShaderLibrary*     ptShaderLibrary;
+
+    // bind group layouts
+    plBindGroupLayoutHandle tViewBGLayout;
+    plBindGroupLayoutHandle tShadowGlobalBGLayout;
 
     plAssetHandle tSettings;
     plAssetHandle tEnvironment;
@@ -645,10 +650,6 @@ typedef struct _plRefRendererData
     plRenderAttachmentInfo tDepthRenderPassLayout;
     plRenderAttachmentInfo tPickRenderPassLayout;
 
-    // bind group layouts
-    plBindGroupLayoutHandle tViewBGLayout;
-    plBindGroupLayoutHandle tShadowGlobalBGLayout;
-
     // renderer specific log channel
     uint64_t uLogChannel;
 
@@ -776,6 +777,9 @@ static void     pl__renderer_return_bindless_texture_index(plScene*, plTextureHa
 static void     pl__renderer_return_bindless_cube_texture_index(plScene*, plTextureHandle);
 
 // scene helpers
+static void     pl__renderer_scene_create_bindgroup_layouts  (plScene*);
+static void     pl__renderer_scene_create_shaders            (plScene*);
+static void     pl__renderer_scene_create_compute_shaders    (plScene*);
 static void     pl__renderer_scene_create_textures           (plScene*);
 static void     pl__renderer_scene_create_buffers            (plScene*);
 static void     pl__renderer_scene_create_bindgroups         (plScene*);
