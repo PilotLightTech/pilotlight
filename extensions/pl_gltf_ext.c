@@ -617,7 +617,7 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
                     ptrdiff_t tMeshIndex = ptGltfMesh - ptGltfData->meshes;
                     if(ptNode->mesh->name)
                     {
-                        pl_sprintf(acBuffer, "/assets/meshes/%s.plmesh", ptNode->mesh->name);
+                        pl_sprintf(acBuffer, "/assets/meshes/%s_%u.plmesh", ptNode->mesh->name, (uint32_t)tMeshIndex);
                     }
                     else
                     {
@@ -1313,7 +1313,7 @@ pl__import_gltf_mesh(cgltf_data* ptGltfData, const char* pcFileNameOnly, const c
     char acBuffer[256] = {0};
     if(ptGltfMesh->name)
     {
-        pl_sprintf(acBuffer, "/assets/meshes/%s.plmesh", ptGltfMesh->name);
+        pl_sprintf(acBuffer, "/assets/meshes/%s_%u.plmesh", ptGltfMesh->name, uMeshIndex);
     }
     else
     {
