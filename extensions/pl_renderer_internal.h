@@ -184,8 +184,8 @@ enum _plDrawableFlags
     PL_DRAWABLE_FLAG_FORWARD      = 1 << 0,
     PL_DRAWABLE_FLAG_DEFERRED     = 1 << 1,
     PL_DRAWABLE_FLAG_TRANSMISSION = 1 << 2,
-    PL_DRAWABLE_FLAG_PROBE        = 1 << 3,
-    PL_DRAWABLE_FLAG_HAS_ALPHA    = 1 << 4, // for shadow pass
+    PL_DRAWABLE_FLAG_HAS_ALPHA    = 1 << 3, // for shadow pass
+    PL_DRAWABLE_FLAG_CASTS_SHADOW = 1 << 4
 };
 
 enum _plSceneInternalFlags

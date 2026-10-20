@@ -192,7 +192,6 @@ typedef struct _plRendererI
     void (*prepare_scene)(plScene*, const plCamera**, uint32_t cameraCount);
     void (*prepare_view) (plView*, const plCamera*);
     void (*render_view)      (plView*, const plRenderViewDesc*);
-    void (*render_debug_view)(plView*, const plRenderViewDesc*);
 
     // assets
     void           (*register_asset_types)(void);
@@ -451,9 +450,7 @@ enum _plObjectFlags
     PL_OBJECT_FLAGS_RENDERABLE     = 1 << 0,
     PL_OBJECT_FLAGS_CAST_SHADOW    = 1 << 1,
     PL_OBJECT_FLAGS_RECEIVE_SHADOW = 1 << 2,
-    PL_OBJECT_FLAGS_DYNAMIC        = 1 << 3,
-    PL_OBJECT_FLAGS_FOREGROUND     = 1 << 4,
-    PL_OBJECT_FLAGS_OUTLINE        = 1 << 5
+    PL_OBJECT_FLAGS_OUTLINE        = 1 << 3
 };
 
 enum _plRenderSceneFlags

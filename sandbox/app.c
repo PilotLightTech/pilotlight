@@ -754,8 +754,7 @@ pl_app_update(plAppData* ptAppData)
             .ptCamera     = ptCamera
         };
         gptRenderer->prepare_view(ptAppData->ptView, ptCamera);
-
-        gptRenderer->render_debug_view(ptAppData->ptView, &tViewDesc0);
+        
         gptRenderer->render_view(ptAppData->ptView, &tViewDesc0);
 
         plVec2 tStartPos = {0};
@@ -779,6 +778,29 @@ pl_app_update(plAppData* ptAppData)
             }
         }
     }
+
+
+    plDrawTextOptions tTextOptions = {
+        .fSize = 13.0f,
+        .ptFont = ptAppData->tDefaultFont,
+        .uColor = PL_COLOR_32_GREEN
+    };
+
+    if(ptIO->fFrameRate < 10.0f) tTextOptions.uColor = PL_COLOR_32_RED;
+    if(ptIO->fFrameRate < 28.0f) tTextOptions.uColor = PL_COLOR_32_YELLOW;
+    if(ptIO->fFrameRate < 58.0f) tTextOptions.uColor = PL_COLOR_32_ORANGE;
+
+    float fCurrentY = 10.0f;
+    float fSpacing = 15.0f;
+    char acTextBuffer[64] = {0};
+    sprintf(acTextBuffer, "%0.1f FPS / %0.1f ms", ptIO->fFrameRate, ptIO->fDeltaTime * 1000.0f);
+    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, acTextBuffer, tTextOptions); fCurrentY += fSpacing;
+    tTextOptions.uColor = PL_COLOR_32_WHITE;
+
+    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, PILOT_LIGHT_VERSION_STRING, tTextOptions); fCurrentY += fSpacing;
+
+    sprintf(acTextBuffer, "Backend: %s", gptGfx->get_backend_string());
+    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, acTextBuffer, tTextOptions); fCurrentY += fSpacing;
 
     // ui windows
     if(ptAppData->ptScene == NULL)
@@ -874,16 +896,6 @@ pl_app_update(plAppData* ptAppData)
     {
         plComponentLibrary* ptLibrary = (plComponentLibrary*)gptAsset->get_data(ptAppData->tSceneHandle);
 
-        plDrawTextOptions tTextOptions = {
-            .fSize = 13.0f,
-            .ptFont = ptAppData->tDefaultFont,
-            .uColor = PL_COLOR_32_WHITE
-        };
-
-        float fCurrentY = 10.0f;
-        float fSpacing = 15.0f;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, PILOT_LIGHT_VERSION_STRING, tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, gptGfx->get_backend_string(), tTextOptions); fCurrentY += fSpacing;
         gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "Controls", tTextOptions); fCurrentY += fSpacing;
         gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* F1  - bring up console", tTextOptions); fCurrentY += fSpacing;
         gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* M   - change gizmo mode", tTextOptions); fCurrentY += fSpacing;

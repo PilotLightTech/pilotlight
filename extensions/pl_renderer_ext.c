@@ -683,18 +683,75 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
-    // const uint32_t uDrawableCount = pl_sb_size(ptScene->sbuActiveDrawables);
-    // for(uint32_t i = 0; i < uDrawableCount; i++)
-    // {
-    //     uint32_t uDrawableIndex = ptScene->sbuActiveDrawables[i];
-    //     plDrawable* ptDrawable = &ptScene->sbtDrawables[uDrawableIndex];
-    //     plDrawableResources* ptDrawableResources = &ptScene->sbtDrawableResources[uDrawableIndex];
-    //     plEntity tEntity = ptDrawableResources->tEntity;
+    ptScene->tInternalFlags = PL_SCENE_INTERNAL_FLAG_ACTIVE;
 
-    //     plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tEntity);
-    //     plMesh* ptMainMesh = gptAsset->get_data(ptObject->tMesh);
-    //     plSubmesh* ptMesh = &ptMainMesh->atSubmeshes[ptObject->uFirstSubmesh];
-    // }
+    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbuActiveDrawables);
+    for(uint32_t i = 0; i < uDrawableCount; i++)
+    {
+        uint32_t uDrawableIndex = ptScene->sbuActiveDrawables[i];
+        plDrawable* ptDrawable = &ptScene->sbtDrawables[uDrawableIndex];
+        plDrawableResources* ptDrawableResources = &ptScene->sbtDrawableResources[uDrawableIndex];
+        plEntity tEntity = ptDrawableResources->tEntity;
+
+        plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tEntity);
+        plMesh* ptMainMesh = gptAsset->get_data(ptObject->tMesh);
+        plSubmesh* ptMesh = &ptMainMesh->atSubmeshes[ptObject->uFirstSubmesh];
+
+        plAssetHandle tMaterial = ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[ptDrawableResources->uSubmeshIndex - ptObject->uFirstSubmesh] : ptMesh->tMaterial;
+        plMaterial* ptMaterial = gptAsset->get_data(tMaterial);
+
+        if(gptEcs->has_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, tEntity))
+        {
+            if(ptScene->bShowProbes)
+                ptObject->tFlags |= PL_OBJECT_FLAGS_RENDERABLE;
+            else
+                ptObject->tFlags &= ~PL_OBJECT_FLAGS_RENDERABLE;
+        }
+
+        if(ptObject->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW)
+            ptDrawable->tFlags |= PL_DRAWABLE_FLAG_CASTS_SHADOW;
+
+        bool bForward = false;
+
+        // use forward renderer if material is transparent
+        if(ptMaterial->eAlphaMode == PL_MATERIAL_ALPHA_MODE_BLEND)
+            bForward = true;
+
+        if(ptMaterial->eAlphaMode != PL_MATERIAL_ALPHA_MODE_OPAQUE)
+        {
+            ptDrawable->tFlags |= PL_DRAWABLE_FLAG_HAS_ALPHA;
+        }
+
+        // use forward renderer if material is advanced (can't fit required properties in gbuffer)
+        if(
+            ptMaterial->fEmissiveStrength > 0.0f ||
+            ptMaterial->eFlags & PL_MATERIAL_FLAG_CLEARCOAT ||
+            ptMaterial->eFlags & PL_MATERIAL_FLAG_SHEEN ||
+            ptMaterial->eFlags & PL_MATERIAL_FLAG_IRIDESCENCE ||
+            ptMaterial->eFlags & PL_MATERIAL_FLAG_ANISOTROPY ||
+            ptMaterial->eFlags & PL_MATERIAL_FLAG_TRANSMISSION ||
+            ptMaterial->eFlags & PL_MATERIAL_FLAG_VOLUME ||
+            ptMaterial->eFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION ||
+            ptMaterial->eFlags & PL_MATERIAL_FLAG_DISPERSION ||
+            gptAsset->is_valid(ptMaterial->atTextures[PL_MATERIAL_TEXTURE_SLOT_EMISSIVE].tTexture)
+        )
+            bForward = true;
+
+        // check if transmission textures are required
+        if(ptMaterial->eFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->eFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->eFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
+        {
+            ptDrawable->tFlags |= PL_DRAWABLE_FLAG_TRANSMISSION;
+            ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED;
+        }
+        else if(bForward)
+        {
+            if(ptMaterial->eFlags & PL_MATERIAL_FLAG_SHEEN) // check if sheen is required (additional scene textures)
+                ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED;
+            ptDrawable->tFlags |= PL_DRAWABLE_FLAG_FORWARD;
+        }
+        else
+            ptDrawable->tFlags |= PL_DRAWABLE_FLAG_DEFERRED;
+    }
 
     if(ptScene->bDynamicBVH)
         pl_renderer_editor_rebuild_scene_bvh(ptScene);
@@ -1506,173 +1563,11 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
 }
 
 void
-pl_renderer_render_debug_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
-{
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
-
-    plScene* ptScene   = ptView->ptParentScene;
-    const plCamera* ptCamera = ptViewDesc->ptCamera;
-
-    if(ptView->bFreezeCameraNextFrame || !ptView->bFrozenCamera)
-    {
-        ptView->tCullCamera = *ptCamera;
-        ptView->bFreezeCameraNextFrame = false;
-    }
-
-    const plCamera* ptCullCamera = ptView->bFrustumCulling ? &ptView->tCullCamera : NULL;
-
-    // debug lights
-    if(ptView->bDrawLightsDebug)
-    {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw lights");
-
-        plLightComponent* ptLights = NULL;
-        const uint32_t uLightCount = gptEcs->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
-
-        for(uint32_t i = 0; i < uLightCount; i++)
-        {
-            if(ptLights[i].tFlags & PL_LIGHT_FLAG_VISUALIZER)
-            {
-                const plVec4 tColor = {.rgb = ptLights[i].tColor, .a = 1.0f};
-                if(ptLights[i].tType == PL_LIGHT_TYPE_POINT)
-                {
-                    plSphere tSphere = {
-                        .fRadius = ptLights[i].fRadius,
-                        .tCenter = ptLights[i].tPosition
-                    };
-                    gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere, 6, 6, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.005f});
-                    tSphere.fRadius = ptLights[i].fRange;
-                    plSphere tSphere2 = {
-                        .fRadius = ptLights[i].fRange,
-                        .tCenter = ptLights[i].tPosition
-                    };
-                    gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere2, 0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-                }
-                else if(ptLights[i].tType == PL_LIGHT_TYPE_SPOT)
-                {
-                    plCone tCone0 = {
-                        .fRadius = tanf(ptLights[i].fOuterConeAngle * 0.5f) * ptLights[i].fRange,
-                        .tTipPos = ptLights[i].tPosition,
-                        .tBasePos = pl_add_vec3(ptLights[i].tPosition, pl_mul_vec3_scalarf(ptLights[i].tDirection, ptLights[i].fRange))
-                    };
-                    gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-
-                    if(ptLights[i].fInnerConeAngle > 0.0f)
-                    {
-                        plCone tCone1 = {
-                            .fRadius = tanf(ptLights[i].fInnerConeAngle) * ptLights[i].fRange,
-                            .tTipPos = ptLights[i].tPosition,
-                            .tBasePos = pl_add_vec3(ptLights[i].tPosition, pl_mul_vec3_scalarf(ptLights[i].tDirection, ptLights[i].fRange))
-                        };
-                        gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone1, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-                    }
-                }
-
-                else if(ptLights[i].tType == PL_LIGHT_TYPE_DIRECTIONAL)
-                {
-                    plVec3 tDirection = pl_norm_vec3(ptLights[i].tDirection);
-                    plCone tCone0 = {
-                        .fRadius = 0.125f,
-                        .tBasePos = (plVec3){0.0f, 3.0f, 0.0f},
-                        .tTipPos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, 0.25f))
-                    };
-                    gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-                    plCylinder tCylinder = {
-                        .fRadius = 0.0625f,
-                        .tBasePos = tCone0.tBasePos,
-                        .tTipPos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, -0.25f))
-                    };
-                    gptDraw->add_3d_cylinder(ptView->pt3DDrawList, tCylinder, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-                }
-            }
-        }
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-    }
-
-    // debug bounding boxes
-    if(ptView->bDrawBoundingBoxesDebug)
-    {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw bounding boxes");
-        const uint32_t uDrawableCount = pl_sb_size(ptScene->sbuActiveDrawables);
-        for(uint32_t i = 0; i < uDrawableCount; i++)
-        {
-            plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtDrawableResources[ptScene->sbuActiveDrawables[i]].tEntity);
-
-            plMesh* ptMesh = gptAsset->get_data(ptObject->tMesh);
-            gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 0.2f, 0.0f), .fThickness = 0.02f});
-        }
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-    }
-
-    // debug bvh
-    if(ptView->bDrawBvhDebug)
-    {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw BVH");
-
-        plObjectComponent* ptComponents = NULL;
-        gptEcs->get_components(ptScene->ptComponentLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
-
-        plBVHNode* ptNode = NULL;
-        uint32_t uLeafIndex = UINT32_MAX;
-        while (gptBvh->traverse(&ptScene->tBvh, &ptNode, &uLeafIndex))
-        {
-            if(uLeafIndex != UINT32_MAX)
-            {
-                plObjectComponent* ptObject = &ptComponents[uLeafIndex];
-                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_DARK_BLUE});
-            }
-            else
-            {
-                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptNode->tAABB.tMin, ptNode->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_WHITE});
-            }
-        }
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-    }
-
-    if(ptView->bShowOrigin)
-    {
-        const plMat4 tTransform = pl_identity_mat4();
-        gptDraw->add_3d_transform(ptView->pt3DDrawList, &tTransform, 10.0f, (plDrawLineOptions){.fThickness = 0.02f});
-    }
-
-    plRenderEnvironment* ptEnvironment = gptAsset->get_data(ptScene->tEnvironment);
-
-    if(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER)
-    {
-        const plVec4 tColor = {.rgb = ptEnvironment->tSunColor, .a = 1.0f};
-        plVec3 tDirection = pl_norm_vec3(ptEnvironment->tSunDirection);
-        plCone tCone0 = {
-            .fRadius = 0.125f,
-            .tBasePos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, -0.25f)),
-            .tTipPos = (plVec3){0.0f, 3.0f, 0.0f}
-        };
-        gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-        plCylinder tCylinder = {
-            .fRadius = 0.0625f,
-            .tBasePos = tCone0.tBasePos,
-            .tTipPos = pl_add_vec3(tCone0.tBasePos, pl_mul_vec3_scalarf(tDirection, -1.0f))
-        };
-        gptDraw->add_3d_cylinder(ptView->pt3DDrawList, tCylinder, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-    }
-
-    if(ptView->bFrozenCamera)
-    {
-        const plDrawFrustumDesc tFrustumDesc = {
-            .fAspectRatio = ptCullCamera->fAspectRatio,
-            .fFarZ        = ptCullCamera->fFarZ,
-            .fNearZ       = ptCullCamera->fNearZ,
-            .fYFov        = ptCullCamera->fYFov
-        };
-        gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tInvViewMat, tFrustumDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = 0.02f});
-    }
-
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-}
-
-void
 pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+
+    pl__renderer_render_debug_view(ptView, ptViewDesc);
 
     const plCamera* ptCamera = ptViewDesc->ptCamera;
     if(ptView->bFreezeCameraNextFrame || !ptView->bFrozenCamera)
@@ -1716,15 +1611,6 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
         gptJob->dispatch_batch(uDrawableCount, 0, tJobDesc, &ptCullCounter);
     }
-    else // no culling, just copy drawables over
-    {
-        if(pl_sb_size(ptScene->sbtVisibleDrawables) != uDrawableCount)
-        {
-            pl_sb_resize(ptScene->sbtVisibleDrawables, uDrawableCount);
-            for(uint32_t i = 0; i < uDrawableCount; i++)
-                ptScene->sbtVisibleDrawables[i] = ptScene->sbuActiveDrawables[i];
-        }
-    }
     gptJob->wait_for_counter(ptCullCounter);
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0); // culling
 
@@ -1751,6 +1637,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
             bool bVisible = ptCullCamera ? !ptDrawable->bCulled : true;
             if(bVisible)
             {
+                // outlined objects
                 if(ptObject->tFlags & PL_OBJECT_FLAGS_OUTLINE)
                 {
                     if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_TRANSMISSION)
@@ -1767,6 +1654,8 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
                     }
                     pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
                 }
+
+                // deferred objects
                 else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_DEFERRED)
                 {
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
@@ -1779,14 +1668,8 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
                     }
                     pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
                 }
-                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PROBE)
-                {
-                    if(ptScene->bShowProbes)
-                    {
-                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_DEFERRED], uDrawableIndex);
-                        pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
-                    }
-                }
+
+                // forward objects
                 else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_FORWARD)
                 {
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
@@ -3305,7 +3188,7 @@ pl_renderer_register_ecs_components(void)
     };
 
     static const plObjectComponent tObjectComponentDefault = {
-        .tFlags     = PL_OBJECT_FLAGS_RENDERABLE | PL_OBJECT_FLAGS_CAST_SHADOW | PL_OBJECT_FLAGS_DYNAMIC,
+        .tFlags     = PL_OBJECT_FLAGS_RENDERABLE | PL_OBJECT_FLAGS_CAST_SHADOW,
         .tMesh      = {UINT32_MAX, UINT32_MAX},
         .tTransform = {UINT32_MAX, UINT32_MAX},
         .uFirstSubmesh = 0,
@@ -3673,7 +3556,6 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi0.prepare_scene                  = pl_renderer_prepare_scene;
     tApi0.prepare_view                   = pl_renderer_prepare_view;
     tApi0.render_view                    = pl_renderer_render_view;
-    tApi0.render_debug_view              = pl_renderer_render_debug_view;
     tApi0.get_view_color_bind_group      = pl_renderer_get_view_color_bind_group;
     tApi0.resize_view                    = pl_renderer_resize_view;
     tApi0.set_scene_flags                = pl_renderer_set_scene_flags;
@@ -3703,7 +3585,6 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi0.add_component_to_scene             = pl_renderer_add_component_to_scene;
     tApi0.remove_entity_from_scene           = pl_renderer_remove_entity_from_scene;
     tApi0.remove_component_from_scene        = pl_renderer_remove_component_from_scene;
-
 
     pl_set_api(ptApiRegistry, plRendererI, &tApi0);
 

@@ -625,7 +625,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
                 {
                     pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
                 }
-                else if(!(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PROBE))
+                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_CASTS_SHADOW)
                 {
                     pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
                 }
@@ -1372,7 +1372,7 @@ pl__renderer_generate_direction_view_map(plCommandBuffer* ptCommandBuffer, plSce
                 {
                     pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
                 }
-                else if(!(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PROBE))
+                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_CASTS_SHADOW)
                 {
                     pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
                 }
@@ -1838,7 +1838,7 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
                 {
                     pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
                 }
-                else if(!(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PROBE))
+                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_CASTS_SHADOW)
                 {
                     pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
                 }
@@ -6156,22 +6156,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
-            .pcDebugName = "skybox",
-            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .pcDebugName     = "skybox",
+            .tVertexShader   = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_skybox.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = 0,
-                .eDepthMode = PL_COMPARE_MODE_EQUAL,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = 0,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_EQUAL,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atBlendStates = {
                 {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL}
@@ -6188,22 +6188,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
-            .pcDebugName = "jumpfloodalgo2",
-            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .pcDebugName     = "jumpfloodalgo2",
+            .tVertexShader   = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_jumpfloodalgo.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = 0,
-                .eDepthMode = PL_COMPARE_MODE_ALWAYS,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = 0,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_ALWAYS,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atBlendStates = {
                 {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL}
@@ -6219,22 +6219,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
-            .pcDebugName = "sky",
-            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .pcDebugName     = "sky",
+            .tVertexShader   = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_sky.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = 0,
-                .eDepthMode = PL_COMPARE_MODE_EQUAL,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = 0,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_EQUAL,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atBlendStates = {
                 {.bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL}
@@ -6251,22 +6251,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
-            .pcDebugName = "gbuffer_fill",
-            .tVertexShader = gptShader->load_glsl("pl_gbuffer_fill.vert", "main", NULL, NULL),
+            .pcDebugName     = "gbuffer_fill",
+            .tVertexShader   = gptShader->load_glsl("pl_gbuffer_fill.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_gbuffer_fill.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = 0,
-                .eDepthMode = PL_COMPARE_MODE_EQUAL,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = 0,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_EQUAL,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -6293,22 +6293,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
     {
         int iDataHolder = 0;
         plShaderDesc tDesc = {
-            .pcDebugName = "gbuffer_fill_debug",
-            .tVertexShader = gptShader->load_glsl("pl_gbuffer_fill.vert", "main", NULL, NULL),
+            .pcDebugName     = "gbuffer_fill_debug",
+            .tVertexShader   = gptShader->load_glsl("pl_gbuffer_fill.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_gbuffer_fill_debug.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = 0,
-                .eDepthMode = PL_COMPARE_MODE_EQUAL,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = 0,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_EQUAL,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -6338,22 +6338,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
-            .pcDebugName = "forward",
-            .tVertexShader = gptShader->load_glsl("pl_forward.vert", "main", NULL, NULL),
+            .pcDebugName     = "forward",
+            .tVertexShader   = gptShader->load_glsl("pl_forward.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_forward.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = 0,
-                .eDepthMode = PL_COMPARE_MODE_EQUAL,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = 0,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_EQUAL,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -6364,13 +6364,13 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
             },
             .atBlendStates = {
                 {
-                    .bBlendEnabled = true,
+                    .bBlendEnabled   = true,
                     .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eColorOp        = PL_BLEND_OP_ADD,
                     .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .eAlphaOp        = PL_BLEND_OP_ADD,
                     .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
                 }
             },
@@ -6386,22 +6386,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
     {
         int iPlaceHolder = 0;
         plShaderDesc tDesc = {
-            .pcDebugName = "forward_debug",
-            .tVertexShader = gptShader->load_glsl("pl_forward.vert", "main", NULL, NULL),
+            .pcDebugName     = "forward_debug",
+            .tVertexShader   = gptShader->load_glsl("pl_forward.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_forward_debug.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = 0,
-                .eDepthMode = PL_COMPARE_MODE_EQUAL,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = 0,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_EQUAL,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -6415,13 +6415,13 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
             },
             .atBlendStates = {
                 {
-                    .bBlendEnabled = true,
+                    .bBlendEnabled   = true,
                     .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eColorOp        = PL_BLEND_OP_ADD,
                     .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .eAlphaOp        = PL_BLEND_OP_ADD,
                     .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
                 }
             },
@@ -6437,32 +6437,32 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
-            .pcDebugName = "grid",
-            .tVertexShader = gptShader->load_glsl("pl_grid.vert", "main", NULL, NULL),
+            .pcDebugName     = "grid",
+            .tVertexShader   = gptShader->load_glsl("pl_grid.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_grid.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = 0,
-                .eDepthMode = PL_COMPARE_MODE_GREATER,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = 0,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_GREATER,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atBlendStates = {
                 {
-                    .bBlendEnabled = true,
+                    .bBlendEnabled   = true,
                     .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eColorOp        = PL_BLEND_OP_ADD,
                     .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .eAlphaOp        = PL_BLEND_OP_ADD,
                     .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
                 }
             },
@@ -6473,22 +6473,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
-            .pcDebugName = "transmission",
-            .tVertexShader = gptShader->load_glsl("pl_forward.vert", "main", NULL, NULL),
+            .pcDebugName     = "transmission",
+            .tVertexShader   = gptShader->load_glsl("pl_forward.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_forward.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = 0,
-                .eDepthMode = PL_COMPARE_MODE_EQUAL,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = 0,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_EQUAL,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -6511,22 +6511,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
-            .pcDebugName = "uvmap",
+            .pcDebugName   = "uvmap",
             .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_uvmap.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = 0,
-                .eDepthMode = PL_COMPARE_MODE_ALWAYS,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = 0,
-                .bStencilTestEnabled = 1,
-                .eStencilMode = PL_COMPARE_MODE_LESS,
-                .uStencilRef = 128,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_ALWAYS,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = true,
+                .eStencilMode        = PL_COMPARE_MODE_LESS,
+                .uStencilRef         = 128,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atBlendStates = {
                 { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL }
@@ -6538,22 +6538,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
-            .pcDebugName = "picking",
-            .tVertexShader = gptShader->load_glsl("pl_picking.vert", "main", NULL, NULL),
+            .pcDebugName     = "picking",
+            .tVertexShader   = gptShader->load_glsl("pl_picking.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_picking.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = 0,
-                .eDepthMode = PL_COMPARE_MODE_EQUAL,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = 0,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_EQUAL,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -6576,21 +6576,21 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
-            .pcDebugName = "shadow",
+            .pcDebugName   = "shadow",
             .tVertexShader = gptShader->load_glsl("pl_shadow.vert", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = true,
-                .eDepthMode = PL_COMPARE_MODE_GREATER_OR_EQUAL,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = true,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = true,
+                .eDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = true,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -6613,22 +6613,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
-            .pcDebugName = "alphashadow",
-            .tVertexShader = gptShader->load_glsl("pl_shadow.vert", "main", NULL, NULL),
+            .pcDebugName     = "alphashadow",
+            .tVertexShader   = gptShader->load_glsl("pl_shadow.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_shadow.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = true,
-                .eDepthMode = PL_COMPARE_MODE_GREATER_OR_EQUAL,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = true,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = true,
+                .eDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = true,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -6660,32 +6660,32 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
-            .pcDebugName = "deferred_lighting",
-            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .pcDebugName     = "deferred_lighting",
+            .tVertexShader   = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_probe.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = true,
-                .eDepthMode = PL_COMPARE_MODE_ALWAYS,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = false,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = true,
+                .eDepthMode          = PL_COMPARE_MODE_ALWAYS,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atBlendStates = {
                 {
-                    .bBlendEnabled = true,
+                    .bBlendEnabled   = true,
                     .eSrcColorFactor = PL_BLEND_FACTOR_ONE,
                     .eDstColorFactor = PL_BLEND_FACTOR_ONE,
-                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eColorOp        = PL_BLEND_OP_ADD,
                     .eSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
                     .eDstAlphaFactor = PL_BLEND_FACTOR_ONE,
-                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .eAlphaOp        = PL_BLEND_OP_ADD,
                     .uColorWriteMask = PL_COLOR_WRITE_MASK_R | PL_COLOR_WRITE_MASK_G | PL_COLOR_WRITE_MASK_B
                 },
                 { .bBlendEnabled = false, .uColorWriteMask = 0 },
@@ -6704,22 +6704,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
    {
         plShaderDesc tDesc = {
-            .pcDebugName = "deferred_lighting_sun",
-            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .pcDebugName     = "deferred_lighting_sun",
+            .tVertexShader   = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_sun.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = false,
-                .eDepthMode = PL_COMPARE_MODE_ALWAYS,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = false,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_ALWAYS,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atBlendStates = {
                 {
@@ -6748,22 +6748,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
    {
         plShaderDesc tDesc = {
-            .pcDebugName = "deferred_lighting_directional",
-            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .pcDebugName     = "deferred_lighting_directional",
+            .tVertexShader   = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_directional.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = false,
-                .eDepthMode = PL_COMPARE_MODE_ALWAYS,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = false,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_ALWAYS,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atBlendStates = {
                 {
@@ -6792,22 +6792,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
    {
         plShaderDesc tDesc = {
-            .pcDebugName = "deferred_lighting_spot",
-            .tVertexShader = gptShader->load_glsl("pl_deferred_lighting_spot.vert", "main", NULL, NULL),
+            .pcDebugName     = "deferred_lighting_spot",
+            .tVertexShader   = gptShader->load_glsl("pl_deferred_lighting_spot.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_spot.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = false,
-                .eDepthMode = PL_COMPARE_MODE_LESS,
-                .eCullMode = PL_CULL_MODE_CULL_FRONT,
-                .bWireframe = 0,
-                .bDepthClampEnabled = false,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_LESS,
+                .eCullMode           = PL_CULL_MODE_CULL_FRONT,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -6818,13 +6818,13 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
             },
             .atBlendStates = {
                 {
-                    .bBlendEnabled = true,
+                    .bBlendEnabled   = true,
                     .eSrcColorFactor = PL_BLEND_FACTOR_ONE,
                     .eDstColorFactor = PL_BLEND_FACTOR_ONE,
-                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eColorOp        = PL_BLEND_OP_ADD,
                     .eSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
                     .eDstAlphaFactor = PL_BLEND_FACTOR_ONE,
-                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .eAlphaOp        = PL_BLEND_OP_ADD,
                     .uColorWriteMask = PL_COLOR_WRITE_MASK_R | PL_COLOR_WRITE_MASK_G | PL_COLOR_WRITE_MASK_B
                 }
             },
@@ -6840,22 +6840,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
    {
         plShaderDesc tDesc = {
-            .pcDebugName = "deferred_lighting_point",
-            .tVertexShader = gptShader->load_glsl("pl_deferred_lighting_point.vert", "main", NULL, NULL),
+            .pcDebugName     = "deferred_lighting_point",
+            .tVertexShader   = gptShader->load_glsl("pl_deferred_lighting_point.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_point.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = false,
-                .eDepthMode = PL_COMPARE_MODE_LESS,
-                .eCullMode = PL_CULL_MODE_CULL_FRONT,
-                .bWireframe = 0,
-                .bDepthClampEnabled = true,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_LESS,
+                .eCullMode           = PL_CULL_MODE_CULL_FRONT,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = true,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -6892,22 +6892,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
    {
         int aiPlaceHolder[2] = {0};
         plShaderDesc tDesc = {
-            .pcDebugName = "deferred_lighting_debug",
-            .tVertexShader = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
+            .pcDebugName     = "deferred_lighting_debug",
+            .tVertexShader   = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_debug.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = false,
-                .eDepthMode = PL_COMPARE_MODE_ALWAYS,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = false,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = false,
+                .eDepthMode          = PL_COMPARE_MODE_ALWAYS,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -6922,13 +6922,13 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
             },
             .atBlendStates = {
                 {
-                    .bBlendEnabled = true,
+                    .bBlendEnabled   = true,
                     .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .eDstColorFactor = PL_BLEND_FACTOR_ONE,
-                    .eColorOp =        PL_BLEND_OP_ADD,
+                    .eColorOp        = PL_BLEND_OP_ADD,
                     .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .eDstAlphaFactor = PL_BLEND_FACTOR_ONE,
-                    .eAlphaOp =        PL_BLEND_OP_ADD,
+                    .eAlphaOp        = PL_BLEND_OP_ADD,
                     .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
                 },
                 { .bBlendEnabled = false, .uColorWriteMask = 0 },
@@ -6948,22 +6948,22 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
    {
         plShaderDesc tDesc = {
-            .pcDebugName = "terrain",
-            .tVertexShader = gptShader->load_glsl("pl_terrain.vert", "main", NULL, NULL),
+            .pcDebugName     = "terrain",
+            .tVertexShader   = gptShader->load_glsl("pl_terrain.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_terrain.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = true,
-                .eDepthMode = PL_COMPARE_MODE_GREATER,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = false,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = true,
+                .eDepthMode          = PL_COMPARE_MODE_GREATER,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -6991,21 +6991,21 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
    {
         plShaderDesc tDesc = {
-            .pcDebugName = "terrain_shadow",
+            .pcDebugName   = "terrain_shadow",
             .tVertexShader = gptShader->load_glsl("pl_terrain_shadow.vert", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled = true,
-                .eDepthMode = PL_COMPARE_MODE_GREATER_OR_EQUAL,
-                .eCullMode = PL_CULL_MODE_NONE,
-                .bWireframe = 0,
-                .bDepthClampEnabled = true,
-                .bStencilTestEnabled = 0,
-                .eStencilMode = PL_COMPARE_MODE_ALWAYS,
-                .uStencilRef = 0xff,
-                .uStencilMask = 0xff,
-                .eStencilOpFail = PL_STENCIL_OP_KEEP,
+                .bDepthWriteEnabled  = true,
+                .eDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = true,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .eStencilOpPass = PL_STENCIL_OP_KEEP
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
@@ -8318,8 +8318,6 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
             ptDrawableResources->uSkinIndex = UINT32_MAX;
             ptDrawable->uTransformIndex = pl__renderer_get_transform_slot(ptScene);
 
-            plEntity tEntity = ptDrawableResources->tEntity;
-
             pl_hm_insert(&ptScene->tDrawableHashmap, uDrawHash, uDrawableIndex);
 
             bool bResult = pl__renderer_add_drawable_data_to_global_buffer(ptScene, uDrawableIndex, ptObject->uFirstSubmesh + uSubmeshIndex);
@@ -8331,55 +8329,6 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
             }
 
             plAssetHandle tMaterial = ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[uSubmeshIndex] : ptMesh->tMaterial;
-            plMaterial* ptMaterial = gptAsset->get_data(tMaterial);
-        
-
-            if(gptEcs->has_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, tEntity))
-                ptDrawable->tFlags |= PL_DRAWABLE_FLAG_PROBE | PL_DRAWABLE_FLAG_FORWARD;
-            else // regular object
-            {
-                bool bForward = false;
-
-                // use forward renderer if material is transparent
-                if(ptMaterial->eAlphaMode == PL_MATERIAL_ALPHA_MODE_BLEND)
-                    bForward = true;
-
-                if(ptMaterial->eAlphaMode != PL_MATERIAL_ALPHA_MODE_OPAQUE)
-                {
-                    ptDrawable->tFlags |= PL_DRAWABLE_FLAG_HAS_ALPHA;
-                }
-
-                // use forward renderer if material is advanced (can't fit required properties in gbuffer)
-                if(
-                    ptMaterial->fEmissiveStrength > 0.0f ||
-                    ptMaterial->eFlags & PL_MATERIAL_FLAG_CLEARCOAT ||
-                    ptMaterial->eFlags & PL_MATERIAL_FLAG_SHEEN ||
-                    ptMaterial->eFlags & PL_MATERIAL_FLAG_IRIDESCENCE ||
-                    ptMaterial->eFlags & PL_MATERIAL_FLAG_ANISOTROPY ||
-                    ptMaterial->eFlags & PL_MATERIAL_FLAG_TRANSMISSION ||
-                    ptMaterial->eFlags & PL_MATERIAL_FLAG_VOLUME ||
-                    ptMaterial->eFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION ||
-                    ptMaterial->eFlags & PL_MATERIAL_FLAG_DISPERSION ||
-                    gptAsset->is_valid(ptMaterial->atTextures[PL_MATERIAL_TEXTURE_SLOT_EMISSIVE].tTexture)
-                )
-                    bForward = true;
-
-                // check if transmission textures are required
-                if(ptMaterial->eFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->eFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->eFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
-                {
-                    ptDrawable->tFlags |= PL_DRAWABLE_FLAG_TRANSMISSION;
-                    ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED;
-                }
-                else if(bForward)
-                {
-                    if(ptMaterial->eFlags & PL_MATERIAL_FLAG_SHEEN) // check if sheen is required (additional scene textures)
-                        ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED;
-                    ptDrawable->tFlags |= PL_DRAWABLE_FLAG_FORWARD;
-                }
-                else
-                    ptDrawable->tFlags |= PL_DRAWABLE_FLAG_DEFERRED;
-            }
-
             ptDrawable->uMaterialIndex = pl__renderer_get_or_create_material_slot(ptScene, tMaterial);
             pl_renderer_update_scene_asset(ptScene, tMaterial);
         }
@@ -8716,5 +8665,169 @@ pl__renderer_load_shaders(plScene* ptScene)
     ptScene->tTerrainWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "terrain", &tTerrainWireframeVariant);
     
     gptShader->set_options(&tOriginalOptions);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+}
+
+static void
+pl__renderer_render_debug_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
+{
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+
+    plScene* ptScene   = ptView->ptParentScene;
+    const plCamera* ptCamera = ptViewDesc->ptCamera;
+
+    if(ptView->bFreezeCameraNextFrame || !ptView->bFrozenCamera)
+    {
+        ptView->tCullCamera = *ptCamera;
+        ptView->bFreezeCameraNextFrame = false;
+    }
+
+    const plCamera* ptCullCamera = ptView->bFrustumCulling ? &ptView->tCullCamera : NULL;
+
+    // debug lights
+    if(ptView->bDrawLightsDebug)
+    {
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw lights");
+
+        plLightComponent* ptLights = NULL;
+        const uint32_t uLightCount = gptEcs->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
+
+        for(uint32_t i = 0; i < uLightCount; i++)
+        {
+            if(ptLights[i].tFlags & PL_LIGHT_FLAG_VISUALIZER)
+            {
+                const plVec4 tColor = {.rgb = ptLights[i].tColor, .a = 1.0f};
+                if(ptLights[i].tType == PL_LIGHT_TYPE_POINT)
+                {
+                    plSphere tSphere = {
+                        .fRadius = ptLights[i].fRadius,
+                        .tCenter = ptLights[i].tPosition
+                    };
+                    gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere, 6, 6, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.005f});
+                    tSphere.fRadius = ptLights[i].fRange;
+                    plSphere tSphere2 = {
+                        .fRadius = ptLights[i].fRange,
+                        .tCenter = ptLights[i].tPosition
+                    };
+                    gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere2, 0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                }
+                else if(ptLights[i].tType == PL_LIGHT_TYPE_SPOT)
+                {
+                    plCone tCone0 = {
+                        .fRadius = tanf(ptLights[i].fOuterConeAngle * 0.5f) * ptLights[i].fRange,
+                        .tTipPos = ptLights[i].tPosition,
+                        .tBasePos = pl_add_vec3(ptLights[i].tPosition, pl_mul_vec3_scalarf(ptLights[i].tDirection, ptLights[i].fRange))
+                    };
+                    gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+
+                    if(ptLights[i].fInnerConeAngle > 0.0f)
+                    {
+                        plCone tCone1 = {
+                            .fRadius = tanf(ptLights[i].fInnerConeAngle) * ptLights[i].fRange,
+                            .tTipPos = ptLights[i].tPosition,
+                            .tBasePos = pl_add_vec3(ptLights[i].tPosition, pl_mul_vec3_scalarf(ptLights[i].tDirection, ptLights[i].fRange))
+                        };
+                        gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone1, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                    }
+                }
+
+                else if(ptLights[i].tType == PL_LIGHT_TYPE_DIRECTIONAL)
+                {
+                    plVec3 tDirection = pl_norm_vec3(ptLights[i].tDirection);
+                    plCone tCone0 = {
+                        .fRadius = 0.125f,
+                        .tBasePos = (plVec3){0.0f, 3.0f, 0.0f},
+                        .tTipPos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, 0.25f))
+                    };
+                    gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                    plCylinder tCylinder = {
+                        .fRadius = 0.0625f,
+                        .tBasePos = tCone0.tBasePos,
+                        .tTipPos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, -0.25f))
+                    };
+                    gptDraw->add_3d_cylinder(ptView->pt3DDrawList, tCylinder, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                }
+            }
+        }
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    }
+
+    // debug bounding boxes
+    if(ptView->bDrawBoundingBoxesDebug)
+    {
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw bounding boxes");
+        const uint32_t uDrawableCount = pl_sb_size(ptScene->sbuActiveDrawables);
+        for(uint32_t i = 0; i < uDrawableCount; i++)
+        {
+            plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtDrawableResources[ptScene->sbuActiveDrawables[i]].tEntity);
+
+            plMesh* ptMesh = gptAsset->get_data(ptObject->tMesh);
+            gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 0.2f, 0.0f), .fThickness = 0.02f});
+        }
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    }
+
+    // debug bvh
+    if(ptView->bDrawBvhDebug)
+    {
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw BVH");
+
+        plObjectComponent* ptComponents = NULL;
+        gptEcs->get_components(ptScene->ptComponentLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
+
+        plBVHNode* ptNode = NULL;
+        uint32_t uLeafIndex = UINT32_MAX;
+        while (gptBvh->traverse(&ptScene->tBvh, &ptNode, &uLeafIndex))
+        {
+            if(uLeafIndex != UINT32_MAX)
+            {
+                plObjectComponent* ptObject = &ptComponents[uLeafIndex];
+                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_DARK_BLUE});
+            }
+            else
+            {
+                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptNode->tAABB.tMin, ptNode->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_WHITE});
+            }
+        }
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    }
+
+    if(ptView->bShowOrigin)
+    {
+        const plMat4 tTransform = pl_identity_mat4();
+        gptDraw->add_3d_transform(ptView->pt3DDrawList, &tTransform, 10.0f, (plDrawLineOptions){.fThickness = 0.02f});
+    }
+
+    plRenderEnvironment* ptEnvironment = gptAsset->get_data(ptScene->tEnvironment);
+
+    if(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER)
+    {
+        const plVec4 tColor = {.rgb = ptEnvironment->tSunColor, .a = 1.0f};
+        plVec3 tDirection = pl_norm_vec3(ptEnvironment->tSunDirection);
+        plCone tCone0 = {
+            .fRadius = 0.125f,
+            .tBasePos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, -0.25f)),
+            .tTipPos = (plVec3){0.0f, 3.0f, 0.0f}
+        };
+        gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+        plCylinder tCylinder = {
+            .fRadius = 0.0625f,
+            .tBasePos = tCone0.tBasePos,
+            .tTipPos = pl_add_vec3(tCone0.tBasePos, pl_mul_vec3_scalarf(tDirection, -1.0f))
+        };
+        gptDraw->add_3d_cylinder(ptView->pt3DDrawList, tCylinder, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+    }
+
+    if(ptView->bFrozenCamera)
+    {
+        const plDrawFrustumDesc tFrustumDesc = {
+            .fAspectRatio = ptCullCamera->fAspectRatio,
+            .fFarZ        = ptCullCamera->fFarZ,
+            .fNearZ       = ptCullCamera->fNearZ,
+            .fYFov        = ptCullCamera->fYFov
+        };
+        gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tInvViewMat, tFrustumDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = 0.02f});
+    }
+
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
