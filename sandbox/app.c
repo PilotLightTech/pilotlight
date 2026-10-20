@@ -154,6 +154,21 @@ const plStlI*               gptStl              = NULL;
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+static const char* gacImportFiles[] = {
+    "/resources/DamagedHelmet.glb",
+    "/resources/humanoid.gltf",
+    "/resources/gltf-samples/Models/Sponza/glTF/sponza.gltf",
+    "/resources/gltf-samples/Models/ABeautifulGame/glTF/ABeautifulGame.gltf",
+    "/resources/gltf-samples/Models/ClearCoatWicker/glTF/ClearCoatWicker.gltf",
+    "/resources/gltf-samples/Models/CarConcept/glTF/CarConcept.gltf",
+    "/resources/gltf-samples/Models/AlphaBLendModeTest/glTF/AlphaBLendModeTest.gltf",
+    "/resources/gltf-samples/Models/CommercialRefrigerator/glTF/CommercialRefrigerator.gltf",
+    "/resources/gltf-samples/Models/InterpolationTest/glTF/InterpolationTest.gltf",
+    "/resources/gltf-samples/Models/AnisotropyDiscTest/glTF/AnisotropyDiscTest.gltf",
+    "/resources/gltf-samples/Models/AnisotropyRotationTest/glTF/AnisotropyRotationTest.gltf",
+    "/resources/gltf-samples/Models/AnisotropyBarnLamp/glTF/AnisotropyBarnLamp.gltf",
+};
+
 typedef struct _plSandboxSceneFile
 {
     char acName[PL_MAX_PATH_LENGTH];
@@ -192,6 +207,7 @@ typedef struct _plAppData
     plScene* ptScene;
     plView*  ptView;
     plAssetHandle tSceneHandle;
+    bool bShowImportOptions;
 
     // drawing
     plDrawLayer2D* ptDrawLayer;
@@ -394,22 +410,24 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptPhysics->register_ecs_components();
     gptEcs->finalize();
 
-    if(!gptVfs->does_file_exist("/assets/models/humanoid_Scene.plscene"))
-    {
-        gptStl->import("/resources/cube.stl");
-        gptGltf->import("/resources/DamagedHelmet.glb", NULL);
-        gptGltf->import("/resources/humanoid.gltf", NULL);
+    // sbtImportFiles
 
-        plMesh tUnitSphere = {0};
-        gptMesh->create_sphere(1.0f, 16, 16, &tUnitSphere);
-        tUnitSphere.atSubmeshes[0].tMaterial = gptAsset->load("/assets/materials/default.plmaterial");
-        plAssetDesc tMeshAsset = {
-            .tType = gptMesh->get_asset_type_key(),
-            .pcPath = "/assets/meshes/sphere.plmesh"
-        };
-        plAssetHandle tBlah = gptAsset->create(&tMeshAsset, &tUnitSphere);
-        gptAsset->save(tBlah, PL_ASSET_ENCODING_TEXT);
-    }
+    // if(!gptVfs->does_file_exist("/assets/models/humanoid_Scene.plscene"))
+    // {
+    //     gptStl->import("/resources/cube.stl");
+    //     gptGltf->import("/resources/DamagedHelmet.glb", NULL);
+    //     gptGltf->import("/resources/humanoid.gltf", NULL);
+
+    //     plMesh tUnitSphere = {0};
+    //     gptMesh->create_sphere(1.0f, 16, 16, &tUnitSphere);
+    //     tUnitSphere.atSubmeshes[0].tMaterial = gptAsset->load("/assets/materials/default.plmaterial");
+    //     plAssetDesc tMeshAsset = {
+    //         .tType = gptMesh->get_asset_type_key(),
+    //         .pcPath = "/assets/meshes/sphere.plmesh"
+    //     };
+    //     plAssetHandle tBlah = gptAsset->create(&tMeshAsset, &tUnitSphere);
+    //     gptAsset->save(tBlah, PL_ASSET_ENCODING_TEXT);
+    // }
     // gptGltf->import("/resources/gltf-samples/Models/Sponza/glTF/sponza.gltf", NULL);
 
     // // animations
@@ -764,18 +782,20 @@ pl_app_update(plAppData* ptAppData)
 
     // ui windows
     if(ptAppData->ptScene == NULL)
-    {
-        
+    {  
         gptUI->push_theme_color(PL_UI_COLOR_WINDOW_BG, (plVec4){0});
         gptUI->push_theme_color(PL_UI_COLOR_TITLE_BG, (plVec4){0});
         gptUI->push_theme_color(PL_UI_COLOR_TITLE_ACTIVE, (plVec4){0});
         gptUI->set_next_window_pos((plVec2){ptIO->tMainViewportSize.x * 0.4f, ptIO->tMainViewportSize.y * 0.25f}, PL_UI_COND_ALWAYS);
-        gptUI->set_next_window_size((plVec2){ptIO->tMainViewportSize.x * 0.2f, ptIO->tMainViewportSize.y * 0.5f}, PL_UI_COND_ALWAYS);
+        gptUI->set_next_window_size((plVec2){ptIO->tMainViewportSize.x * 0.3f, ptIO->tMainViewportSize.y * 0.5f}, PL_UI_COND_ALWAYS);
         if(gptUI->begin_window("Select Dev Scene", NULL, PL_UI_WINDOW_FLAGS_NO_MOVE | PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE))
         { 
-            gptUI->layout_static(0.0f, 100.0f, 1);
+            // gptUI->layout_static(0.0f, 100.0f, 2);
+            float afSizes[] = {100.0f, 200.0f};
+            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, afSizes);
             if(gptUI->button("Refresh"))
                 pl__refresh_files(ptAppData);
+            gptUI->checkbox("Show Import Options", &ptAppData->bShowImportOptions);
             gptUI->layout_dynamic(0.0f, 1);
             gptUI->color_text((plVec4){1.0f, 0.0f, 1.0f, 1.0f}, "Note: Terrain takes a while to load first run (do in release)");
 
@@ -783,35 +803,65 @@ pl_app_update(plAppData* ptAppData)
 
             if(gptUI->begin_child("Scenes", 0, 0))
             {
-                uint32_t uSceneCount = pl_sb_size(ptAppData->sbtSceneFilesCore);
 
                 gptUI->layout_dynamic(0.0f, 1);
 
-                for (uint32_t n = 0; n < uSceneCount; n++)
+                if(ptAppData->bShowImportOptions)
                 {
-                    bool bPlaceHolder = false;
-                    if(gptUI->selectable(ptAppData->sbtSceneFilesCore[n].acName, &bPlaceHolder, 0))
+                    uint32_t uImportOptions = PL_ARRAYSIZE(gacImportFiles);
+
+                    for (uint32_t n = 0; n < uImportOptions; n++)
                     {
-                        pl_sprintf(ptAppData->acCurrentScene, "%s", ptAppData->sbtSceneFilesCore[n].acTemplate);
+                        bool bPlaceHolder = false;
+                        if(gptUI->button(gacImportFiles[n]))
+                        {
+                            gptStl->import("/resources/cube.stl");
+                            gptGltf->import(gacImportFiles[n], NULL);
+                            gptScreenLog->add_message_ex(0, 10.0, PL_COLOR_32_GREEN, 1.0f, "Imported: %s", gacImportFiles[n]);
+                        }
+                    }
+                }
+                else
+                {
 
-                        ptAppData->tSceneHandle = gptAsset->load(ptAppData->acCurrentScene);
-                        plComponentLibrary* ptLibrary = gptAsset->get_data(ptAppData->tSceneHandle);
+                    uint32_t uSceneCount = pl_sb_size(ptAppData->sbtSceneFilesCore);
 
-                        plSceneDesc tSceneInit = {0};
+                    for (uint32_t n = 0; n < uSceneCount; n++)
+                    {
+                        bool bPlaceHolder = false;
+                        if(gptUI->selectable(ptAppData->sbtSceneFilesCore[n].acName, &bPlaceHolder, 0))
+                        {
+                            pl_sprintf(ptAppData->acCurrentScene, "%s", ptAppData->sbtSceneFilesCore[n].acTemplate);
 
-                        ptAppData->ptScene = gptRenderer->create_scene(&tSceneInit);
-                        plViewDesc tViewDesc = PL_ZERO_INIT;
-                        tViewDesc.uWidth = (uint32_t)ptIO->tMainViewportSize.x;
-                        tViewDesc.uHeight = (uint32_t)ptIO->tMainViewportSize.y;
-                        ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, &tViewDesc);
-                        
-                        gptRenderer->load_component_library(ptAppData->ptScene, ptLibrary);
-                        gptEcs->clear_changes(ptLibrary);
+                            ptAppData->tSceneHandle = gptAsset->load(ptAppData->acCurrentScene);
 
-                        const plEntity* ptCameraEntities = NULL;
-                        uint32_t uCameraCount = gptEcs->get_components(ptLibrary, gptCameraEcs->get_ecs_type_key(), NULL, &ptCameraEntities);
-                        if(uCameraCount > 0)
-                            ptAppData->tMainCamera = ptCameraEntities[0];
+                            if(gptAsset->is_valid(ptAppData->tSceneHandle))
+                            {
+                                plComponentLibrary* ptLibrary = gptAsset->get_data(ptAppData->tSceneHandle);
+
+                                plSceneDesc tSceneInit = {0};
+
+                                ptAppData->ptScene = gptRenderer->create_scene(&tSceneInit);
+                                plViewDesc tViewDesc = PL_ZERO_INIT;
+                                tViewDesc.uWidth = (uint32_t)ptIO->tMainViewportSize.x;
+                                tViewDesc.uHeight = (uint32_t)ptIO->tMainViewportSize.y;
+                                ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, &tViewDesc);
+                                
+                                gptRenderer->load_component_library(ptAppData->ptScene, ptLibrary);
+                                gptEcs->clear_changes(ptLibrary);
+
+                                const plEntity* ptCameraEntities = NULL;
+                                uint32_t uCameraCount = gptEcs->get_components(ptLibrary, gptCameraEcs->get_ecs_type_key(), NULL, &ptCameraEntities);
+                                if(uCameraCount > 0)
+                                    ptAppData->tMainCamera = ptCameraEntities[0];
+                            }
+                            else
+                            {
+                                gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_RED, 1.5f, "%s", "Failed to load scene");
+                                gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_RED, 1.0f, "%s", "Ensure assets are downloaded");
+                                gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_RED, 1.0f, "%s", "Ensure assets are imported");
+                            }
+                        }
                     }
                 }
                 gptUI->end_child();
