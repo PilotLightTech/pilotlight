@@ -34,6 +34,10 @@ assets/meshes/*
 assets/models/*
 !assets/models/cube.plscene
 
+assets/scenes/*
+!assets/scenes/helmet.plscene
+!assets/scenes/humanoid.plscene
+!assets/scenes/terrain.plscene
 
 assets/skeletons/*
 assets/animations/*

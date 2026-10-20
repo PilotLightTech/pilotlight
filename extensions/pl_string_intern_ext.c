@@ -116,6 +116,9 @@ pl_string_intern_intern_ex(const char* pcString, plStringRepository* ptRepo)
     if(pcString == NULL)
         return NULL;
 
+    if(pcString[0] == 0)
+        return "";
+
     if(ptRepo == NULL)
         ptRepo = &gptStringInternCtx->tDefaultRepo;
 
@@ -223,7 +226,7 @@ void
 pl_string_intern_remove_ex(const char* pcString, plStringRepository* ptRepo)
 {
 
-    if(pcString == NULL)
+    if(pcString == NULL || pcString[0] == 0)
         return;
 
     if(ptRepo == NULL)
