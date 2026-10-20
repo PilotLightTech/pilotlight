@@ -180,12 +180,12 @@ typedef int plRenderBucket;
 
 enum _plDrawableFlags
 {
-    PL_DRAWABLE_FLAG_NONE         = 0,
-    PL_DRAWABLE_FLAG_FORWARD      = 1 << 0,
-    PL_DRAWABLE_FLAG_DEFERRED     = 1 << 1,
-    PL_DRAWABLE_FLAG_TRANSMISSION = 1 << 2,
-    PL_DRAWABLE_FLAG_HAS_ALPHA    = 1 << 3, // for shadow pass
-    PL_DRAWABLE_FLAG_CASTS_SHADOW = 1 << 4
+    PL_DRAWABLE_FLAG_NONE              = 0,
+    PL_DRAWABLE_FLAG_PATH_FORWARD      = 1 << 0,
+    PL_DRAWABLE_FLAG_PATH_DEFERRED     = 1 << 1,
+    PL_DRAWABLE_FLAG_PATH_TRANSMISSION = 1 << 2,
+    PL_DRAWABLE_FLAG_HAS_ALPHA         = 1 << 3, // for shadow pass
+    PL_DRAWABLE_FLAG_CASTS_SHADOW      = 1 << 4
 };
 
 enum _plSceneInternalFlags
@@ -203,6 +203,8 @@ enum _plRenderBucket
     PL_RENDER_BUCKET_DEFERRED_DOUBLE_SIDED,
     PL_RENDER_BUCKET_FORWARD,
     PL_RENDER_BUCKET_FORWARD_DOUBLE_SIDED,
+    PL_RENDER_BUCKET_FORWARD_TRANSPARENT,
+    PL_RENDER_BUCKET_FORWARD_TRANSPARENT_DOUBLE_SIDED,
     PL_RENDER_BUCKET_TRANSMISSION,
     PL_RENDER_BUCKET_OUTLINE,
     PL_RENDER_BUCKET_OUTLINE_DOUBLE_SIDED,
@@ -490,6 +492,10 @@ typedef struct _plScene
     plShaderHandle tTransmissionShader;
     plShaderHandle tGBufferFillWireframeShader;
     plShaderHandle tGBufferFillNoCullWireframeShader;
+    plShaderHandle tForwardTransparent;
+    plShaderHandle tForwardWireframeTransparent;
+    plShaderHandle tForwardNoCullTransparent;
+    plShaderHandle tForwardNoCullWireframeTransparent;
     plShaderHandle tForwardWireframeShader;
     plShaderHandle tForwardNoCullWireframeShader;
     plShaderHandle tTransmissionWireframeShader;

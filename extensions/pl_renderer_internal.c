@@ -5177,7 +5177,9 @@ pl__renderer_probe_update_all(plScene* ptScene)
                     plMesh*                      ptMainMesh          = gptAsset->get_data(ptObject->tMesh);
                     plSubmesh*                   ptMesh              = &ptMainMesh->atSubmeshes[ptDrawableResources->uSubmeshIndex];
                     plMaterial*                  ptMaterial          = gptAsset->get_data(ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[ptDrawableResources->uSubmeshIndex - ptObject->uFirstSubmesh] : ptMesh->tMaterial);
-                    if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_DEFERRED)
+                    
+                    // deferred objects
+                    if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_DEFERRED)
                     {
                         if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                         {
@@ -5188,18 +5190,36 @@ pl__renderer_probe_update_all(plScene* ptScene)
                             pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_DEFERRED], uDrawableIndex);
                         }
                     }
-                    else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_FORWARD)
+
+                    // forward objects
+                    else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_FORWARD)
                     {
-                        if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
+                        if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_HAS_ALPHA)
                         {
-                            pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_DOUBLE_SIDED], uDrawableIndex);
+                            if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
+                            {
+                                pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_TRANSPARENT_DOUBLE_SIDED], uDrawableIndex);
+                            }
+                            else
+                            {
+                                pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_TRANSPARENT], uDrawableIndex);
+                            }
                         }
                         else
                         {
-                            pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD], uDrawableIndex);
+                            if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
+                            {
+                                pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_DOUBLE_SIDED], uDrawableIndex);
+                            }
+                            else
+                            {
+                                pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD], uDrawableIndex);
+                            }
                         }
                     }
-                    else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_TRANSMISSION)
+
+                    // transmission objects
+                    else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_TRANSMISSION)
                     {
                         pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_TRANSMISSION], uDrawableIndex);
                     }
@@ -5345,13 +5365,31 @@ pl__renderer_probe_update_all(plScene* ptScene)
             pl__render_view_forward_pass(ptScene, ptCmdBuffer, ptProbe->tViewBG, &tForwardPassInfo0);
 
             plForwardPassInfo tForwardPassInfo2 = {
+                .tBucket = PL_RENDER_BUCKET_FORWARD_TRANSPARENT,
+                .tShader = ptScene->tForwardTransparent,
+                .ptArea = &tArea,
+                .uGlobalIndex = uFace,
+                .bProbe = true
+            };
+            pl__render_view_forward_pass(ptScene, ptCmdBuffer, ptProbe->tViewBG, &tForwardPassInfo2);
+
+            plForwardPassInfo tForwardPassInfo3 = {
+                .tBucket = PL_RENDER_BUCKET_FORWARD_TRANSPARENT_DOUBLE_SIDED,
+                .tShader = ptScene->tForwardNoCullTransparent,
+                .ptArea = &tArea,
+                .uGlobalIndex = uFace,
+                .bProbe = true
+            };
+            pl__render_view_forward_pass(ptScene, ptCmdBuffer, ptProbe->tViewBG, &tForwardPassInfo3);
+
+            plForwardPassInfo tForwardPassInfo4 = {
                 .tBucket = PL_RENDER_BUCKET_TRANSMISSION,
                 .tShader = ptScene->tForwardNoCullShader,
                 .ptArea = &tArea,
                 .uGlobalIndex = uFace,
                 .bProbe = true
             };
-            pl__render_view_forward_pass(ptScene, ptCmdBuffer, ptProbe->tViewBG, &tForwardPassInfo1);
+            pl__render_view_forward_pass(ptScene, ptCmdBuffer, ptProbe->tViewBG, &tForwardPassInfo4);
 
             gptGfx->end_render_pass(ptCmdBuffer);
 
@@ -8585,6 +8623,24 @@ pl__renderer_load_shaders(plScene* ptScene)
         ptScene->tForwardWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tForwardVariant);
         tForwardVariantTemp.eCullMode = PL_CULL_MODE_NONE;
         ptScene->tForwardNoCullWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tForwardVariant);
+
+        tForwardVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
+        tForwardVariantTemp.bWireframe = true;
+        tForwardVariantTemp.bDepthWriteEnabled = false;
+        ptScene->tForwardWireframeTransparent = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tForwardVariant);
+
+        tForwardVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
+        tForwardVariantTemp.bWireframe = false;
+        ptScene->tForwardTransparent = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tForwardVariant);
+
+        tForwardVariantTemp.eCullMode = PL_CULL_MODE_NONE;
+        tForwardVariantTemp.bWireframe = true;
+        tForwardVariantTemp.bDepthWriteEnabled = false;
+        ptScene->tForwardNoCullWireframeTransparent = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tForwardVariant);
+
+        tForwardVariantTemp.eCullMode = PL_CULL_MODE_NONE;
+        tForwardVariantTemp.bWireframe = false;
+        ptScene->tForwardNoCullTransparent = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tForwardVariant);
     }
 
 
