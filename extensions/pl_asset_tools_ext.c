@@ -585,6 +585,8 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                         gptUI->input_float("Terrain Depth Bias", &ptTerrain->fTerrainShadowConstantDepthBias, "%g", 0);
                         gptUI->input_float("Terrain Slope Depth Bias", &ptTerrain->fTerrainShadowSlopeDepthBias, "%g", 0);
+
+                        gptUI->end_collapsing_header();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##3"))
                     {
@@ -592,7 +594,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         ptTerrain = NULL;
                     }
 
-                    gptUI->end_collapsing_header();
+                    
                 }
 
                 if(ptScriptComp)
@@ -829,8 +831,6 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         gptUI->checkbox_flags("Renderable", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RENDERABLE);
                         gptUI->checkbox_flags("Cast Shadow", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_CAST_SHADOW);
                         gptUI->checkbox_flags("Receive Shadow", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RECEIVE_SHADOW);
-                        gptUI->checkbox_flags("Dynamic", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_DYNAMIC);
-                        gptUI->checkbox_flags("Foreground", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_FOREGROUND);
                         gptUI->checkbox_flags("Outline", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_OUTLINE);
 
                         if(ptObjectComp->atMaterialOverrides)
@@ -1449,10 +1449,9 @@ pl_asset_tools_show_assets(bool* bValue)
                         bool bTextureActive = gptAsset->is_valid(ptMaterial->atTextures[i].tTexture);
                         if(!bTextureActive)
                         {
-                            bool bPlaceHolder = false;
-                            if(gptUI->checkbox(apcTextureSlotNames[i], &bPlaceHolder))
+                            if(gptUI->checkbox(apcTextureSlotNames[i], &bTextureActive))
                             {
-                                ptMaterial->atTextures[i].tTexture = gptAsset->find("/assets/textures/default.pltexture");
+                                ptMaterial->atTextures[i].tTexture = gptAsset->load("/assets/textures/default.pltexture");
                                 ptMaterial->atTextures[i].uUVSet = 0;
                                 ptMaterial->atTextures[i].tScale = (plVec2){1.0f, 1.0f};
                                 ptMaterial->atTextures[i].tOffset = (plVec2){0.0f, 0.0f};
@@ -1519,7 +1518,7 @@ pl_asset_tools_show_assets(bool* bValue)
                                 gptUI->slider_uint("UV Set", &ptMaterial->atTextures[i].uUVSet, 0, 1, 0);
                                 gptUI->input_float2("Offset", ptMaterial->atTextures[i].tOffset.d, "%g", 0);
                                 gptUI->input_float2("Scale", ptMaterial->atTextures[i].tScale.d, "%g", 0);
-                                gptUI->slider_angle("Scale", &ptMaterial->atTextures[i].fRotation, -360.0f, 360.0f, NULL, 0);
+                                gptUI->slider_angle("Rotation", &ptMaterial->atTextures[i].fRotation, -360.0f, 360.0f, NULL, 0);
                                 gptUI->tree_pop();
                             }
                         }
