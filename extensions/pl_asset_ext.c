@@ -81,6 +81,7 @@ typedef struct _plAssetRegisteredType
 typedef struct _plAssetContext
 {
     bool                   bFinalized;
+    uint64_t               uLogChannel;
     plTempAllocator        tTempAllocator;
     plStringRepository*    ptStringRepo;
     plAsset*               sbtAssets;
@@ -276,6 +277,8 @@ pl_asset_initialize(plAssetInit tInit)
     gptAssetCtx->ptStringRepo = gptString->create_repository();
     pl_sb_push(gptAssetCtx->sbtAssetGenerations, 4194303);
     pl_sb_add(gptAssetCtx->sbtAssets);
+
+    PL_LOG_INFO_API(gptLog, gptAssetCtx->uLogChannel, "initialized asset extension");
 }
 
 void
@@ -498,7 +501,7 @@ pl_asset_load(const char* pcFile)
         tAsset.uGeneration = gptAssetCtx->sbtAssetGenerations[ulExistingSlot];
         return tAsset;
     }
-    gptAssetCtx->bToolsDirty = true;
+    
 
     // find new asset home slot
     uint64_t uIndex = pl_hm_get_free_index(&gptAssetCtx->tAssetLookup);
@@ -544,21 +547,29 @@ pl_asset_load(const char* pcFile)
     }
     ptAsset->tType = tType;
     bool bResult = ptType->tDesc.deserialize(ptAsset->pcName, &((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize]);
-    PL_ASSERT(bResult);
-    
+
     gptString->remove_ex(pcFileExtension, gptAssetCtx->ptStringRepo);
 
     plAssetHandle tNewAsset = {0};
-    tNewAsset.uIndex      = (uint32_t)uIndex;
-    tNewAsset.uGeneration = gptAssetCtx->sbtAssetGenerations[uIndex];
+    if(bResult)
+    {
+        gptAssetCtx->bToolsDirty = true;
+        tNewAsset.uIndex      = (uint32_t)uIndex;
+        tNewAsset.uGeneration = gptAssetCtx->sbtAssetGenerations[uIndex];
 
-    plAssetChange tChange = {
-        .eType      = PL_ASSET_CHANGE_ADDED,
-        .tAsset     = tNewAsset,
-        .tAssetType = tType,
-        .uVersion   = 0
-    };
-    pl_sb_push(gptAssetCtx->sbtChanges, tChange);
+        plAssetChange tChange = {
+            .eType      = PL_ASSET_CHANGE_ADDED,
+            .tAsset     = tNewAsset,
+            .tAssetType = tType,
+            .uVersion   = 0
+        };
+        pl_sb_push(gptAssetCtx->sbtChanges, tChange);        
+    }
+    else
+    {
+        PL_LOG_ERROR_API_F(gptLog, gptAssetCtx->uLogChannel, "Failed to load asset %s", pcFile);
+        pl_hm_remove_str(&gptAssetCtx->tAssetLookup, pcFile);
+    }
 
     return tNewAsset;
 }
@@ -658,6 +669,7 @@ pl_load_asset_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
     {
         gptAssetCtx = ptDataRegistry->get_data("plAssetContext");
+        gptAssetCtx->uLogChannel = gptLog->get_channel_id("Assets");
     }
     else // first load
     {
@@ -666,6 +678,11 @@ pl_load_asset_ext(plApiRegistryI* ptApiRegistry, bool bReload)
             .bToolsDirty = true
         };
         gptAssetCtx = &tCtx;
+        plLogExtChannelInit tLogInit = {
+            .tType       = PL_LOG_CHANNEL_TYPE_BUFFER | PL_LOG_CHANNEL_TYPE_CONSOLE,
+            .uEntryCount = 256
+        };
+        gptAssetCtx->uLogChannel = gptLog->add_channel("Assets", tLogInit);
         ptDataRegistry->set_data("plAssetContext", gptAssetCtx);
     }
 }
