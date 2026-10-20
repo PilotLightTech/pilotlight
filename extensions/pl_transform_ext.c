@@ -201,7 +201,7 @@ pl__ecs_transform_serialize(void* pComponent, const plComponentLibrary* ptLibrar
     gptJson->add_float_array(ptJson, "scale", ptTransform->tScale.d, 3);
 }
 
-static void
+static bool
 pl__ecs_transform_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plTransformComponent* ptTransform = pComponent;
@@ -209,6 +209,7 @@ pl__ecs_transform_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrar
     gptJson->float_array_member(ptJson, "rotation", ptTransform->tRotation.d, NULL);
     gptJson->float_array_member(ptJson, "scale", ptTransform->tScale.d, NULL);
     ptTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
+    return true;
 }
 
 static void
@@ -218,7 +219,7 @@ pl__ecs_hierarchy_serialize(void* pComponent, const plComponentLibrary* ptLibrar
     gptJson->add_uint64_member(ptJson, "parent", ptComponent->tParentId);
 }
 
-static void
+static bool
 pl__ecs_hierarchy_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plHierarchyComponent* ptComponent = pComponent;
@@ -231,6 +232,8 @@ pl__ecs_hierarchy_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrar
         gptJson->string_member(ptJson, "parent", acTempBuffer0, 1024);
         ptComponent->tParentId = gptEcs->generate_id(NULL, acTempBuffer0, 0);
     }
+
+    return true;
 }
 
 static void

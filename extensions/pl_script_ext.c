@@ -134,7 +134,7 @@ pl__ecs_script_serialize(void* pComponent, const plComponentLibrary* ptLibrary, 
     gptJson->add_bool_member(ptJson, "reloadable", ptComponent->tFlags & PL_SCRIPT_FLAG_RELOADABLE);
 }
 
-static void
+static bool
 pl__ecs_script_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plScriptComponent* ptComponent = pComponent;
@@ -144,6 +144,8 @@ pl__ecs_script_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, 
     if(gptJson->bool_member(ptJson, "playing", false)) ptComponent->tFlags |= PL_SCRIPT_FLAG_PLAYING;
     if(gptJson->bool_member(ptJson, "play_once", false)) ptComponent->tFlags |= PL_SCRIPT_FLAG_PLAY_ONCE;
     if(gptJson->bool_member(ptJson, "reloadable", false)) ptComponent->tFlags |= PL_SCRIPT_FLAG_RELOADABLE;
+
+    return true;
 }
 
 static void

@@ -134,7 +134,7 @@ pl__ecs_skin_serialize(void* pComponent, const plComponentLibrary* ptLibrary, pl
     }
 }
 
-static void
+static bool
 pl__ecs_skin_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plSkinComponent* ptComponent = pComponent;
@@ -142,6 +142,7 @@ pl__ecs_skin_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, pl
     char acTempBuffer0[1024] = {0};
     gptJson->string_member(ptJson, "skin", acTempBuffer0, 1024);
     ptComponent->tSkin = gptAsset->load(acTempBuffer0);
+    return true;
 }
 
 static void

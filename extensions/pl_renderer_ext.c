@@ -3069,7 +3069,7 @@ pl__ecs_light_serialize(void* pComponent, const plComponentLibrary* ptLibrary, p
     gptJson->add_float_array(ptJson, "color", ptComponent->tColor.d, 3);
 }
 
-static void
+static bool
 pl__ecs_light_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plLightComponent* ptComponent = pComponent;
@@ -3105,6 +3105,7 @@ pl__ecs_light_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, p
     if(gptJson->bool_member(ptJson, "casts_shadow", true)) ptComponent->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
     if(gptJson->bool_member(ptJson, "visualizer", true))   ptComponent->tFlags |= PL_LIGHT_FLAG_VISUALIZER;
 
+    return true;
 }
 
 static void
@@ -3115,7 +3116,7 @@ pl__ecs_environment_serialize(void* pComponent, const plComponentLibrary* ptLibr
     gptJson->add_string_member(ptJson, "environment", gptAsset->get_path(ptComponent->tEnvironment));
 }
 
-static void
+static bool
 pl__ecs_environment_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plEnvironmentComponent* ptComponent = pComponent;
@@ -3123,6 +3124,8 @@ pl__ecs_environment_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibr
     char acTempBuffer0[1024] = {0};
     gptJson->string_member(ptJson, "environment", acTempBuffer0, 1024);
     ptComponent->tEnvironment = gptAsset->load(acTempBuffer0);
+
+    return true;
 }
 
 static void
@@ -3133,7 +3136,7 @@ pl__ecs_renderer_serialize(void* pComponent, const plComponentLibrary* ptLibrary
     gptJson->add_string_member(ptJson, "renderer", gptAsset->get_path(ptComponent->tRenderer));
 }
 
-static void
+static bool
 pl__ecs_renderer_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plRendererComponent* ptComponent = pComponent;
@@ -3141,6 +3144,7 @@ pl__ecs_renderer_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary
     char acTempBuffer0[1024] = {0};
     gptJson->string_member(ptJson, "renderer", acTempBuffer0, 1024);
     ptComponent->tRenderer = gptAsset->load(acTempBuffer0);
+    return true;
 }
 
 static void
@@ -3164,7 +3168,7 @@ pl__ecs_probe_serialize(void* pComponent, const plComponentLibrary* ptLibrary, p
         gptJson->add_bool_member(ptJson, "include_sky", false);
 }
 
-static void
+static bool
 pl__ecs_probe_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plEnvironmentProbeComponent* ptComponent = pComponent;
@@ -3176,6 +3180,7 @@ pl__ecs_probe_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, p
     ptComponent->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
     if(gptJson->bool_member(ptJson, "include_sky", false)) ptComponent->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
     if(gptJson->bool_member(ptJson, "realtime", false))    ptComponent->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
+    return true;
 }
 
 static void
@@ -3192,7 +3197,7 @@ pl__ecs_terrain_serialize(void* pComponent, const plComponentLibrary* ptLibrary,
     gptJson->add_bool_member(ptJson, "show_levels", ptComponent->tFlags & PL_TERRAIN_FLAGS_SHOW_LEVELS);
 }
 
-static void
+static bool
 pl__ecs_terrain_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plTerrainComponent* ptComponent = pComponent;
@@ -3209,6 +3214,8 @@ pl__ecs_terrain_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary,
     ptComponent->tTerrain = gptAsset->load(acTempBuffer0);
     plTerrainAsset* ptTerrain = gptAsset->get_data(ptComponent->tTerrain);
     gptTerrain->process(ptTerrain);
+
+    return true;
 }
 
 void

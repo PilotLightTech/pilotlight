@@ -240,7 +240,7 @@ typedef struct _plComponentDesc
 
     // persistence
     void (*serialize)  (void* component, const plComponentLibrary*, plEntityId, plJsonObject*);
-    void (*deserialize)(plJsonObject*, plComponentLibrary*, plEntityId, void*);
+    bool (*deserialize)(plJsonObject*, plComponentLibrary*, plEntityId, void*);
     void (*resolve)    (plComponentLibrary*, plEntityId, plHashMap64*, void*);
     
     // lifetime

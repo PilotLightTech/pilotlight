@@ -622,7 +622,7 @@ pl__ecs_animation_serialize(void* pComponent, const plComponentLibrary* ptLibrar
     gptJson->add_uint64_array(ptJson, "targets", ptComponent->atTargetIds, ptComponent->uTargetCount);
 }
 
-static void
+static bool
 pl__ecs_animation_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plAnimationComponent* ptComponent = pComponent;
@@ -640,6 +640,8 @@ pl__ecs_animation_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrar
     // animation target scene references
     ptComponent->atTargetIds = PL_ALLOC(ptComponent->uTargetCount * sizeof(plEntityId));
     gptJson->uint64_array_member(ptJson, "targets", ptComponent->atTargetIds, &ptComponent->uTargetCount);
+
+    return true;
 }
 
 static void

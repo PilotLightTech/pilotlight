@@ -19,6 +19,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <float.h> // FLT_MAX
+#include <inttypes.h> // PRIu64
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl.h"
 #include "pl_ecs_ext.h"
@@ -137,7 +138,7 @@ static plEcsContext* gptEcsCtx = NULL;
 // tag component stuff
 static void pl__ecs_tag_destroy    (void*, const plComponentLibrary*);
 static void pl__ecs_tag_serialize  (void*, const plComponentLibrary*, plEntityId, plJsonObject*);
-static void pl__ecs_tag_deserialize(plJsonObject*, plComponentLibrary*, plEntityId, void*);
+static bool pl__ecs_tag_deserialize(plJsonObject*, plComponentLibrary*, plEntityId, void*);
 static void pl__ecs_tag_clone      (const void*, plComponentLibrary*, void*, plComponentLibrary*);
 
 // library component stuff
@@ -145,7 +146,7 @@ static void pl__ecs_library_clone      (const void*, plComponentLibrary*, void*,
 static void pl__ecs_library_destroy    (void*, const plComponentLibrary*);
 static void pl__ecs_library_resolve    (plComponentLibrary*, plEntityId, plHashMap64*, void*);
 static void pl__ecs_library_serialize  (void*, const plComponentLibrary*, plEntityId, plJsonObject*);
-static void pl__ecs_library_deserialize(plJsonObject*, plComponentLibrary*, plEntityId, void*);
+static bool pl__ecs_library_deserialize(plJsonObject*, plComponentLibrary*, plEntityId, void*);
 
 // library asset stuff
 static bool pl__ecs_asset_serialize  (const char*, const void*, plAssetEncoding);
@@ -154,7 +155,7 @@ static void pl__ecs_destroy          (void* pLibrary);
 
 // library helpers
 static void  pl__ecs_resolve_components  (plComponentLibrary*, plEntity, plHashMap64*);
-static void  pl__scene_ecs_add_components(plJsonObject*, plComponentLibrary*, plEntity);
+static bool  pl__scene_ecs_add_components(plJsonObject*, plComponentLibrary*, plEntity);
 static bool  pl__ecs_remove_component    (plComponentLibrary*, plEcsTypeKey, plEntity);
 static void* pl__ecs_add_component       (plComponentLibrary*, plEcsTypeKey, plEntity);
 
@@ -1182,7 +1183,7 @@ pl__ecs_remove_component(plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEn
     return true;
 }
 
-static void
+static bool
 pl__scene_ecs_add_components(plJsonObject* ptJsonNode, plComponentLibrary* ptLibrary, plEntity tEntity)
 {
     const plComponentDesc* atCompDescs = NULL;
@@ -1210,7 +1211,25 @@ pl__scene_ecs_add_components(plJsonObject* ptJsonNode, plComponentLibrary* ptLib
                 void* pComponentECSData = pl__ecs_add_component(ptLibrary, ptCompDesc->tTypeKey, tEntity);
                 if(ptCompDesc->deserialize)
                 {
-                    ptCompDesc->deserialize(ptJsonComponent, ptLibrary, pl_ecs_get_entity_id(ptLibrary, tEntity), pComponentECSData);   
+                    if(ptCompDesc->deserialize(ptJsonComponent, ptLibrary, pl_ecs_get_entity_id(ptLibrary, tEntity), pComponentECSData))
+                    {
+                        // nothing
+                    }
+                    else
+                    {
+                        plTagComponent* ptTag = pl_ecs_get_component(ptLibrary, gptEcsCtx->tTagComponentType, tEntity);
+                        plEntityId tEntityId = pl_ecs_get_entity_id(ptLibrary, tEntity);
+                        if(ptTag)
+                        {
+                            PL_LOG_ERROR_API_F(gptLog, gptEcsCtx->uLogChannel, "could not deserialize component of type: (%s) for entity: \"%s\" (%" PRIu64 ")", ptCompDesc->pcName, ptTag->pcName, tEntityId);
+                        }
+                        else
+                        {
+                            PL_LOG_ERROR_API_F(gptLog, gptEcsCtx->uLogChannel, "could not deserialize component of type: (%s) for entity: (%" PRIu64 ")", ptCompDesc->pcName, tEntityId);
+                        }
+                        
+                        return false;
+                    }
                 }
                 else
                 {
@@ -1219,6 +1238,7 @@ pl__scene_ecs_add_components(plJsonObject* ptJsonNode, plComponentLibrary* ptLib
             }
         }
     }
+    return true;
 }
 
 static void
@@ -1297,7 +1317,17 @@ pl__ecs_asset_deserialize(const char* pcName, void* pLibrary)
         plJsonObject* ptJsonNode = gptJson->member_by_index(atJsonNodes, uEntityIndex);
 
         plEntity tEntity = atEntities[uEntityIndex];
-        pl__scene_ecs_add_components(ptJsonNode, ptLibrary, tEntity);
+        if(pl__scene_ecs_add_components(ptJsonNode, ptLibrary, tEntity))
+        {
+            // do nothing
+        }
+        else
+        {
+            PL_FREE(atEntities);
+            PL_FREE(puFileBuffer);
+            gptJson->unload(&ptRoot);
+            return false;
+        }
     }
 
     // resolve references & add all components
@@ -1328,13 +1358,14 @@ pl__ecs_tag_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plE
     gptJson->add_string_member(ptJson, "name", ptComponent->pcName);
 }
 
-static void
+static bool
 pl__ecs_tag_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plTagComponent* ptComponent = pComponent;
     char acName[256] = {0};
     gptJson->string_member(ptJson, "name", acName, 256);
     ptComponent->pcName = gptString->intern(acName);
+    return true;
 }
 
 static void
@@ -1508,7 +1539,7 @@ pl__ecs_library_serialize(void* pComponent, const plComponentLibrary* ptLibrary,
     }
 }
 
-static void
+static bool
 pl__ecs_library_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plLibraryComponent* ptComponent = pComponent;
@@ -1517,6 +1548,10 @@ pl__ecs_library_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary,
     gptJson->string_member(ptJson, "library", acTempBuffer0, 1024);
 
     ptComponent->tSourceLibrary = gptAsset->load(acTempBuffer0); // let it map the data
+    if(!gptAsset->is_valid(ptComponent->tSourceLibrary))
+    {
+        return false;
+    }
     plComponentLibrary* ptSourceLibrary = gptAsset->get_data(ptComponent->tSourceLibrary);
 
     ptComponent->_ptLibrary = pl_ecs_create_library();
@@ -1563,7 +1598,16 @@ pl__ecs_library_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary,
             plJsonObject* ptJsonNode = gptJson->member_by_index(ptPatches, uEntityIndex);
 
             plEntity tEntity = atEntities[uEntityIndex];
-            pl__scene_ecs_add_components(ptJsonNode, ptComponent->_ptPatchLibrary, tEntity);
+            if(pl__scene_ecs_add_components(ptJsonNode, ptComponent->_ptPatchLibrary, tEntity))
+            {
+                // do nothing
+            }
+            else
+            {
+                PL_LOG_ERROR_API_F(gptLog, gptEcsCtx->uLogChannel, "could not deserialize component of type: for entity: \"%s\" (%" PRIu64 ")", acTempBuffer0, tEntityId);
+                PL_FREE(atEntities);
+                return false;
+            }
         }
 
         // resolve references & add all components
@@ -1578,6 +1622,7 @@ pl__ecs_library_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary,
 
         pl_ecs_merge_library(ptComponent->_ptLibrary, ptComponent->_ptPatchLibrary);
     }
+    return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -1656,7 +1701,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptEcsCtx = &tCtx;
 
         plLogExtChannelInit tLogInit = {
-            .tType       = PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER,
+            .tType       = PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER | PL_LOG_CHANNEL_TYPE_CONSOLE,
             .uEntryCount = 256
         };
         gptEcsCtx->uLogChannel = gptLog->add_channel("ECS", tLogInit);

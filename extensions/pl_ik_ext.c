@@ -303,7 +303,7 @@ pl__ik_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntity
     gptJson->add_bool_member(ptJson, "enabled", ptComponent->bEnabled);
 }
 
-static void
+static bool
 pl__ik_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plInverseKinematicsComponent* ptComponent = pComponent;
@@ -311,6 +311,7 @@ pl__ik_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntity
     ptComponent->uIterationCount = gptJson->uint32_member(ptJson, "iterations", 3);
     ptComponent->tTargetId = gptJson->uint64_member(ptJson, "target", UINT64_MAX);
     ptComponent->bEnabled = gptJson->bool_member(ptJson, "enabled", false);
+    return true;
 }
 
 static void

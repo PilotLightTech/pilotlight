@@ -187,7 +187,7 @@ pl__ecs_camera_serialize(void* pComponent, const plComponentLibrary* ptLibrary, 
     }
 }
 
-static void
+static bool
 pl__ecs_camera_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plCamera* ptComponent = pComponent;
@@ -229,6 +229,8 @@ pl__ecs_camera_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, 
     pl_camera_set_euler(ptComponent, ptComponent->fPitch, ptComponent->fYaw, ptComponent->fRoll);
     ptComponent->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_ALL;
     pl_camera_update(ptComponent);
+
+    return true;
 }
 
 //-----------------------------------------------------------------------------
