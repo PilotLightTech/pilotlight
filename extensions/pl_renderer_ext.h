@@ -470,13 +470,14 @@ enum _plRenderSceneFlags
 
 typedef struct _plObjectComponent
 {
-    plObjectFlags tFlags;
-    plAssetHandle tMesh;
-    plEntityId    tTransformId;
-    uint32_t      uFirstSubmesh;
-    uint32_t      uSubmeshCount;
-    plAABB        tAABB;
-    plEntity      tTransform;
+    plObjectFlags  tFlags;
+    plAssetHandle  tMesh;
+    plEntityId     tTransformId;
+    uint32_t       uFirstSubmesh;
+    uint32_t       uSubmeshCount;
+    plAABB         tAABB;
+    plEntity       tTransform;
+    plAssetHandle* atMaterialOverrides;
 } plObjectComponent;
 
 typedef struct _plTerrainComponent

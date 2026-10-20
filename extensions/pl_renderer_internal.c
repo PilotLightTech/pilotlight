@@ -5176,7 +5176,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
                     plObjectComponent*           ptObject            = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->tEntity);
                     plMesh*                      ptMainMesh          = gptAsset->get_data(ptObject->tMesh);
                     plSubmesh*                   ptMesh              = &ptMainMesh->atSubmeshes[ptDrawableResources->uSubmeshIndex];
-                    plMaterial*                  ptMaterial          = gptAsset->get_data(ptMesh->tMaterial);
+                    plMaterial*                  ptMaterial          = gptAsset->get_data(ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[ptDrawableResources->uSubmeshIndex - ptObject->uFirstSubmesh] : ptMesh->tMaterial);
                     if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_DEFERRED)
                     {
                         if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
@@ -8330,7 +8330,9 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
                 return false;
             }
 
-            plMaterial* ptMaterial = gptAsset->get_data(ptMesh->tMaterial);
+            plAssetHandle tMaterial = ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[uSubmeshIndex] : ptMesh->tMaterial;
+            plMaterial* ptMaterial = gptAsset->get_data(tMaterial);
+        
 
             if(gptEcs->has_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, tEntity))
                 ptDrawable->tFlags |= PL_DRAWABLE_FLAG_PROBE | PL_DRAWABLE_FLAG_FORWARD;
@@ -8378,8 +8380,8 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
                     ptDrawable->tFlags |= PL_DRAWABLE_FLAG_DEFERRED;
             }
 
-            ptDrawable->uMaterialIndex = pl__renderer_get_or_create_material_slot(ptScene, ptMesh->tMaterial);
-            pl_renderer_update_scene_asset(ptScene, ptMesh->tMaterial);
+            ptDrawable->uMaterialIndex = pl__renderer_get_or_create_material_slot(ptScene, tMaterial);
+            pl_renderer_update_scene_asset(ptScene, tMaterial);
         }
     }
 

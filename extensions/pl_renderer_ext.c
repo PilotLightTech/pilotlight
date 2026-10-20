@@ -1747,7 +1747,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
             plObjectComponent*           ptObject            = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->tEntity);
             plMesh*                      ptMainMesh          = gptAsset->get_data(ptObject->tMesh);
             plSubmesh*                   ptMesh              = &ptMainMesh->atSubmeshes[ptDrawableResources->uSubmeshIndex];
-            plMaterial*                  ptMaterial          = gptAsset->get_data(ptMesh->tMaterial);
+            plMaterial*                  ptMaterial          = gptAsset->get_data(ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[ptDrawableResources->uSubmeshIndex - ptObject->uFirstSubmesh] : ptMesh->tMaterial);
             bool bVisible = ptCullCamera ? !ptDrawable->bCulled : true;
             if(bVisible)
             {
@@ -3001,17 +3001,33 @@ pl__ecs_object_serialize(void* pComponent, const plComponentLibrary* ptLibrary, 
     gptJson->add_bool_member(ptJson, "casts_shadow", ptComponent->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW);
     gptJson->add_bool_member(ptJson, "receives_shadow", ptComponent->tFlags & PL_OBJECT_FLAGS_RECEIVE_SHADOW);
     gptJson->add_bool_member(ptJson, "renderable", ptComponent->tFlags & PL_OBJECT_FLAGS_RENDERABLE);
+
+    if(ptComponent->atMaterialOverrides)
+    {
+        const char** ppcMaterials = PL_ALLOC(ptComponent->uSubmeshCount);
+        memset(ppcMaterials, 0, ptComponent->uSubmeshCount);
+
+        for(uint32_t i = 0; i < ptComponent->uSubmeshCount; i++)
+        {
+            ppcMaterials[i] = gptAsset->get_path(ptComponent->atMaterialOverrides[i]);
+        }
+        gptJson->add_string_array(ptJson, "material_overrides", ppcMaterials, ptComponent->uSubmeshCount);
+        PL_FREE(ppcMaterials);
+    }
 }
 
-static void
+static bool
 pl__ecs_object_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plObjectComponent* ptComponent = pComponent;
+    ptComponent->atMaterialOverrides = NULL;
 
     char acTempBuffer0[1024] = {0};
 
     gptJson->string_member(ptJson, "mesh", acTempBuffer0, 1024);
     ptComponent->tMesh = gptAsset->load(acTempBuffer0);
+    if(!gptAsset->is_valid(ptComponent->tMesh))
+        return false;
     ptComponent->uFirstSubmesh = gptJson->uint32_member(ptJson, "first_submesh", 0);
     ptComponent->uSubmeshCount = gptJson->uint32_member(ptJson, "submesh_count", 1);
 
@@ -3022,6 +3038,62 @@ pl__ecs_object_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, 
     if(gptJson->bool_member(ptJson, "receives_shadow", true)) ptComponent->tFlags |= PL_OBJECT_FLAGS_RECEIVE_SHADOW;
     if(gptJson->bool_member(ptJson, "casts_shadow", true)) ptComponent->tFlags |= PL_OBJECT_FLAGS_CAST_SHADOW;
     if(gptJson->bool_member(ptJson, "renderable", true)) ptComponent->tFlags |= PL_OBJECT_FLAGS_RENDERABLE;
+
+    uint32_t uMaterialOverrideCount = 0;
+    uint32_t uLongestString = 0;
+    gptJson->string_array_member(ptJson, "material_overrides", NULL, &uMaterialOverrideCount, &uLongestString);
+
+    if(uMaterialOverrideCount > 0)
+    {
+        char** ppcMaterials = PL_ALLOC(uMaterialOverrideCount * sizeof(char*));
+        memset(ppcMaterials, 0, uMaterialOverrideCount * sizeof(char*));
+
+        for(uint32_t i = 0; i < uMaterialOverrideCount; i++)
+        {
+            ppcMaterials[i] = PL_ALLOC(uLongestString + 1);
+            memset(ppcMaterials[i], 0, uLongestString + 1);
+        }
+        gptJson->string_array_member(ptJson, "material_overrides", ppcMaterials, &uMaterialOverrideCount, &uLongestString);
+
+        ptComponent->atMaterialOverrides = PL_ALLOC(sizeof(plAssetHandle) * uMaterialOverrideCount);
+        memset(ptComponent->atMaterialOverrides, 0, sizeof(plAssetHandle) * uMaterialOverrideCount);
+
+        for(uint32_t i = 0; i < uMaterialOverrideCount; i++)
+        {
+            ptComponent->atMaterialOverrides[i] = gptAsset->load(ppcMaterials[i]);
+            PL_FREE(ppcMaterials[i]);
+        }
+        PL_FREE(ppcMaterials);
+    }
+
+    return true;
+}
+
+static void
+pl__ecs_object_destroy(void* pComponent, const plComponentLibrary* ptLibrary)
+{
+    plObjectComponent* ptComponent = pComponent;
+    if(ptComponent->atMaterialOverrides)
+    {
+        PL_FREE(ptComponent->atMaterialOverrides);
+        ptComponent->atMaterialOverrides = NULL;
+    }
+}
+
+static void
+pl__ecs_object_clone(const void* pSrc, plComponentLibrary* ptSrcLib, void* Dest, plComponentLibrary* ptDestLib)
+{
+    const plObjectComponent* ptSrcComponent = pSrc;
+    plObjectComponent* ptDestComponent = Dest;
+
+    *ptDestComponent = *ptSrcComponent;
+
+    if(ptSrcComponent->atMaterialOverrides)
+    {
+        ptDestComponent->atMaterialOverrides = PL_ALLOC(sizeof(plAssetHandle) * ptSrcComponent->uSubmeshCount);
+        memset(ptDestComponent->atMaterialOverrides, 0, sizeof(plAssetHandle) * ptSrcComponent->uSubmeshCount);
+        memcpy(ptDestComponent->atMaterialOverrides, ptSrcComponent->atMaterialOverrides, sizeof(plAssetHandle) * ptSrcComponent->uSubmeshCount);
+    }
 }
 
 static void
@@ -3228,6 +3300,8 @@ pl_renderer_register_ecs_components(void)
         .serialize = pl__ecs_object_serialize,
         .deserialize = pl__ecs_object_deserialize,
         .resolve = pl__ecs_object_resolve,
+        .destroy = pl__ecs_object_destroy,
+        .clone = pl__ecs_object_clone,
     };
 
     static const plObjectComponent tObjectComponentDefault = {
@@ -3235,7 +3309,8 @@ pl_renderer_register_ecs_components(void)
         .tMesh      = {UINT32_MAX, UINT32_MAX},
         .tTransform = {UINT32_MAX, UINT32_MAX},
         .uFirstSubmesh = 0,
-        .uSubmeshCount = 1
+        .uSubmeshCount = 1,
+        .atMaterialOverrides = NULL
     };
     gptData->tObjectComponentType = gptEcs->register_type(tObjectDesc, &tObjectComponentDefault);
 

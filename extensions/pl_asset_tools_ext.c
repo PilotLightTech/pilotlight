@@ -832,6 +832,25 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         gptUI->checkbox_flags("Dynamic", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_DYNAMIC);
                         gptUI->checkbox_flags("Foreground", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_FOREGROUND);
                         gptUI->checkbox_flags("Outline", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_OUTLINE);
+
+                        if(ptObjectComp->atMaterialOverrides)
+                        {
+                            
+
+                            gptUI->separator_text("Material Overrides");
+
+                            gptUI->layout_dynamic(100.0f, 1);
+                            if(gptUI->begin_child("Overrides", 0, 0))
+                            {
+                                gptUI->layout_dynamic(0.0f, 1);
+                                for(uint32_t uMaterialOverride = 0; uMaterialOverride < ptObjectComp->uSubmeshCount; uMaterialOverride++)
+                                {
+                                    gptUI->text("%s", gptAsset->get_path(ptObjectComp->atMaterialOverrides[uMaterialOverride]));
+                                }
+                                gptUI->end_child();
+                            }
+                            // gptUI->text("Renderer: %s", gptAsset->get_path(ptRenderer->tRenderer));
+                        }
                         gptUI->end_collapsing_header();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##9"))
