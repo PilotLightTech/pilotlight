@@ -67,10 +67,12 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                 static float fValue1 = 23.0f;
                 static float fValue2 = 100.0f;
                 static int iValue2 = 3;
+                static uint32_t uValue0 = 3;
                 gptUI->slider_float("float slider 1", &fValue1, 0.0f, 100.0f, 0);
                 gptUI->slider_float("float slider 2", &fValue2, -50.0f, 100.0f, 0);
                 gptUI->slider_int("int slider 1", &iValue1, 0, 10, 0);
                 gptUI->slider_int("int slider 2", &iValue2, -5, 10, 0);
+                gptUI->slider_uint("uint slider 0", &uValue0, 0, 1, 0);
                 gptUI->drag_float("float drag", &fValue2, 1.0f, -100.0f, 100.0f, 0);
                 static int aiIntArray[4] = {0};
                 gptUI->input_int2("input int 2", aiIntArray, 0);

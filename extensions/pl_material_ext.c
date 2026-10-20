@@ -86,7 +86,7 @@ pl_material_init(plMaterial* ptMaterial)
         .fMetalness            = 1.0f,
         .fAlphaCutoff          = 0.5f,
         .fNormalMapStrength    = 1.0f,
-        .fEmissiveStrength     = 0.0f,
+        .fEmissiveStrength     = 1.0f,
         .fOcclusionStrength    = 1.0f,
         .fIor                  = 1.5f,
         .tVolume = {
@@ -235,9 +235,12 @@ pl__material_serialize(const char* pcName, const void* pMaterial, plAssetEncodin
     }
 
     // emissive stuff
-    plJsonObject* ptEmissive = gptJson->add_member(ptRoot, "emissive");
-    gptJson->add_float_array(ptEmissive, "color", ptMaterial->tEmissiveColor.d, 3);
-    gptJson->add_float_member(ptEmissive, "strength", ptMaterial->fEmissiveStrength);
+    if(ptMaterial->eFlags & PL_MATERIAL_FLAG_EMISSIVE)
+    {
+        plJsonObject* ptEmissive = gptJson->add_member(ptRoot, "emissive");
+        gptJson->add_float_array(ptEmissive, "color", ptMaterial->tEmissiveColor.d, 3);
+        gptJson->add_float_member(ptEmissive, "strength", ptMaterial->fEmissiveStrength);
+    }
 
     // textures stuff
     uint32_t uTextureCount = 0;
@@ -424,6 +427,7 @@ pl__material_deserialize(const char* pcName, void* pMaterial)
         plJsonObject* ptAdvanced = gptJson->member(ptRoot, "emissive");
         if(ptAdvanced)
         {
+            ptMaterial->eFlags |= PL_MATERIAL_FLAG_EMISSIVE;
             ptMaterial->fEmissiveStrength = gptJson->float_member(ptAdvanced, "strength", ptMaterial->fEmissiveStrength);
             gptJson->float_array_member(ptAdvanced, "color", ptMaterial->tEmissiveColor.d, NULL);
         }

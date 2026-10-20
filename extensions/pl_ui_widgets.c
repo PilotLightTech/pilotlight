@@ -3442,7 +3442,7 @@ pl_ui_slider_uint_f(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint3
             gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
             (*puValue) = uMin + (uint32_t)(fRatio * (float)(uMax - uMin));
 
-            *puValue = pl_clampi(uMin, *puValue, uMax);
+            *puValue = pl_clampu(uMin, *puValue, uMax);
             pl__set_active_id(uHash, ptWindow);
             pl__set_nav_id(uHash, ptWindow);
             if(gptCtx->bActiveIdJustActivated)

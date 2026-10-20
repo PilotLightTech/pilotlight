@@ -1372,6 +1372,7 @@ pl__import_gltf_material(cgltf_data* ptGltfData, const char* pcFileNameOnly, con
         ptMaterial->fNormalMapStrength = ptGltfMaterial->normal_texture.scale;
     }
 
+    ptMaterial->fEmissiveStrength = 1.0f;
     if(ptGltfMaterial->has_emissive_strength)
         ptMaterial->fEmissiveStrength = ptGltfMaterial->emissive_strength.emissive_strength;
     ptMaterial->tEmissiveColor.r = ptGltfMaterial->emissive_factor[0];
@@ -1379,9 +1380,13 @@ pl__import_gltf_material(cgltf_data* ptGltfData, const char* pcFileNameOnly, con
     ptMaterial->tEmissiveColor.b = ptGltfMaterial->emissive_factor[2];
 	if(ptGltfMaterial->emissive_texture.texture)
     {
+        ptMaterial->eFlags |= PL_MATERIAL_FLAG_EMISSIVE;
         ptrdiff_t tTextureIndex = ptGltfMaterial->emissive_texture.texture - ptGltfData->textures;
 		pl__import_gltf_material_texture(pcFileNameOnly, true, &ptMaterial->atTextures[PL_MATERIAL_TEXTURE_SLOT_EMISSIVE], &ptGltfMaterial->emissive_texture, pcDirectory, (uint32_t)tTextureIndex);
     }
+
+    if(ptGltfMaterial->emissive_factor[0] > 0.0f || ptGltfMaterial->emissive_factor[1] > 0.0f || ptGltfMaterial->emissive_factor[2] > 0.0f)
+        ptMaterial->eFlags |= PL_MATERIAL_FLAG_EMISSIVE;
 
 	if(ptGltfMaterial->occlusion_texture.texture)
     {

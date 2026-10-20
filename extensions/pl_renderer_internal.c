@@ -8566,8 +8566,8 @@ pl__renderer_load_shaders(plScene* ptScene)
     else
     {
         tGBufferVariant.pFragmentConstants = NULL;
-        // tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
-        tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_NONE;
+        tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
+        // tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_NONE;
         ptScene->tGBufferFillShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "gbuffer_fill", &tGBufferVariant);
         tGBufferFileVariantTemp.eCullMode = PL_CULL_MODE_NONE;
         ptScene->tGBufferFillNoCullShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "gbuffer_fill", &tGBufferVariant);
@@ -8610,6 +8610,24 @@ pl__renderer_load_shaders(plScene* ptScene)
         ptScene->tForwardWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward_debug", &tForwardVariant);
         tForwardVariantTemp.eCullMode = PL_CULL_MODE_NONE;
         ptScene->tForwardNoCullWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward_debug", &tForwardVariant);
+
+        tForwardVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
+        tForwardVariantTemp.bWireframe = true;
+        tForwardVariantTemp.bDepthWriteEnabled = false;
+        ptScene->tForwardWireframeTransparent = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward_debug", &tForwardVariant);
+
+        tForwardVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
+        tForwardVariantTemp.bWireframe = false;
+        ptScene->tForwardTransparent = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward_debug", &tForwardVariant);
+
+        tForwardVariantTemp.eCullMode = PL_CULL_MODE_NONE;
+        tForwardVariantTemp.bWireframe = true;
+        tForwardVariantTemp.bDepthWriteEnabled = false;
+        ptScene->tForwardNoCullWireframeTransparent = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward_debug", &tForwardVariant);
+
+        tForwardVariantTemp.eCullMode = PL_CULL_MODE_NONE;
+        tForwardVariantTemp.bWireframe = false;
+        ptScene->tForwardNoCullTransparent = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward_debug", &tForwardVariant);
     }
     else
     {

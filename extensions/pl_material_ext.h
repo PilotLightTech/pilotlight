@@ -153,6 +153,7 @@ enum _plMaterialFlags
     PL_MATERIAL_FLAG_VOLUME               = 1 << 5,
     PL_MATERIAL_FLAG_DISPERSION           = 1 << 6,
     PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION = 1 << 7,
+    PL_MATERIAL_FLAG_EMISSIVE             = 1 << 8,
 
     PL_MATERIAL_FLAG_DOUBLE_SIDED         = 1 << 20,
 };
@@ -233,7 +234,7 @@ typedef struct _plMaterial
     float  fRoughness;         // default: 1.0f
     float  fNormalMapStrength; // default: 1.0f
     float  fOcclusionStrength; // default: 1.0f
-    float  fEmissiveStrength;  // default: 0.0f
+    float  fEmissiveStrength;  // default: 1.0f
     float  fAlphaCutoff;       // default: 0.5f
     float  fIor;               // default: 1.5f
     

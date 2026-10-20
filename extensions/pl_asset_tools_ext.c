@@ -1316,19 +1316,19 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->input_float("alpha cutoff", &ptMaterial->fAlphaCutoff, "%g", 0);
                     gptUI->checkbox_flags("double sided", &ptMaterial->eFlags, PL_MATERIAL_FLAG_DOUBLE_SIDED);
                     gptUI->color_picker4("base color", ptMaterial->tBaseColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE, NULL);
+                    gptUI->input_float4("base color#3", ptMaterial->tBaseColor.d, "%g", 0);
                     // gptUI->input_float4("base color2", ptMaterial->tBaseColor.d, "%g", 0);
                     gptUI->input_float("metalness", &ptMaterial->fMetalness, "%g", 0);
                     gptUI->input_float("roughness", &ptMaterial->fRoughness, "%g", 0);
                     gptUI->input_float("normal map strength", &ptMaterial->fNormalMapStrength, "%g", 0);
                     gptUI->input_float("occlusion strength", &ptMaterial->fOcclusionStrength, "%g", 0);
-                    gptUI->color_picker3("emissive color", ptMaterial->tEmissiveColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE);
-                    gptUI->input_float("emissive strength", &ptMaterial->fEmissiveStrength, "%g", 0);
                     gptUI->input_float("ior", &ptMaterial->fIor, "%g", 0);
 
                     gptUI->separator_text("Advanced Properties");
 
-                    gptUI->layout_dynamic(0.0f, 2);
+                    gptUI->layout_dynamic(0.0f, 3);
 
+                    gptUI->checkbox_flags("emissive##2", &ptMaterial->eFlags, PL_MATERIAL_FLAG_EMISSIVE);
                     gptUI->checkbox_flags("clearcoat", &ptMaterial->eFlags, PL_MATERIAL_FLAG_CLEARCOAT);
                     gptUI->checkbox_flags("sheen", &ptMaterial->eFlags, PL_MATERIAL_FLAG_SHEEN);
                     gptUI->checkbox_flags("iridescence", &ptMaterial->eFlags, PL_MATERIAL_FLAG_IRIDESCENCE);
@@ -1339,6 +1339,17 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->checkbox_flags("diffuse transmission", &ptMaterial->eFlags, PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION);
 
                     gptUI->layout_dynamic(0.0f, 1);
+
+                    if(ptMaterial->eFlags & PL_MATERIAL_FLAG_EMISSIVE)
+                    {
+                        if(gptUI->begin_collapsing_header("Emissive", 0))
+                        {
+                            gptUI->color_picker3("emissive color", ptMaterial->tEmissiveColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE);
+                            gptUI->input_float3("emissive color#3", ptMaterial->tEmissiveColor.d, "%g", 0);
+                            gptUI->input_float("emissive strength", &ptMaterial->fEmissiveStrength, "%g", 0);
+                            gptUI->end_collapsing_header();
+                        }
+                    }
 
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_CLEARCOAT)
                     {

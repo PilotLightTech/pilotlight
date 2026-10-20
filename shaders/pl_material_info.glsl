@@ -85,8 +85,7 @@ pl_get_normal_info()
     //   uv_dy = vec2(0.0, 1.0);
     // }
 
-    vec3 t_ = (uv_dy.t * dFdx(tShaderIn.tWorldPosition) - uv_dx.t * dFdy(tShaderIn.tWorldPosition)) /
-        (uv_dx.s * uv_dy.t - uv_dy.s * uv_dx.t);
+    // vec3 t_ = (uv_dy.t * dFdx(tShaderIn.tWorldPosition) - uv_dx.t * dFdy(tShaderIn.tWorldPosition)) / (uv_dx.s * uv_dy.t - uv_dy.s * uv_dx.t);
 
     // Compute geometrical TBN:
             // Trivial TBN computation, present as vertex attribute.
@@ -94,6 +93,28 @@ pl_get_normal_info()
     vec3 t = normalize(tShaderIn.tTBN[0]);
     vec3 b = normalize(tShaderIn.tTBN[1]);
     vec3 ng = normalize(tShaderIn.tTBN[2]);
+
+    vec3 dpdx = dFdx(tShaderIn.tWorldPosition);
+    vec3 dpdy = dFdy(tShaderIn.tWorldPosition);
+
+    float det = uv_dx.x * uv_dy.y - uv_dx.y * uv_dy.x;
+
+    if (abs(det) > 1e-10)
+    {
+        vec3 tangent   = (dpdx * uv_dy.y - dpdy * uv_dx.y) / det;
+        vec3 bitangent = (dpdy * uv_dx.x - dpdx * uv_dy.x) / det;
+
+        // Project onto the interpolated normal's tangent plane.
+        tangent -= ng * dot(ng, tangent);
+
+        if (dot(tangent, tangent) > 1e-12)
+        {
+            t = normalize(tangent);
+
+            float handedness = dot(cross(ng, t), bitangent) < 0.0 ? -1.0 : 1.0;
+            b = handedness * normalize(cross(ng, t));
+        }
+    }
 
 
     // For a back-facing surface, the tangential basis vectors are negated.
@@ -106,6 +127,7 @@ pl_get_normal_info()
 
     // Compute normals:
     NormalInfo info;
+    info.ntex = vec3(0.0, 0.0, 1.0);
     info.ng = ng;
     if(bool(material.iTextureMappingFlags & PL_HAS_NORMAL_MAP) && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_USE_NORMAL_MAPS)) 
     {

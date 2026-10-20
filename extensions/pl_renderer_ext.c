@@ -724,7 +724,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
         // use forward renderer if material is advanced (can't fit required properties in gbuffer)
         if(
-            ptMaterial->fEmissiveStrength > 0.0f ||
+            ptMaterial->eFlags & PL_MATERIAL_FLAG_EMISSIVE ||
             ptMaterial->eFlags & PL_MATERIAL_FLAG_CLEARCOAT ||
             ptMaterial->eFlags & PL_MATERIAL_FLAG_SHEEN ||
             ptMaterial->eFlags & PL_MATERIAL_FLAG_IRIDESCENCE ||
@@ -1035,6 +1035,10 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     }
 
     ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_SHADOWS;
+    ptScene->tSceneData.iSceneFlags &= ~PL_SCENE_FLAG_USE_IBL;
+    ptScene->tSceneData.iSceneFlags &= ~PL_SCENE_FLAG_USE_NORMAL_MAPS;
+    ptScene->tSceneData.iSceneFlags &= ~PL_SCENE_FLAG_PUNCTUAL;
+    ptScene->tSceneData.iSceneFlags &= ~PL_SCENE_FLAG_PCF_SHADOWS;
     if(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_NO_SHADOWS)      ptScene->tSceneData.iSceneFlags &= ~PL_SCENE_FLAG_SHADOWS;
     if(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED)     ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_USE_IBL;
     if(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING)  ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_USE_NORMAL_MAPS;
