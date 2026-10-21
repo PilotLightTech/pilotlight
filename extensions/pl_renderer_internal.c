@@ -7456,7 +7456,7 @@ pl__renderer_view_create_buffers(plView* ptView)
 {
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        gptStarter->get_staging_buffer(4096, &ptView->atSunCameraBuffers[i], "directional shadow camera buffer");
+        gptStarter->get_staging_buffer(4096, &ptView->atSunCameraBuffers[i], "sun shadow camera buffer");
         gptStarter->get_staging_buffer(4096, &ptView->atDShadowCameraBuffers[i], "directional shadow camera buffer");
         gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &ptView->atDLightShadowDataBuffer[i], "directional shadow buffer");
         gptStarter->get_staging_buffer(sizeof(plGpuViewData), &ptView->atViewBuffers[i], "view buffer");
@@ -7865,8 +7865,8 @@ pl__renderer_probe_create_textures(plScene* ptScene, plEnvironmentProbeData* ptP
 static void
 pl__renderer_probe_create_buffers(plScene* ptScene, plEnvironmentProbeData* ptProbeData)
 {
-    gptStarter->get_staging_buffer(4096, &ptProbeData->tDShadowCameraBuffers, "directional shadow camera buffer");
-    gptStarter->get_staging_buffer(4096, &ptProbeData->tSunCameraBuffers, "directional shadow camera buffer");
+    gptStarter->get_staging_buffer(4096, &ptProbeData->tDShadowCameraBuffers, "probe directional shadow camera buffer");
+    gptStarter->get_staging_buffer(4096, &ptProbeData->tSunCameraBuffers, "probe sun shadow camera buffer");
     gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &ptProbeData->tDLightShadowDataBuffer, "directional shadow buffer");
     gptStarter->get_staging_buffer(sizeof(plGpuViewData), &ptProbeData->tViewBuffer, "view buffer");
 }

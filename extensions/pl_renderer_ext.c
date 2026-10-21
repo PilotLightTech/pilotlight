@@ -94,6 +94,12 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
     };
     gptData->uLogChannel = gptLog->add_channel("Renderer", tLogInit);
 
+    plLogExtChannelInit tTerrainLogInit = {
+        .tType       = PL_LOG_CHANNEL_TYPE_BUFFER | PL_LOG_CHANNEL_TYPE_CONSOLE,
+        .uEntryCount = 1024
+    };
+    gptData->uLogChannelTerrain = gptLog->add_channel("Terrain", tTerrainLogInit);
+
     // default options
     gptData->pdDrawCalls = gptStats->get_counter("draw calls");
 
@@ -244,6 +250,14 @@ void
 pl_renderer_destroy_view(plView* ptView)
 {
 
+    if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->atSkyLut[0]))
+    {
+        for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        {
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atSkyLut[i]);
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atSkyAerialLut[i]);
+        }
+    }
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAlbedoTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tNormalTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAOMetalRoughnessTexture);
@@ -394,6 +408,16 @@ pl_renderer_destroy_scene(plScene* ptScene)
         pl__renderer_terrain_destroy(ptScene->ptTerrain);
     }
 
+    if(gptGfx->is_texture_valid(gptData->ptDevice, ptScene->atSunTransmissionLut[0]))
+    {
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tSkyProbeLut);
+        for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        {
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->atSunTransmissionLut[i]);
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->atSunMultiscatterLut[i]);
+        }
+    }
+
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tBrdfLutTexture);
     for(uint32_t j = 0; j < pl_sb_size(ptScene->sbtProbeDataPacks); j++)
     {
@@ -418,12 +442,15 @@ pl_renderer_destroy_scene(plScene* ptScene)
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[j];
         gptStarter->return_staging_buffer(&ptProbe->tDShadowCameraBuffers);
         gptStarter->return_staging_buffer(&ptProbe->tDLightShadowDataBuffer);
+        gptStarter->return_staging_buffer(&ptProbe->tSunCameraBuffers);
 
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
 
         if(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED)
             gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tSheenEnvTexture);
+        
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tRawOutputTexture);
 
         pl_sb_free(ptProbe->sbtDLightShadowData);
 
@@ -2161,6 +2188,42 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
+static void pl__renderer_ui_terrain_node(plScene* ptScene, plTerrainChunk* ptChunk);
+
+static void
+pl__renderer_ui_terrain_node(plScene* ptScene, plTerrainChunk* ptChunk)
+{
+    if(ptChunk == NULL)
+        return;
+
+    if(pl__chunk_is_resident(ptChunk))
+        gptUI->push_theme_color(PL_UI_COLOR_TEXT, (plVec4){0.0f, 1.0f, 0.0f, 1.00f});
+    if(gptUI->tree_node_f("%u -> %g, %g", 0, (uint32_t)ptChunk->uLevel, ptChunk->fX, ptChunk->fY))
+    {
+        if(pl__chunk_is_resident(ptChunk))
+            gptUI->pop_theme_color(1);
+        gptUI->input_float3("Min. Bounds", ptChunk->tMinBound.d, "%g", PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
+        gptUI->input_float3("Max. Bounds", ptChunk->tMaxBound.d, "%g", PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
+
+        if(ptChunk->aptChildren[0])
+        {
+            if(gptUI->tree_node("Children", 0))
+            {
+                for(uint32_t i = 0; i < 4; i++)
+                    pl__renderer_ui_terrain_node(ptScene, ptChunk->aptChildren[i]);
+
+                gptUI->tree_pop();
+            }
+        }
+        gptUI->tree_pop();
+    }
+    else
+    {
+        if(pl__chunk_is_resident(ptChunk))
+            gptUI->pop_theme_color(1);
+    }
+}
+
 bool
 pl_renderer_begin_frame(void)
 {
@@ -2209,9 +2272,7 @@ pl_renderer_begin_frame(void)
             const float pfRatios[] = {1.0f};
             const float pfRatios2[] = {0.5f, 0.5f};
             gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-
-            gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-            gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
+            
             gptUI->separator_text("Scenes");
 
             for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
@@ -2223,10 +2284,14 @@ pl_renderer_begin_frame(void)
                     if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
                         continue;
 
+                    // gptUI->layout_dynamic(0.0f, 2);
+
                     gptUI->checkbox("Show Probes", &ptScene->bShowProbes);
                     gptUI->checkbox("Show Probe Ranges", &ptScene->bShowProbeRange);
                     gptUI->checkbox("Dynamic BVH", &ptScene->bDynamicBVH);
                     gptUI->checkbox("Wireframe", &ptScene->bWireframe);
+
+                    gptUI->layout_static(0.0f, 200.0f, 2);
 
                     if(gptUI->button("Reload Shaders"))
                         bReloadShaders = true;
@@ -2236,6 +2301,8 @@ pl_renderer_begin_frame(void)
                         ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
                         ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_SKY_LUTS_DIRTY;
                     }
+
+                    gptUI->layout_dynamic(0.0f, 1);
 
                     bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
                     abShaderDebugMode[ptScene->tShaderDebugMode] = true;
@@ -2258,6 +2325,29 @@ pl_renderer_begin_frame(void)
                         }
                         gptUI->end_combo();
                     }
+
+                    if(ptScene->ptTerrain)
+                    {
+                        if(gptUI->begin_collapsing_header("Terrain", 0))
+                        {
+
+                            for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
+                            {
+
+                                if(gptUI->tree_node_f("Chunk File: %s", 0, ptScene->ptTerrain->sbtChunkFiles[i].tFile.acFile))
+                                {
+                                    gptUI->input_int("Tree Depth", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.iTreeDepth, PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
+                                    gptUI->input_float("Max. Base Error", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.fMaxBaseError, "%g", PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
+                                    gptUI->input_uint("Chunk Count", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.uChunkCount, PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
+                                    pl__renderer_ui_terrain_node(ptScene, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0]);
+                                    gptUI->tree_pop();
+                                }
+                            }
+                            gptUI->end_collapsing_header();
+                        }
+                    }
+
+                    gptUI->separator_text("Views");
 
                     for(uint32_t uViewIndex = 0; uViewIndex < pl_sb_size(ptScene->sbptViews); uViewIndex++)
                     {

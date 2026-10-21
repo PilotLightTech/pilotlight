@@ -658,6 +658,7 @@ typedef struct _plRefRendererData
 
     // renderer specific log channel
     uint64_t uLogChannel;
+    uint64_t uLogChannelTerrain;
 
     // GPU allocators
     plDeviceMemoryAllocatorI* ptLocalDedicatedAllocator;

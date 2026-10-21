@@ -44,25 +44,25 @@ typedef struct _plChunkFileData
 
 typedef struct _plTerrain
 {
-    plRenderAttachmentInfo tRenderPassLayoutHandle;
-    plChunkFileData* sbtChunkFiles;
-    plAssetHandle tAsset;
-    plVec2           tTopLeftGlobal;
-    plVec2           tBottomRightGlobal;
-    uint32_t                 uTileCount;
+    plRenderAttachmentInfo    tRenderPassLayoutHandle;
+    plChunkFileData*          sbtChunkFiles;
+    plAssetHandle             tAsset;
+    plVec2                    tTopLeftGlobal;
+    plVec2                    tBottomRightGlobal;
+    uint32_t                  uTileCount;
     plTerrainProcessTileInfo* atTiles;
     
     plTerrainResidencyNode tRequestQueue;
     plTerrainResidencyNode atRequests[PL_REQUEST_QUEUE_SIZE];
-    uint32_t*             sbuFreeRequests;
+    uint32_t*              sbuFreeRequests;
 
     plTerrainChunk tReplacementQueue;
 
     plBufferHandle tIndexBuffer;
-    plFreeList tIndexBufferManager;
+    plFreeList     tIndexBufferManager;
     
     plBufferHandle tVertexBuffer;
-    plFreeList tVertexBufferManager;
+    plFreeList     tVertexBufferManager;
 } plTerrain;
 
 //-----------------------------------------------------------------------------
@@ -70,26 +70,15 @@ typedef struct _plTerrain
 //-----------------------------------------------------------------------------
 
 // rendering
-static void pl__handle_residency (plTerrain*);
-static void pl__request_residency(plTerrain*, plTerrainChunk*);
-static void pl__touch_chunk(plTerrain*, plTerrainChunk*);
-static void pl__make_unresident  (plTerrain*, plTerrainChunk*);
-void pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk);
+static void pl__handle_residency             (plTerrain*);
+static void pl__request_residency            (plTerrain*, plTerrainChunk*);
+static void pl__touch_chunk                  (plTerrain*, plTerrainChunk*);
+static void pl__make_unresident              (plTerrain*, plTerrainChunk*);
+static void pl__remove_from_replacement_queue(plTerrain*, plTerrainChunk*);
 
 static void pl__render_chunk(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t);
-static void
-pl__render_chunk_shadow(
-    plScene* ptScene,
-    plTerrain* ptTerrain,
-    const plCamera* ptCamera,
-    plCommandBuffer* ptCmdBuffer,
-    plTerrainChunk* ptChunk,
-    plTerrainChunkFile* ptFile,
-    uint32_t uGlobalIndex,
-    float fShadowViewportWidth,
-    float fShadowViewportHeight);
-
-static void pl__free_chunk_until(plTerrain* P, uint64_t idx_bytes_needed, uint64_t vtx_bytes_needed);
+static void pl__render_chunk_shadow(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t uGlobalIndex, float fShadowViewportWidth, float fShadowViewportHeight);
+static void pl__free_chunk_until(plTerrain*, uint64_t idx_bytes_needed, uint64_t vtx_bytes_needed);
 
 
 static inline bool pl__is_leaf_resident(const plTerrainChunk* c)
@@ -101,7 +90,28 @@ static inline bool pl__is_leaf_resident(const plTerrainChunk* c)
              c->aptChildren[3]->ptIndexHole);
 }
 
+static inline bool
+pl__chunk_is_resident(const plTerrainChunk* ptChunk)
+{
+    return ptChunk && ptChunk->ptIndexHole && ptChunk->ptVertexHole && ptChunk->uIndexCount != 0;
+}
 
+static void
+pl__defer_residency_head(plTerrain* ptTerrain)
+{
+    plTerrainResidencyNode* ptHead = ptTerrain->tRequestQueue.ptNext;
+    plTerrainResidencyNode* ptTail;
+    if (!ptHead || !ptHead->ptNext)
+        return;
+    ptTerrain->tRequestQueue.ptNext = ptHead->ptNext;
+    ptHead->ptNext->ptPrev = NULL;
+    ptTail = ptTerrain->tRequestQueue.ptNext;
+    while (ptTail->ptNext)
+        ptTail = ptTail->ptNext;
+    ptTail->ptNext = ptHead;
+    ptHead->ptPrev = ptTail;
+    ptHead->ptNext = NULL;
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -112,13 +122,13 @@ pl_chlod_load_chunk_file(plTerrain* ptTerrain, const char* pcPath)
 {
     plChunkFileData tChunkFileData = {0};
     uint32_t uChunkFileID = pl_sb_size(ptTerrain->sbtChunkFiles);
-    gptTerrain->load_chunk_file(pcPath, &tChunkFileData.tFile, uChunkFileID);
+
+    if (!gptTerrain->load_chunk_file(pcPath, &tChunkFileData.tFile, uChunkFileID))
+        return false;
 
     for(uint32_t i = 0; i < tChunkFileData.tFile.uChunkCount; i++)
     {
-
         tChunkFileData.tFile.atChunks[i].uIndex = i;
-
         tChunkFileData.tFile.atChunks[i].tUVScale.x = 1.0f;
         tChunkFileData.tFile.atChunks[i].tUVScale.y = 1.0f;
     }
@@ -131,7 +141,6 @@ pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plAssetHandle tAsset)
 {
     plTerrain* ptTerrain = PL_ALLOC(sizeof(plTerrain));
     memset(ptTerrain, 0, sizeof(plTerrain));
-
 
     ptTerrain->tRenderPassLayoutHandle = gptData->tRenderPassLayout;
     ptTerrain->tAsset = tAsset;
@@ -228,8 +237,6 @@ pl__renderer_terrain_destroy(plTerrain* ptTerrain)
     gptGfx->queue_buffer_for_deletion(ptDevice, ptTerrain->tIndexBuffer);
     gptFreeList->cleanup(&ptTerrain->tVertexBufferManager);
     gptFreeList->cleanup(&ptTerrain->tIndexBufferManager);
-
-
 
     pl_sb_free(ptTerrain->sbuFreeRequests);
     pl_sb_free(ptTerrain->sbtChunkFiles);
@@ -464,8 +471,9 @@ pl__handle_residency(plTerrain* ptTerrain)
 
             PL_FREE(ptVertices);
             PL_FREE(ptIndices);
-            fclose(ptDataFile);
-            printf("No Memory (post-eviction)\n");
+            // fclose(ptDataFile);
+            PL_LOG_WARN_API(gptLog, gptData->uLogChannelTerrain, "No Memory (post-eviction)");
+            pl__defer_residency_head(ptTerrain);
             return;
         }
 
@@ -489,6 +497,8 @@ pl__handle_residency(plTerrain* ptTerrain)
 
         pl__remove_from_residency_queue(ptTerrain, ptCurrentRequest->ptChunk);
         pl__touch_chunk(ptTerrain, ptChunk);
+
+        PL_LOG_DEBUG_API(gptLog, gptData->uLogChannelTerrain, "Made chunk resident");
     }
 }
 
@@ -525,7 +535,7 @@ pl__touch_chunk(plTerrain* P, plTerrainChunk* c)
     pl__lru_push_front(P, c);
 }
 
-void
+static void
 pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 {
     pl__lru_unlink(ptTerrain, ptChunk);
@@ -638,8 +648,6 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     plTerrainAsset* ptAsset = gptAsset->get_data(ptTerrain->tAsset);
 
     float tauSubdivide = ptTerrainComp->fTau;
-    float tauMerge     = tauSubdivide * 0.5f;
-
     bool bChildrenResident = pl__all_children_resident(ptChunk);
 
     // Decide refinement using hysteresis
@@ -648,34 +656,43 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         // Draw parent
         plDevice* ptDevice = gptData->ptDevice;
         plDynamicBinding tDynamicBinding =  pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynTerrainData));
-        plGpuDynTerrainData* ptDynamic = (plGpuDynTerrainData*)tDynamicBinding.pcData;
-
-        ptDynamic->iLevel          = (int)ptChunk->uLevel;
-        ptDynamic->tFlags          = ptTerrainComp->tFlags;
-        ptDynamic->tUVInfo.xy       = ptChunk->tUVScale;
-        ptDynamic->tUVInfo.zw       = ptChunk->tUVOffset;
-        ptDynamic->iPointLightCount = pl_sb_size(ptScene->sbtPointLights);
-        ptDynamic->iSpotLightCount = pl_sb_size(ptScene->sbtSpotLights);
-        ptDynamic->iDirectionLightCount = pl_sb_size(ptScene->sbtDirectionLights);
-        ptDynamic->iProbeCount = pl_sb_size(ptScene->sbtProbeData);
-        ptDynamic->uGlobalIndex = uGlobalIndex;
-        ptDynamic->fSlopeStart = ptTerrainComp->fSlopeStart;
-        ptDynamic->fSlopeEnd = ptTerrainComp->fSlopeEnd;
-
         
-        for(uint32_t i = 0; i < ptAsset->uElevationZoneCount; i++)
+        plGpuDynTerrainData tDynamic = {0};
+        tDynamic.iLevel          = (int)ptChunk->uLevel;
+        tDynamic.tFlags          = ptTerrainComp->tFlags;
+        tDynamic.tUVInfo.xy       = ptChunk->tUVScale;
+        tDynamic.tUVInfo.zw       = ptChunk->tUVOffset;
+        tDynamic.iPointLightCount = pl_sb_size(ptScene->sbtPointLights);
+        tDynamic.iSpotLightCount = pl_sb_size(ptScene->sbtSpotLights);
+        tDynamic.iDirectionLightCount = pl_sb_size(ptScene->sbtDirectionLights);
+        tDynamic.iProbeCount = pl_sb_size(ptScene->sbtProbeData);
+        tDynamic.uGlobalIndex = uGlobalIndex;
+        tDynamic.fSlopeStart = ptTerrainComp->fSlopeStart;
+        tDynamic.fSlopeEnd = ptTerrainComp->fSlopeEnd;
+
+        uint32_t uZoneCount = ptAsset->uElevationZoneCount;
+        size_t szZoneCapacity = sizeof(tDynamic.atElevationZones) / sizeof(tDynamic.atElevationZones[0]);
+
+        if (!ptAsset->atElevationZones)
+            uZoneCount = 0;
+        if ((size_t)uZoneCount > szZoneCapacity)
+            uZoneCount = (uint32_t)szZoneCapacity;
+
+        for(uint32_t i = 0; i < uZoneCount; i++)
         {
-            ptDynamic->atElevationZones[i].tElevation.x = ptAsset->atElevationZones[i].fMinElevation;
-            ptDynamic->atElevationZones[i].tElevation.y = ptAsset->atElevationZones[i].fMaxElevation;
-            ptDynamic->atElevationZones[i].tElevation.z = ptAsset->atElevationZones[i].fBlendSize;
+            tDynamic.atElevationZones[i].tElevation.x = ptAsset->atElevationZones[i].fMinElevation;
+            tDynamic.atElevationZones[i].tElevation.y = ptAsset->atElevationZones[i].fMaxElevation;
+            tDynamic.atElevationZones[i].tElevation.z = ptAsset->atElevationZones[i].fBlendSize;
 
             plMaterial* ptFlatMaterial = gptAsset->get_data(ptAsset->atElevationZones[i].tFlatMaterial);
             plMaterial* ptSteepMaterial = gptAsset->get_data(ptAsset->atElevationZones[i].tSteepMaterial);
 
-            ptDynamic->atElevationZones[i].tFlatMaterial.tBaseColor = ptFlatMaterial->tBaseColor;
-            ptDynamic->atElevationZones[i].tSteepMaterial.tBaseColor = ptSteepMaterial->tBaseColor;
+            tDynamic.atElevationZones[i].tFlatMaterial.tBaseColor = ptFlatMaterial->tBaseColor;
+            tDynamic.atElevationZones[i].tSteepMaterial.tBaseColor = ptSteepMaterial->tBaseColor;
         }
 
+        plGpuDynTerrainData* ptDynamic = (plGpuDynTerrainData*)tDynamicBinding.pcData;
+        memcpy(ptDynamic, &tDynamic, sizeof(plGpuDynTerrainData));
         gptGfx->bind_graphics_bind_groups(ptCmdBuffer, ptScene->tTerrainShader, 0, 0, NULL, 1, &tDynamicBinding);
 
         const plDrawIndex tDraw = {
@@ -701,12 +718,6 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
                     pl__request_residency(ptTerrain, ptChunk->aptChildren[i]);
             }
         }
-        else if(fRho < tauMerge)
-        {
-            // Clearly low detail – unload children
-            pl__unload_children(ptTerrain, ptChunk);
-        }
-        // else: middle band → keep current state, prevent thrash
     }
     else
     {
@@ -727,11 +738,6 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
         .tMin = ptChunk->tMinBound,
         .tMax = ptChunk->tMaxBound
     };
-
-    // This should work for orthographic cameras as long as the camera's
-    // frustum planes were built from its orthographic projection.
-    // if(!pl__renderer_sat_visibility_test(ptCamera, &tAABB))
-    //     return;
 
     pl__request_residency(ptTerrain, ptChunk);
 
@@ -757,10 +763,9 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
     const float fPixelsPerWorldUnit = pl_max(fPixelsPerWorldUnitX, fPixelsPerWorldUnitY);
     const float fRho = fGeometricError * fPixelsPerWorldUnit;
     const float fTauSubdivide = ptTerrainComp->fTau;
-    const float fTauMerge = fTauSubdivide * 0.5f;
     const bool bChildrenResident = pl__all_children_resident(ptChunk);
 
-    if(!bChildrenResident || fRho <= fTauSubdivide || ptChunk->uLevel < 3)
+    if(!bChildrenResident || fRho <= fTauSubdivide)
     {
         const plDrawIndex tDraw = {
             .uIndexCount    = ptChunk->uIndexCount,
@@ -783,8 +788,6 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
                     pl__request_residency(ptTerrain, ptChunk->aptChildren[i]);
             }
         }
-        else if(fRho < fTauMerge)
-            pl__unload_children(ptTerrain, ptChunk);
     }
     else
     {
