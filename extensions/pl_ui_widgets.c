@@ -1319,7 +1319,7 @@ pl_ui_tree_node(const char* pcText, plUiTreeNodeFlags tFlags)
         pl_sb_push(ptWindow->sbtCursorStack, tCursorStackItem);
 
         // adjust next cursor
-        pl__set_cursor((plVec2){tStartPos.x + (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize, tStartPos.y + tWidgetSize.y + gptCtx->tStyle.tItemSpacing.y});
+        pl__set_cursor((plVec2){tStartPos.x + gptCtx->tStyle.fIndentSize, tStartPos.y + tWidgetSize.y + gptCtx->tStyle.tItemSpacing.y});
 
         // push current layout onto stack
         pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tLayoutRow);
