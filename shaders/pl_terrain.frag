@@ -119,9 +119,9 @@ void main()
         // outAlbedo += tShaderIn.tColor;
     }
 
-    if(bool(tDynamicData.tData.tFlags & PL_TERRAIN_SHADER_FLAGS_WIREFRAME))
-    {
-        outAlbedo = tShaderIn.tColor;
-    }
+    // if(bool(tDynamicData.tData.tFlags & PL_TERRAIN_SHADER_FLAGS_WIREFRAME))
+    // {
+    //     outAlbedo = tShaderIn.tColor;
+    // }
 
 }
