@@ -1234,7 +1234,7 @@ pl_ui_end_collapsing_header(void)
     {
         pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, pl_sb_pop(ptWindow->sbfMaxCursorYStack)});
 
-        if(pl_sb_size(ptWindow->sbfMaxCursorYStack) == 0)
+        // if(pl_sb_size(ptWindow->sbfMaxCursorYStack) == 0)
             pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, ptWindow->tTempData.tCursorMaxPos.y});
     }
     else
