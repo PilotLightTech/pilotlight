@@ -34,6 +34,7 @@ pl_ui_set_dark_theme(void)
     gptCtx->tStyle.fIndentSize              = 20.0f;
     gptCtx->tStyle.fScrollbarSize           = 10.0f;
     gptCtx->tStyle.fSliderSize              = 12.0f;
+    gptCtx->tStyle.fTreeLineSize            = 1.0f;
     gptCtx->tStyle.fWindowRounding          = 0.0f;
     gptCtx->tStyle.fChildRounding           = 0.0f;
     gptCtx->tStyle.fFrameRounding           = 0.0f;
@@ -523,6 +524,7 @@ pl_ui_begin_tooltip(void)
     const plVec2 tMousePos = gptIOI->get_mouse_pos();
     ptWindow->tTempData.tCursorStartPos = pl_add_vec2(tMousePos, (plVec2){gptCtx->tStyle.fWindowHorizontalPadding, 0.0f});
     ptWindow->tPos = tMousePos;
+    ptWindow->tTempData.tRowCursorLastPos = ptWindow->tTempData.tRowCursorPos;
     ptWindow->tTempData.tRowCursorPos.x = floorf(gptCtx->tStyle.fWindowHorizontalPadding + tMousePos.x);
     ptWindow->tTempData.tRowCursorPos.y = floorf(gptCtx->tStyle.fWindowVerticalPadding + tMousePos.y);
 
@@ -716,6 +718,7 @@ pl_ui_layout_row_end(void)
     PL_ASSERT(ptCurrentRow->tSystemType == PL_UI_LAYOUT_SYSTEM_TYPE_ROW_XXX);
     ptWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowCursorPos.x + ptCurrentRow->fMaxWidth, ptWindow->tTempData.tCursorMaxPos.x);
     ptWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight, ptWindow->tTempData.tCursorMaxPos.y);
+    ptWindow->tTempData.tRowCursorLastPos = ptWindow->tTempData.tRowCursorPos;
     ptWindow->tTempData.tRowCursorPos.y = ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
 
     // temp
@@ -809,7 +812,7 @@ pl_ui_layout_template_end(void)
 
     float fWidthAvailable = fAvailableSize
         - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1)                // remove spacing between widgets
-        - (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize; // remove indent
+        - (float)pl_sb_size(gptCtx->ptCurrentWindow->sbtTreeNodeStack) * gptCtx->tStyle.fIndentSize; // remove indent
 
     // simplest cast, not enough room, so nothing left to distribute to dynamic widths
     if(ptWindow->tTempData.fTempMinWidth >= fWidthAvailable)
@@ -998,11 +1001,68 @@ pl_ui_layout_space_end(void)
     PL_ASSERT(ptCurrentRow->tSystemType == PL_UI_LAYOUT_SYSTEM_TYPE_SPACE);
     ptWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowCursorPos.x + ptCurrentRow->fMaxWidth, ptWindow->tTempData.tCursorMaxPos.x);
     ptWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight, ptWindow->tTempData.tCursorMaxPos.y);
+
+    ptWindow->tTempData.tRowCursorLastPos = ptWindow->tTempData.tRowCursorPos;
     ptWindow->tTempData.tRowCursorPos.y = ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
 
     // temp
     plUiLayoutRow tNewRow = {0};
     ptWindow->tTempData.tLayoutRow = tNewRow;
+}
+
+void
+pl_ui_stash_layout(void)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+
+    if(ptWindow == NULL)
+        return;
+
+    // push cursor info onto stack
+    plUiCursorStackItem tCursorStackItem = {
+        .tPos = ptWindow->tTempData.tRowCursorLastPos
+        // .tPos = pl__get_cursor_pos()
+    };
+    pl_sb_push(ptWindow->sbtCursorStack, tCursorStackItem);
+
+    // push current layout onto stack
+    pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tLayoutRow);
+    pl_ui_layout_dynamic(0.0f, 1);
+
+    if(pl_sb_size(ptWindow->sbfMaxCursorYStack) > 0)
+    {
+        float fLastMax = pl_sb_top(ptWindow->sbfMaxCursorYStack);
+        pl_sb_push(ptWindow->sbfMaxCursorYStack, fLastMax);
+    }
+    else
+    {
+        pl_sb_push(ptWindow->sbfMaxCursorYStack, 0.0f);
+    }
+}
+
+void
+pl_ui_apply_layout(void)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+
+    if(ptWindow == NULL)
+        return;
+
+    pl_sb_pop(ptWindow->sbfMaxCursorYStack);
+    ptWindow->tTempData.tLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
+    plVec2 tNewCursor = ptWindow->tTempData.tRowCursorPos;
+
+    plUiCursorStackItem tOldCursorInfo = pl_sb_pop(ptWindow->sbtCursorStack);
+
+    if(ptWindow->tTempData.tLayoutRow.uCurrentColumn == 0)
+    {
+        pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, ptWindow->tTempData.tCursorMaxPos.y});
+    }
+    else
+    {
+        pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, tOldCursorInfo.tPos.y});
+        ptWindow->tTempData.tLayoutRow.fMaxHeight = pl_maxf(ptWindow->tTempData.tLayoutRow.fMaxHeight - gptCtx->tStyle.tItemSpacing.y, tNewCursor.y - tOldCursorInfo.tPos.y);
+    }
 }
 
 bool
@@ -1555,6 +1615,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     ptWindow->tTempData.tCursorStartPos.x = gptCtx->tStyle.fWindowHorizontalPadding + tStartPos.x - ptWindow->tScroll.x;
     ptWindow->tTempData.tCursorStartPos.y = gptCtx->tStyle.fWindowVerticalPadding + tStartPos.y + fTitleBarHeight - ptWindow->tScroll.y;
 
+    ptWindow->tTempData.tRowCursorLastPos = ptWindow->tTempData.tCursorStartPos;
     ptWindow->tTempData.tRowCursorPos = ptWindow->tTempData.tCursorStartPos;
     ptWindow->tTempData.tCursorStartPos = pl_floor_vec2(ptWindow->tTempData.tCursorStartPos);
     ptWindow->tTempData.fTitleBarHeight = fTitleBarHeight;
@@ -2028,14 +2089,14 @@ pl__calculate_item_size(float fDefaultHeight)
             }
 
             float fTotalWidthAvailable = fAvailableSize
-                - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1)                // remove spacing between widgets
-                - (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize; // remove indent
+                - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1) // remove spacing between widgets
+                - (float)pl_sb_size(gptCtx->ptCurrentWindow->sbtTreeNodeStack) * gptCtx->tStyle.fIndentSize; // remove indent
 
             fWidth *= fTotalWidthAvailable;
         }
         else
         {
-            fWidth -= (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize;
+            fWidth -= (float)pl_sb_size(gptCtx->ptCurrentWindow->sbtTreeNodeStack) * gptCtx->tStyle.fIndentSize;
         }
 
         const plVec2 tWidgetSize = { fWidth, fHeight};
@@ -2047,6 +2108,7 @@ static void
 pl__set_cursor(plVec2 tPos)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    ptWindow->tTempData.tRowCursorLastPos = ptWindow->tTempData.tRowCursorPos;
     ptWindow->tTempData.tRowCursorPos = tPos;
 }
 
@@ -2068,6 +2130,8 @@ pl__smart_advance_cursor(float fWidth, float fHeight)
     // automatic wrap
     if(ptCurrentRow->uCurrentColumn == ptCurrentRow->uColumns && ptCurrentRow->tSystemType != PL_UI_LAYOUT_SYSTEM_TYPE_ROW_XXX)
     {
+        
+        ptWindow->tTempData.tRowCursorLastPos = ptWindow->tTempData.tRowCursorPos;
         ptWindow->tTempData.tRowCursorPos.y = ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
 
         gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowCursorPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
@@ -2198,6 +2262,7 @@ pl_ui_cleanup(void)
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbfMaxCursorYStack);
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtRowStack);
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtCursorStack);
+        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtTreeNodeStack);
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtRowTemplateEntries);
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtTempLayoutSort);
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbuTempLayoutIndexSort);
@@ -2545,7 +2610,7 @@ pl_ui_show_style_editor_window(bool* pbOpen)
 
                 pl_ui_layout_dynamic(0.0f, 1);
 
-                pl_ui_color_picker4("Color", ptColorScheme->atColors[iEditingColor].d, PL_UI_COLOR_EDIT_FLAGS_NONE, ptColorScheme->atColors[iEditingColor].d);
+                pl_ui_color_picker4("Color", ptColorScheme->atColors[iEditingColor].d, PL_UI_COLOR_EDIT_FLAGS_NO_LABEL, ptColorScheme->atColors[iEditingColor].d);
                 pl_ui_end_tab();
             }
             
@@ -2578,6 +2643,7 @@ pl_ui_show_style_editor_window(bool* pbOpen)
                 pl_ui_separator_text("Misc");
                 pl_ui_slider_float("Indent", &ptStyle->fIndentSize, 0.0f, 32.0f, 0); 
                 pl_ui_slider_float("Slider Size", &ptStyle->fSliderSize, 3.0f, 32.0f, 0); 
+                pl_ui_slider_float("Treeline Size", &ptStyle->fTreeLineSize, 0.0f, 10.0f, 0); 
                 pl_ui_slider_float("Font Size", &ptStyle->fFontSize, 13.0f, 48.0f, 0); 
 
                 pl_ui_vertical_spacing();
@@ -2829,8 +2895,7 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .drag_float_f                          = pl_ui_drag_float_f,
         .color_picker3                         = pl_ui_color_picker3,
         .color_picker4                         = pl_ui_color_picker4,
-        .begin_collapsing_header               = pl_ui_begin_collapsing_header,
-        .end_collapsing_header                 = pl_ui_end_collapsing_header,
+        .collapsing_header                     = pl_ui_collapsing_header,
         .tree_node                             = pl_ui_tree_node,
         .tree_node_f                           = pl_ui_tree_node_f,
         .tree_node_v                           = pl_ui_tree_node_v,
@@ -2849,6 +2914,8 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .indent                                = pl_ui_indent,
         .unindent                              = pl_ui_unindent,
         .step_clipper                          = pl_ui_step_clipper,
+        .stash_layout                          = pl_ui_stash_layout,
+        .apply_layout                          = pl_ui_apply_layout,
         .layout_dynamic                        = pl_ui_layout_dynamic,
         .layout_static                         = pl_ui_layout_static,
         .layout_row_begin                      = pl_ui_layout_row_begin,

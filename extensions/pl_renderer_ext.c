@@ -2198,7 +2198,7 @@ pl__renderer_ui_terrain_node(plScene* ptScene, plTerrainChunk* ptChunk)
 
     if(pl__chunk_is_resident(ptChunk))
         gptUI->push_theme_color(PL_UI_COLOR_TEXT, (plVec4){0.0f, 1.0f, 0.0f, 1.00f});
-    if(gptUI->tree_node_f("%u -> %g, %g", 0, (uint32_t)ptChunk->uLevel, ptChunk->fX, ptChunk->fY))
+    if(gptUI->tree_node_f("%u -> %g, %g", PL_UI_TREE_NODE_FLAGS_DRAW_LINES_TO_NODES, (uint32_t)ptChunk->uLevel, ptChunk->fX, ptChunk->fY))
     {
         if(pl__chunk_is_resident(ptChunk))
             gptUI->pop_theme_color(1);
@@ -2207,7 +2207,7 @@ pl__renderer_ui_terrain_node(plScene* ptScene, plTerrainChunk* ptChunk)
 
         if(ptChunk->aptChildren[0])
         {
-            if(gptUI->tree_node("Children", 0))
+            if(gptUI->tree_node("Children", PL_UI_TREE_NODE_FLAGS_DRAW_LINES_TO_NODES))
             {
                 for(uint32_t i = 0; i < 4; i++)
                     pl__renderer_ui_terrain_node(ptScene, ptChunk->aptChildren[i]);
@@ -2328,13 +2328,14 @@ pl_renderer_begin_frame(void)
 
                     if(ptScene->ptTerrain)
                     {
-                        if(gptUI->begin_collapsing_header("Terrain", 0))
+                        if(gptUI->collapsing_header("Terrain", 0))
                         {
+                            gptUI->stash_layout();
 
                             for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
                             {
 
-                                if(gptUI->tree_node_f("Chunk File: %s", 0, ptScene->ptTerrain->sbtChunkFiles[i].tFile.acFile))
+                                if(gptUI->tree_node_f("Chunk File: %s", PL_UI_TREE_NODE_FLAGS_DRAW_LINES_TO_NODES, ptScene->ptTerrain->sbtChunkFiles[i].tFile.acFile))
                                 {
                                     gptUI->input_int("Tree Depth", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.iTreeDepth, PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
                                     gptUI->input_float("Max. Base Error", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.fMaxBaseError, "%g", PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
@@ -2343,7 +2344,8 @@ pl_renderer_begin_frame(void)
                                     gptUI->tree_pop();
                                 }
                             }
-                            gptUI->end_collapsing_header();
+
+                            gptUI->apply_layout();
                         }
                     }
 

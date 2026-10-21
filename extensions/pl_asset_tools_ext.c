@@ -515,10 +515,11 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptTagComp)
                 {
-                    if(gptUI->begin_collapsing_header("Tag", 0))
+                    if(gptUI->collapsing_header("Tag", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->text("Name: %s", ptTagComp->pcName);
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                 }
 
@@ -529,10 +530,11 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptLibraryComp)
                 {
-                    if(gptUI->begin_collapsing_header("Library", 0))
+                    if(gptUI->collapsing_header("Library", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->text("Library: %s", gptAsset->get_path(ptLibraryComp->tSourceLibrary));
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##0"))
                     {
@@ -543,12 +545,13 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptEnvironment)
                 {
-                    if(gptUI->begin_collapsing_header("Environment", 0))
+                    if(gptUI->collapsing_header("Environment1", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->text("Environment: %s", gptAsset->get_path(ptEnvironment->tEnvironment));
-                        
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
+
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##1"))
                     {
                         gptEcs->remove_component(ptLibrary, tEnvironmentProbeComponentType, *ptSelectedEntity);
@@ -558,10 +561,11 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptRenderer)
                 {
-                    if(gptUI->begin_collapsing_header("Renderer", 0))
+                    if(gptUI->collapsing_header("Renderer", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->text("Renderer: %s", gptAsset->get_path(ptRenderer->tRenderer));
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##2"))
                     {
@@ -572,8 +576,9 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptTerrain)
                 {
-                    if(gptUI->begin_collapsing_header("Terrain", 0))
+                    if(gptUI->collapsing_header("Terrain", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->text("Terrain: %s", gptAsset->get_path(ptTerrain->tTerrain));
                         gptUI->slider_float("fTau", &ptTerrain->fTau, 0.0f, 1.0f, 0);
 
@@ -585,8 +590,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                         gptUI->input_float("Terrain Depth Bias", &ptTerrain->fTerrainShadowConstantDepthBias, "%g", 0);
                         gptUI->input_float("Terrain Slope Depth Bias", &ptTerrain->fTerrainShadowSlopeDepthBias, "%g", 0);
-
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##3"))
                     {
@@ -599,14 +603,15 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptScriptComp)
                 {
-                    if(gptUI->begin_collapsing_header("Script", 0))
+                    if(gptUI->collapsing_header("Script", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->text("File: %s", ptScriptComp->pcPath);
 
                         gptUI->checkbox_flags("Playing", &ptScriptComp->tFlags, PL_SCRIPT_FLAG_PLAYING);
                         gptUI->checkbox_flags("Play Once", &ptScriptComp->tFlags, PL_SCRIPT_FLAG_PLAY_ONCE);
                         gptUI->checkbox_flags("Reloadable", &ptScriptComp->tFlags, PL_SCRIPT_FLAG_RELOADABLE);
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##4"))
                     {
@@ -617,9 +622,10 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptHumanComp)
                 {
-                    if(gptUI->begin_collapsing_header("Humanoid", 0))
+                    if(gptUI->collapsing_header("Humanoid", 0))
                     {
-                        gptUI->end_collapsing_header();
+                        gptUI->stash_layout();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##5"))
                     {
@@ -630,8 +636,9 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptRigidComp)
                 {
-                    if(gptUI->begin_collapsing_header("Rigid Body Physics", 0))
+                    if(gptUI->collapsing_header("Rigid Body Physics", 0))
                     {
+                        gptUI->stash_layout();
                         if(gptUI->checkbox_flags("No Sleeping", &ptRigidComp->tFlags, PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING))
                         {
                             if(ptRigidComp->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING)
@@ -705,8 +712,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         gptUI->invisible_button("not_used", (plVec2){1.0f, 1.0f});
 
                         gptUI->pop_theme_color(3);
-
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##5"))
                     {
@@ -717,8 +723,9 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptProbeComp)
                 {
-                    if(gptUI->begin_collapsing_header("Environment Probe", 0))
+                    if(gptUI->collapsing_header("Environment Probe", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->checkbox_flags("Real Time", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_REALTIME);
                         gptUI->checkbox_flags("Include Sky", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY);
                         gptUI->checkbox_flags("Box Parallax Correction", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX);
@@ -768,8 +775,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         gptUI->radio_button("6", &iSelection0, 6);
 
                         ptProbeComp->uInterval = (uint32_t)iSelection0;
-
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##6"))
                     {
@@ -780,8 +786,9 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptTransformComp)
                 {
-                    if(gptUI->begin_collapsing_header("Transform", 0))
+                    if(gptUI->collapsing_header("Transform", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->text("Scale:       (%+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tScale.x, ptTransformComp->tScale.y, ptTransformComp->tScale.z);
                         gptUI->text("Translation: (%+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tTranslation.x, ptTransformComp->tTranslation.y, ptTransformComp->tTranslation.z);
                         gptUI->text("Rotation:    (%+0.3f, %+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tRotation.x, ptTransformComp->tRotation.y, ptTransformComp->tRotation.z, ptTransformComp->tRotation.w);
@@ -790,7 +797,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         gptUI->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].y, ptTransformComp->tWorld.col[1].y, ptTransformComp->tWorld.col[2].y, ptTransformComp->tWorld.col[3].y);
                         gptUI->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].z, ptTransformComp->tWorld.col[1].z, ptTransformComp->tWorld.col[2].z, ptTransformComp->tWorld.col[3].z);
                         gptUI->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].w, ptTransformComp->tWorld.col[1].w, ptTransformComp->tWorld.col[2].w, ptTransformComp->tWorld.col[3].w);
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##7"))
                     {
@@ -801,13 +808,14 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptForceField)
                 {
-                    if(gptUI->begin_collapsing_header("Force Field", 0))
+                    if(gptUI->collapsing_header("Force Field", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->radio_button("Type: PL_FORCE_FIELD_TYPE_POINT", &ptForceField->tType, PL_FORCE_FIELD_TYPE_POINT);
                         gptUI->radio_button("Type: PL_FORCE_FIELD_TYPE_PLANE", &ptForceField->tType, PL_FORCE_FIELD_TYPE_PLANE);
                         gptUI->input_float("Gravity", &ptForceField->fGravity, NULL, 0);
                         gptUI->input_float("Range", &ptForceField->fRange, NULL, 0);
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##8"))
                     {
@@ -818,8 +826,9 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptObjectComp)
                 {
-                    if(gptUI->begin_collapsing_header("Object", 0))
+                    if(gptUI->collapsing_header("Object", 0))
                     {
+                        gptUI->stash_layout();
                         plTagComponent* ptTransformTagComp = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptObjectComp->tTransform);
 
                         plMesh* ptMesh = gptAsset->get_data(ptObjectComp->tMesh);
@@ -851,7 +860,8 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                             }
                             // gptUI->text("Renderer: %s", gptAsset->get_path(ptRenderer->tRenderer));
                         }
-                        gptUI->end_collapsing_header();
+
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##9"))
                     {
@@ -862,11 +872,12 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptHierarchyComp)
                 {
-                    if(gptUI->begin_collapsing_header("Hierarchy", 0))
+                    if(gptUI->collapsing_header("Hierarchy", 0))
                     {
+                        gptUI->stash_layout();
                         plTagComponent* ptParentTagComp = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptHierarchyComp->tParent);
                         gptUI->text("Parent Entity: %s , %u", ptParentTagComp->pcName, ptHierarchyComp->tParent.uIndex);
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##10"))
                     {
@@ -877,8 +888,9 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptLightComp)
                 {
-                    if(gptUI->begin_collapsing_header("Light", 0))
+                    if(gptUI->collapsing_header("Light", 0))
                     {
+                        gptUI->stash_layout();
                         static const char* apcLightTypes[] = {
                             "PL_LIGHT_TYPE_DIRECTIONAL",
                             "PL_LIGHT_TYPE_POINT",
@@ -947,7 +959,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                             gptUI->radio_button("Resolution: 4096", &iSelection, 5);
                             ptLightComp->uShadowResolution = auResolutions[iSelection];
                         }
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##11"))
                     {
@@ -958,8 +970,9 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptSkinComp)
                 {
-                    if(gptUI->begin_collapsing_header("Skin", 0))
+                    if(gptUI->collapsing_header("Skin", 0))
                     {
+                        gptUI->stash_layout();
                         if(gptUI->tree_node("Joints", 0))
                         {
                             plSkin* ptSkin = gptAsset->get_data(ptSkinComp->tSkin);
@@ -970,7 +983,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                             }
                             gptUI->tree_pop();
                         }
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##12"))
                     {
@@ -981,8 +994,9 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptCameraComp)
                 { 
-                    if(gptUI->begin_collapsing_header("Camera", 0))
+                    if(gptUI->collapsing_header("Camera", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->labeled_text("Near Z", "%+0.3f", ptCameraComp->fNearZ);
                         gptUI->labeled_text("Far Z", "%+0.3f", ptCameraComp->fFarZ);
                         if(gptUI->radio_button("Projection: Perspective", &ptCameraComp->eProjectionType, PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE))
@@ -1029,8 +1043,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         gptUI->input_float("Far Z Plane", &ptCameraComp->fFarZ, NULL, 0);
 
                         ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
-                        
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##13"))
                     {
@@ -1041,8 +1054,9 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptAnimationComp)
                 { 
-                    if(gptUI->begin_collapsing_header("Animation", 0))
+                    if(gptUI->collapsing_header("Animation", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->checkbox_flags("Playing", &ptAnimationComp->tFlags, PL_ANIMATION_FLAG_PLAYING);
                         gptUI->checkbox_flags("Looped", &ptAnimationComp->tFlags, PL_ANIMATION_FLAG_LOOPED);
                         plAnimation* ptAnimation = gptAsset->get_data(ptAnimationComp->tAnimation);
@@ -1052,7 +1066,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         gptUI->slider_float("Speed", &ptAnimationComp->fSpeed, 0.0f, 2.0f, 0);
                         gptUI->slider_float("Time", &ptAnimationComp->fTimer, ptAnimation->fStart, ptAnimation->fEnd, 0);
                         gptUI->progress_bar(ptAnimationComp->fTimer / (ptAnimation->fEnd - ptAnimation->fStart), (plVec2){-1.0f, 0.0f}, NULL);
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##14"))
                     {
@@ -1063,15 +1077,16 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptIKComp)
                 { 
-                    if(gptUI->begin_collapsing_header("Inverse Kinematics", 0))
+                    if(gptUI->collapsing_header("Inverse Kinematics", 0))
                     {
+                        gptUI->stash_layout();
                         plTagComponent* ptTargetComp = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptIKComp->tTarget);
                         gptUI->text("Target Entity: %s , %u", ptTargetComp->pcName, ptIKComp->tTarget.uIndex);
                         gptUI->slider_uint("Chain Length", &ptIKComp->uChainLength, 1, 10, 0);
                         gptUI->slider_uint("Iterations", &ptIKComp->uIterationCount, 1, 10, 0);
 
                         gptUI->checkbox("Enabled", &ptIKComp->bEnabled);
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##15"))
                     {
@@ -1342,94 +1357,103 @@ pl_asset_tools_show_assets(bool* bValue)
 
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_EMISSIVE)
                     {
-                        if(gptUI->begin_collapsing_header("Emissive", 0))
+                        if(gptUI->collapsing_header("Emissive", 0))
                         {
+                            gptUI->stash_layout();
                             gptUI->color_picker3("emissive color", ptMaterial->tEmissiveColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE);
                             gptUI->input_float3("emissive color#3", ptMaterial->tEmissiveColor.d, "%g", 0);
                             gptUI->input_float("emissive strength", &ptMaterial->fEmissiveStrength, "%g", 0);
-                            gptUI->end_collapsing_header();
+                            gptUI->apply_layout();
                         }
                     }
 
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_CLEARCOAT)
                     {
-                        if(gptUI->begin_collapsing_header("Clearcoat", 0))
+                        if(gptUI->collapsing_header("Clearcoat", 0))
                         {
+                            gptUI->stash_layout();
                             gptUI->input_float("factor", &ptMaterial->tClearcoat.fFactor, "%g", 0);
                             gptUI->input_float("roughness", &ptMaterial->tClearcoat.fRoughness, "%g", 0);
                             gptUI->input_float("normal map strength", &ptMaterial->tClearcoat.fNormalMapStrength, "%g", 0);
-                            gptUI->end_collapsing_header();
+                            gptUI->apply_layout();
                         }
                     }
 
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_SHEEN)
                     {
-                        if(gptUI->begin_collapsing_header("Sheen", 0))
+                        if(gptUI->collapsing_header("Sheen", 0))
                         {
+                            gptUI->stash_layout();
                             gptUI->input_float3("color", ptMaterial->tSheen.tColor.d, "%g", 0);
                             gptUI->input_float("roughness", &ptMaterial->tSheen.fRoughness, "%g", 0);
-                            gptUI->end_collapsing_header();
+                            gptUI->apply_layout();
                         }
                     }
 
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_IRIDESCENCE)
                     {
-                        if(gptUI->begin_collapsing_header("Iridescence", 0))
+                        if(gptUI->collapsing_header("Iridescence", 0))
                         {
+                            gptUI->stash_layout();
                             gptUI->input_float("factor", &ptMaterial->tIridescence.fFactor, "%g", 0);
                             gptUI->input_float("ior", &ptMaterial->tIridescence.fIor, "%g", 0);
                             gptUI->input_float("max. thickness", &ptMaterial->tIridescence.fThicknessMax, "%g", 0);
                             gptUI->input_float("min. thickness", &ptMaterial->tIridescence.fThicknessMin, "%g", 0);
-                            gptUI->end_collapsing_header();
+                            gptUI->apply_layout();
                         }
                     }
 
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_ANISOTROPY)
                     {
-                        if(gptUI->begin_collapsing_header("Anisotropy", 0))
+                        if(gptUI->collapsing_header("Anisotropy", 0))
                         {
+                            gptUI->stash_layout();
                             gptUI->input_float("strength", &ptMaterial->tAnisotropy.fStrength, "%g", 0);
                             gptUI->input_float("rotation", &ptMaterial->tAnisotropy.fRotation, "%g", 0);
-                            gptUI->end_collapsing_header();
+                            gptUI->apply_layout();
                         }
                     }
 
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_TRANSMISSION)
                     {
-                        if(gptUI->begin_collapsing_header("Transmission", 0))
+                        if(gptUI->collapsing_header("Transmission", 0))
                         {
+                            gptUI->stash_layout();
                             gptUI->input_float("factor", &ptMaterial->tTransmission.fFactor, "%g", 0);
-                            gptUI->end_collapsing_header();
+                            gptUI->apply_layout();
                         }
                     }
 
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_VOLUME)
                     {
-                        if(gptUI->begin_collapsing_header("Volume", 0))
+                        if(gptUI->collapsing_header("Volume", 0))
                         {
+                            gptUI->stash_layout();
                             gptUI->input_float3("attenuation color", ptMaterial->tVolume.tAttenuationColor.d, "%g", 0);
                             gptUI->input_float("thickness", &ptMaterial->tVolume.fThickness, "%g", 0);
                             gptUI->input_float("attenuation distance", &ptMaterial->tVolume.fAttenuationDistance, "%g", 0);
-                            gptUI->end_collapsing_header();
+                            gptUI->apply_layout();
                         }
                     }
 
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DISPERSION)
                     {
-                        if(gptUI->begin_collapsing_header("Dispersion", 0))
+                        if(gptUI->collapsing_header("Dispersion", 0))
                         {
+                            gptUI->stash_layout();
                             gptUI->input_float("dispersion", &ptMaterial->tDispersion.fDispersion, "%g", 0);
-                            gptUI->end_collapsing_header();
+                            gptUI->apply_layout();
                         }
                     }
 
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
                     {
-                        if(gptUI->begin_collapsing_header("Diffuse Transmission", 0))
+                        if(gptUI->collapsing_header("Diffuse Transmission", 0))
                         {
+                            gptUI->stash_layout();
                             gptUI->input_float3("color", ptMaterial->tDiffuseTransmission.tColor.d, "%g", 0);
                             gptUI->input_float("factor", &ptMaterial->tDiffuseTransmission.fFactor, "%g", 0);
-                            gptUI->end_collapsing_header();
+                            gptUI->apply_layout();
                         }
                     }
 
@@ -1575,17 +1599,19 @@ pl_asset_tools_show_assets(bool* bValue)
                 {
                     plRenderSettings* ptSettings = gptAsset->get_data(tAssetHandle);
 
-                    if(gptUI->begin_collapsing_header("Lighting", 0))
+                    if(gptUI->collapsing_header("Lighting", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->checkbox_flags("Image Based Lighting", &ptSettings->tLighting.tFlags, PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED);
                         gptUI->checkbox_flags("Punctual Lighting", &ptSettings->tLighting.tFlags, PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS);
                         gptUI->checkbox_flags("Normal Mapping", &ptSettings->tLighting.tFlags, PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING);
                         gptUI->checkbox_flags("No Shadows", &ptSettings->tLighting.tFlags, PL_RENDERER_LIGHTING_FLAGS_NO_SHADOWS);
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
 
-                    if(gptUI->begin_collapsing_header("Shadows", 0))
+                    if(gptUI->collapsing_header("Shadows", 0))
                     {
+                        gptUI->stash_layout();
                         gptUI->checkbox_flags("MultiViewport Shadows", &ptSettings->tShadows.tFlags, PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT);
                         gptUI->checkbox_flags("PCF Shadows", &ptSettings->tShadows.tFlags, PL_RENDERER_SHADOW_FLAGS_PCF);
                         gptUI->input_float("Depth Bias", &ptSettings->tShadows.fConstantDepthBias, "%g", 0);
@@ -1637,11 +1663,12 @@ pl_asset_tools_show_assets(bool* bValue)
                             ptSettings->tSky.tAerialLutResolution.y = (float)saiAerialLutRes[1];
                             ptSettings->tSky.tAerialLutResolution.z = (float)saiAerialLutRes[2];
                         }
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
 
-                    if(gptUI->begin_collapsing_header("Post Process", 0))
+                    if(gptUI->collapsing_header("Post Process", 0))
                     {
+                        gptUI->stash_layout();
                         static const char* apcTonemapText[] = {
                             "None",
                             "Simple",
@@ -1669,11 +1696,10 @@ pl_asset_tools_show_assets(bool* bValue)
                         gptUI->slider_float("Brightness", &ptSettings->tTonemap.fBrightness, -1.0f, 1.0f, 0);
                         gptUI->slider_float("Contrast", &ptSettings->tTonemap.fContrast, 0.0f, 2.0f, 0);
                         gptUI->slider_float("Saturation", &ptSettings->tTonemap.fSaturation, 0.0f, 2.0f, 0);
-
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
 
-                    if(gptUI->begin_collapsing_header("Bloom", 0))
+                    if(gptUI->collapsing_header("Bloom", 0))
                     {
                         bool bBloomActive = ptSettings->tBloom.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE;
                         gptUI->checkbox("Bloom", &bBloomActive);
@@ -1689,11 +1715,13 @@ pl_asset_tools_show_assets(bool* bValue)
                         }
                         else
                             ptSettings->tBloom.tFlags &= ~PL_RENDERER_BLOOM_FLAGS_ACTIVE;
-                        gptUI->end_collapsing_header();
+
+                        gptUI->apply_layout();
                     }
 
-                    if(gptUI->begin_collapsing_header("Fog", 0))
+                    if(gptUI->collapsing_header("Fog", 0))
                     {
+                        gptUI->stash_layout();
                         bool bFog = ptSettings->tFog.tFlags & PL_RENDERER_FOG_FLAGS_ACTIVE;
                         gptUI->checkbox("Fog", &bFog);
                         if(bFog)
@@ -1714,7 +1742,7 @@ pl_asset_tools_show_assets(bool* bValue)
                         }
                         else
                             ptSettings->tFog.tFlags &= ~PL_RENDERER_FOG_FLAGS_ACTIVE;
-                        gptUI->end_collapsing_header();
+                        gptUI->apply_layout();
                     }
 
                 }

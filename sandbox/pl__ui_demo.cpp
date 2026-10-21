@@ -8,20 +8,19 @@ pl__show_ui_demo_window(plAppData* ptAppData)
         static const float pfRatios0[] = {1.0f};
         gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios0);
 
-        if(gptUI->begin_collapsing_header("Help", 0))
+        if(gptUI->collapsing_header("Help", 0))
         {
             gptUI->text("Under construction");
-            gptUI->end_collapsing_header();
         }
     
-        if(gptUI->begin_collapsing_header("Window Options", 0))
+        if(gptUI->collapsing_header("Window Options", 0))
         {
             gptUI->text("Under construction");
-            gptUI->end_collapsing_header();
         }
 
-        if(gptUI->begin_collapsing_header("Widgets", 0))
+        if(gptUI->collapsing_header("Widgets", 0))
         {
+            gptUI->stash_layout();
             if(gptUI->tree_node("Basic", 0))
             {
 
@@ -242,20 +241,54 @@ pl__show_ui_demo_window(plAppData* ptAppData)
             if(gptUI->tree_node("Trees", 0))
             {
                 
-                if(gptUI->tree_node("Root Node", 0))
+                if(gptUI->tree_node("Basic", 0))
                 {
-                    if(gptUI->tree_node("Child 1", 0))
+                    if(gptUI->tree_node("Root Node", 0))
                     {
-                        gptUI->button("Press me");
-                        gptUI->tree_pop();
-                    }
-                    if(gptUI->tree_node("Child 2", 0))
-                    {
-                        gptUI->button("Press me");
+                        if(gptUI->tree_node("Child 1", 0))
+                        {
+                            gptUI->button("Press me");
+                            gptUI->tree_pop();
+                        }
+                        if(gptUI->tree_node("Child 2", 0))
+                        {
+                            gptUI->button("Press me");
+                            gptUI->tree_pop();
+                        }
                         gptUI->tree_pop();
                     }
                     gptUI->tree_pop();
                 }
+
+                if(gptUI->tree_node("Hierarchy Lines", PL_UI_TREE_NODE_FLAGS_DEFAULT_OPEN))
+                {
+                    static plUiTreeNodeFlags tTreeFlags = PL_UI_TREE_NODE_FLAGS_DRAW_LINES_FULL;
+                    gptUI->checkbox_flags("DrawLinesFull", &tTreeFlags, PL_UI_TREE_NODE_FLAGS_DRAW_LINES_FULL);
+                    gptUI->checkbox_flags("DrawLinesToNodes", &tTreeFlags, PL_UI_TREE_NODE_FLAGS_DRAW_LINES_TO_NODES);
+
+                    if(gptUI->tree_node("Parent", tTreeFlags))
+                    {
+                        if(gptUI->tree_node("Child 1", tTreeFlags))
+                        {
+                            gptUI->button("Button for Child 1");
+
+                            if(gptUI->tree_node("Grand child 1", tTreeFlags))
+                            {
+                                gptUI->button("Button for Grandchild 1");
+                                gptUI->tree_pop();
+                            }
+                            gptUI->tree_pop();
+                        }
+                        if(gptUI->tree_node("Child 2", tTreeFlags))
+                        {
+                            gptUI->button("Button for Child 2");
+                            gptUI->tree_pop();
+                        }
+                        gptUI->tree_pop();
+                    }
+                    gptUI->tree_pop();
+                }
+
                 gptUI->tree_pop();
             }
 
@@ -301,11 +334,12 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                 }
                 gptUI->tree_pop();
             }
-            gptUI->end_collapsing_header();
+            gptUI->apply_layout();
         }
 
-        if(gptUI->begin_collapsing_header("Scrolling", 0))
+        if(gptUI->collapsing_header("Scrolling", 0))
         {
+            gptUI->stash_layout();
             const float pfRatios2[] = {0.5f, 0.50f};
             const float pfRatios3[] = {600.0f};
 
@@ -355,13 +389,12 @@ pl__show_ui_demo_window(plAppData* ptAppData)
 
                 gptUI->end_child();
             }
-            
-
-            gptUI->end_collapsing_header();
+            gptUI->apply_layout();
         }
 
-        if(gptUI->begin_collapsing_header("Layout Systems", 0))
+        if(gptUI->collapsing_header("Layout Systems", 0))
         {
+            gptUI->stash_layout();
             gptUI->text("General Notes");
             gptUI->text("  - systems ordered by increasing flexibility");
             gptUI->separator();
@@ -656,49 +689,40 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                 const float pfRatios2[] = {0.5f, 0.5f};
                 const float pfRatios3[] = {0.5f * 0.5f, 0.25f * 0.5f, 0.25f * 0.5f};
                 gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
-                if(gptUI->begin_collapsing_header("Information", 0))
+                if(gptUI->collapsing_header("Information", 0))
                 {
                     gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
                     gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
 
                     gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 3, pfRatios3);
-                    if(gptUI->begin_collapsing_header("sub0", 0))
+                    if(gptUI->collapsing_header("sub0", 0))
                     {
                         gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->end_collapsing_header();
                     }
-                    if(gptUI->begin_collapsing_header("sub1", 0))
-                    {
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->end_collapsing_header();
-                    }
-                    if(gptUI->begin_collapsing_header("sub2", 0))
+                    if(gptUI->collapsing_header("sub1", 0))
                     {
                         gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
                         gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->end_collapsing_header();
                     }
-
-                    gptUI->end_collapsing_header();
+                    if(gptUI->collapsing_header("sub2", 0))
+                    {
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                    }
                 }
-                if(gptUI->begin_collapsing_header("App Options", 0))
+                if(gptUI->collapsing_header("App Options", 0))
                 {
                     gptUI->checkbox("Freeze Culling Camera", NULL);
                     int iCascadeCount  = 2;
                     gptUI->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0);
-
-                    gptUI->end_collapsing_header();
                 }
                 
-                if(gptUI->begin_collapsing_header("Graphics", 0))
+                if(gptUI->collapsing_header("Graphics", 0))
                 {
                     gptUI->checkbox("Freeze Culling Camera", NULL);
                     int iCascadeCount  = 2;
                     gptUI->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0);
-
-                    gptUI->end_collapsing_header();
                 }
                 if(gptUI->begin_tab_bar("tab bar2", 0))
                 {
@@ -719,23 +743,21 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                 }
 
                 gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-                if(gptUI->begin_collapsing_header("Tools", 0))
+                if(gptUI->collapsing_header("Tools", 0))
                 {
                     gptUI->checkbox("Device Memory Analyzer", NULL);
                     gptUI->checkbox("Device Memory Analyzer", NULL);
-                    gptUI->end_collapsing_header();
                 }
 
-                if(gptUI->begin_collapsing_header("Debug", 0))
+                if(gptUI->collapsing_header("Debug", 0))
                 {
                     gptUI->button("resize");
                     gptUI->checkbox("Always Resize", NULL);
-                    gptUI->end_collapsing_header();
                 }
 
                 gptUI->tree_pop();
             }
-            gptUI->end_collapsing_header();
+            gptUI->apply_layout();
         }
         gptUI->end_window();
     }

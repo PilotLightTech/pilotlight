@@ -229,11 +229,10 @@ pl_app_update(plAppData* ptAppData)
     if(gptUi->begin_window("Pilot Light", NULL, false))
     {
 
-        if(gptUi->begin_collapsing_header("Information", 0))
+        if(gptUi->collapsing_header("Information", 0))
         {
             
             gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-            gptUi->end_collapsing_header();
         }
 
         if(gptUi->button("Print"))

@@ -240,6 +240,7 @@ typedef struct _plUiStyle
     int    iWindowBorderSize;
     float  fScrollbarSize;
     float  fSliderSize;
+    float  fTreeLineSize;
     plVec2 tItemSpacing;
     plVec2 tInnerSpacing;
     plVec2 tFramePadding;
@@ -362,14 +363,21 @@ typedef struct _plUiCursorStackItem
     plVec2 tPos;
 } plUiCursorStackItem;
 
+typedef struct _plUiTreeNodeStackItem
+{
+    plUiTreeNodeFlags tFlags;
+    plVec2            tFirstAnchor;
+    plVec2            tLastAnchor;
+} plUiTreeNodeStackItem;
+
 typedef struct _plUiTempWindowData
 {
     float         fTitleBarHeight;   // titlebar height
     plVec2        tCursorStartPos;   // position where widgets begin drawing (could be outside window if scrolling)
     plVec2        tCursorMaxPos;     // maximum cursor position (could be outside window if scrolling)
+    plVec2        tRowCursorLastPos; // current row starting position
     plVec2        tRowCursorPos;     // current row starting position
     plUiLayoutRow tLayoutRow;        // current layout row to use
-    uint32_t      uTreeDepth;        // current level inside trees
     float         fExtraIndent;      // extra indent added by pl_indent
     float         fTempMinWidth;     // template layout system
     float         fTempStaticWidth;  // template layout system
@@ -377,49 +385,50 @@ typedef struct _plUiTempWindowData
 
 typedef struct _plUiWindow
 {
-    char*                pcName;
-    size_t               szNameBufferLength;
-    uint32_t             uId;                           // window Id (=pl_str_hash(pcName))
-    plUiWindowFlags      tFlags;                        // plUiWindowFlags, not all honored at the moment
-    plVec2               tPos;                          // position of window in viewport
-    plVec2               tContentSize;                  // size of contents/scrollable client area
-    plVec2               tMinSize;                      // minimum size of window (default 200,200)
-    plVec2               tMaxSize;                      // maximum size of window (default 10000,10000)
-    plVec2               tSize;                         // full size or title bar size if collapsed
-    plVec2               tFullSize;                     // used to restore size after uncollapsing
-    plVec2               tScroll;                       // current scroll amount (0 < tScroll < tScrollMax)
-    plVec2               tScrollMax;                    // maximum scroll amount based on last frame content size & adjusted for scroll bars
-    plRect               tInnerRect;                    // inner rect (excludes titlebar & scrollbars)
-    plRect               tOuterRect;                    // outer rect (includes everything)
-    plRect               tOuterRectClipped;             // outer rect clipped by parent window & viewport
-    plRect               tInnerClipRect;                // inner rect clipped by parent window & viewport (includes horizontal padding on each side)
-    plUiWindow*          ptParentWindow;                // parent window if child
-    plUiWindow*          ptRootWindow;                  // root window or self if this is the root window
-    plUiWindow*          ptRootWindowPopupTree;         // root window or self if this is the root window
-    plUiWindow*          ptRootWindowTitleBarHighlight; // root window or self if this is the root window
-    bool                 bAppearing;
-    bool                 bVisible;                // true if visible (only for child windows at the moment)
-    bool                 bActive;                 // window has been "seen" this frame
-    bool                 bCollapsed;              // window is currently collapsed
-    bool                 bScrollbarX;             // set if horizontal scroll bar is "on"
-    bool                 bScrollbarY;             // set if vertical scroll bar is "on"
-    plUiTempWindowData   tTempData;               // temporary data reset at the beginning of frame
-    plUiWindow**         sbtChildWindows;         // child windows if any (reset every frame)
-    plUiLayoutRow*       sbtRowStack;             // row stack for containers to push parents row onto and pop when they exit (reset every frame)
-    plUiCursorStackItem* sbtCursorStack;
-    float*               sbfAvailableSizeStack;
-    float*               sbfMaxCursorYStack;
-    plUiLayoutSortLevel* sbtTempLayoutSort;       // blah
-    uint32_t*            sbuTempLayoutIndexSort;  // blah
-    plUiLayoutRowEntry*  sbtRowTemplateEntries;   // row template entries (shared and reset every frame)            
-    plDrawLayer2D*       ptBgLayer;               // background draw layer
-    plDrawLayer2D*       ptFgLayer;               // foreground draw layer
-    plUiConditionFlags   tPosAllowableFlags;      // acceptable condition flags for "pl_set_next_window_pos()"
-    plUiConditionFlags   tSizeAllowableFlags;     // acceptable condition flags for "pl_set_next_window_size()"
-    plUiConditionFlags   tCollapseAllowableFlags; // acceptable condition flags for "pl_set_next_window_collapse()"
-    uint8_t              uHideFrames;             // hide window for this many frames (useful for autosizing)
-    uint32_t             uFocusOrder;             // display rank
-    plUiStorage          tStorage;                // state storage
+    char*                      pcName;
+    size_t                     szNameBufferLength;
+    uint32_t                   uId;                           // window Id (=pl_str_hash(pcName))
+    plUiWindowFlags            tFlags;                        // plUiWindowFlags, not all honored at the moment
+    plVec2                     tPos;                          // position of window in viewport
+    plVec2                     tContentSize;                  // size of contents/scrollable client area
+    plVec2                     tMinSize;                      // minimum size of window (default 200,200)
+    plVec2                     tMaxSize;                      // maximum size of window (default 10000,10000)
+    plVec2                     tSize;                         // full size or title bar size if collapsed
+    plVec2                     tFullSize;                     // used to restore size after uncollapsing
+    plVec2                     tScroll;                       // current scroll amount (0 < tScroll < tScrollMax)
+    plVec2                     tScrollMax;                    // maximum scroll amount based on last frame content size & adjusted for scroll bars
+    plRect                     tInnerRect;                    // inner rect (excludes titlebar & scrollbars)
+    plRect                     tOuterRect;                    // outer rect (includes everything)
+    plRect                     tOuterRectClipped;             // outer rect clipped by parent window & viewport
+    plRect                     tInnerClipRect;                // inner rect clipped by parent window & viewport (includes horizontal padding on each side)
+    plUiWindow*                ptParentWindow;                // parent window if child
+    plUiWindow*                ptRootWindow;                  // root window or self if this is the root window
+    plUiWindow*                ptRootWindowPopupTree;         // root window or self if this is the root window
+    plUiWindow*                ptRootWindowTitleBarHighlight; // root window or self if this is the root window
+    bool                       bAppearing;
+    bool                       bVisible;                // true if visible (only for child windows at the moment)
+    bool                       bActive;                 // window has been "seen" this frame
+    bool                       bCollapsed;              // window is currently collapsed
+    bool                       bScrollbarX;             // set if horizontal scroll bar is "on"
+    bool                       bScrollbarY;             // set if vertical scroll bar is "on"
+    plUiTempWindowData         tTempData;               // temporary data reset at the beginning of frame
+    plUiWindow**               sbtChildWindows;         // child windows if any (reset every frame)
+    plUiLayoutRow*             sbtRowStack;             // row stack for containers to push parents row onto and pop when they exit (reset every frame)
+    plUiCursorStackItem*       sbtCursorStack;
+    plUiTreeNodeStackItem*     sbtTreeNodeStack;
+    float*                     sbfAvailableSizeStack;
+    float*                     sbfMaxCursorYStack;
+    plUiLayoutSortLevel*       sbtTempLayoutSort;       // blah
+    uint32_t*                  sbuTempLayoutIndexSort;  // blah
+    plUiLayoutRowEntry*        sbtRowTemplateEntries;   // row template entries (shared and reset every frame)            
+    plDrawLayer2D*             ptBgLayer;               // background draw layer
+    plDrawLayer2D*             ptFgLayer;               // foreground draw layer
+    plUiConditionFlags         tPosAllowableFlags;      // acceptable condition flags for "pl_set_next_window_pos()"
+    plUiConditionFlags         tSizeAllowableFlags;     // acceptable condition flags for "pl_set_next_window_size()"
+    plUiConditionFlags         tCollapseAllowableFlags; // acceptable condition flags for "pl_set_next_window_collapse()"
+    uint8_t                    uHideFrames;             // hide window for this many frames (useful for autosizing)
+    uint32_t                   uFocusOrder;             // display rank
+    plUiStorage                tStorage;                // state storage
 } plUiWindow;
 
 //-----------------------------------------------------------------------------

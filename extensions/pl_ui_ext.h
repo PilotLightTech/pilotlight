@@ -55,7 +55,7 @@ extern "C" {
 // [SECTION] api
 //-----------------------------------------------------------------------------
 
-#define plUiI_version {1, 3, 0}
+#define plUiI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -253,13 +253,11 @@ typedef struct _plUiI
 
     // trees
     // - only call "tree_pop()" if "tree_node()" returns true (its call automatically if false)
-    // - only call "end_collapsing_header()" if "begin_collapsing_header()" returns true (its call automatically if false)
-    bool (*begin_collapsing_header)(const char* text, plUiTreeNodeFlags);
-    void (*end_collapsing_header)  (void);
-    bool (*tree_node)              (const char* text, plUiTreeNodeFlags);
-    bool (*tree_node_f)            (const char* fmt, plUiTreeNodeFlags, ...);
-    bool (*tree_node_v)            (const char* fmt, plUiTreeNodeFlags, va_list args);
-    void (*tree_pop)               (void);
+    bool (*collapsing_header)(const char* text, plUiTreeNodeFlags);
+    bool (*tree_node)        (const char* text, plUiTreeNodeFlags);
+    bool (*tree_node_f)      (const char* fmt, plUiTreeNodeFlags, ...);
+    bool (*tree_node_v)      (const char* fmt, plUiTreeNodeFlags, va_list args);
+    void (*tree_pop)         (void);
 
     // tabs & tab bars
     // - only call "end_tab_bar()" if "begin_tab_bar()" returns true (its call automatically if false)
@@ -353,6 +351,10 @@ typedef struct _plUiI
     void (*layout_space_push) (float fX, float fY, float width, float height);
     void (*layout_space_end)  (void);
 
+    // layout misc. (usually used with collapsing headers)
+    void (*stash_layout)(void);
+    void (*apply_layout)(void);
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ID stack~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     void (*push_id_string) (const char*);
@@ -433,6 +435,22 @@ enum plUiWindowFlags_
     PL_UI_WINDOW_FLAGS_CHILD_WINDOW = 1 << 8,
     PL_UI_WINDOW_FLAGS_POPUP_WINDOW = 1 << 9,
     PL_UI_WINDOW_FLAGS_MENU         = 1 << 10,
+};
+
+enum plUiTreeNodeFlags_
+{
+    PL_UI_TREE_NODE_FLAGS_NONE                    = 0,
+    PL_UI_TREE_NODE_FLAGS_FRAMED                  = 1 << 0,
+    PL_UI_TREE_NODE_FLAGS_NO_TREE_PUSH_ON_OPEN    = 1 << 1,
+    PL_UI_TREE_NODE_FLAGS_DEFAULT_OPEN            = 1 << 2,
+    PL_UI_TREE_NODE_FLAGS_OPEN_ON_ARROW           = 1 << 3,
+    PL_UI_TREE_NODE_FLAGS_LEAF                    = 1 << 4,
+    PL_UI_TREE_NODE_FLAGS_BULLET                  = 1 << 5,
+    PL_UI_TREE_NODE_FLAGS_COLLAPSING_HEADER       = PL_UI_TREE_NODE_FLAGS_FRAMED | PL_UI_TREE_NODE_FLAGS_NO_TREE_PUSH_ON_OPEN,
+
+    // [EXPERIMENTAL]
+    PL_UI_TREE_NODE_FLAGS_DRAW_LINES_FULL         = 1 << 8,
+    PL_UI_TREE_NODE_FLAGS_DRAW_LINES_TO_NODES     = 1 << 9,
 };
 
 enum plUiComboFlags_
