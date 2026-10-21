@@ -1279,22 +1279,28 @@ pl_ui_tree_node(const char* pcText, plUiTreeNodeFlags tFlags)
         if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tHeaderActiveCol)});
         else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tHeaderHoveredCol)});
 
+        const plVec2 centerPoint = {tStartPos.x + 8.0f * 1.5f, tStartPos.y + tWidgetSize.y / 2.0f};
+
+        plVec2 pointPos = {0};
         if(*pbOpenState)
         {
-            const plVec2 centerPoint = {tStartPos.x + 8.0f * 1.5f, tStartPos.y + tWidgetSize.y / 2.0f};
-            const plVec2 pointPos = pl_add_vec2(centerPoint, (plVec2){ 0.0f,  4.0f});
+            pointPos = pl_add_vec2(centerPoint, (plVec2){ 0.0f,  4.0f});
             const plVec2 rightPos = pl_add_vec2(centerPoint, (plVec2){ 4.0f, -4.0f});
             const plVec2 leftPos  = pl_add_vec2(centerPoint,  (plVec2){-4.0f, -4.0f});
-            gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_WHITE}); 
+            gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol)}); 
         }
         else
         {
-            const plVec2 centerPoint = {tStartPos.x + 8.0f * 1.5f, tStartPos.y + tWidgetSize.y / 2.0f};
-            const plVec2 pointPos = pl_add_vec2(centerPoint, (plVec2){  4.0f,  0.0f});
+            pointPos = pl_add_vec2(centerPoint, (plVec2){  4.0f,  0.0f});
             const plVec2 rightPos = pl_add_vec2(centerPoint, (plVec2){ -4.0f, -4.0f});
             const plVec2 leftPos  = pl_add_vec2(centerPoint, (plVec2){ -4.0f,  4.0f});
-            gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_WHITE});
+            gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol)});
         }
+
+        #if 0
+        if(gptCtx->ptCurrentWindow->tTempData.uTreeDepth > 0)
+            gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){centerPoint.x - gptCtx->tStyle.fIndentSize, centerPoint.y}, (plVec2){centerPoint.x - 8.0f, centerPoint.y}, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTreeLineCol)});
+        #endif
 
         const plVec2 tTextStartPos = {
             .x = tStartPos.x + tWidgetSize.y * 1.5f,
@@ -1366,8 +1372,16 @@ pl_ui_tree_pop(void)
     plVec2 tNewCursor = ptWindow->tTempData.tRowCursorPos;
 
     plUiCursorStackItem tOldCursorInfo = pl_sb_pop(ptWindow->sbtCursorStack);
+
+
     if(ptWindow->tTempData.tLayoutRow.uCurrentColumn == 0)
     {
+        #if 0
+        plVec2 tStartPos = tOldCursorInfo.tPos;
+        const plVec2 centerPoint = {tStartPos.x + 8.0f * 1.5f, tStartPos.y};
+        gptDraw->add_line(ptWindow->ptFgLayer, centerPoint, (plVec2){centerPoint.x, ptWindow->tTempData.tCursorMaxPos.y}, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTreeLineCol)});
+        #endif
+
         pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, pl_sb_pop(ptWindow->sbfMaxCursorYStack)});
 
         // if(pl_sb_size(ptWindow->sbfMaxCursorYStack) == 0)

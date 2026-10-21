@@ -224,6 +224,7 @@ typedef union _plUiColorScheme
         plVec4 tSliderHoveredCol;
         plVec4 tSliderActiveCol;
         plVec4 tPopupBgColor;
+        plVec4 tTreeLineCol;
     };
     plVec4 atColors[PL_UI_COLOR_COUNT];
 } plUiColorScheme;

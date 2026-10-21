@@ -31,7 +31,7 @@ pl_ui_set_dark_theme(void)
     gptCtx->tStyle.fWindowHorizontalPadding = 5.0f;
     gptCtx->tStyle.fWindowVerticalPadding   = 5.0f;
     gptCtx->tStyle.iWindowBorderSize        = 0;
-    gptCtx->tStyle.fIndentSize              = 15.0f;
+    gptCtx->tStyle.fIndentSize              = 20.0f;
     gptCtx->tStyle.fScrollbarSize           = 10.0f;
     gptCtx->tStyle.fSliderSize              = 12.0f;
     gptCtx->tStyle.fWindowRounding          = 0.0f;
@@ -83,6 +83,7 @@ pl_ui_set_dark_theme(void)
     gptCtx->tColorScheme.tSliderHoveredCol     = gptCtx->tColorScheme.tButtonHoveredCol;
     gptCtx->tColorScheme.tSliderActiveCol      = gptCtx->tColorScheme.tButtonActiveCol;
     gptCtx->tColorScheme.tPopupBgColor         = (plVec4){0.15f, 0.10f, 0.10f, 0.78f};
+    gptCtx->tColorScheme.tTreeLineCol          = (plVec4){0.422f, 0.445f, 0.491f, 0.460f};
 }
 
 plDrawList2D*
@@ -2490,11 +2491,61 @@ pl_ui_show_style_editor_window(bool* pbOpen)
         pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
 
         plUiStyle* ptStyle = &gptCtx->tStyle;
+        plUiColorScheme* ptColorScheme = &gptCtx->tColorScheme;
 
         if(pl_ui_begin_tab_bar("Tabs", 0))
         {
             if(pl_ui_begin_tab("Colors", 0))
-            { 
+            {
+                pl_ui_layout_dynamic(0.0f, 3);
+                static int iEditingColor = 0;
+                static const char* apcColorNames[PL_UI_COLOR_COUNT] = {
+                    "TitleActive",
+                    "TitleBg",
+                    "TitleBgCollapsed",
+                    "WindowBg",
+                    "WindowBorder",
+                    "ChildBg",
+                    "Button",
+                    "ButtonHovered",
+                    "ButtonActive",
+                    "Text",
+                    "TextDisabled",
+                    "ProgressBar",
+                    "Checkmark",
+                    "FrameBg",
+                    "FrameBgHovered",
+                    "FrameBgActive",
+                    "Header",
+                    "HeaderHovered",
+                    "HeaderActive",
+                    "ScrollbarBg",
+                    "ScrollbarHandle",
+                    "ScrollbarFrame",
+                    "ScrollbarActive",
+                    "ScrollbarHovered",
+                    "Separator",
+                    "Tab",
+                    "TabHovered",
+                    "TabSelected",
+                    "ResizeGrip",
+                    "ResizeGripHovered",
+                    "ResizeGripActive",
+                    "Slider",
+                    "SliderHovered",
+                    "SliderActive",
+                    "PopupBg",
+                    "TreeLine"
+                };
+
+                for(uint32_t i = 0; i < PL_UI_COLOR_COUNT; i++)
+                {
+                    pl_ui_radio_button(apcColorNames[i], &iEditingColor, i);
+                }
+
+                pl_ui_layout_dynamic(0.0f, 1);
+
+                pl_ui_color_picker4("Color", ptColorScheme->atColors[iEditingColor].d, PL_UI_COLOR_EDIT_FLAGS_NONE, ptColorScheme->atColors[iEditingColor].d);
                 pl_ui_end_tab();
             }
             
