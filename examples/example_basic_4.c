@@ -264,7 +264,14 @@ pl_app_update(plAppData* ptAppData)
     plVec2 tViewportSize = gptIO->get_io()->tMainViewportSize;
     plRenderAttachmentInfo tRenderAttachmentInfo = {0};
     gptStarter->get_render_attachment_info(&tRenderAttachmentInfo);
-    gptDraw->submit_2d_drawlist(gptUi->get_draw_list(), ptCmdBuffer, tViewportSize.x, tViewportSize.y, 1, &tRenderAttachmentInfo);
+
+    uint32_t uUiDrawlistCount = 0;
+    plDrawList2D** aptUiDrawLists = gptUi->get_draw_lists(&uUiDrawlistCount);
+    for(uint32_t i = 0; i < uUiDrawlistCount; i++)
+    {
+        gptDraw->submit_2d_drawlist(aptUiDrawLists[i], ptCmdBuffer, tViewportSize.x, tViewportSize.y, 1, &tRenderAttachmentInfo);
+    }
+
     gptDraw->submit_2d_drawlist(gptUi->get_debug_draw_list(), ptCmdBuffer, tViewportSize.x, tViewportSize.y, 1, &tRenderAttachmentInfo);
 
     // allows the starter extension to handle some things then ends the main pass

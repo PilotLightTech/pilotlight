@@ -87,16 +87,23 @@ pl_ui_set_dark_theme(void)
     gptCtx->tColorScheme.tTreeLineCol          = (plVec4){0.422f, 0.445f, 0.491f, 0.460f};
 }
 
-plDrawList2D*
-pl_ui_get_draw_list(void)
+plDrawList2D**
+pl_ui_get_draw_lists(uint32_t* puListCountOut)
 {
-    return gptCtx->ptDrawlist;
+    *puListCountOut = pl_sb_size(gptCtx->sbDrawlists);
+    return gptCtx->sbDrawlists;
 }
 
 plDrawList2D*
 pl_ui_get_debug_draw_list(void)
 {
     return gptCtx->ptDebugDrawlist;
+}
+
+plDrawLayer2D*
+pl_ui_get_debug_draw_layer(void)
+{
+    return gptCtx->ptDebugLayer;
 }
 
 bool
@@ -134,6 +141,7 @@ pl_ui_new_frame(void)
 {
 
     pl_sb_reset(gptCtx->sbtBeginPopupStack);
+    pl_sb_reset(gptCtx->sbDrawlists);
 
     gptCtx->bWantTextInput = false;
     gptCtx->bWantCaptureMouse = gptCtx->uActiveId != 0 || gptCtx->ptMovingWindow != NULL || gptCtx->ptActiveWindow != NULL || gptCtx->ptNavWindow != NULL;
@@ -283,7 +291,7 @@ pl_ui_end_window(void)
     }
 
     if(!ptWindow->bCollapsed)
-        gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
+        gptDraw->pop_clip_rect(ptWindow->ptDrawlist);
 
     if(pl_sb_size(gptCtx->sbptWindowStack) == 0)
     {
@@ -297,8 +305,8 @@ pl_ui_end_window(void)
 
     if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW)
     {
-        if(gptCtx->ptCurrentWindow && !gptCtx->ptCurrentWindow->bCollapsed)
-            gptDraw->push_clip_rect(gptCtx->ptDrawlist, gptCtx->ptCurrentWindow->tInnerClipRect, false);
+        // if(gptCtx->ptCurrentWindow && !gptCtx->ptCurrentWindow->bCollapsed)
+        //     gptDraw->push_clip_rect(gptCtx->ptDrawlist, gptCtx->ptCurrentWindow->tInnerClipRect, false);
     }
 }
 
@@ -477,19 +485,16 @@ pl_ui_begin_popup(const char* pcName, plUiWindowFlags tFlags)
         };
         pl_sb_push(gptCtx->sbtBeginPopupStack, tPopupData);
 
-        if(gptCtx->ptCurrentWindow)
-            gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
-        bool bResult = pl__begin_window_ex(pcName, NULL, tFlags | PL_UI_WINDOW_FLAGS_POPUP_WINDOW);
+        // if(gptCtx->ptCurrentWindow)
+        //     gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
+
+        bool bResult = pl__begin_window_ex(pcName, NULL, tFlags | PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_NO_COLLAPSE);
 
         static const float pfRatios[] = {300.0f};
         if(bResult)
         {
             pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios);
-            if(bNewOpen)
-            {
-                pl__focus_window(gptCtx->ptCurrentWindow);
-            }
-            gptCtx->ptNavWindow = gptCtx->ptCurrentWindow;
+            pl__focus_window(gptCtx->ptCurrentWindow);
         }
         else
             pl_ui_end_popup();
@@ -530,7 +535,7 @@ pl_ui_begin_tooltip(void)
 
     const plVec2 tStartClip = { ptWindow->tPos.x, ptWindow->tPos.y };
     const plVec2 tEndClip = { ptWindow->tSize.x, ptWindow->tSize.y };
-    gptDraw->push_clip_rect(gptCtx->ptDrawlist, pl_calculate_rect(tStartClip, tEndClip), false);
+    gptDraw->push_clip_rect(ptWindow->ptDrawlist, pl_calculate_rect(tStartClip, tEndClip), false);
 
     ptWindow->ptParentWindow = gptCtx->ptCurrentWindow;
     gptCtx->ptCurrentWindow = ptWindow;
@@ -551,7 +556,7 @@ pl_ui_end_tooltip(void)
         ptWindow->tPos, 
         pl_add_vec2(ptWindow->tPos, ptWindow->tSize), 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBgColor)});
 
-    gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
+    gptDraw->pop_clip_rect(ptWindow->ptDrawlist);
     gptCtx->ptCurrentWindow = ptWindow->ptParentWindow;
 }
 
@@ -1355,9 +1360,9 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->tMinSize                      = (plVec2){ 200.0f, 200.0f };
         ptWindow->tMaxSize                      = (plVec2){ 10000.0f, 10000.0f };
         ptWindow->tSize                         = (plVec2){ gptIO->tMainViewportSize.x * 0.50f, gptIO->tMainViewportSize.y * 0.50f};
-        ptWindow->ptBgLayer                     = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
-        ptWindow->ptFgLayer                     = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
-        ptWindow->tPosAllowableFlags            = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
+        ptWindow->ptDrawlist                    = gptDraw->request_2d_drawlist();
+        ptWindow->ptBgLayer                     = gptDraw->request_2d_layer(ptWindow->ptDrawlist);
+        ptWindow->ptFgLayer                     = gptDraw->request_2d_layer(ptWindow->ptDrawlist);
         ptWindow->tSizeAllowableFlags           = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
         ptWindow->tCollapseAllowableFlags       = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
         ptWindow->ptParentWindow                = ptParentWindow;
@@ -1942,15 +1947,15 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             ptWindow->tSize.y - fTitleBarHeight - (ptWindow->bScrollbarX ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f)
         };
 
-        const plRect* ptClipRect = gptDraw->get_clip_rect(gptCtx->ptDrawlist);
+        // const plRect* ptClipRect = gptDraw->get_clip_rect(ptWindow->ptDrawlist);
 
-        if(ptClipRect)
-        {
-            ptWindow->tInnerClipRect = pl_rect_clip_full(&ptWindow->tInnerClipRect, ptClipRect);
-            ptWindow->tOuterRectClipped = pl_rect_clip_full(&ptWindow->tOuterRectClipped, ptClipRect);
-        }
+        // if(ptClipRect)
+        // {
+        //     ptWindow->tInnerClipRect = pl_rect_clip_full(&ptWindow->tInnerClipRect, ptClipRect);
+        //     ptWindow->tOuterRectClipped = pl_rect_clip_full(&ptWindow->tOuterRectClipped, ptClipRect);
+        // }
 
-        gptDraw->push_clip_rect(gptCtx->ptDrawlist, ptWindow->tInnerClipRect, false);
+        gptDraw->push_clip_rect(ptWindow->ptDrawlist, ptWindow->tInnerClipRect, false);
     }
 
     if(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
@@ -2216,13 +2221,14 @@ pl__add_widget(uint32_t uHash)
 void
 pl_ui_initialize(void)
 {
-    gptCtx->ptDrawlist = gptDraw->request_2d_drawlist();
+    // gptCtx->ptDrawlist = gptDraw->request_2d_drawlist();
     gptCtx->ptDebugDrawlist = gptDraw->request_2d_drawlist();
-    gptCtx->ptBgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
-    gptCtx->ptFgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
+    gptCtx->tTooltipWindow.ptDrawlist = gptDraw->request_2d_drawlist();
+    // gptCtx->ptBgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
+    // gptCtx->ptFgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
     gptCtx->ptDebugLayer = gptDraw->request_2d_layer(gptCtx->ptDebugDrawlist);
-    gptCtx->tTooltipWindow.ptBgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
-    gptCtx->tTooltipWindow.ptFgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
+    gptCtx->tTooltipWindow.ptBgLayer = gptDraw->request_2d_layer(gptCtx->tTooltipWindow.ptDrawlist);
+    gptCtx->tTooltipWindow.ptFgLayer = gptDraw->request_2d_layer(gptCtx->tTooltipWindow.ptDrawlist);
 
     gptCtx->tFrameBufferScale.x = 1.0f;
     gptCtx->tFrameBufferScale.y = 1.0f;
@@ -2675,13 +2681,14 @@ pl_ui_end_frame(void)
     }
 
     // draw submission
-    gptDraw->submit_2d_layer(gptCtx->ptBgLayer);
+    // gptDraw->submit_2d_layer(gptCtx->ptBgLayer);
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
     {
         if(gptCtx->sbptWindows[i]->uHideFrames == 0)
         {
             gptDraw->submit_2d_layer(gptCtx->sbptWindows[i]->ptBgLayer);
             gptDraw->submit_2d_layer(gptCtx->sbptWindows[i]->ptFgLayer);
+            pl_sb_push(gptCtx->sbDrawlists, gptCtx->sbptWindows[i]->ptDrawlist);
         }
         else
         {
@@ -2690,8 +2697,10 @@ pl_ui_end_frame(void)
     }
     gptDraw->submit_2d_layer(gptCtx->tTooltipWindow.ptBgLayer);
     gptDraw->submit_2d_layer(gptCtx->tTooltipWindow.ptFgLayer);
-    gptDraw->submit_2d_layer(gptCtx->ptFgLayer);
+    // gptDraw->submit_2d_layer(gptCtx->ptFgLayer);
     gptDraw->submit_2d_layer(gptCtx->ptDebugLayer);
+    pl_sb_push(gptCtx->sbDrawlists, gptCtx->tTooltipWindow.ptDrawlist);
+    pl_sb_push(gptCtx->sbDrawlists, gptCtx->ptDebugDrawlist);
 
     const plVec2 tMousePos = gptIOI->get_mouse_pos();
 
@@ -2814,8 +2823,9 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plUiI tApi = {
         .initialize                            = pl_ui_initialize,
         .cleanup                               = pl_ui_cleanup,
-        .get_draw_list                         = pl_ui_get_draw_list,
+        .get_draw_lists                        = pl_ui_get_draw_lists,
         .get_debug_draw_list                   = pl_ui_get_debug_draw_list,
+        .get_debug_draw_layer                  = pl_ui_get_debug_draw_layer,
         .new_frame                             = pl_ui_new_frame,
         .end_frame                             = pl_ui_end_frame,
         .wants_keyboard_capture                = pl_ui_wants_keyboard_capture,

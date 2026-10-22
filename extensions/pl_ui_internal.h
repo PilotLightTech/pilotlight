@@ -420,7 +420,8 @@ typedef struct _plUiWindow
     float*                     sbfMaxCursorYStack;
     plUiLayoutSortLevel*       sbtTempLayoutSort;       // blah
     uint32_t*                  sbuTempLayoutIndexSort;  // blah
-    plUiLayoutRowEntry*        sbtRowTemplateEntries;   // row template entries (shared and reset every frame)            
+    plUiLayoutRowEntry*        sbtRowTemplateEntries;   // row template entries (shared and reset every frame)
+    plDrawList2D*              ptDrawlist;              // window draw list           
     plDrawLayer2D*             ptBgLayer;               // background draw layer
     plDrawLayer2D*             ptFgLayer;               // foreground draw layer
     plUiConditionFlags         tPosAllowableFlags;      // acceptable condition flags for "pl_set_next_window_pos()"
@@ -507,12 +508,11 @@ typedef struct _plUiContext
     plUiColorStackItem* sbtColorStack;
 
     // drawing
-    plDrawList2D*  ptDrawlist;             // main ui drawlist
-    plDrawList2D*  ptDebugDrawlist;        // ui debug drawlist (i.e. overlays)
-    plFont*        tFont;                  // current font
-    plDrawLayer2D* ptBgLayer;              // submitted before window layers
-    plDrawLayer2D* ptFgLayer;              // submitted after window layers
-    plDrawLayer2D* ptDebugLayer;           // submitted last
+    plDrawList2D*  ptDebugDrawlist; // ui debug drawlist (i.e. overlays)
+    plFont*        tFont;           // current font
+    // plDrawLayer2D* ptBgLayer;       // submitted before window layers
+    // plDrawLayer2D* ptFgLayer;       // submitted after window layers
+    plDrawLayer2D* ptDebugLayer;    // submitted last
 
     // drawing context
     plDrawList2D** sbDrawlists;

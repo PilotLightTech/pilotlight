@@ -110,8 +110,9 @@ typedef struct _plUiI
     void (*cleanup)   (void);
 
     // render data
-    plDrawList2D* (*get_draw_list)      (void);
-    plDrawList2D* (*get_debug_draw_list)(void);
+    plDrawList2D** (*get_draw_lists)      (uint32_t* listCountOut);
+    plDrawList2D*  (*get_debug_draw_list) (void);
+    plDrawLayer2D* (*get_debug_draw_layer)(void);
 
     // main
     void (*new_frame)(void); // start a new ui frame, this should be the first command before calling any commands below
@@ -159,8 +160,8 @@ typedef struct _plUiI
     void (*end_popup)          (void);
 
     // window utilities
-    plDrawLayer2D* (*get_window_fg_drawlayer)(void); // returns current window foreground drawlist (call between begin_window(...) & end_window(...))
-    plDrawLayer2D* (*get_window_bg_drawlayer)(void); // returns current window background drawlist (call between begin_window(...) & end_window(...))
+    plDrawLayer2D* (*get_window_fg_drawlayer)(void); // returns current window foreground layer (call between begin_window(...) & end_window(...))
+    plDrawLayer2D* (*get_window_bg_drawlayer)(void); // returns current window background layer (call between begin_window(...) & end_window(...))
     plVec2         (*get_cursor_pos)         (void); // returns current cursor position (where the next widget will start drawing)
 
     // child windows

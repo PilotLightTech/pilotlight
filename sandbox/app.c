@@ -210,6 +210,7 @@ typedef struct _plAppData
     bool bShowImportOptions;
 
     // drawing
+    plDrawList2D*  ptDrawList;
     plDrawLayer2D* ptDrawLayer;
 
     // selection stuff
@@ -519,7 +520,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~app stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // temporary draw layer for submitting fullscreen quad of offscreen render
-    ptAppData->ptDrawLayer = gptDraw->request_2d_layer(gptUI->get_draw_list());
+    ptAppData->ptDrawList = gptDraw->request_2d_drawlist();
+    ptAppData->ptDrawLayer = gptDraw->request_2d_layer(ptAppData->ptDrawList);
 
     return ptAppData;
 }
@@ -985,7 +987,16 @@ pl_app_update(plAppData* ptAppData)
     float fHeight = ptIO->tMainViewportSize.y;
     plRenderAttachmentInfo tRenderInfo = {0};
     gptStarter->get_render_attachment_info(&tRenderInfo);
+
+    plSwapchain* ptSwapchain = gptStarter->get_swapchain();
+    gptDraw->submit_2d_drawlist(ptAppData->ptDrawList, ptCommandBuffer,
+    ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(ptSwapchain).eSampleCount,
+        &tRenderInfo);
+        
     gptStarter->end_main_pass();
+
+
+
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     gptStarter->end_frame();
 }

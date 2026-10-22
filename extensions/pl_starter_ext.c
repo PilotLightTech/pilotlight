@@ -716,10 +716,15 @@ pl_starter_end_main_pass(void)
     {
         gptUI->end_frame();
         
-        gptDraw->submit_2d_drawlist(gptUI->get_draw_list(), gptStarterCtx->ptCurrentCommandBuffer,
-            ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y,
-            gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).eSampleCount,
-            &tRenderAttachmentInfo);
+        uint32_t uUiDrawlistCount = 0;
+        plDrawList2D** aptUiDrawLists = gptUI->get_draw_lists(&uUiDrawlistCount);
+        for(uint32_t i = 0; i < uUiDrawlistCount; i++)
+        {
+            gptDraw->submit_2d_drawlist(aptUiDrawLists[i], gptStarterCtx->ptCurrentCommandBuffer,
+                ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y,
+                gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).eSampleCount,
+                &tRenderAttachmentInfo);
+        }
         gptDraw->submit_2d_drawlist(gptUI->get_debug_draw_list(), gptStarterCtx->ptCurrentCommandBuffer,
         ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).eSampleCount,
             &tRenderAttachmentInfo);
