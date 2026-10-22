@@ -1517,8 +1517,8 @@ pl_asset_tools_show_assets(bool* bValue)
                                     uint32_t uTypeAssetCount = 0;
                                     const plAssetHandle* atTypeAssetHandles = gptAsset->get_assets_by_type(gptTexture->get_asset_type_key(), &uTypeAssetCount);
 
-                                    gptUI->set_next_window_pos((plVec2){tWindowPos.x + 0.10f * tWindowSize.x, tWindowPos.y + 0.10f * tWindowSize.y}, PL_UI_COND_ALWAYS);
-                                    gptUI->set_next_window_size((plVec2){0.80f * tWindowSize.x, 0.80f * tWindowSize.y}, PL_UI_COND_ALWAYS);
+                                    gptUI->set_next_window_pos(gptIOI->get_mouse_pos(), PL_UI_COND_APPEARING);
+                                    gptUI->set_next_window_size((plVec2){400.0f, 500.0f}, PL_UI_COND_ALWAYS);
 
                                     if(gptUI->begin_popup("Select Texture Popup", 0))
                                     {

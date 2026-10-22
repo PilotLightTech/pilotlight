@@ -498,9 +498,10 @@ enum plUiColorEditFlags_
 
 enum plUiConditionFlags_
 {
-    PL_UI_COND_NONE   = 0,
-    PL_UI_COND_ALWAYS = 1 << 0,
-    PL_UI_COND_ONCE   = 1 << 1
+    PL_UI_COND_NONE      = 0,
+    PL_UI_COND_ALWAYS    = 1 << 0,
+    PL_UI_COND_ONCE      = 1 << 1,
+    PL_UI_COND_APPEARING = 1 << 2,
 };
 
 enum plUiLayoutRowType_

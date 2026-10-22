@@ -108,6 +108,7 @@ typedef struct _plUiColorStackItem  plUiColorStackItem;
 typedef struct _plUiWindow          plUiWindow;
 typedef struct _plUiTabBar          plUiTabBar;
 typedef struct _plUiPrevItemData    plUiPrevItemData;
+typedef struct _plUiNextItemData    plUiNextItemData;
 typedef struct _plUiNextWindowData  plUiNextWindowData;
 typedef struct _plUiTempWindowData  plUiTempWindowData;
 typedef struct _plUiStorage         plUiStorage;
@@ -118,6 +119,7 @@ typedef struct _plUiTextFilterRange plUiTextFilterRange;
 
 // enums
 typedef int plUiNextWindowFlags;
+typedef int plUiNextItemFlags;
 typedef int plUiAxis;
 typedef int plUiLayoutRowEntryType;
 typedef int plUiLayoutSystemType;
@@ -138,6 +140,12 @@ enum plUiAxis_
     PL_UI_AXIS_NONE = -1,
     PL_UI_AXIS_X    =  0,
     PL_UI_AXIS_Y    =  1,
+};
+
+enum _plUiNextItemFlags
+{
+    PL_NEXT_ITEM_FLAGS_NONE              = 0,
+    PL_NEXT_ITEM_FLAGS_HAS_COLOR_MARKERS = 1 << 0,
 };
 
 enum _plUiNextWindowFlags
@@ -246,6 +254,7 @@ typedef struct _plUiStyle
     plVec2 tFramePadding;
 
     // widgets
+    float  fColorMarkerSize;
     float  fSeparatorTextLineSize;
     plVec2 tSeparatorTextAlignment;
     plVec2 tSeparatorTextPadding;
@@ -430,11 +439,17 @@ typedef struct _plUiWindow
     uint8_t                    uHideFrames;             // hide window for this many frames (useful for autosizing)
     uint32_t                   uFocusOrder;             // display rank
     plUiStorage                tStorage;                // state storage
+    uint64_t                   uLastFrameActive;        // last frame active
 } plUiWindow;
 
 //-----------------------------------------------------------------------------
 // [SECTION] plUiContext
 //-----------------------------------------------------------------------------
+
+typedef struct _plUiNextItemData
+{
+    plUiNextItemFlags tFlags;
+} plUiNextItemData;
 
 typedef struct _plUiNextWindowData
 {
@@ -562,7 +577,8 @@ static const char* pl__str_is_tr(const char* haystack, const char* haystack_end,
 static bool        pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags);
 static void        pl__render_scrollbar(plUiWindow*, uint32_t uHash, plUiAxis);
 static void        pl__submit_window   (plUiWindow*);
-static void        pl__focus_window    (plUiWindow*);
+static inline void pl__set_nav_window  (plUiWindow*);
+static inline void pl__focus_window    (plUiWindow*);
 static inline bool pl__ui_should_render(const plVec2* ptStartPos, const plVec2* ptWidgetSize) { return !(ptStartPos->y + ptWidgetSize->y < gptCtx->ptCurrentWindow->tPos.y || ptStartPos->y > gptCtx->ptCurrentWindow->tPos.y + gptCtx->ptCurrentWindow->tSize.y); }
 static void        pl__set_active_id(uint32_t uHash, plUiWindow*);
 static void        pl__set_nav_id   (uint32_t uHash, plUiWindow*);

@@ -184,13 +184,21 @@ pl_ui_new_frame(void)
     {
         // gptCtx->uActiveWindowId = 0;
         pl_sb_reset(gptCtx->sbtOpenPopupStack);
-        gptCtx->ptNavWindow = NULL;
+        pl__set_nav_window(NULL);
     }
     else if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false) && gptCtx->uHoveredId == 0)
     {
         // gptCtx->uActiveWindowId = 0;
         pl_sb_reset(gptCtx->sbtOpenPopupStack);
-        gptCtx->ptNavWindow = NULL;
+        pl__set_nav_window(NULL);
+    }
+
+    if(gptCtx->ptNavWindow)
+    {
+        if(!(gptCtx->ptNavWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW))
+        {
+            pl_sb_reset(gptCtx->sbtOpenPopupStack);
+        }
     }
 
     // reset active id if no longer alive
@@ -207,9 +215,29 @@ pl_ui_new_frame(void)
         gptCtx->ptActiveWindow = NULL;
 }
 
-void
+static inline void
+pl__set_nav_window(plUiWindow* ptWindow)
+{
+    gptCtx->ptNavWindow = ptWindow;
+}
+
+static inline void
 pl__focus_window(plUiWindow* ptWindow)
 {
+
+    if(ptWindow != gptCtx->ptNavWindow)
+    {
+        pl__set_nav_window(ptWindow);
+        if(ptWindow && !(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW))
+        {
+            pl_sb_reset(gptCtx->sbtOpenPopupStack);
+        }
+    }
+
+    if(ptWindow == NULL)
+    {
+        return;
+    }
     
     pl_sb_del(gptCtx->sbptFocusedWindows, ptWindow->ptRootWindow->uFocusOrder);
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptFocusedWindows); i++)
@@ -218,6 +246,7 @@ pl__focus_window(plUiWindow* ptWindow)
     }
     ptWindow->ptRootWindow->uFocusOrder = pl_sb_size(gptCtx->sbptFocusedWindows);
     pl_sb_push(gptCtx->sbptFocusedWindows, ptWindow->ptRootWindow);
+    
 }
 
 void
@@ -1363,8 +1392,9 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->ptDrawlist                    = gptDraw->request_2d_drawlist();
         ptWindow->ptBgLayer                     = gptDraw->request_2d_layer(ptWindow->ptDrawlist);
         ptWindow->ptFgLayer                     = gptDraw->request_2d_layer(ptWindow->ptDrawlist);
-        ptWindow->tSizeAllowableFlags           = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
-        ptWindow->tCollapseAllowableFlags       = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
+        ptWindow->tPosAllowableFlags            = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE | PL_UI_COND_APPEARING;
+        ptWindow->tSizeAllowableFlags           = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE | PL_UI_COND_APPEARING;
+        ptWindow->tCollapseAllowableFlags       = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE | PL_UI_COND_APPEARING;
         ptWindow->ptParentWindow                = ptParentWindow;
         ptWindow->ptRootWindow                  = NULL;
         ptWindow->ptRootWindowPopupTree         = NULL;
@@ -1402,8 +1432,23 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     }
     else
     {
-        ptWindow->bAppearing = false;
+        ptWindow->bAppearing = ptWindow->uLastFrameActive < gptIO->ulFrameCount - 1;
+
+        if(ptWindow->bAppearing)
+        {
+            ptWindow->tPosAllowableFlags      |= PL_UI_COND_APPEARING;
+            ptWindow->tSizeAllowableFlags     |= PL_UI_COND_APPEARING;
+            ptWindow->tCollapseAllowableFlags |= PL_UI_COND_APPEARING;
+        }
+        else
+        {
+            ptWindow->tPosAllowableFlags      &= ~PL_UI_COND_APPEARING;
+            ptWindow->tSizeAllowableFlags     &= ~PL_UI_COND_APPEARING;
+            ptWindow->tCollapseAllowableFlags &= ~PL_UI_COND_APPEARING;
+        }
     }
+
+    ptWindow->uLastFrameActive = gptIO->ulFrameCount;
 
     // seen this frame (obviously)
     ptWindow->bActive = true;
@@ -2176,10 +2221,13 @@ pl__set_active_id(uint32_t uHash, plUiWindow* ptWindow)
 {
     gptCtx->bActiveIdJustActivated = gptCtx->uActiveId != uHash;
     gptCtx->uActiveId = uHash;
+
     gptCtx->ptActiveWindow = ptWindow;
     gptCtx->bActiveIdAllowsOverlap = false;
     if(uHash)
+    {
         gptCtx->uActiveIdIsAlive = uHash;
+    }
 }
 
 static void
@@ -2190,12 +2238,7 @@ pl__set_nav_id(uint32_t uHash, plUiWindow* ptWindow)
     if(uHash)
         gptCtx->bNavIdIsAlive = true;
 
-    // if(gptCtx->ptNavWindow != ptWindow)
-    // {
-    //     pl_sb_reset(gptCtx->sbtOpenPopupStack);
-    // }
-
-    gptCtx->ptNavWindow = ptWindow;
+    pl__set_nav_window(ptWindow);
 }
 
 static void
@@ -2751,7 +2794,7 @@ pl_ui_end_frame(void)
 
                 bRequestFocus = true;
                 gptCtx->ptMovingWindow = NULL;
-                gptCtx->ptNavWindow = ptWindow;
+                pl__set_nav_window(ptWindow);
 
                 // check if window titlebar is clicked
                 if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR) && gptIOI->is_mouse_hovering_rect(tTitleBarHitRegion.tMin, tTitleBarHitRegion.tMax))
