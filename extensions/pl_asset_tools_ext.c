@@ -50,6 +50,7 @@ static const plMemoryI*   gptMemory = NULL;
 static const plEcsI*      gptEcs      = NULL;
 static const plAnimationI*  gptAnimation = NULL;
 static const plUiI*       gptUI       = NULL;
+static const plIOI*       gptIOI       = NULL;
 static const plRendererI* gptRenderer = NULL;
 static const plPhysicsI*  gptPhysics = NULL;
 static const plCameraI*   gptCamera = NULL;
@@ -1285,7 +1286,7 @@ pl_asset_tools_show_assets(bool* bValue)
         if(tAssetType != gptEcs->get_asset_type_key() && gptUI->begin_window(gptAsset->get_path(tAssetHandle), &ptSelectionData->bSelected, 0))
         {
             const plVec2 tWindowSize = gptUI->get_window_size();
-            const plVec2 tWindowPos = gptUI->get_window_pos();
+            // const plVec2 tWindowPos = gptUI->get_window_pos();
 
             gptUI->layout_dynamic(0.0f, 1);
 
@@ -1330,7 +1331,7 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->labeled_text("alpha mode", apcAlphaMode[ptMaterial->eAlphaMode]);
                     gptUI->input_float("alpha cutoff", &ptMaterial->fAlphaCutoff, "%g", 0);
                     gptUI->checkbox_flags("double sided", &ptMaterial->eFlags, PL_MATERIAL_FLAG_DOUBLE_SIDED);
-                    gptUI->color_picker4("base color", ptMaterial->tBaseColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE, NULL);
+                    gptUI->color_edit4("base color", ptMaterial->tBaseColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE, NULL);
                     gptUI->input_float4("base color#3", ptMaterial->tBaseColor.d, "%g", 0);
                     // gptUI->input_float4("base color2", ptMaterial->tBaseColor.d, "%g", 0);
                     gptUI->input_float("metalness", &ptMaterial->fMetalness, "%g", 0);
@@ -1360,7 +1361,7 @@ pl_asset_tools_show_assets(bool* bValue)
                         if(gptUI->collapsing_header("Emissive", 0))
                         {
                             gptUI->stash_layout();
-                            gptUI->color_picker3("emissive color", ptMaterial->tEmissiveColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE);
+                            gptUI->color_edit3("emissive color", ptMaterial->tEmissiveColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE, ptMaterial->tEmissiveColor.d);
                             gptUI->input_float3("emissive color#3", ptMaterial->tEmissiveColor.d, "%g", 0);
                             gptUI->input_float("emissive strength", &ptMaterial->fEmissiveStrength, "%g", 0);
                             gptUI->apply_layout();
@@ -2020,6 +2021,7 @@ pl_load_asset_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptTerrain        = pl_get_api_latest(ptApiRegistry, plTerrainI);
         gptGfx            = pl_get_api_latest(ptApiRegistry, plGraphicsI);
         gptConsole        = pl_get_api_latest(ptApiRegistry, plConsoleI);
+        gptIOI            = pl_get_api_latest(ptApiRegistry, plIOI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

@@ -1858,40 +1858,44 @@ pl_ui_input_float4(const char* pcLabel, float* afValue, const char* pcFormat, pl
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
+    
     pl_ui_push_id_string(pcLabel);
-
     bool bChanged = false;
-    plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
-    const float fActualSubWidth = 2.0f * tWidgetSize.x / 12.0f;
-    for(uint32_t i = 0; i < 4; i++)
-    {
-        pl_ui_push_id_uint(i);
-        
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
-        
-        char acBuffer[64] = {0};
-        pl_sprintf(acBuffer, pcFormat, afValue[i]);
-        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tSubWidgetSize, &tSubStartPos);
-        if(bSubChanged)
-        {
-            afValue[i] = (float)atof(acBuffer);
-            bChanged = true;
-        }
-        pl_ui_pop_id();
-        tSubStartPos.x += fActualSubWidth;
-    }
 
-    const plRect tTextBounding = gptDraw->calculate_text_bb(tSubStartPos, pcLabel,
-        (plDrawTextOptions){
-            .ptFont = gptCtx->tFont,
-            .fSize = gptCtx->tStyle.fFontSize,
-            .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
-            .fWrap = -1.0f});
-    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
-    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
-        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
-        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    if(pl__ui_should_render(&tStartPos, &tWidgetSize))
+    {
+        plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
+        const float fActualSubWidth = 2.0f * tWidgetSize.x / 12.0f;
+        for(uint32_t i = 0; i < 4; i++)
+        {
+            pl_ui_push_id_uint(i);
+            
+            plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+            
+            char acBuffer[64] = {0};
+            pl_sprintf(acBuffer, pcFormat, afValue[i]);
+            const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tSubWidgetSize, &tSubStartPos);
+            if(bSubChanged)
+            {
+                afValue[i] = (float)atof(acBuffer);
+                bChanged = true;
+            }
+            pl_ui_pop_id();
+            tSubStartPos.x += fActualSubWidth;
+        }
+
+        const plRect tTextBounding = gptDraw->calculate_text_bb(tSubStartPos, pcLabel,
+            (plDrawTextOptions){
+                .ptFont = gptCtx->tFont,
+                .fSize = gptCtx->tStyle.fFontSize,
+                .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+                .fWrap = -1.0f});
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    }
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     pl_ui_pop_id();
     return bChanged;
@@ -3524,60 +3528,6 @@ pl_ui_drag_float(const char* pcLabel, float* pfValue, float fSpeed, float fMin, 
     return pl_ui_drag_float_f(pcLabel, pfValue, fSpeed, fMin, fMax, "%.3f", tFlags);
 }
 
-static inline void
-pl__ui_rgb_to_hsv(float fR, float fG, float fB, float* pfH, float* pfS, float* pfV)
-{
-    float K = 0.f;
-    if (fG < fB)
-    {
-        float fBOrig = fB;
-        fB = fG;
-        fG = fBOrig;
-        K = -1.f;
-    }
-    if (fR < fG)
-    {
-        float fGOrig = fG;
-        fG = fR;
-        fR = fGOrig;
-        K = -2.f / 6.f - K;
-    }
-
-    const float chroma = fR - (fG < fB ? fG : fB);
-    *pfH = fabsf(K + (fG - fB) / (6.f * chroma + 1e-20f));
-    *pfS = chroma / (fR + 1e-20f);
-    *pfV = fR;
-
-}
-
-static inline void
-pl__ui_hsv_to_rgb(float h, float s, float v, float* pfR, float* pfG, float* pfB)
-{
-    if (s == 0.0f)
-    {
-        // gray
-        *pfR = *pfG = *pfB = v;
-        return;
-    }
-
-    h = fmodf(h, 1.0f) / (60.0f / 360.0f);
-    int   i = (int)h;
-    float f = h - (float)i;
-    float p = v * (1.0f - s);
-    float q = v * (1.0f - s * f);
-    float t = v * (1.0f - s * (1.0f - f));
-
-    switch (i)
-    {
-    case 0: *pfR = v; *pfG = t; *pfB = p; break;
-    case 1: *pfR = q; *pfG = v; *pfB = p; break;
-    case 2: *pfR = p; *pfG = v; *pfB = t; break;
-    case 3: *pfR = p; *pfG = q; *pfB = v; break;
-    case 4: *pfR = t; *pfG = p; *pfB = v; break;
-    case 5: default: *pfR = v; *pfG = p; *pfB = q; break;
-    }
-}
-
 bool
 pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tFlags, const float* refColRGBA)
 {
@@ -3596,16 +3546,12 @@ pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tF
     float fAlpha = bNoAlpha ? 1.0f : colRGBA[3];
     pl__ui_rgb_to_hsv(colRGBA[0], colRGBA[1], colRGBA[2], &fH, &fS, &fV);
 
-    const plVec2 tWidgetSize = pl__calculate_item_size(200.0f);
-    // const float fPickerSize     = 200.0f;
-    // const float fHueBarWidth    = 24.0f;
-    // const float fAlphaBarHeight = bNoAlpha ? 0.0f : 24.0f;
-    // const float fPreviewWidth   = bShowPreview ? 24.0f : 0.0f;
+    const plVec2 tWidgetSize = pl__calculate_item_size(400.0f);
     const plVec2 tCursorPos    = pl__get_cursor_pos();
     
     const float fHueBarWidth    = 18.0f;
-    const float fAlphaBarHeight = bNoAlpha ? 0.0f : 18.0f;
-    const float fPreviewWidth   = bShowPreview ? 18.0f : 0.0f;
+    const float fAlphaBarHeight = bNoAlpha ? 0.0f : fHueBarWidth;
+    // const float fPreviewWidth   = bShowPreview ? 40.0f : 0.0f;
     float fTextWidth = 0.0f;
     plRect tTextBounding = {0};
     if(!bNoLabel)
@@ -3618,18 +3564,22 @@ pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tF
                 .fWrap = -1.0f});
         fTextWidth = pl_rect_width(&tTextBounding);
     }
-    const float fPickerSize = tWidgetSize.y - fHueBarWidth - fAlphaBarHeight - fPreviewWidth - fTextWidth;
+    const float fPreviewSize = bNoLabel ? 40.0f : fTextWidth;
+    const float fPickerSizeX = tWidgetSize.x - fHueBarWidth - fPreviewSize;
+    const float fPickerSizeY = tWidgetSize.y - fAlphaBarHeight;
+    const float fPickerSize = pl_minf(fPickerSizeX, fPickerSizeY);
 
-    const float fTotalWidth     = fPickerSize + gptCtx->tStyle.tInnerSpacing.x + fHueBarWidth + (bShowPreview ? (gptCtx->tStyle.tInnerSpacing.x + fPreviewWidth) : 0.0f);
-    const float fTotalHeight    = fPickerSize + (bNoAlpha ? 0.0f : (gptCtx->tStyle.tInnerSpacing.y + fAlphaBarHeight));
+    const float fTotalWidth  = fPickerSize + gptCtx->tStyle.tInnerSpacing.x + fHueBarWidth + (bShowPreview ? (gptCtx->tStyle.tInnerSpacing.x + fPreviewSize) : fTextWidth + gptCtx->tStyle.tInnerSpacing.x);
+    const float fTotalHeight = fPickerSize + (bNoAlpha ? 0.0f : (gptCtx->tStyle.tInnerSpacing.y + fAlphaBarHeight));
 
     const plVec2 tSvPos        = tCursorPos;
     const plVec2 tHuePos       = { tCursorPos.x + fPickerSize + gptCtx->tStyle.tInnerSpacing.x, tCursorPos.y };
-    const plVec2 tPreviewPos   = { tHuePos.x + fHueBarWidth + gptCtx->tStyle.tInnerSpacing.x, tCursorPos.y };
+    const plVec2 tLabelPos     = { tHuePos.x + fHueBarWidth + gptCtx->tStyle.tInnerSpacing.x, tCursorPos.y };
+    const plVec2 tPreviewPos   = { tLabelPos.x, tLabelPos.y + pl_rect_height(&tTextBounding) + (bNoLabel ? 0.0f : gptCtx->tStyle.tInnerSpacing.y) };
     const plVec2 tAplphaBarPos = { tCursorPos.x, tCursorPos.y + fPickerSize + gptCtx->tStyle.tInnerSpacing.y };
 
     plDrawLayer2D* ptDrawLayer = ptWindow->ptFgLayer;
-    const plRect* ptClipRect = gptDraw->get_clip_rect(gptCtx->ptDrawlist);
+    const plRect* ptClipRect = gptDraw->get_clip_rect(ptWindow->ptDrawlist);
 
     float fR = 0.0f;
     float fG = 0.0f;
@@ -3759,7 +3709,7 @@ pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tF
 
         gptDraw->add_rect_filled(ptDrawLayer,
             tAplphaBarPos,
-            (plVec2){ tAplphaBarPos.x + fTotalWidth, tAplphaBarPos.y + fAlphaBarHeight },
+            (plVec2){ tAplphaBarPos.x + fPickerSize, tAplphaBarPos.y + fAlphaBarHeight },
             (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.66f, 0.66f, 0.66f, 1.0f)}
         );
 
@@ -3767,11 +3717,30 @@ pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tF
         const uint32_t uAlphaBarStart = PL_COLOR_32_RGBA(fCurrentR, fCurrentG, fCurrentB, 0.0f);
         const uint32_t uAlphaBarEnd   = PL_COLOR_32_RGBA(fCurrentR, fCurrentG, fCurrentB, 1.0f);
 
+        float off = 0.0f;
+        // if ((flags & ImGuiColorEditFlags_NoBorder) == 0)
+        // {
+        //     off = -0.75f; // The border (using Col_FrameBg) tends to look off when color is near-opaque and rounding is enabled. This offset seemed like a good middle ground to reduce those artifacts.
+        //     bb_inner.Expand(off);
+        // }
+
+        float grid_step = fAlphaBarHeight / 2.0f;
+        float rounding = pl_minf(gptCtx->tStyle.fFrameRounding, grid_step * 0.5f);
+        pl__render_checker_board(ptWindow->ptFgLayer,
+            tAplphaBarPos,
+            (plVec2){ tAplphaBarPos.x + fPickerSize, tAplphaBarPos.y + fAlphaBarHeight },
+            (plVec4){0},
+            grid_step,
+            (plVec2){0},
+            rounding,
+            PL_DRAW_RECT_FLAG_ROUND_CORNERS_RIGHT
+        );
+
         gptDraw->add_rect_filled_gradient(ptDrawLayer, tAplphaBarPos,
-            (plVec2){ tAplphaBarPos.x + fTotalWidth, tAplphaBarPos.y + fAlphaBarHeight },
+            (plVec2){ tAplphaBarPos.x + fPickerSize, tAplphaBarPos.y + fAlphaBarHeight },
             uAlphaBarStart, uAlphaBarEnd, uAlphaBarStart, uAlphaBarEnd);
 
-        plRect tAlphaBarHitBox = pl_calculate_rect(tAplphaBarPos, (plVec2){ fTotalWidth, fAlphaBarHeight });
+        plRect tAlphaBarHitBox = pl_calculate_rect(tAplphaBarPos, (plVec2){ fPickerSize, fAlphaBarHeight });
         tAlphaBarHitBox = pl_rect_clip_full(&tAlphaBarHitBox, ptClipRect);
 
         bool bHoveredAlpha = false;
@@ -3783,7 +3752,7 @@ pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tF
             plVec2 tClickedMousePos = gptIOI->get_mouse_pos();
 
             {
-                fAlpha = pl_clampf(0.0f, (tClickedMousePos.x - tAplphaBarPos.x) / fTotalWidth, 1.0f);
+                fAlpha = pl_clampf(0.0f, (tClickedMousePos.x - tAplphaBarPos.x) / fPickerSize, 1.0f);
                 bChanged = true;
             }
 
@@ -3796,7 +3765,7 @@ pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tF
             }
         }
 
-        tAlphaBarMarker.x = tAplphaBarPos.x + fAlpha * fTotalWidth;
+        tAlphaBarMarker.x = tAplphaBarPos.x + fAlpha * fPickerSize;
         tAlphaBarMarker.y = tAplphaBarPos.y;
 
         gptDraw->add_rect(ptDrawLayer,
@@ -3814,32 +3783,33 @@ pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tF
     {
         pl__add_text(ptWindow->ptFgLayer,
             gptCtx->tFont, gptCtx->tStyle.fFontSize,
-            pl_add_vec2(tPreviewPos, (plVec2){fPreviewWidth + gptCtx->tStyle.tInnerSpacing.x, 0.0f}), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+            pl_add_vec2(tLabelPos, (plVec2){gptCtx->tStyle.tInnerSpacing.x, 0.0f}), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
     }
+
     if(bShowPreview)
     {
-        const float fPreviewHalfHeight = fPickerSize * 0.25f;
+        const float fPreviewHalfHeight = fPreviewSize * 0.5f;
 
         // -- backdrop --
         gptDraw->add_rect_filled(ptDrawLayer, tPreviewPos,
-            (plVec2){ tPreviewPos.x + fPreviewWidth, tPreviewPos.y + fPickerSize },
+            (plVec2){ tPreviewPos.x + fPreviewSize, tPreviewPos.y + fPreviewSize },
             (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.66f, 0.66f, 0.66f, 1.0f)}
         );
 
         // -- current color, top half, just a display, not clickable --
         gptDraw->add_rect_filled(ptDrawLayer, tPreviewPos,
-            (plVec2){ tPreviewPos.x + fPreviewWidth, tPreviewPos.y + fPreviewHalfHeight },
+            (plVec2){ tPreviewPos.x + fPreviewSize, tPreviewPos.y + fPreviewHalfHeight },
             (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(fCurrentR, fCurrentG, fCurrentB, fAlpha)}
         );
 
         // -- reference color, bottom half, click to revert --
         const plVec2 tRefMin = { tPreviewPos.x, tPreviewPos.y + fPreviewHalfHeight };
-        const plVec2 tRefMax = { tPreviewPos.x + fPreviewWidth, tPreviewPos.y + fPickerSize };
+        const plVec2 tRefMax = { tPreviewPos.x + fPreviewSize, tPreviewPos.y + fPreviewSize };
         gptDraw->add_rect_filled(ptDrawLayer, tRefMin, tRefMax,
             (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(refColRGBA[0], refColRGBA[1], refColRGBA[2], refColRGBA[3])});
 
         const uint32_t uRefHash = pl_str_hash("##ref", 0, pl_sb_top(gptCtx->sbuIdStack));
-        plRect tRefBox = pl_calculate_rect(tRefMin, (plVec2){ fPreviewWidth, fPreviewHalfHeight });
+        plRect tRefBox = pl_calculate_rect(tRefMin, (plVec2){ fPreviewSize, fPreviewHalfHeight });
         tRefBox = pl_rect_clip_full(&tRefBox, ptClipRect);
 
         bool bHoveredRef = false;
@@ -3856,9 +3826,14 @@ pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tF
         pl__add_widget(uRefHash);
 
         gptDraw->add_rect(ptDrawLayer, tPreviewPos,
-            (plVec2){ tPreviewPos.x + fPreviewWidth, tPreviewPos.y + fPickerSize },
+            (plVec2){ tPreviewPos.x + fTextWidth, tPreviewPos.y + fPreviewSize },
             (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, 1.0f), .fThickness = 1.0f}
         );
+
+        if(bHoveredRef)
+        {
+            pl__ui_color_tooltip(pcLabel, colRGBA, tFlags);
+        }
     }
 
     if(bChanged)
@@ -3871,6 +3846,394 @@ pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tF
     pl__smart_advance_cursor(fTotalWidth, fTotalHeight);
     pl_ui_pop_id();
     return bChanged;
+}
+
+bool
+pl_ui_color_edit3(const char* pcLabel, float colRGBA[3], plUiColorEditFlags tFlags, const float* refColRGBA)
+{
+    tFlags |= PL_UI_COLOR_EDIT_FLAGS_NO_ALPHA;
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+    const float fButtonSize = pl__get_frame_height();
+
+    bool bChanged = false;
+    bool bButtonPressed = false;
+
+    const uint32_t uParentHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+
+    pl_ui_push_id_string(pcLabel);
+
+    if(pl__ui_should_render(&tStartPos, &tWidgetSize))
+    {
+        
+        plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
+        const float fActualSubWidth = 2.0f * (tWidgetSize.x - fButtonSize) / 9.0f;
+
+        static uint32_t sauColors[4] = {
+            PL_COLOR_32_RED,
+            PL_COLOR_32_GREEN,
+            PL_COLOR_32_BLUE,
+            PL_COLOR_32_GREY
+        };
+
+        for(uint32_t i = 0; i < 3; i++)
+        {
+            pl_ui_push_id_uint(i);
+
+            const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+            
+            plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+            
+            char acBuffer[64] = {0};
+            pl_sprintf(acBuffer, "%0.3f", colRGBA[i]);
+
+            const plRect tTextBounding = gptDraw->calculate_text_bb(tSubStartPos, acBuffer,
+                (plDrawTextOptions){
+                    .ptFont = gptCtx->tFont,
+                    .fSize = gptCtx->tStyle.fFontSize,
+                    .pcTextEnd = pl__find_renderered_text_end(acBuffer, NULL),
+                    .fWrap = -1.0f});
+
+            const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+
+            const plVec2 tTextStartPos = { 
+                tSubStartPos.x + tSubStartPos.x + tSubWidgetSize.x / 2.0f - tTextActualCenter.x, 
+                tSubStartPos.y + tSubStartPos.y + tSubWidgetSize.y / 2.0f - tTextActualCenter.y
+            };
+            plRect tBoundingBox = pl_calculate_rect(tSubStartPos, tSubWidgetSize);
+            const plRect* ptClipRect = gptDraw->get_clip_rect(ptWindow->ptDrawlist);
+            tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
+
+            bool bHovered = false;
+            bool bHeld = false;
+            bool bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+
+            if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tSubStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgActiveCol)});
+            else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tSubStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgHoveredCol)});
+            else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tSubStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
+
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+                tTextStartPos,
+                tSubStartPos, pl_add_vec2(tSubStartPos, tSubWidgetSize),
+                PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acBuffer, -1.0f);
+
+            bool bDragged = false;
+            if(gptCtx->uActiveId == uHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+            {
+                colRGBA[i] = gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * 0.01f;
+                colRGBA[i] = pl_clampf(0.0f, colRGBA[i], 1.0f);
+
+                pl__set_active_id(uHash, ptWindow);
+                pl__set_nav_id(uHash, ptWindow);
+                if(gptCtx->bActiveIdJustActivated)
+                {
+                    pl__focus_window(ptWindow);
+                }
+            }
+            pl__add_widget(uHash);
+
+            pl_ui_pop_id();
+            gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tSubStartPos, pl_add_vec2(tSubStartPos, (plVec2){gptCtx->tStyle.fColorMarkerSize, tSubWidgetSize.y}), gptCtx->tStyle.fFrameRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_LEFT, (plDrawSolidOptions){.uColor = sauColors[i]});
+            tSubStartPos.x += fActualSubWidth;
+        }
+
+        gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tSubStartPos, pl_add_vec2(tSubStartPos, (plVec2){fButtonSize, fButtonSize}), gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(colRGBA[0], colRGBA[1], colRGBA[2], colRGBA[3])});
+
+        plRect tBoundingBox = pl_calculate_rect(tSubStartPos, (plVec2){fButtonSize, fButtonSize});
+        const plRect* ptClipRect = gptDraw->get_clip_rect(ptWindow->ptDrawlist);
+        tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
+
+        bool bHovered = false;
+        bool bHeld = false;
+        bButtonPressed = pl__button_behavior(&tBoundingBox, uParentHash, &bHovered, &bHeld);
+
+        pl__add_widget(uParentHash);
+
+        tSubStartPos.x += fButtonSize;
+
+        const plRect tTextBounding = gptDraw->calculate_text_bb(tSubStartPos, pcLabel,
+            (plDrawTextOptions){
+                .ptFont = gptCtx->tFont,
+                .fSize = gptCtx->tStyle.fFontSize,
+                .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+                .fWrap = -1.0f});
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f); 
+    }
+
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+
+    if(bButtonPressed)
+    {
+        pl_ui_open_popup("##ColorEditPopup", 0);
+    }
+
+    if(pl_ui_is_popup_open("##ColorEditPopup"))
+    {
+        pl_ui_set_next_window_pos(gptIOI->get_mouse_pos(), PL_UI_COND_APPEARING);
+        if(pl_ui_begin_popup("##ColorEditPopup", PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_AUTO_SIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE | PL_UI_WINDOW_FLAGS_NO_TITLE_BAR))
+        {
+            pl_ui_text(pcLabel);
+            pl_ui_separator();
+            pl_ui_layout_static(400.0f, 400.0f, 1);
+            tFlags |= PL_UI_COLOR_EDIT_FLAGS_NO_LABEL;
+            pl_ui_color_picker4(pcLabel, colRGBA, tFlags, NULL);
+            pl_ui_end_popup();
+        }
+    }
+
+    pl_ui_pop_id();
+    
+    return bChanged;
+}
+
+bool
+pl_ui_color_edit4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tFlags, const float* refColRGBA)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+    const float fButtonSize = pl__get_frame_height();
+
+    bool bChanged = false;
+    bool bButtonPressed = false;
+
+    const uint32_t uParentHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+
+    pl_ui_push_id_string(pcLabel);
+
+    if(pl__ui_should_render(&tStartPos, &tWidgetSize))
+    {
+        
+        plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
+        const float fActualSubWidth = 2.0f * (tWidgetSize.x - fButtonSize) / 12.0f;
+
+        static uint32_t sauColors[4] = {
+            PL_COLOR_32_RED,
+            PL_COLOR_32_GREEN,
+            PL_COLOR_32_BLUE,
+            PL_COLOR_32_GREY
+        };
+
+        for(uint32_t i = 0; i < 4; i++)
+        {
+            pl_ui_push_id_uint(i);
+
+            const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+            
+            plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+            
+            char acBuffer[64] = {0};
+            pl_sprintf(acBuffer, "%0.3f", colRGBA[i]);
+
+            const plRect tTextBounding = gptDraw->calculate_text_bb(tSubStartPos, acBuffer,
+                (plDrawTextOptions){
+                    .ptFont = gptCtx->tFont,
+                    .fSize = gptCtx->tStyle.fFontSize,
+                    .pcTextEnd = pl__find_renderered_text_end(acBuffer, NULL),
+                    .fWrap = -1.0f});
+
+            const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+
+            const plVec2 tTextStartPos = { 
+                tSubStartPos.x + tSubStartPos.x + tSubWidgetSize.x / 2.0f - tTextActualCenter.x, 
+                tSubStartPos.y + tSubStartPos.y + tSubWidgetSize.y / 2.0f - tTextActualCenter.y
+            };
+            plRect tBoundingBox = pl_calculate_rect(tSubStartPos, tSubWidgetSize);
+            const plRect* ptClipRect = gptDraw->get_clip_rect(ptWindow->ptDrawlist);
+            tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
+
+            bool bHovered = false;
+            bool bHeld = false;
+            bool bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+
+            if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tSubStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgActiveCol)});
+            else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tSubStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgHoveredCol)});
+            else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tSubStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
+
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+                tTextStartPos,
+                tSubStartPos, pl_add_vec2(tSubStartPos, tSubWidgetSize),
+                PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acBuffer, -1.0f);
+
+            bool bDragged = false;
+            if(gptCtx->uActiveId == uHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+            {
+                colRGBA[i] = gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * 0.01f;
+                colRGBA[i] = pl_clampf(0.0f, colRGBA[i], 1.0f);
+
+                pl__set_active_id(uHash, ptWindow);
+                pl__set_nav_id(uHash, ptWindow);
+                if(gptCtx->bActiveIdJustActivated)
+                {
+                    pl__focus_window(ptWindow);
+                }
+            }
+            pl__add_widget(uHash);
+
+            pl_ui_pop_id();
+            gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tSubStartPos, pl_add_vec2(tSubStartPos, (plVec2){gptCtx->tStyle.fColorMarkerSize, tSubWidgetSize.y}), gptCtx->tStyle.fFrameRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_LEFT, (plDrawSolidOptions){.uColor = sauColors[i]});
+            tSubStartPos.x += fActualSubWidth;
+        }
+
+        // gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tSubStartPos, pl_add_vec2(tSubStartPos, (plVec2){fButtonSize, fButtonSize}), gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(colRGBA[0], colRGBA[1], colRGBA[2], colRGBA[3])});
+
+        float off = 0.0f;
+        // if ((flags & ImGuiColorEditFlags_NoBorder) == 0)
+        // {
+        //     off = -0.75f; // The border (using Col_FrameBg) tends to look off when color is near-opaque and rounding is enabled. This offset seemed like a good middle ground to reduce those artifacts.
+        //     bb_inner.Expand(off);
+        // }
+
+        float grid_step = fButtonSize / 2.99f;
+        float rounding = pl_minf(gptCtx->tStyle.fFrameRounding, grid_step * 0.5f);
+        pl__render_checker_board(ptWindow->ptFgLayer,
+            tSubStartPos,
+            pl_add_vec2(tSubStartPos, (plVec2){fButtonSize, fButtonSize}),
+            (plVec4){colRGBA[0], colRGBA[1], colRGBA[2], colRGBA[3]},
+            grid_step,
+            (plVec2){-grid_step + off, off},
+            rounding,
+            PL_DRAW_RECT_FLAG_ROUND_CORNERS_RIGHT
+        );
+
+
+        plRect tBoundingBox = pl_calculate_rect(tSubStartPos, (plVec2){fButtonSize, fButtonSize});
+        const plRect* ptClipRect = gptDraw->get_clip_rect(ptWindow->ptDrawlist);
+        tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
+
+        bool bHovered = false;
+        bool bHeld = false;
+        bButtonPressed = pl__button_behavior(&tBoundingBox, uParentHash, &bHovered, &bHeld);
+
+        pl__add_widget(uParentHash);
+
+        tSubStartPos.x += fButtonSize;
+
+        const plRect tTextBounding = gptDraw->calculate_text_bb(tSubStartPos, pcLabel,
+            (plDrawTextOptions){
+                .ptFont = gptCtx->tFont,
+                .fSize = gptCtx->tStyle.fFontSize,
+                .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+                .fWrap = -1.0f});
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+
+        if(bHovered)
+        {
+            pl__ui_color_tooltip(pcLabel, colRGBA, tFlags);
+        }
+    }
+
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+
+    if(bButtonPressed)
+    {
+        pl_ui_open_popup("##ColorEditPopup", 0);
+    }
+
+    if(pl_ui_is_popup_open("##ColorEditPopup"))
+    {
+        pl_ui_set_next_window_pos(gptIOI->get_mouse_pos(), PL_UI_COND_APPEARING);
+        if(pl_ui_begin_popup("##ColorEditPopup", PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_AUTO_SIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE | PL_UI_WINDOW_FLAGS_NO_TITLE_BAR))
+        {
+            pl_ui_text(pcLabel);
+            pl_ui_separator();
+            pl_ui_layout_static(400.0f, 400.0f, 1);
+            tFlags |= PL_UI_COLOR_EDIT_FLAGS_NO_LABEL;
+            pl_ui_color_picker4(pcLabel, colRGBA, tFlags, NULL);
+            pl_ui_end_popup();
+        }
+    }
+
+    pl_ui_pop_id();
+    
+    return bChanged;
+}
+
+bool
+pl_ui_color_button(const char* pcId, float afColRGBA[4], plUiColorEditFlags tFlags, plVec2 tSize)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+
+    if(tSize.y <= 0.0f) tSize.y = tWidgetSize.y;
+    if(tSize.x <= 0.0f) tSize.x = tWidgetSize.x;
+
+    pl_ui_push_id_string(pcId);
+
+    bool bPressed = false;
+    bool bHovered = false;
+    if(pl__ui_should_render(&tStartPos, &tSize))
+    {
+
+        float off = 0.0f;
+        // if ((flags & ImGuiColorEditFlags_NoBorder) == 0)
+        // {
+        //     off = -0.75f; // The border (using Col_FrameBg) tends to look off when color is near-opaque and rounding is enabled. This offset seemed like a good middle ground to reduce those artifacts.
+        //     bb_inner.Expand(off);
+        // }
+
+        float grid_step = pl_minf(tSize.x, tSize.y) / 2.99f;
+        float rounding = pl_minf(gptCtx->tStyle.fFrameRounding, grid_step * 0.5f);
+        pl__render_checker_board(ptWindow->ptFgLayer,
+            tStartPos,
+            pl_add_vec2(tStartPos, tSize),
+            (plVec4){afColRGBA[0], afColRGBA[1], afColRGBA[2], afColRGBA[3]},
+            grid_step,
+            (plVec2){-grid_step + off, off},
+            rounding,
+            PL_DRAW_RECT_FLAG_ROUND_CORNERS_RIGHT
+        );
+
+        const uint32_t uHash = pl_str_hash(pcId, 0, pl_sb_top(gptCtx->sbuIdStack));
+        plRect tBoundingBox = pl_calculate_rect(tStartPos, tSize);
+        const plRect* ptClipRect = gptDraw->get_clip_rect(ptWindow->ptDrawlist);
+        tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
+
+        
+        bool bHeld = false;
+        bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+
+        if(bPressed)
+        {
+            pl_ui_open_popup("##ColorButtonPopup", 0);
+        }
+        // pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, tBoundingBox.tMin, tBoundingBox.tMax, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcText, 0.0f);
+        pl__add_widget(uHash);
+    }
+    pl__smart_advance_cursor(tSize.x, tSize.y);
+
+    if(pl_ui_is_popup_open("##ColorButtonPopup"))
+    {
+        pl_ui_set_next_window_pos((plVec2){tStartPos.x, tStartPos.y + tSize.y}, PL_UI_COND_ALWAYS);
+        // pl_ui_set_next_window_size((plVec2){0.80f * tWindowSize.x, 0.80f * tWindowSize.y}, PL_UI_COND_ALWAYS);
+        if(pl_ui_begin_popup("##ColorButtonPopup", PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_AUTO_SIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE | PL_UI_WINDOW_FLAGS_NO_TITLE_BAR))
+        {
+            pl_ui_text(pcId);
+            pl_ui_separator();
+            pl_ui_layout_static(400.0f, 400.0f, 1);
+            tFlags |= PL_UI_COLOR_EDIT_FLAGS_NO_LABEL;
+            pl_ui_color_picker4(pcId, afColRGBA, tFlags, NULL);
+            pl_ui_end_popup();
+        }
+    }
+
+    if(bHovered)
+    {
+        pl__ui_color_tooltip(pcId, afColRGBA, tFlags);
+    }
+
+    pl_ui_pop_id();
+    return bPressed;
 }
 
 bool
@@ -3994,10 +4357,10 @@ pl_ui_progress_bar(float fFraction, plVec2 tSize, const char* pcOverlay)
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
-    if(tSize.y == 0.0f) tSize.y = tWidgetSize.y;
-    if(tSize.x < 0.0f) tSize.x = tWidgetSize.x;
+    if(tSize.y <= 0.0f) tSize.y = tWidgetSize.y;
+    if(tSize.x <= 0.0f) tSize.x = tWidgetSize.x;
 
-    if(!(tStartPos.y + tSize.y < ptWindow->tPos.y || tStartPos.y > ptWindow->tPos.y + ptWindow->tFullSize.y))
+    if(pl__ui_should_render(&tStartPos, &tSize))
     {
 
         gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tStartPos, pl_add_vec2(tStartPos, tSize), gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});

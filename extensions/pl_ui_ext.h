@@ -244,9 +244,12 @@ typedef struct _plUiI
     bool (*drag_float)  (const char* label, float* value, float speed, float minValue, float maxValue, plUiSliderFlags);
     bool (*drag_float_f)(const char* label, float* value, float speed, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
 
-    // color picker
+    // colors
     bool (*color_picker3)(const char* label, float colRGB[3], plUiColorEditFlags);
     bool (*color_picker4)(const char* label, float colRGBA[4], plUiColorEditFlags, const float* refColRGBA);
+    bool (*color_edit3)  (const char* label, float colRGBA[3], plUiColorEditFlags, const float* refColRGBA);
+    bool (*color_edit4)  (const char* label, float colRGBA[4], plUiColorEditFlags, const float* refColRGBA);
+    bool (*color_button) (const char* id, float colRGBA[4], plUiColorEditFlags, plVec2 size);
 
     // combo
     bool (*begin_combo)(const char* label, const char* preview, plUiComboFlags);
@@ -254,6 +257,9 @@ typedef struct _plUiI
 
     // trees
     // - only call "tree_pop()" if "tree_node()" returns true (its call automatically if false)
+    // - tree_node begins a new default layout (won't mess up existing layout scheme)
+    // - WARNING: collapsing_header does not start a new layout, if you want that behavior,
+    //            manually use "stash_layout(...)" & "apply_layout(...)"
     bool (*collapsing_header)(const char* text, plUiTreeNodeFlags);
     bool (*tree_node)        (const char* text, plUiTreeNodeFlags);
     bool (*tree_node_f)      (const char* fmt, plUiTreeNodeFlags, ...);

@@ -35,6 +35,7 @@ pl_ui_set_dark_theme(void)
     gptCtx->tStyle.fScrollbarSize           = 10.0f;
     gptCtx->tStyle.fSliderSize              = 12.0f;
     gptCtx->tStyle.fTreeLineSize            = 1.0f;
+    gptCtx->tStyle.fColorMarkerSize         = 8.0f;
     gptCtx->tStyle.fWindowRounding          = 0.0f;
     gptCtx->tStyle.fChildRounding           = 0.0f;
     gptCtx->tStyle.fFrameRounding           = 0.0f;
@@ -1109,6 +1110,42 @@ bool
 pl_ui_was_last_item_active(void)
 {
     return gptCtx->tPrevItemData.bActive;
+}
+
+static void
+pl__render_checker_board(plDrawLayer2D* draw_list, plVec2 p_min, plVec2 p_max, plVec4 col, float grid_step, plVec2 grid_off, float rounding, plDrawRectFlags flags)
+{
+    if(col.a < 1.0f)
+    {
+        uint32_t col_bg1 = PL_COLOR_32_VEC4(pl__ui_alpha_blend_colors((plVec4){128.0f / 255.0f, 128.0f / 255.0f, 128.0f / 255.0f, 1.0f}, col));
+        uint32_t col_bg2 = PL_COLOR_32_VEC4(pl__ui_alpha_blend_colors((plVec4){204.0f / 255.0f, 204.0f / 255.0f, 204.0f / 255.0f, 1.0f}, col));
+        gptDraw->add_rect_rounded_filled(draw_list, p_min, p_max, rounding, 0, flags, (plDrawSolidOptions){.uColor = col_bg1});
+
+        int yi = 0;
+        for (float y = p_min.y + grid_off.y; y < p_max.y; y += grid_step, yi++)
+        {
+            float y1 = pl_clampf(p_min.y, y, p_max.y), y2 = pl_minf(y + grid_step, p_max.y);
+            if (y2 <= y1)
+                continue;
+            for (float x = p_min.x + grid_off.x + ((yi ^ 1)  & 1) * grid_step; x < p_max.x; x += grid_step * 2.0f)
+            {
+                float x1 = pl_clampf(p_min.x, x, p_max.x), x2 = pl_minf(x + grid_step, p_max.x);
+                if (x2 <= x1)
+                    continue;
+                plDrawRectFlags cell_flags = PL_DRAW_RECT_FLAG_ROUND_CORNERS_NONE; // FIXME: Could use CalcRoundingFlagsForRectInRect()
+                if (y1 <= p_min.y) { if (x1 <= p_min.x) cell_flags |= PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT; if (x2 >= p_max.x) cell_flags |= PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT; }
+                if (y2 >= p_max.y) { if (x1 <= p_min.x) cell_flags |= PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT; if (x2 >= p_max.x) cell_flags |= PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT; }
+
+                // Combine flags
+                cell_flags = (flags == PL_DRAW_RECT_FLAG_ROUND_CORNERS_NONE || cell_flags == PL_DRAW_RECT_FLAG_ROUND_CORNERS_NONE) ? PL_DRAW_RECT_FLAG_ROUND_CORNERS_NONE : (cell_flags & flags);
+                gptDraw->add_rect_rounded_filled(draw_list, (plVec2){x1, y1}, (plVec2){x2, y2}, rounding, 0, cell_flags, (plDrawSolidOptions){.uColor = col_bg2});
+            }
+        }
+    }
+    else
+    {
+        gptDraw->add_rect_rounded_filled(draw_list, p_min, p_max, rounding, 0, flags, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(col)});
+    }
 }
 
 static int
@@ -2601,6 +2638,12 @@ pl_ui_show_style_editor_window(bool* pbOpen)
     if(pl_ui_begin_window("Pilot Light UI Style", pbOpen, 0))
     {
 
+        if(pl_ui_button("Revert"))
+        {
+            pl_ui_set_dark_theme();
+            gptCtx->tStyle.fFontSize = gptCtx->tFont->fSize;
+        }
+
         const float pfRatios[] = {1.0f};
         pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
 
@@ -2611,7 +2654,7 @@ pl_ui_show_style_editor_window(bool* pbOpen)
         {
             if(pl_ui_begin_tab("Colors", 0))
             {
-                pl_ui_layout_dynamic(0.0f, 3);
+                pl_ui_layout_dynamic(0.0f, 1);
                 static int iEditingColor = 0;
                 static const char* apcColorNames[PL_UI_COLOR_COUNT] = {
                     "TitleActive",
@@ -2654,12 +2697,13 @@ pl_ui_show_style_editor_window(bool* pbOpen)
 
                 for(uint32_t i = 0; i < PL_UI_COLOR_COUNT; i++)
                 {
-                    pl_ui_radio_button(apcColorNames[i], &iEditingColor, i);
+                    // pl_ui_radio_button(apcColorNames[i], &iEditingColor, i);
+                    pl_ui_color_edit4(apcColorNames[i], ptColorScheme->atColors[i].d, PL_UI_COLOR_EDIT_FLAGS_NO_LABEL, ptColorScheme->atColors[i].d);
                 }
 
-                pl_ui_layout_dynamic(0.0f, 1);
+                // pl_ui_layout_dynamic(0.0f, 1);
 
-                pl_ui_color_picker4("Color", ptColorScheme->atColors[iEditingColor].d, PL_UI_COLOR_EDIT_FLAGS_NO_LABEL, ptColorScheme->atColors[iEditingColor].d);
+                // pl_ui_color_editor4("Color", ptColorScheme->atColors[iEditingColor].d, PL_UI_COLOR_EDIT_FLAGS_NO_LABEL, ptColorScheme->atColors[iEditingColor].d);
                 pl_ui_end_tab();
             }
             
@@ -2693,6 +2737,7 @@ pl_ui_show_style_editor_window(bool* pbOpen)
                 pl_ui_slider_float("Indent", &ptStyle->fIndentSize, 0.0f, 32.0f, 0); 
                 pl_ui_slider_float("Slider Size", &ptStyle->fSliderSize, 3.0f, 32.0f, 0); 
                 pl_ui_slider_float("Treeline Size", &ptStyle->fTreeLineSize, 0.0f, 10.0f, 0); 
+                pl_ui_slider_float("Color Marker Size", &ptStyle->fColorMarkerSize, 0.0f, 10.0f, 0); 
                 pl_ui_slider_float("Font Size", &ptStyle->fFontSize, 13.0f, 48.0f, 0); 
 
                 pl_ui_vertical_spacing();
@@ -2856,6 +2901,33 @@ pl_ui_end_frame(void)
     }
 }
 
+static void
+pl__ui_color_tooltip(const char* pcLabel, float* afColRGBA, plUiColorEditFlags tFlags)
+{
+    int cr = PL_F32_TO_INT8_SAT(afColRGBA[0]);
+    int cg = PL_F32_TO_INT8_SAT(afColRGBA[1]);
+    int cb = PL_F32_TO_INT8_SAT(afColRGBA[2]);
+    int ca = PL_F32_TO_INT8_SAT(tFlags & PL_UI_COLOR_EDIT_FLAGS_NO_ALPHA ? 1.0f : afColRGBA[3]);
+
+    pl_ui_begin_tooltip();
+    pl_ui_layout_static(0.0f, 300, 1);
+    pl_ui_text(pcLabel);
+    pl_ui_separator();
+    if(tFlags & PL_UI_COLOR_EDIT_FLAGS_NO_ALPHA)
+    {
+        pl_ui_text("#%02X%02X%02X", cr, cg, cb);
+        pl_ui_text("#R:%d, G:%d, B:%d", cr, cg, cb);
+        pl_ui_text("(%.3f, %.3f, %.3f)", afColRGBA[0], afColRGBA[1], afColRGBA[2]);
+    }
+    else
+    {
+        pl_ui_text("#%02X%02X%02X%02X", cr, cg, cb, ca);
+        pl_ui_text("#R:%d, G:%d, B:%d, A:%d", cr, cg, cb, ca);
+        pl_ui_text("(%.3f, %.3f, %.3f, %.3f)", afColRGBA[0], afColRGBA[1], afColRGBA[2], afColRGBA[3]);
+    }
+    pl_ui_end_tooltip();
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -2948,6 +3020,9 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .drag_float_f                          = pl_ui_drag_float_f,
         .color_picker3                         = pl_ui_color_picker3,
         .color_picker4                         = pl_ui_color_picker4,
+        .color_edit3                           = pl_ui_color_edit3,
+        .color_edit4                           = pl_ui_color_edit4,
+        .color_button                          = pl_ui_color_button,
         .collapsing_header                     = pl_ui_collapsing_header,
         .tree_node                             = pl_ui_tree_node,
         .tree_node_f                           = pl_ui_tree_node_f,

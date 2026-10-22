@@ -626,4 +626,83 @@ static void pl__set_float(plUiStorage*, uint32_t uKey, float fValue);
 static void pl__set_bool (plUiStorage*, uint32_t uKey, bool bValue);
 static void pl__set_ptr  (plUiStorage*, uint32_t uKey, void* pValue);
 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~color helpers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+static inline float  pl__ui_saturate(float f) { return (f < 0.0f) ? 0.0f : (f > 1.0f) ? 1.0f : f; }
+#define PL_F32_TO_INT8_SAT(_VAL) ((int)(pl__ui_saturate(_VAL) * 255.0f + 0.5f))  
+
+static void pl__render_checker_board(plDrawLayer2D*, plVec2 p_min, plVec2 p_max, plVec4 col, float grid_step, plVec2 grid_off, float rounding, plDrawRectFlags);
+
+static inline float
+pl__ui_single_lerp(float t0, float t1, float dAmount)
+{
+    return t0 + (t1 - t0) * dAmount;
+}
+
+static inline plVec4
+pl__ui_alpha_blend_colors(plVec4 col_a, plVec4 col_b)
+{
+    float t = col_b.a;
+    float r = pl__ui_single_lerp(col_a.r, col_b.r, t);
+    float g = pl__ui_single_lerp(col_a.g, col_b.g, t);
+    float b = pl__ui_single_lerp(col_a.b, col_b.b, t);
+    return (plVec4){r, g, b, 1.0f};
+}
+
+static inline void
+pl__ui_rgb_to_hsv(float fR, float fG, float fB, float* pfH, float* pfS, float* pfV)
+{
+    float K = 0.f;
+    if (fG < fB)
+    {
+        float fBOrig = fB;
+        fB = fG;
+        fG = fBOrig;
+        K = -1.f;
+    }
+    if (fR < fG)
+    {
+        float fGOrig = fG;
+        fG = fR;
+        fR = fGOrig;
+        K = -2.f / 6.f - K;
+    }
+
+    const float chroma = fR - (fG < fB ? fG : fB);
+    *pfH = fabsf(K + (fG - fB) / (6.f * chroma + 1e-20f));
+    *pfS = chroma / (fR + 1e-20f);
+    *pfV = fR;
+
+}
+
+static inline void
+pl__ui_hsv_to_rgb(float h, float s, float v, float* pfR, float* pfG, float* pfB)
+{
+    if (s == 0.0f)
+    {
+        // gray
+        *pfR = *pfG = *pfB = v;
+        return;
+    }
+
+    h = fmodf(h, 1.0f) / (60.0f / 360.0f);
+    int   i = (int)h;
+    float f = h - (float)i;
+    float p = v * (1.0f - s);
+    float q = v * (1.0f - s * f);
+    float t = v * (1.0f - s * (1.0f - f));
+
+    switch (i)
+    {
+    case 0: *pfR = v; *pfG = t; *pfB = p; break;
+    case 1: *pfR = q; *pfG = v; *pfB = p; break;
+    case 2: *pfR = p; *pfG = v; *pfB = t; break;
+    case 3: *pfR = p; *pfG = q; *pfB = v; break;
+    case 4: *pfR = t; *pfG = p; *pfB = v; break;
+    case 5: default: *pfR = v; *pfG = p; *pfB = q; break;
+    }
+}
+
+static void pl__ui_color_tooltip(const char* pcLabel, float* afColRGBA, plUiColorEditFlags);
+
 #endif // PL_UI_INTERNAL_H

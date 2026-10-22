@@ -232,6 +232,28 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                 gptUI->tree_pop();
             }
 
+            if(gptUI->tree_node("Colors", 0))
+            {
+                gptUI->separator_text("Color Picker");
+                static plUiColorEditFlags tColorEditFlags = PL_UI_COLOR_EDIT_FLAGS_NONE;
+                static plVec4 tColorToEdit = {1.0f, 0.0f, 0.2f, 0.75f};
+                static plVec4 tColorToReference = {1.0f, 0.0f, 0.2f, 0.75f};
+                gptUI->checkbox_flags("no_alpha", &tColorEditFlags, PL_UI_COLOR_EDIT_FLAGS_NO_ALPHA);
+                gptUI->checkbox_flags("no_label", &tColorEditFlags, PL_UI_COLOR_EDIT_FLAGS_NO_LABEL);
+                gptUI->checkbox_flags("no_side_preview", &tColorEditFlags, PL_UI_COLOR_EDIT_FLAGS_NO_SIDE_PREVIEW);
+
+                gptUI->color_edit4("base color##22", tColorToEdit.d, tColorEditFlags, tColorToReference.d);
+                gptUI->color_edit3("base color##33", tColorToEdit.d, tColorEditFlags, tColorToReference.d);
+
+                gptUI->layout_static(400.0f, 400.0f, 1);
+                gptUI->color_picker4("base color", tColorToEdit.d, tColorEditFlags, tColorToReference.d);
+                
+                // gptUI->color_button("base color button", tColorToEdit.d, tColorEditFlags, (plVec2){50.0f, 50.0f});
+                gptUI->color_button("base color button", tColorToEdit.d, tColorEditFlags, (plVec2){50.0f, 50.0f});
+                gptUI->color_button("base color button444", tColorToEdit.d, tColorEditFlags, (plVec2){80.0f, 50.0f});
+                gptUI->tree_pop();
+            }
+
             if(gptUI->tree_node("Plotting", 0))
             {
                 gptUI->progress_bar(0.75f, pl_create_vec2(-1.0f, 0.0f), NULL);
