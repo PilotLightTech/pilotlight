@@ -389,16 +389,16 @@ pl_app_update(plAppData* ptAppData)
         (plVec2){fXCursor + 100.0f, 105.0f}, tCommonSolidOptions);
 
     // default text
-    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 300.0f}, "Proggy @ 13 (loaded at 13)", (plDrawTextOptions){.ptFont = gptStarter->get_default_font(), .uColor = PL_COLOR_32_WHITE});
-    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 315.0f}, "Proggy @ 45 (loaded at 13)", (plDrawTextOptions){.ptFont = gptStarter->get_default_font(), .uColor = PL_COLOR_32_WHITE, .fSize = 45.0f});
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 300.0f}, (plDrawTextOptions){.ptFont = gptStarter->get_default_font(), .uColor = PL_COLOR_32_WHITE}, "Proggy @ 13 (loaded at 13)");
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 315.0f}, (plDrawTextOptions){.ptFont = gptStarter->get_default_font(), .uColor = PL_COLOR_32_WHITE, .fSize = 45.0f}, "Proggy @ 45 (loaded at 13)");
 
     // bitmap text
-    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 400.0f}, "Cousine @ 18, bitmap (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineBitmapFont, .uColor = PL_COLOR_32_WHITE});
-    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 420.0f}, "Cousine @ 100, bitmap (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineBitmapFont, .uColor = PL_COLOR_32_WHITE, .fSize = 100.0f});
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 400.0f}, (plDrawTextOptions){.ptFont = ptAppData->ptCousineBitmapFont, .uColor = PL_COLOR_32_WHITE}, "Cousine @ 18, bitmap (loaded at 18)");
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 420.0f}, (plDrawTextOptions){.ptFont = ptAppData->ptCousineBitmapFont, .uColor = PL_COLOR_32_WHITE, .fSize = 100.0f}, "Cousine @ 100, bitmap (loaded at 18)");
 
     // sdf text
-    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 520.0f}, "Cousine @ 18, sdf (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineSDFFont, .uColor = PL_COLOR_32_WHITE, .fSize = 18.0f});
-    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 540.0f}, "Cousine @ 100, sdf (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineSDFFont, .uColor = PL_COLOR_32_WHITE, .fSize = 100.0f});
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 520.0f}, (plDrawTextOptions){.ptFont = ptAppData->ptCousineSDFFont, .uColor = PL_COLOR_32_WHITE, .fSize = 18.0f}, "Cousine @ 18, sdf (loaded at 18)");
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 540.0f}, (plDrawTextOptions){.ptFont = ptAppData->ptCousineSDFFont, .uColor = PL_COLOR_32_WHITE, .fSize = 100.0f}, "Cousine @ 100, sdf (loaded at 18)");
 
     // submit our draw layers
     gptDraw->submit_2d_layer(ptAppData->ptBGLayer);

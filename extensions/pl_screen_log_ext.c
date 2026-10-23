@@ -289,9 +289,7 @@ pl_screen_log_get_drawlist(float fXPos, float fYPos, float fWidth, float fHeight
             tDrawTextOptions.uColor = gptScreenLogCtx->sbtSortMessages[i].uColor & ~0xFF000000;
             tDrawTextOptions.uColor |=  PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, 1.0f);
             gptDraw->add_text(gptScreenLogCtx->ptDrawLayer,
-                (plVec2){fXPos, fStartY},
-                gptScreenLogCtx->sbtSortMessages[i].acBuffer,
-                tDrawTextOptions);
+                (plVec2){fXPos, fStartY}, tDrawTextOptions, gptScreenLogCtx->sbtSortMessages[i].acBuffer);
         }
 
         fStartY += pl_rect_height(&tTextBB);

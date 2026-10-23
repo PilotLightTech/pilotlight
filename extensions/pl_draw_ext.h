@@ -53,14 +53,15 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plDrawI_version {3, 0, 0}
+#define plDrawI_version {4, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
 #include "pl.inc"
-#include <stdint.h>
+#include <stdint.h>  // uint*_t
+#include <stdarg.h>  // va list
 #include "pl_math.h"
 
 //-----------------------------------------------------------------------------
@@ -201,14 +202,21 @@ typedef struct _plDrawI
     void (*add_image_quad_ex)           (plDrawLayer2D*, plTextureID, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plVec2 p0UV, plVec2 p1UV, plVec2 p2UV, plVec2 p3UV, uint32_t color);
 
     // drawing (text)
-    void (*add_text)        (plDrawLayer2D*, plVec2 p, const char* text, plDrawTextOptions);
-    void (*add_text_clipped)(plDrawLayer2D*, plVec2 p, const char* text, plVec2 clipMin, plVec2 clipMax, plDrawTextOptions);
+    void (*add_text)   (plDrawLayer2D*, plVec2 p, plDrawTextOptions, const char* fmt, ...);
+    void (*add_text_va)(plDrawLayer2D*, plVec2 p, plDrawTextOptions, const char* fmt, va_list args);
 
     // clipping
     void          (*push_clip_rect_pt)(plDrawList2D*, const plRect*, bool bAccumulate);
     void          (*push_clip_rect)   (plDrawList2D*, plRect, bool bAccumulate);
     void          (*pop_clip_rect)    (plDrawList2D*);
     const plRect* (*get_clip_rect)    (plDrawList2D*);
+
+    // primitives (advanced)
+    void     (*primitive_reserve)       (plDrawLayer2D*, uint32_t indexCount, uint32_t vertexCount);
+    void     (*primitive_vertex)        (plDrawLayer2D*, plVec2 pos, uint32_t color, plVec2 uv);
+    void     (*primitive_write_vertex)  (plDrawLayer2D*, plVec2 pos, uint32_t color, plVec2 uv);
+    void     (*primitive_write_index)   (plDrawLayer2D*, uint32_t index);
+    uint32_t (*primitive_get_next_index)(plDrawLayer2D*);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3D~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -217,7 +225,8 @@ typedef struct _plDrawI
     void          (*return_3d_drawlist)(plDrawList3D*);
 
     // text
-    void (*add_3d_text)(plDrawList3D*, plVec3 p, const char* text, plDrawTextOptions);
+    void (*add_3d_text)   (plDrawList3D*, plVec3 p, plDrawTextOptions, const char* fmt, ...);
+    void (*add_3d_text_va)(plDrawList3D*, plVec3 p, plDrawTextOptions, const char* fmt, va_list args);
 
     // solid
     void (*add_3d_triangle_filled)    (plDrawList3D*, plVec3 p0, plVec3 p1, plVec3 p2, plDrawSolidOptions);
@@ -314,8 +323,10 @@ typedef struct _plDrawTextOptions
     float       fSize;      // if zero, will use loaded size
     uint32_t    uColor;
     float       fWrap;      // 0.0f, no wrap
-    const char* pcTextEnd;  // if null terminated, set to NULL
+    const char* pcTextEnd;  // if null terminated or using variable args, set to NULL
     plMat3      tTransform; // default: identity
+    plVec2      tClipMin;
+    plVec2      tClipMax;
 } plDrawTextOptions;
 
 typedef struct _plFontGlyph
@@ -364,6 +375,7 @@ typedef struct _plFontConfig
     plFontRange* _sbtRanges;
     plFontChar* _sbtCharData;
     float       _fSdfPixelDistScale;
+    uint32_t    _uSdfRectOffset;
 } plFontConfig;
 
 typedef struct _plFont

@@ -596,7 +596,7 @@ pl__show_profiling(bool* bValue)
                         char* pcText = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, pcDecimals, (double)dCurrentTime * dUnitMultiplier);
                         const float fTextWidth = gptDraw->calculate_text_size(pcText, (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x;
                         gptDraw->add_line(ptFgLayer, (plVec2){fLineX, tCursorPos.y}, (plVec2){fLineX, tCursorPos.y + 20.0f}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
-                        gptDraw->add_text(ptFgLayer, (plVec2){roundf(fLineX - fTextWidth / 2.0f), tCursorPos.y + 20.0f}, pcText, (plDrawTextOptions){.uColor = PL_COLOR_32_WHITE, .ptFont = gptUI->get_default_font()});
+                        gptDraw->add_text(ptFgLayer, (plVec2){roundf(fLineX - fTextWidth / 2.0f), tCursorPos.y + 20.0f}, (plDrawTextOptions){.uColor = PL_COLOR_32_WHITE, .ptFont = gptUI->get_default_font()}, pcText);
                         pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);  
                         dCurrentTime += dIncrement;
                     }
@@ -633,9 +633,7 @@ pl__show_profiling(bool* bValue)
                     if(bHovered)
                     {
                         gptDraw->add_line(ptFgLayer, (plVec2){tMousePos.x, tCursorPos.y}, (plVec2){tMousePos.x, tWindowEnd.y}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
-                        char* pcText = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.6f", (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + gptUI->get_window_scroll().x));
-                        gptDraw->add_text(ptFgLayer, tMousePos, pcText, (plDrawTextOptions){.uColor = PL_COLOR_32_WHITE, .ptFont = gptUI->get_default_font()});
-                        pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
+                        gptDraw->add_text(ptFgLayer, tMousePos, (plDrawTextOptions){.uColor = PL_COLOR_32_WHITE, .ptFont = gptUI->get_default_font()}, "%0.6f", (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + gptUI->get_window_scroll().x));
                     }
 
                     gptUI->layout_space_end();
@@ -804,7 +802,7 @@ pl__show_statistics(bool* bValue)
 
                 if(bAllowNegative)
                 {
-                    gptDraw->add_text(ptFgLayer, (plVec2){roundf(tCursor0.x), roundf((float)dYCenter)}, "0", (plDrawTextOptions){.uColor = PL_COLOR_32_WHITE, .ptFont = gptUI->get_default_font()});
+                    gptDraw->add_text(ptFgLayer, (plVec2){roundf(tCursor0.x), roundf((float)dYCenter)}, (plDrawTextOptions){.uColor = PL_COLOR_32_WHITE, .ptFont = gptUI->get_default_font()}, "0");
                     gptDraw->add_line(ptFgLayer, (plVec2){tCursor0.x, (float)dYCenter}, (plVec2){tCursor0.x + tPlotSize.x, (float)dYCenter}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
                 }
 
@@ -833,7 +831,7 @@ pl__show_statistics(bool* bValue)
 
                     const plVec2 tTextPoint = {tCursor1.x + 5.0f, tCursor1.y + i * 20.0f};
                     gptDraw->add_rect_rounded_filled(ptFgLayer, tTextPoint, (plVec2){tTextPoint.x + gptUI->get_default_font()->fSize, tTextPoint.y + gptUI->get_default_font()->fSize}, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(*ptColor)});
-                    gptDraw->add_text(ptFgLayer, (plVec2){roundf(tTextPoint.x + 20.0f), roundf(tTextPoint.y)}, apcTempNames[i], (plDrawTextOptions){.uColor = PL_COLOR_32_VEC4(*ptColor), .ptFont = gptUI->get_default_font()});
+                    gptDraw->add_text(ptFgLayer, (plVec2){roundf(tTextPoint.x + 20.0f), roundf(tTextPoint.y)}, (plDrawTextOptions){.uColor = PL_COLOR_32_VEC4(*ptColor), .ptFont = gptUI->get_default_font()}, apcTempNames[i]);
         
                     for(uint32_t j = 0; j < uStatsMaxFrames - 1; j++)
                     {
@@ -845,9 +843,7 @@ pl__show_statistics(bool* bValue)
 
                         if(j == uStatsMaxFrames - 2)
                         {
-                            char acTextBuffer[32] = {0};
-                            pl_sprintf(acTextBuffer, "%0.0f", dValues[uActualIndex1]);
-                            gptDraw->add_text(ptFgLayer, (plVec2){roundf(tLineEnd.x), roundf(tLineEnd.y) - 6.0f}, acTextBuffer, (plDrawTextOptions){.uColor = PL_COLOR_32_VEC4(*ptColor), .ptFont = gptUI->get_default_font()});
+                            gptDraw->add_text(ptFgLayer, (plVec2){roundf(tLineEnd.x), roundf(tLineEnd.y) - 6.0f}, (plDrawTextOptions){.uColor = PL_COLOR_32_VEC4(*ptColor), .ptFont = gptUI->get_default_font()}, "%0.0f", dValues[uActualIndex1]);
                         }
                     }
                     

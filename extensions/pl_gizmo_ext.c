@@ -221,13 +221,13 @@ pl__gizmo_translation(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawLis
     {
         gptDraw->add_3d_sphere_filled(ptGizmoDrawlist, (plSphere){.tCenter = gptGizmoCtx->tBeginPos, .fRadius = fAxisRadius * 2}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.5f, 0.5f, 0.5f)});
         gptDraw->add_3d_line(ptGizmoDrawlist, gptGizmoCtx->tBeginPos, *ptCenter, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = fAxisRadius});
-        char acTextBuffer[256] = {0};
-        pl_sprintf(acTextBuffer, "offset: %0.3f, %0.3f, %0.3f", ptCenter->x - gptGizmoCtx->tBeginPos.x, ptCenter->y - gptGizmoCtx->tBeginPos.y, ptCenter->z - gptGizmoCtx->tBeginPos.z);
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.1f, ptCenter->z}, acTextBuffer,
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.1f, ptCenter->z},
             (plDrawTextOptions){
                 .ptFont = gptUI->get_default_font(),
                 .uColor = PL_COLOR_32_YELLOW
-            });
+            },
+            "offset: %0.3f, %0.3f, %0.3f", ptCenter->x - gptGizmoCtx->tBeginPos.x, ptCenter->y - gptGizmoCtx->tBeginPos.y, ptCenter->z - gptGizmoCtx->tBeginPos.z
+        );
         ptSelectedTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
     };
 
@@ -709,12 +709,13 @@ pl__gizmo_rotation(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D
             fAngleBetweenVecs = -(fAngleBetweenVec1 + fAngleBetweenVec0);
 
         char acTextBuffer[256] = {0};
-        pl_sprintf(acTextBuffer, "x-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, acTextBuffer,
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z},
             (plDrawTextOptions){
                 .ptFont = gptUI->get_default_font(),
                 .uColor = PL_COLOR_32_YELLOW
-            });
+            },
+            "x-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI
+        );
         gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(0.7f, 0.7f, 0.7f, 1.0f), .fThickness = 0.0035f * gptGizmoCtx->fCaptureScale});
         gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 1.0f), .fThickness = 0.0035f * gptGizmoCtx->fCaptureScale});
 
@@ -746,13 +747,11 @@ pl__gizmo_rotation(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D
         else if(gptGizmoCtx->tOriginalPos.x > ptCenter->x && tYIntersectionPoint.x < ptCenter->x)
             fAngleBetweenVecs = -(fAngleBetweenVec1 + fAngleBetweenVec0);
 
-        char acTextBuffer[256] = {0};
-        pl_sprintf(acTextBuffer, "y-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, acTextBuffer,
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z},
             (plDrawTextOptions){
                 .ptFont = gptUI->get_default_font(),
                 .uColor = PL_COLOR_32_YELLOW
-            });
+            }, "y-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
         gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.7f, 0.7f, 0.7f), .fThickness = 0.0035f * gptGizmoCtx->fCaptureScale});
         gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 0.0035f * gptGizmoCtx->fCaptureScale});
 
@@ -784,13 +783,11 @@ pl__gizmo_rotation(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D
         else if(gptGizmoCtx->tOriginalPos.x > ptCenter->x && tZIntersectionPoint.x < ptCenter->x)
             fAngleBetweenVecs = -(fAngleBetweenVec1 + fAngleBetweenVec0);
 
-        char acTextBuffer[256] = {0};
-        pl_sprintf(acTextBuffer, "z-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, acTextBuffer,
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z},
             (plDrawTextOptions){
                 .ptFont = gptUI->get_default_font(),
                 .uColor = PL_COLOR_32_YELLOW
-            });
+            }, "z-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
         gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.7f, 0.7f, 0.7f), .fThickness = 0.0035f * gptGizmoCtx->fCaptureScale});
         gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 0.0035f * gptGizmoCtx->fCaptureScale});
 
@@ -917,13 +914,12 @@ pl__gizmo_scale(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D* p
             fScaleY = fScale;
             fScaleZ = fScale;
         }
-        char acTextBuffer[256] = {0};
-        pl_sprintf(acTextBuffer, "scaling: %0.3f, %0.3f, %0.3f", fScaleX, fScaleY, fScaleZ);
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.2f, ptCenter->z}, acTextBuffer,
+
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.2f, ptCenter->z},
             (plDrawTextOptions){
                 .ptFont = gptUI->get_default_font(),
                 .uColor = PL_COLOR_32_YELLOW
-            });
+            }, "scaling: %0.3f, %0.3f, %0.3f", fScaleX, fScaleY, fScaleZ);
         ptSelectedTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
     }
 

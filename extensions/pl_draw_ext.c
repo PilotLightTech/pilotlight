@@ -204,7 +204,6 @@ typedef struct _plDrawLayer2D
     uint32_t*      sbuIndexBuffer;
     plVec2*        sbtPath;
     uint32_t       uVertexCount;
-    plDrawCommand* ptLastCommand;
 } plDrawLayer2D;
 
 typedef struct _plFontPrepData
@@ -263,6 +262,9 @@ typedef struct _plDrawContext
 
     // dynamic buffer system
     plDynamicDataBlock tCurrentDynamicDataBlock;
+
+    // formatting buffer
+    char* sbcTempTextBuffer;
 } plDrawContext;
 
 //-----------------------------------------------------------------------------
@@ -304,10 +306,12 @@ static unsigned char*        ptrDOut_ = NULL;
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void pl__prepare_draw_command(plDrawLayer2D*, plTextureID, bool sdf);
-static void pl__reserve_triangles   (plDrawLayer2D*, uint32_t uIndexCount, uint32_t uVertexCount);
-static void pl__add_vertex          (plDrawLayer2D*, plVec2 tPos, uint32_t uColor, plVec2 tUv);
-static void pl__add_index           (plDrawLayer2D*, uint32_t uVertexStart, uint32_t i0, uint32_t i1, uint32_t i2);
+static void pl__prepare_draw_command    (plDrawLayer2D*, plTextureID, bool sdf);
+static void pl__reserve_triangles       (plDrawLayer2D*, uint32_t uIndexCount, uint32_t uVertexCount);
+static void pl__add_vertex              (plDrawLayer2D*, plVec2 tPos, uint32_t uColor, plVec2 tUv);
+static void pl__add_index               (plDrawLayer2D*, uint32_t uVertexStart, uint32_t i0, uint32_t i1, uint32_t i2);
+static bool pl__draw_can_merge_commands (const plDrawCommand* a, const plDrawCommand* b);
+static void pl__draw_append_draw_command(plDrawList2D*, plDrawCommand);
 
 static const plFontGlyph* pl__find_glyph(plFont* ptFont, uint32_t c);
 
@@ -672,31 +676,53 @@ pl_draw_cleanup(void)
     for(uint32_t i = 0; i < gptDrawCtx->uDrawlistCount3D; i++)
     {
         plDrawList3D* ptDrawlist = gptDrawCtx->aptDrawlists3D[i];
-        pl_sb_free(ptDrawlist->sbtSolidIndexBuffer);
-        pl_sb_free(ptDrawlist->sbtSolidVertexBuffer);
-        pl_sb_free(ptDrawlist->sbtLineVertexBuffer);
-        pl_sb_free(ptDrawlist->sbtLineIndexBuffer);
-        pl_sb_free(ptDrawlist->sbtTextEntries);
+        if(ptDrawlist)
+        {
+            if(ptDrawlist->sbtSolidIndexBuffer)
+            {
+                pl_sb_free(ptDrawlist->sbtSolidIndexBuffer);
+            }
+            if(ptDrawlist->sbtSolidVertexBuffer)
+            {
+                pl_sb_free(ptDrawlist->sbtSolidVertexBuffer);
+            }
+            if(ptDrawlist->sbtLineVertexBuffer)
+            {
+                pl_sb_free(ptDrawlist->sbtLineVertexBuffer);
+            }
+            if(ptDrawlist->sbtLineIndexBuffer)
+            {
+                pl_sb_free(ptDrawlist->sbtLineIndexBuffer);
+            }
+            if(ptDrawlist->sbtTextEntries)
+            {
+                pl_sb_free(ptDrawlist->sbtTextEntries);
+            }
+        }
     }
     for(uint32_t i = 0; i < gptDrawCtx->uDrawlistCount2D; i++)
     {
         plDrawList2D* ptDrawlist = gptDrawCtx->aptDrawlists2D[i];
-        pl_sb_free(ptDrawlist->_sbtClipStack);
-        pl_sb_free(ptDrawlist->sbtDrawCommands);
-        pl_sb_free(ptDrawlist->_sbtLayerCache);
-        pl_sb_free(ptDrawlist->_sbtSubmittedLayers);
-        pl_sb_free(ptDrawlist->sbtVertexBuffer);
-        pl_sb_free(ptDrawlist->sbuIndexBuffer);
-
-        for(uint32_t j = 0; j < pl_sb_size(ptDrawlist->_sbtLayersCreated); j++)
+        if(ptDrawlist)
         {
-            pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtCommandBuffer);
-            pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtPath);
-            pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbuIndexBuffer);
-            PL_FREE(ptDrawlist->_sbtLayersCreated[j]);
+            pl_sb_free(ptDrawlist->_sbtClipStack);
+            pl_sb_free(ptDrawlist->sbtDrawCommands);
+            pl_sb_free(ptDrawlist->_sbtLayerCache);
+            pl_sb_free(ptDrawlist->_sbtSubmittedLayers);
+            pl_sb_free(ptDrawlist->sbtVertexBuffer);
+            pl_sb_free(ptDrawlist->sbuIndexBuffer);
+
+            for(uint32_t j = 0; j < pl_sb_size(ptDrawlist->_sbtLayersCreated); j++)
+            {
+                pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtCommandBuffer);
+                pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtPath);
+                pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbuIndexBuffer);
+                PL_FREE(ptDrawlist->_sbtLayersCreated[j]);
+            }
+            pl_sb_free(ptDrawlist->_sbtLayersCreated);
         }
-        pl_sb_free(ptDrawlist->_sbtLayersCreated);
     }
+    pl_sb_free(gptDrawCtx->sbcTempTextBuffer);
 }
 
 plDrawList2D*
@@ -766,7 +792,10 @@ pl_draw_return_2d_drawlist(plDrawList2D* ptDrawlist)
 {
     pl_sb_free(ptDrawlist->sbtVertexBuffer);
     pl_sb_free(ptDrawlist->_sbtLayerCache);
-    pl_sb_free(ptDrawlist->_sbtSubmittedLayers)
+    pl_sb_free(ptDrawlist->_sbtSubmittedLayers);
+    pl_sb_free(ptDrawlist->_sbtClipStack);
+    pl_sb_free(ptDrawlist->sbtDrawCommands);
+    pl_sb_free(ptDrawlist->sbuIndexBuffer);
 
     for(uint32_t j = 0; j < pl_sb_size(ptDrawlist->_sbtLayersCreated); j++)
     {
@@ -794,7 +823,6 @@ pl_draw_return_2d_drawlist(plDrawList2D* ptDrawlist)
 void
 pl_draw_return_2d_layer(plDrawLayer2D* ptLayer)
 {
-    ptLayer->ptLastCommand = NULL;
     ptLayer->uVertexCount = 0;
     pl_sb_reset(ptLayer->sbtCommandBuffer);
     pl_sb_reset(ptLayer->sbuIndexBuffer);
@@ -811,6 +839,15 @@ pl_draw_return_3d_drawlist(plDrawList3D* ptDrawlist)
     pl_sb_free(ptDrawlist->sbtLineVertexBuffer);
     pl_sb_free(ptDrawlist->sbtSolidIndexBuffer);
     pl_sb_free(ptDrawlist->sbtSolidVertexBuffer);
+    pl_sb_free(ptDrawlist->sbtTextEntries);
+    ptDrawlist->pt2dDrawlist = NULL;
+    ptDrawlist->ptLayer = NULL;
+
+    ptDrawlist->sbtSolidIndexBuffer = NULL;
+    ptDrawlist->sbtSolidVertexBuffer = NULL;
+    ptDrawlist->sbtLineIndexBuffer = NULL;
+    ptDrawlist->sbtLineVertexBuffer = NULL;
+    ptDrawlist->sbtTextEntries = NULL;
 
     uint32_t uCurrentIndex = 0;
     for(uint32_t i = 0; i < gptDrawCtx->uDrawlistCount3D; i++)
@@ -838,6 +875,37 @@ pl_draw_submit_2d_layer(plDrawLayer2D* ptLayer)
     pl_sb_add_n(ptLayer->ptDrawlist->sbuIndexBuffer, uAdditionalIndexCount);
     memcpy(&ptLayer->ptDrawlist->sbuIndexBuffer[uCurrentIndexCount], ptLayer->sbuIndexBuffer,
         uAdditionalIndexCount * sizeof(uint32_t));
+}
+
+void
+pl_draw_primitive_reserve(plDrawLayer2D* ptLayer, uint32_t uIndexCount, uint32_t uVertexCount)
+{
+    pl__reserve_triangles(ptLayer, uIndexCount, uVertexCount);
+}
+
+void
+pl_draw_primitive_vertex(plDrawLayer2D* ptLayer, plVec2 tPos, uint32_t uColor, plVec2 tUv)
+{
+    pl_sb_push(ptLayer->sbuIndexBuffer, pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer));
+    pl__add_vertex(ptLayer, tPos, uColor, tUv);
+}
+
+void
+pl_draw_primitive_write_index(plDrawLayer2D* ptLayer, uint32_t uIndex)
+{
+    pl_sb_push(ptLayer->sbuIndexBuffer, uIndex);
+}
+
+void
+pl_draw_primitive_write_vertex(plDrawLayer2D* ptLayer, plVec2 tPos, uint32_t uColor, plVec2 tUv)
+{
+    pl__add_vertex(ptLayer, tPos, uColor, tUv);
+}
+
+uint32_t
+pl_draw_primitive_get_next_index(plDrawLayer2D* ptLayer)
+{
+    return pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
 }
 
 void
@@ -890,8 +958,6 @@ pl_add_2d_callback(plDrawLayer2D* ptLayer, plDrawCallback tCallback, void* pUser
         .pUserCallbackData     = pUserData
     };
     pl_sb_push(ptLayer->sbtCommandBuffer, tNewDrawCommand);
-
-    ptLayer->ptLastCommand = NULL;
 }
 
 void
@@ -902,8 +968,8 @@ pl_draw_add_line(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plDrawLineOptions
     pl__submit_path(ptLayer, tOptions);
 }
 
-void
-pl_draw_add_text(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plDrawTextOptions tOptions)
+static void
+pl__draw_add_text(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plDrawTextOptions tOptions)
 {
 
     if(tOptions.pcTextEnd == NULL)
@@ -1048,8 +1114,8 @@ pl_draw_add_text(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plDrawTex
     }
 }
 
-void
-pl_draw_add_text_clipped(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plVec2 tMin, plVec2 tMax, plDrawTextOptions tOptions)
+static void
+pl__draw_add_text_clipped(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plVec2 tMin, plVec2 tMax, plDrawTextOptions tOptions)
 {
 
     if(tOptions.pcTextEnd == NULL)
@@ -1199,6 +1265,42 @@ pl_draw_add_text_clipped(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, p
             }
         }
     }
+}
+
+void
+pl_draw_add_text_va(plDrawLayer2D* ptLayer, plVec2 p, plDrawTextOptions tOptions, const char* pcFmt, va_list args)
+{
+    pl_sb_vsprintf(gptDrawCtx->sbcTempTextBuffer, pcFmt, args);
+
+    if(tOptions.pcTextEnd)
+    {
+        uint64_t uTextLength = (uint64_t)(tOptions.pcTextEnd - pcFmt);
+        tOptions.pcTextEnd = gptDrawCtx->sbcTempTextBuffer + uTextLength;
+    }
+    else
+    {
+        tOptions.pcTextEnd = gptDrawCtx->sbcTempTextBuffer + pl_sb_size(gptDrawCtx->sbcTempTextBuffer) - 1;
+    }
+
+    // no clipping
+    if(tOptions.tClipMax.x == 0.0f && tOptions.tClipMin.x == 0.0f)
+    {
+        pl__draw_add_text(ptLayer, p, gptDrawCtx->sbcTempTextBuffer, tOptions);
+    }
+    else // clipping
+    {
+        pl__draw_add_text_clipped(ptLayer, p, gptDrawCtx->sbcTempTextBuffer, tOptions.tClipMin, tOptions.tClipMax, tOptions);
+    }
+    pl_sb_reset(gptDrawCtx->sbcTempTextBuffer);
+}
+
+void
+pl_draw_add_text(plDrawLayer2D* ptLayer, plVec2 p, plDrawTextOptions tOptions, const char* pcFmt, ...)
+{
+    va_list argptr;
+    va_start(argptr, pcFmt);
+    pl_draw_add_text_va(ptLayer, p, tOptions, pcFmt, argptr);
+    va_end(argptr);    
 }
 
 void
@@ -1834,7 +1936,7 @@ pl_draw_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, voi
     for(uint32_t i = 0; i < pl_sb_size(tConfig._sbtRanges); i++)
     {
         uTotalCharCount += tConfig._sbtRanges[i].uCharCount;
-        uTotalCharCount += tConfig._sbtRanges[i]._uConfigIndex = uConfigIndex;
+        tConfig._sbtRanges[i]._uConfigIndex = uConfigIndex;
     }
     
     pl_sb_reserve(ptFont->_sbtGlyphs, pl_sb_size(ptFont->_sbtGlyphs) + uTotalCharCount);
@@ -1887,6 +1989,7 @@ pl_draw_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, voi
 
         if(tConfig.bSdf)
         {
+            tConfig._uSdfRectOffset = pl_sb_size(ptAtlas->_sbtCustomRects);
             for (uint32_t j = 0; j < (uint32_t)ptPrep->ptRanges[i].num_chars; j++) 
             {
                 int iCodePoint = 0;
@@ -2003,6 +2106,11 @@ plVec2
 pl_draw_calculate_text_size(const char* pcText, plDrawTextOptions tOptions)
 {
 
+    if(pcText == NULL || pcText[0] == 0)
+    {
+        return (plVec2){0};
+    }
+
     if(tOptions.pcTextEnd == NULL)
     {
         tOptions.pcTextEnd = pcText;
@@ -2116,6 +2224,11 @@ pl_draw_calculate_text_size(const char* pcText, plDrawTextOptions tOptions)
 plRect
 pl_draw_calculate_text_bb(plVec2 tP, const char* pcText, plDrawTextOptions tOptions)
 {
+    if(pcText == NULL || pcText[0] == 0)
+    {
+        return (plRect){0};
+    }
+
     if(tOptions.pcTextEnd == NULL)
     {
         tOptions.pcTextEnd = pcText;
@@ -2452,8 +2565,8 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
                 {
                     ptConfig->_sbtCharData[i].x0 = (uint16_t)ptRects[uCharDataOffset + i].x;
                     ptConfig->_sbtCharData[i].y0 = (uint16_t)ptRects[uCharDataOffset + i].y;
-                    ptConfig->_sbtCharData[i].x1 = (uint16_t)(ptRects[uCharDataOffset + i].x + ptAtlas->_sbtCustomRects[uCharDataOffset + i].uWidth);
-                    ptConfig->_sbtCharData[i].y1 = (uint16_t)(ptRects[uCharDataOffset + i].y + ptAtlas->_sbtCustomRects[uCharDataOffset + i].uHeight);
+                    ptConfig->_sbtCharData[i].x1 = (uint16_t)(ptRects[uCharDataOffset + i].x + ptAtlas->_sbtCustomRects[ptConfig->_uSdfRectOffset + uCharDataOffset + i].uWidth);
+                    ptConfig->_sbtCharData[i].y1 = (uint16_t)(ptRects[uCharDataOffset + i].y + ptAtlas->_sbtCustomRects[ptConfig->_uSdfRectOffset + uCharDataOffset + i].uHeight);
                 }
                 uCharDataOffset += pl_sb_size(ptConfig->_sbtCharData);  
             }
@@ -2692,10 +2805,10 @@ pl_draw_new_frame(void)
         pl_sb_reset(ptDrawlist->sbtLineVertexBuffer);
         pl_sb_reset(ptDrawlist->sbtSolidIndexBuffer);    
         pl_sb_reset(ptDrawlist->sbtLineIndexBuffer);    
-        pl_sb_reset(ptDrawlist->sbtTextEntries);    
+        pl_sb_reset(ptDrawlist->sbtTextEntries);
     }
 
-    // reset 3d drawlists
+    // reset 2d drawlists
     for(uint32_t i = 0; i < gptDrawCtx->uDrawlistCount2D; i++)
     {
         plDrawList2D* ptDrawlist = gptDrawCtx->aptDrawlists2D[i];
@@ -2711,7 +2824,6 @@ pl_draw_new_frame(void)
             pl_sb_reset(ptDrawlist->_sbtLayersCreated[j]->sbuIndexBuffer);   
             pl_sb_reset(ptDrawlist->_sbtLayersCreated[j]->sbtPath);  
             ptDrawlist->_sbtLayersCreated[j]->uVertexCount = 0u;
-            ptDrawlist->_sbtLayersCreated[j]->ptLastCommand = NULL;
         }
         pl_sb_reset(ptDrawlist->_sbtSubmittedLayers); 
     }
@@ -3259,8 +3371,20 @@ pl_draw_add_3d_line(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plDrawLine
 }
 
 void
-pl_draw_add_3d_text(plDrawList3D* ptDrawlist, plVec3 tP, const char* pcText, plDrawTextOptions tOptions)
+pl_draw_add_3d_text_va(plDrawList3D* ptDrawlist, plVec3 tP, plDrawTextOptions tOptions, const char* pcFmt, va_list args)
 {
+    pl_sb_vsprintf(gptDrawCtx->sbcTempTextBuffer, pcFmt, args);
+
+    if(tOptions.pcTextEnd)
+    {
+        uint64_t uTextLength = (uint64_t)(tOptions.pcTextEnd - pcFmt);
+        tOptions.pcTextEnd = gptDrawCtx->sbcTempTextBuffer + uTextLength;
+    }
+    else
+    {
+        tOptions.pcTextEnd = gptDrawCtx->sbcTempTextBuffer + pl_sb_size(gptDrawCtx->sbcTempTextBuffer) - 1;
+    }
+
     plDraw3DText tText = {
         .fSize       = tOptions.fSize == 0.0f ? tOptions.ptFont->fSize : tOptions.fSize,
         .fWrap       = tOptions.fWrap,
@@ -3268,9 +3392,31 @@ pl_draw_add_3d_text(plDrawList3D* ptDrawlist, plVec3 tP, const char* pcText, plD
         .ptFont      = tOptions.ptFont,
         .tP          = tP
     };
-    strncpy(tText.acText, pcText, PL_MAX_NAME_LENGTH);
+    strncpy(tText.acText, gptDrawCtx->sbcTempTextBuffer, PL_MAX_NAME_LENGTH);
     pl_sb_push(ptDrawlist->sbtTextEntries, tText);
+    pl_sb_reset(gptDrawCtx->sbcTempTextBuffer);
 }
+
+void
+pl_draw_add_3d_text(plDrawList3D* ptDrawlist, plVec3 tP, plDrawTextOptions tOptions, const char* pcFmt, ...)
+{
+    va_list argptr;
+    va_start(argptr, pcFmt);
+    pl_sb_vsprintf(gptDrawCtx->sbcTempTextBuffer, pcFmt, argptr);
+    va_end(argptr);
+
+    plDraw3DText tText = {
+        .fSize       = tOptions.fSize == 0.0f ? tOptions.ptFont->fSize : tOptions.fSize,
+        .fWrap       = tOptions.fWrap,
+        .uColor      = tOptions.uColor,
+        .ptFont      = tOptions.ptFont,
+        .tP          = tP
+    };
+    strncpy(tText.acText, gptDrawCtx->sbcTempTextBuffer, PL_MAX_NAME_LENGTH);
+    pl_sb_push(ptDrawlist->sbtTextEntries, tText);
+    pl_sb_reset(gptDrawCtx->sbcTempTextBuffer);
+}
+
 
 void
 pl_draw_add_3d_cross(plDrawList3D* ptDrawlist, plVec3 tP, float fLength, plDrawLineOptions tOptions)
@@ -3515,7 +3661,7 @@ pl_draw_add_3d_cylinder(plDrawList3D* ptDrawlist, plCylinder tDesc, uint32_t uSe
     const plMat4 tRot = pl_mat4_rotate_vec3(fAngleBetweenVecs, tRotAxis);
     
     const uint32_t uPointCount = uSegments * 2;
-    const uint32_t uIndexCount = uSegments * 8 - 2;
+    const uint32_t uIndexCount = uSegments * 6;
     plVec3* atPoints = pl_temp_allocator_alloc(&gptDrawCtx->tTempAllocator, sizeof(plVec3) * uPointCount);
     uint32_t* auIndices = pl_temp_allocator_alloc(&gptDrawCtx->tTempAllocator, sizeof(uint32_t) * uIndexCount);
 
@@ -3535,18 +3681,21 @@ pl_draw_add_3d_cylinder(plDrawList3D* ptDrawlist, plCylinder tDesc, uint32_t uSe
     uint32_t uCurrentIndex = 0;
     for(uint32_t i = 0; i < uSegments; i++)
     {
-        auIndices[uCurrentIndex] = i;
-        auIndices[uCurrentIndex + 1] = i + 1;
-        auIndices[uCurrentIndex + 2] = i + uSegments;
-        auIndices[uCurrentIndex + 3] = i + uSegments + 1;
+        const uint32_t uNext = (i + 1) % uSegments;
 
-        auIndices[uCurrentIndex + 4] = i;
-        auIndices[uCurrentIndex + 5] = i + uSegments;
+        // bottom ring
+        auIndices[uCurrentIndex++] = i;
+        auIndices[uCurrentIndex++] = uNext;
 
-        auIndices[uCurrentIndex + 6] = i + 1;
-        auIndices[uCurrentIndex + 7] = i + 1 + uSegments;
-        uCurrentIndex += 8;
+        // top ring
+        auIndices[uCurrentIndex++] = i + uSegments;
+        auIndices[uCurrentIndex++] = uNext + uSegments;
+
+        // vertical edge
+        auIndices[uCurrentIndex++] = i;
+        auIndices[uCurrentIndex++] = i + uSegments;
     }
+
     uCurrentIndex -= 8;
     auIndices[uCurrentIndex + 1] = 0;
     auIndices[uCurrentIndex + 3] = uSegments;
@@ -4062,7 +4211,8 @@ pl_draw_add_default_font(plFontAtlas* ptAtlas)
         .uRangeCount    = 1
     };
     
-    return pl_draw_add_font_from_memory_ttf(ptAtlas, tFontConfig, pData);
+    plFont* ptFont = pl_draw_add_font_from_memory_ttf(ptAtlas, tFontConfig, pData);
+    return ptFont;
 }
 
 plBindGroupHandle
@@ -4124,55 +4274,20 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plCommandBuffer* ptCommandB
     for(uint32_t i = 0; i < uLayerCount; i++)
     {
         plDrawLayer2D* ptLayer = ptDrawlist->_sbtSubmittedLayers[i];
-        plDrawCommand* ptLastCommand = NULL;
 
-        // attempt to merge commands
         const uint32_t uCmdCount = pl_sb_size(ptLayer->sbtCommandBuffer);
+
         for(uint32_t j = 0; j < uCmdCount; j++)
         {
-            plDrawCommand* ptLayerCommand = &ptLayer->sbtCommandBuffer[j];
-            bool bCreateNewCommand = true;
+            plDrawCommand tCommand = ptLayer->sbtCommandBuffer[j];
 
-            if(ptLastCommand)
-            {
-                // check for same texture (allows merging draw calls)
-                if(ptLastCommand->tTextureId == ptLayerCommand->tTextureId && ptLastCommand->bSdf == ptLayerCommand->bSdf)
-                {
-                    // ptLastCommand->uElementCount += ptLayerCommand->uElementCount;
-                    bCreateNewCommand = false;
-                }
+            // Convert layer-local index offset to drawlist-global offset.
+            tCommand.uIndexOffset += uGlobalIdxBufferIndexOffset;
 
-                // check for same clipping (allows merging draw calls)
-                if(ptLayerCommand->tClip.tMax.x != ptLastCommand->tClip.tMax.x ||
-                    ptLayerCommand->tClip.tMax.y != ptLastCommand->tClip.tMax.y ||
-                    ptLayerCommand->tClip.tMin.x != ptLastCommand->tClip.tMin.x ||
-                    ptLayerCommand->tClip.tMin.y != ptLastCommand->tClip.tMin.y)
-                {
-                    bCreateNewCommand = true;
-                }
+            pl__draw_append_draw_command(ptDrawlist, tCommand);
+        }
 
-                // check for same callback (allows merging draw calls)5
-                if(ptLastCommand->tUserCallback != NULL)
-                {
-                    bCreateNewCommand = true;
-                }
-
-                if(!bCreateNewCommand)
-                {
-                    ptLastCommand->uElementCount += ptLayerCommand->uElementCount;
-                }
-                
-            }
-
-            if(bCreateNewCommand)
-            {
-                ptLayerCommand->uIndexOffset = uGlobalIdxBufferIndexOffset + ptLayerCommand->uIndexOffset;
-                pl_sb_push(ptDrawlist->sbtDrawCommands, *ptLayerCommand);       
-                ptLastCommand = ptLayerCommand;
-            }
-            
-        }    
-        uGlobalIdxBufferIndexOffset += pl_sb_size(ptLayer->sbuIndexBuffer);    
+        uGlobalIdxBufferIndexOffset += pl_sb_size(ptLayer->sbuIndexBuffer);
     }
 
     if(pl_sb_size(ptDrawlist->sbtVertexBuffer) == 0u)
@@ -4611,7 +4726,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandB
         {
             tPos.x = fWidth * 0.5f * (1.0f + tPos.x);
             tPos.y = fHeight * 0.5f * (1.0f + tPos.y);
-            pl_draw_add_text(ptDrawlist->ptLayer,
+            pl__draw_add_text(ptDrawlist->ptLayer,
                 (plVec2){roundf(tPos.x + 0.5f), roundf(tPos.y + 0.5f)},
                 ptText->acText,
                 (plDrawTextOptions){
@@ -4637,6 +4752,47 @@ pl_draw_get_bind_group_pool(void)
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
+static bool
+pl__draw_can_merge_commands(const plDrawCommand* a, const plDrawCommand* b)
+{
+    if(a->tUserCallback || b->tUserCallback)
+        return false;
+
+    if(a->tTextureId != b->tTextureId || a->bSdf != b->bSdf)
+        return false;
+
+    if(a->tClip.tMin.x != b->tClip.tMin.x ||
+       a->tClip.tMin.y != b->tClip.tMin.y ||
+       a->tClip.tMax.x != b->tClip.tMax.x ||
+       a->tClip.tMax.y != b->tClip.tMax.y)
+        return false;
+
+    // Index ranges must be contiguous.
+    return a->uIndexOffset + a->uElementCount == b->uIndexOffset;
+}
+
+static void
+pl__draw_append_draw_command(plDrawList2D* ptDrawlist, plDrawCommand tCommand)
+{
+    if(tCommand.uElementCount == 0 && !tCommand.tUserCallback)
+        return;
+
+    const uint32_t uCount = pl_sb_size(ptDrawlist->sbtDrawCommands);
+
+    if(uCount > 0)
+    {
+        plDrawCommand* ptLast = &pl_sb_back(ptDrawlist->sbtDrawCommands);
+
+        if(pl__draw_can_merge_commands(ptLast, &tCommand))
+        {
+            ptLast->uElementCount += tCommand.uElementCount;
+            return;
+        }
+    }
+
+    pl_sb_push(ptDrawlist->sbtDrawCommands, tCommand);
+}
+
 static void
 pl__prepare_draw_command(plDrawLayer2D* ptLayer, plTextureID tTextureID, bool bSdf)
 {
@@ -4644,19 +4800,26 @@ pl__prepare_draw_command(plDrawLayer2D* ptLayer, plTextureID tTextureID, bool bS
 
     const plRect tCurrentClip = pl_sb_size(ptLayer->ptDrawlist->_sbtClipStack) > 0 ? pl_sb_top(ptLayer->ptDrawlist->_sbtClipStack) : (plRect){0};
 
-    if(ptLayer->ptLastCommand)
+    plDrawCommand* ptLastCommand = NULL;
+
+    if(pl_sb_size(ptLayer->sbtCommandBuffer) > 0)
+    {
+        ptLastCommand = &pl_sb_back(ptLayer->sbtCommandBuffer);
+    }
+
+    if(ptLastCommand)
     {
         // check if last command has same texture
-        if(ptLayer->ptLastCommand->tTextureId == tTextureID && ptLayer->ptLastCommand->bSdf == bSdf)
+        if(ptLastCommand->tTextureId == tTextureID && ptLastCommand->bSdf == bSdf)
         {
             bCreateNewCommand = false;
         }
 
         // check if last command has same clipping
-        if(ptLayer->ptLastCommand->tClip.tMax.x != tCurrentClip.tMax.x ||
-            ptLayer->ptLastCommand->tClip.tMax.y != tCurrentClip.tMax.y ||
-            ptLayer->ptLastCommand->tClip.tMin.x != tCurrentClip.tMin.x ||
-            ptLayer->ptLastCommand->tClip.tMin.y != tCurrentClip.tMin.y)
+        if(ptLastCommand->tClip.tMax.x != tCurrentClip.tMax.x ||
+            ptLastCommand->tClip.tMax.y != tCurrentClip.tMax.y ||
+            ptLastCommand->tClip.tMin.x != tCurrentClip.tMin.x ||
+            ptLastCommand->tClip.tMin.y != tCurrentClip.tMin.y)
         {
             bCreateNewCommand = true;
         }
@@ -4677,8 +4840,8 @@ pl__prepare_draw_command(plDrawLayer2D* ptLayer, plTextureID tTextureID, bool bS
         pl_sb_push(ptLayer->sbtCommandBuffer, tNewdrawCommand);
         
     }
-    ptLayer->ptLastCommand = &pl_sb_top(ptLayer->sbtCommandBuffer);
-    ptLayer->ptLastCommand->tTextureId = tTextureID;
+    ptLastCommand = &pl_sb_top(ptLayer->sbtCommandBuffer);
+    ptLastCommand->tTextureId = tTextureID;
 }
 
 static void
@@ -4686,7 +4849,7 @@ pl__reserve_triangles(plDrawLayer2D* ptLayer, uint32_t uIndexCount, uint32_t uVe
 {
     pl_sb_reserve(ptLayer->ptDrawlist->sbtVertexBuffer, pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer) + uVertexCount);
     pl_sb_reserve(ptLayer->sbuIndexBuffer, pl_sb_size(ptLayer->sbuIndexBuffer) + uIndexCount);
-    ptLayer->ptLastCommand->uElementCount += uIndexCount; 
+    pl_sb_back(ptLayer->sbtCommandBuffer).uElementCount += uIndexCount; 
     ptLayer->uVertexCount += uVertexCount;
 }
 
@@ -4777,7 +4940,7 @@ pl__get_3d_pipeline(uint32_t uMSAASampleCount, plDrawFlags tFlags, const plRende
     for(uint32_t i = 0; i < pl_sb_size(gptDrawCtx->sbt3dPipelineEntries); i++)
     {
         const plPipelineEntry* ptEntry = &gptDrawCtx->sbt3dPipelineEntries[i];
-        if(ptEntry->uMSAASampleCount == uMSAASampleCount && pl__format_info_equal(&ptEntry->tFormatInfo, ptFormatInfo))
+        if(ptEntry->uMSAASampleCount == uMSAASampleCount && ptEntry->tFlags == tFlags && pl__format_info_equal(&ptEntry->tFormatInfo, ptFormatInfo))
         {
                 return ptEntry;
         }
@@ -5062,6 +5225,7 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .add_3d_aabb                   = pl_draw_add_3d_aabb,
         .add_3d_circle_xz              = pl_draw_add_3d_circle_xz,
         .add_3d_text                   = pl_draw_add_3d_text,
+        .add_3d_text_va                = pl_draw_add_3d_text_va,
         .request_2d_drawlist           = pl_draw_request_2d_drawlist,
         .return_2d_drawlist            = pl_draw_return_2d_drawlist,
         .request_2d_layer              = pl_draw_request_2d_layer,
@@ -5085,7 +5249,7 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .add_line                      = pl_draw_add_line,
         .add_lines                     = pl_draw_add_lines,
         .add_text                      = pl_draw_add_text,
-        .add_text_clipped              = pl_draw_add_text_clipped,
+        .add_text_va                   = pl_draw_add_text_va,
         .add_triangle                  = pl_draw_add_triangle,
         .add_triangle_filled           = pl_draw_add_triangle_filled,
         .add_triangle_filled_gradient  = pl_draw_add_triangle_filled_gradient,
@@ -5113,6 +5277,11 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_bind_group_pool           = pl_draw_get_bind_group_pool,
         .use_nearest_sampler           = pl_draw_use_nearest_sampler,
         .use_linear_sampler            = pl_draw_use_linear_sampler,
+        .primitive_reserve             = pl_draw_primitive_reserve,
+        .primitive_vertex              = pl_draw_primitive_vertex,
+        .primitive_write_vertex        = pl_draw_primitive_write_vertex,
+        .primitive_write_index         = pl_draw_primitive_write_index,
+        .primitive_get_next_index      = pl_draw_primitive_get_next_index
     };
     pl_set_api(ptApiRegistry, plDrawI, &tApi);
 

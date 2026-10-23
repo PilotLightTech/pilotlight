@@ -28,6 +28,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <float.h> // FLT_MAX
+#include <limits.h>
 #include "pl.h"
 #include "pl_renderer_ext.h"
 #include "pl_string.h"

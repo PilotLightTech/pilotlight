@@ -1410,27 +1410,32 @@ static void
 pl__add_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, uint32_t uColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    gptDraw->add_text(ptLayer, (plVec2){roundf(tP.x), roundf(tP.y)}, pcText, (plDrawTextOptions){
+    gptDraw->add_text(ptLayer, (plVec2){roundf(tP.x), roundf(tP.y)}, (plDrawTextOptions){
         .fSize = fSize,
         .fWrap = fWrap,
         .pcTextEnd = pl__find_renderered_text_end(pcText, pcTextEnd),
         .ptFont = ptFont,
         .uColor = uColor
-    });
+    },
+        pcText
+    );
 }
 
 static void
 pl__add_clipped_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, uint32_t uColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    gptDraw->add_text_clipped(ptLayer, (plVec2){roundf(tP.x), roundf(tP.y)}, pcText, tMin, tMax,
+    gptDraw->add_text(ptLayer, (plVec2){roundf(tP.x), roundf(tP.y)},
         (plDrawTextOptions){
             .fSize = fSize,
             .fWrap = fWrap,
             .pcTextEnd = pl__find_renderered_text_end(pcText, pcTextEnd),
             .ptFont = ptFont,
-            .uColor = uColor
-    });
+            .uColor = uColor,
+            .tClipMin = tMin,
+            .tClipMax = tMax
+    },
+        pcText);
 }
 
 static plVec2

@@ -795,14 +795,11 @@ pl_app_update(plAppData* ptAppData)
     float fCurrentY = 10.0f;
     float fSpacing = 15.0f;
     char acTextBuffer[64] = {0};
-    sprintf(acTextBuffer, "%0.1f FPS / %0.1f ms", ptIO->fFrameRate, ptIO->fDeltaTime * 1000.0f);
-    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, acTextBuffer, tTextOptions); fCurrentY += fSpacing;
+    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "%0.1f FPS / %0.1f ms", ptIO->fFrameRate, ptIO->fDeltaTime * 1000.0f); fCurrentY += fSpacing;
     tTextOptions.uColor = PL_COLOR_32_WHITE;
 
-    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, PILOT_LIGHT_VERSION_STRING, tTextOptions); fCurrentY += fSpacing;
-
-    sprintf(acTextBuffer, "Backend: %s", gptGfx->get_backend_string());
-    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, acTextBuffer, tTextOptions); fCurrentY += fSpacing;
+    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, PILOT_LIGHT_VERSION_STRING); fCurrentY += fSpacing;
+    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Backend: %s", gptGfx->get_backend_string()); fCurrentY += fSpacing;
 
     // ui windows
     if(ptAppData->ptScene == NULL)
@@ -898,25 +895,24 @@ pl_app_update(plAppData* ptAppData)
     {
         plComponentLibrary* ptLibrary = (plComponentLibrary*)gptAsset->get_data(ptAppData->tSceneHandle);
 
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "Controls", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* F1  - bring up console", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* M   - change gizmo mode", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* ESC - unload scene", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "Camera Controls", tTextOptions); fCurrentY += fSpacing;
-
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* LMB + Drag: Moves camera forward & backward and rotates left & right.", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* RMB + Drag: Rotates camera.", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* LMB + RMB + Drag: Pans Camera", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "Mouse Wheel: Speed", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "Game style (when holding RMB)", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* W    Moves the camera forward.", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* S    Moves the camera backward.", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* A    Moves the camera left.", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* D    Moves the camera right.", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* E    Moves the camera up.", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* Q    Moves the camera down.", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* Z    Zooms the camera out (raises FOV).", tTextOptions); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, "* C    Zooms the camera in (lowers FOV).", tTextOptions); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Controls"); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* F1  - bring up console"); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* M   - change gizmo mode"); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* ESC - unload scene"); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Camera Controls"); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* LMB + Drag: Moves camera forward & backward and rotates left & right."); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* RMB + Drag: Rotates camera."); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* LMB + RMB + Drag: Pans Camera"); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Mouse Wheel: Speed"); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Game style (when holding RMB)"); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* W    Moves the camera forward."); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* S    Moves the camera backward."); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* A    Moves the camera left."); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* D    Moves the camera right."); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* E    Moves the camera up."); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* Q    Moves the camera down."); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* Z    Zooms the camera out (raises FOV)."); fCurrentY += fSpacing;
+        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* C    Zooms the camera in (lowers FOV)."); fCurrentY += fSpacing;
 
 #if 0
         if(gptUI->begin_window("Add Object", NULL, 0))

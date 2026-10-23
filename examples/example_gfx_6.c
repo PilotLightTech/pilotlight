@@ -400,8 +400,8 @@ pl_app_update(plAppData* ptAppData)
 
     plDrawLayer2D* ptLayer = gptStarter->get_background_layer();
 
-    gptDraw->add_text(ptLayer, (plVec2){180.0f, 10.0f}, "Original", (plDrawTextOptions){.uColor = PL_COLOR_32_WHITE, .ptFont = gptStarter->get_default_font()});
-    gptDraw->add_text(ptLayer, (plVec2){616.0f, 10.0f}, "Blurred", (plDrawTextOptions){.uColor = PL_COLOR_32_WHITE, .ptFont = gptStarter->get_default_font()});
+    gptDraw->add_text(ptLayer, (plVec2){180.0f, 10.0f}, (plDrawTextOptions){.uColor = PL_COLOR_32_WHITE, .ptFont = gptStarter->get_default_font()}, "Original");
+    gptDraw->add_text(ptLayer, (plVec2){616.0f, 10.0f}, (plDrawTextOptions){.uColor = PL_COLOR_32_WHITE, .ptFont = gptStarter->get_default_font()}, "Blurred");
 
     gptDraw->add_image(ptLayer, ptAppData->tOriginalTextureDrawHandle.uData,
         (plVec2){10.0f, 30.0f},
