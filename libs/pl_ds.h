@@ -4,8 +4,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_DS_VERSION    "1.0.1"
-#define PL_DS_VERSION_NUM 10001
+#define PL_DS_VERSION    "1.1.0"
+#define PL_DS_VERSION_NUM 10100
 
 /*
 Index of this file:
@@ -115,6 +115,10 @@ STRETCHY BUFFER (dynamic array)
     pl_sb_sprintf:
         void pl_sb_sprintf(char*, pcFormat, ...);
             Inserts characters into a char stretchy buffer (similar to sprintf)
+
+    pl_sb_vsprintf:
+        void pl_sb_vsprintf(char*, pcFormat, va_list);
+            Inserts characters into a char stretchy buffer (similar to vsprintf)
 
 HASHMAPS
 
@@ -311,6 +315,9 @@ COMPILE TIME OPTIONS
 
 #define pl_sb_sprintf(buf, pcFormat, ...) \
     pl__sb_sprintf(&(buf), (pcFormat), __VA_ARGS__)
+
+#define pl_sb_vsprintf(buf, pcFormat, args) \
+    pl__sb_vsprintf(&(buf), (pcFormat), (args))
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api (hashmap)
