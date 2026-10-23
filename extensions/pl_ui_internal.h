@@ -584,6 +584,7 @@ static void        pl__set_active_id(uint32_t uHash, plUiWindow*);
 static void        pl__set_nav_id   (uint32_t uHash, plUiWindow*);
 static void        pl__add_widget(uint32_t uHash);
 static bool        pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize, plUiInputTextFlags, const plVec2* ptWidgetSize, const plVec2* ptStartPos);
+static bool        pl__ui_button_ex(const char* pcText, const plVec2* ptSize, const plVec2* ptPos);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~text state system~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

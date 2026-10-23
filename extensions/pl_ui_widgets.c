@@ -1735,25 +1735,83 @@ pl_ui_input_text_hint(const char* pcLabel, const char* pcHint, char* pcBuffer, s
 }
 
 bool
-pl_ui_input_float(const char* pcLabel, float* pfValue, const char* pcFormat, plUiInputTextFlags tFlags)
+pl_ui_input_float_ex(const char* pcLabel, float* pfValue, float fStep, float fStepFast, const char* pcFormat, plUiInputTextFlags tFlags)
 {
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     char acBuffer[64] = {0};
     if(pcFormat == NULL)
         pcFormat = "%0.3f";
     pl_sprintf(acBuffer, pcFormat, *pfValue);
 
-    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    bool bHasStepButtons = fStep > 0.0f;
+
+    const float fFrameHeight = pl__get_frame_height();
+    const plVec2 tWidgetSize = pl__calculate_item_size(fFrameHeight);
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
-    const bool bChanged = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tWidgetSize, &tStartPos);
+    bool bInputEdited = false;
+    bool bButtonPressed = false;
 
-    if(bChanged)
+    if(bHasStepButtons)
+    {
+        pl_ui_push_id_string(pcLabel);
+        const plVec2 tButtonSize = {fFrameHeight, fFrameHeight};
+        plVec2 tInputSize = {(2.0f * tWidgetSize.x / 3.0f) - (tButtonSize.x + gptCtx->tStyle.tInnerSpacing.x) * 2.0f, tWidgetSize.y};
+        bInputEdited = pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tInputSize, &tStartPos);
+
+        plVec2 tButtonPos = pl_add_vec2(tStartPos, (plVec2){tInputSize.x + gptCtx->tStyle.tInnerSpacing.x, 0.0f});
+
+        if(pl__ui_button_ex("-", &tButtonSize, &tButtonPos))
+        {
+            *pfValue -= (gptIO->bKeyCtrl && fStep) ? fStepFast : fStep;
+            bButtonPressed = true;
+        }
+
+        tButtonPos.x += gptCtx->tStyle.tInnerSpacing.x + tButtonSize.x;
+
+        if(pl__ui_button_ex("+", &tButtonSize, &tButtonPos))
+        {
+            *pfValue += (gptIO->bKeyCtrl && fStep) ? fStepFast : fStep;
+            bButtonPressed = true;
+        }
+
+        tButtonPos.x += gptCtx->tStyle.tInnerSpacing.x + tButtonSize.x;
+
+        const plRect tTextBounding = gptDraw->calculate_text_bb(tButtonPos, pcLabel,
+            (plDrawTextOptions){
+                .ptFont = gptCtx->tFont,
+                .fSize = gptCtx->tStyle.fFontSize,
+                .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+                .fWrap = -1.0f});
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            (plVec2){tButtonPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+            tButtonPos,
+            pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+
+        pl_ui_pop_id();
+    }
+    else
+    {
+        bInputEdited = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tWidgetSize, &tStartPos);
+    }
+
+    if(bInputEdited)
         *pfValue = (float)atof(acBuffer);
+
+    bool bChanged = bInputEdited || bButtonPressed;
 
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
     pl__add_widget(uHash);
     return bChanged;
+}
+
+bool
+pl_ui_input_float(const char* pcLabel, float* pfValue, const char* pcFormat, plUiInputTextFlags tFlags)
+{
+    return pl_ui_input_float_ex(pcLabel, pfValue, 0.0f, 0.0f, pcFormat, tFlags);
 }
 
 bool
@@ -1902,23 +1960,81 @@ pl_ui_input_float4(const char* pcLabel, float* afValue, const char* pcFormat, pl
 }
 
 bool
-pl_ui_input_int(const char* pcLabel, int* piValue, plUiInputTextFlags tFlags)
+pl_ui_input_int_ex(const char* pcLabel, int* piValue, int iStep, int iStepFast, plUiInputTextFlags tFlags)
 {
-    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
-    const plVec2 tStartPos   = pl__get_cursor_pos();
-
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     char acBuffer[64] = {0};
     pl_sprintf(acBuffer, "%d", *piValue);
-    const bool bChanged = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tWidgetSize, &tStartPos);
 
-    if(bChanged)
+    bool bHasStepButtons = iStep > 0;
+
+    const float fFrameHeight = pl__get_frame_height();
+    const plVec2 tWidgetSize = pl__calculate_item_size(fFrameHeight);
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+
+    bool bInputEdited = false;
+    bool bButtonPressed = false;
+
+    if(bHasStepButtons)
+    {
+        pl_ui_push_id_string(pcLabel);
+        const plVec2 tButtonSize = {fFrameHeight, fFrameHeight};
+        plVec2 tInputSize = {(2.0f * tWidgetSize.x / 3.0f) - (tButtonSize.x + gptCtx->tStyle.tInnerSpacing.x) * 2.0f, tWidgetSize.y};
+        bInputEdited = pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tInputSize, &tStartPos);
+
+        plVec2 tButtonPos = pl_add_vec2(tStartPos, (plVec2){tInputSize.x + gptCtx->tStyle.tInnerSpacing.x, 0.0f});
+
+        if(pl__ui_button_ex("-", &tButtonSize, &tButtonPos))
+        {
+            *piValue -= (gptIO->bKeyCtrl && iStep) ? iStepFast : iStep;
+            bButtonPressed = true;
+        }
+
+        tButtonPos.x += gptCtx->tStyle.tInnerSpacing.x + tButtonSize.x;
+
+        if(pl__ui_button_ex("+", &tButtonSize, &tButtonPos))
+        {
+            *piValue += (gptIO->bKeyCtrl && iStep) ? iStepFast : iStep;
+            bButtonPressed = true;
+        }
+
+        tButtonPos.x += gptCtx->tStyle.tInnerSpacing.x + tButtonSize.x;
+
+        const plRect tTextBounding = gptDraw->calculate_text_bb(tButtonPos, pcLabel,
+            (plDrawTextOptions){
+                .ptFont = gptCtx->tFont,
+                .fSize = gptCtx->tStyle.fFontSize,
+                .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+                .fWrap = -1.0f});
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            (plVec2){tButtonPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+            tButtonPos,
+            pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+
+        pl_ui_pop_id();
+    }
+    else
+    {
+        bInputEdited = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tWidgetSize, &tStartPos);
+    }
+
+    if(bInputEdited)
         *piValue = atoi(acBuffer);
 
-    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    bool bChanged = bInputEdited || bButtonPressed;
 
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
     pl__add_widget(uHash);
     return bChanged;
+}
+
+bool
+pl_ui_input_int(const char* pcLabel, int* piValue, plUiInputTextFlags tFlags)
+{
+    return pl_ui_input_int_ex(pcLabel, piValue, 1, 100, tFlags);
 }
 
 bool
@@ -2057,24 +2173,81 @@ pl_ui_input_int4(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
 }
 
 bool
-pl_ui_input_uint(const char* pcLabel, uint32_t* puValue, plUiInputTextFlags tFlags)
+pl_ui_input_uint_ex(const char* pcLabel, uint32_t* puValue, uint32_t uStep, uint32_t uStepFast, plUiInputTextFlags tFlags)
 {
-    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
-    const plVec2 tStartPos   = pl__get_cursor_pos();
-
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     char acBuffer[64] = {0};
     pl_sprintf(acBuffer, "%u", *puValue);
-    const bool bChanged = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tWidgetSize, &tStartPos);
 
-    if(bChanged)
+    bool bHasStepButtons = uStep > 0;
+
+    const float fFrameHeight = pl__get_frame_height();
+    const plVec2 tWidgetSize = pl__calculate_item_size(fFrameHeight);
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+
+    bool bInputEdited = false;
+    bool bButtonPressed = false;
+
+    if(bHasStepButtons)
+    {
+        pl_ui_push_id_string(pcLabel);
+        const plVec2 tButtonSize = {fFrameHeight, fFrameHeight};
+        plVec2 tInputSize = {(2.0f * tWidgetSize.x / 3.0f) - (tButtonSize.x + gptCtx->tStyle.tInnerSpacing.x) * 2.0f, tWidgetSize.y};
+        bInputEdited = pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tInputSize, &tStartPos);
+
+        plVec2 tButtonPos = pl_add_vec2(tStartPos, (plVec2){tInputSize.x + gptCtx->tStyle.tInnerSpacing.x, 0.0f});
+
+        if(pl__ui_button_ex("-", &tButtonSize, &tButtonPos))
+        {
+            *puValue -= (gptIO->bKeyCtrl && uStep) ? uStepFast : uStep;
+            bButtonPressed = true;
+        }
+
+        tButtonPos.x += gptCtx->tStyle.tInnerSpacing.x + tButtonSize.x;
+
+        if(pl__ui_button_ex("+", &tButtonSize, &tButtonPos))
+        {
+            *puValue += (gptIO->bKeyCtrl && uStep) ? uStepFast : uStep;
+            bButtonPressed = true;
+        }
+
+        tButtonPos.x += gptCtx->tStyle.tInnerSpacing.x + tButtonSize.x;
+
+        const plRect tTextBounding = gptDraw->calculate_text_bb(tButtonPos, pcLabel,
+            (plDrawTextOptions){
+                .ptFont = gptCtx->tFont,
+                .fSize = gptCtx->tStyle.fFontSize,
+                .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+                .fWrap = -1.0f});
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            (plVec2){tButtonPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+            tButtonPos,
+            pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+
+        pl_ui_pop_id();
+    }
+    else
+    {
+        bInputEdited = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tWidgetSize, &tStartPos);
+    }
+
+    if(bInputEdited)
         *puValue = (uint32_t)atoi(acBuffer);
 
-    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    bool bChanged = bInputEdited || bButtonPressed;
 
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
     pl__add_widget(uHash);
-
     return bChanged;
+}
+
+bool
+pl_ui_input_uint(const char* pcLabel, uint32_t* puValue, plUiInputTextFlags tFlags)
+{
+    return pl_ui_input_uint_ex(pcLabel, puValue, 1, 100, tFlags);
 }
 
 bool
@@ -3111,7 +3284,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         // }
     }
 
-    // if (pcLabel.x > 0)
+    if (pcLabel[0] != 0)
     {
         // RenderText(ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, frame_bb.Min.y + style.FramePadding.y), label);
         uint32_t uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol);

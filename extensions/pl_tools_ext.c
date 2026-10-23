@@ -915,6 +915,7 @@ pl__show_device_memory(bool* bValue)
     static const plVec4 tWastedColor    = {0.703f, 0.703f, 0.234f, 1.0f};
     static const plVec4 tWhiteColor     = {1.0f, 1.0f, 1.0f, 1.0f};
     static const plVec4 tButtonColor    = {0.05f, 0.05f, 0.05f, 1.0f};
+    static const plVec4 tTextColor      = {1.0f, 1.0f, 1.0f, 1.0f};
 
     const size_t szHostMemoryInUse = gptGfx->get_host_memory_in_use();
     const size_t szLocalMemoryInUse = gptGfx->get_local_memory_in_use();
@@ -1013,7 +1014,9 @@ pl__show_device_memory(bool* bValue)
                             else
                                 pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "Block %u: %luB", iCurrentBlock, ptBlock->ulSize);
 
+                            gptUI->push_theme_color(PL_UI_COLOR_TEXT, tTextColor);
                             gptUI->button(pcTempBuffer0);
+                            gptUI->pop_theme_color(1);
                             
                             plVec2 tCursor0 = gptUI->get_cursor_pos();
 

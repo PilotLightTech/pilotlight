@@ -115,8 +115,8 @@ typedef struct _plUiI
     plDrawLayer2D* (*get_debug_draw_layer)(void);
 
     // main
-    void (*new_frame)(void); // start a new ui frame, this should be the first command before calling any commands below
-    void (*end_frame)(void); // ends ui frame
+    void (*begin_frame)(void); // start a new ui frame, this should be the first command before calling any commands below
+    void (*end_frame)  (void); // ends ui frame
 
     // mouse/keyboard ownership
     bool (*wants_mouse_capture)                  (void);
@@ -130,6 +130,7 @@ typedef struct _plUiI
     void (*show_style_editor_window)(bool* open);
 
     // styling
+    void (*set_light_theme) (void);
     void (*set_dark_theme)  (void);
     void (*push_theme_color)(plUiColor colorIndex, plVec4 color);
     void (*pop_theme_color) (uint32_t count);
@@ -219,14 +220,17 @@ typedef struct _plUiI
     bool (*input_text)     (const char* label, char* buffer, size_t bufferSize, plUiInputTextFlags);
     bool (*input_text_hint)(const char* label, const char* hint, char* buffer, size_t bufferSize, plUiInputTextFlags);
     bool (*input_float)    (const char* label, float* value, const char* fmt, plUiInputTextFlags);
+    bool (*input_float_ex) (const char* label, float* value, float step, float stepFast, const char* fmt, plUiInputTextFlags);
     bool (*input_float2)   (const char* label, float* values, const char* fmt, plUiInputTextFlags);
     bool (*input_float3)   (const char* label, float* values, const char* fmt, plUiInputTextFlags);
     bool (*input_float4)   (const char* label, float* values, const char* fmt, plUiInputTextFlags);
     bool (*input_int)      (const char* label, int* value, plUiInputTextFlags);
+    bool (*input_int_ex)   (const char* label, int* value, int step, int stepFast, plUiInputTextFlags);
     bool (*input_int2)     (const char* label, int* values, plUiInputTextFlags);
     bool (*input_int3)     (const char* label, int* values, plUiInputTextFlags);
     bool (*input_int4)     (const char* label, int* values, plUiInputTextFlags);
     bool (*input_uint)     (const char* label, uint32_t* value, plUiInputTextFlags);
+    bool (*input_uint_ex)  (const char* label, uint32_t* value, uint32_t step, uint32_t stepFast, plUiInputTextFlags);
     bool (*input_uint2)    (const char* label, uint32_t* values, plUiInputTextFlags);
     bool (*input_uint3)    (const char* label, uint32_t* values, plUiInputTextFlags);
     bool (*input_uint4)    (const char* label, uint32_t* values, plUiInputTextFlags);

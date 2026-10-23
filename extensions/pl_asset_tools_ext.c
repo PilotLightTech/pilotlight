@@ -1770,7 +1770,7 @@ pl_asset_tools_show_assets(bool* bValue)
                     if(ptEnvironment->eMode != PL_RENDERER_SKY_MODE_NONE)
                     {
                         gptUI->input_float("Sun Intensity", &ptEnvironment->fSunIntensity, "%g", 0);
-                        gptUI->color_picker3("Sun Color", ptEnvironment->tSunColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE);
+                        gptUI->color_edit3("Sun Color", ptEnvironment->tSunColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE, ptEnvironment->tSunColor.d);
 
                         ptEnvironment->tSunDirection = pl_norm_vec3(ptEnvironment->tSunDirection);
                         float fSunPitch = asinf(pl_clampf(-1.0f, ptEnvironment->tSunDirection.y, 1.0f));

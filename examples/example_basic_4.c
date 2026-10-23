@@ -219,7 +219,7 @@ pl_app_update(plAppData* ptAppData)
 
     // you must call this once per frame before
     // calling any other UI extension calls
-    gptUi->new_frame();
+    gptUi->begin_frame();
 
     // NOTE: UI code can be placed anywhere between the UI "new_frame" & "render".
     //       see pl_ui_ext.h for more information on the UI extension

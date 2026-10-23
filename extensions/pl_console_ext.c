@@ -432,6 +432,7 @@ pl_console_update(void)
         gptUI->push_theme_color(PL_UI_COLOR_POPUP_BG, (plVec4){0.10f, 0.10f, 0.10f, gptConsoleCtx->bConsoleTransparency ? 0.90f : 1.0f});
         gptUI->push_theme_color(PL_UI_COLOR_CHILD_BG, (plVec4){0.10f, 0.15f, 0.10f, 0.78f});
         gptUI->push_theme_color(PL_UI_COLOR_FRAME_BG, (plVec4){0.10f, 0.10f, 0.45f, 0.78f});
+        gptUI->push_theme_color(PL_UI_COLOR_TEXT, (plVec4){1.00f, 1.00f, 1.00f, 1.00f});
         gptUI->push_theme_color(PL_UI_COLOR_SCROLLBAR_HANDLE, (plVec4){0.10f, 0.10f, 0.55f, 1.0f});
         gptUI->push_theme_color(PL_UI_COLOR_SCROLLBAR_HOVERED, (plVec4){0.10f, 0.10f, 0.85f, 1.0f});
         gptUI->push_theme_color(PL_UI_COLOR_SCROLLBAR_ACTIVE, (plVec4){0.10f, 0.10f, 0.95f, 1.0f});
@@ -863,7 +864,7 @@ pl_console_update(void)
             else
                 gptUI->end_window();
         }
-        gptUI->pop_theme_color(9);
+        gptUI->pop_theme_color(10);
     }
 }
 

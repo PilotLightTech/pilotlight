@@ -23,6 +23,83 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 void
+pl_ui_set_light_theme(void)
+{
+    // styles
+    gptCtx->tStyle.fTitlePadding            = 5.0f;
+    gptCtx->tStyle.fFontSize                = 13.0f;
+    gptCtx->tStyle.fWindowHorizontalPadding = 5.0f;
+    gptCtx->tStyle.fWindowVerticalPadding   = 5.0f;
+    gptCtx->tStyle.iWindowBorderSize        = 0;
+    gptCtx->tStyle.fIndentSize              = 20.0f;
+    gptCtx->tStyle.fScrollbarSize           = 10.0f;
+    gptCtx->tStyle.fSliderSize              = 12.0f;
+    gptCtx->tStyle.fTreeLineSize            = 1.0f;
+    gptCtx->tStyle.fColorMarkerSize         = 8.0f;
+    gptCtx->tStyle.fWindowRounding          = 0.0f;
+    gptCtx->tStyle.fChildRounding           = 0.0f;
+    gptCtx->tStyle.fFrameRounding           = 0.0f;
+    gptCtx->tStyle.fScrollbarRounding       = 0.0f;
+    gptCtx->tStyle.fGrabRounding            = 0.0f;
+    gptCtx->tStyle.fTabRounding             = 4.0f;
+    gptCtx->tStyle.tItemSpacing             = (plVec2){8.0f, 4.0f};
+    gptCtx->tStyle.tInnerSpacing            = (plVec2){4.0f, 4.0f};
+    gptCtx->tStyle.tFramePadding            = (plVec2){4.0f, 4.0f};
+    gptCtx->tStyle.tSeparatorTextPadding    = (plVec2){20.0f, 3.0f};
+    gptCtx->tStyle.tSeparatorTextAlignment  = (plVec2){0.0f, 0.5f};
+    gptCtx->tStyle.fSeparatorTextLineSize   = 3.0f;
+
+    // colors
+    gptCtx->tColorScheme.tTitleActiveCol       = (plVec4){0.89f, 0.75f, 0.80f, 1.00f};
+    gptCtx->tColorScheme.tTitleBgCol           = (plVec4){0.91f, 0.91f, 0.92f, 1.00f};
+    gptCtx->tColorScheme.tTitleBgCollapsedCol  = (plVec4){0.94f, 0.94f, 0.95f, 1.00f};
+    gptCtx->tColorScheme.tWindowBgColor        = (plVec4){0.95f, 0.95f, 0.96f, 0.98f};
+    gptCtx->tColorScheme.tWindowBorderColor    = (plVec4){0.68f, 0.44f, 0.51f, 1.00f};
+    gptCtx->tColorScheme.tChildBgColor         = (plVec4){0.98f, 0.98f, 0.99f, 1.00f};
+
+    gptCtx->tColorScheme.tButtonCol            = (plVec4){0.86f, 0.66f, 0.72f, 1.00f};
+    gptCtx->tColorScheme.tButtonHoveredCol     = (plVec4){0.80f, 0.55f, 0.63f, 1.00f};
+    gptCtx->tColorScheme.tButtonActiveCol      = (plVec4){0.72f, 0.40f, 0.51f, 1.00f};
+
+    gptCtx->tColorScheme.tTextCol              = (plVec4){0.12f, 0.12f, 0.14f, 1.00f};
+    gptCtx->tColorScheme.tTextDisabledCol      = (plVec4){0.52f, 0.52f, 0.54f, 1.00f};
+
+    gptCtx->tColorScheme.tProgressBarCol       = (plVec4){0.85f, 0.60f, 0.12f, 1.00f};
+    gptCtx->tColorScheme.tCheckmarkCol         = (plVec4){0.55f, 0.08f, 0.20f, 1.00f};
+
+    gptCtx->tColorScheme.tFrameBgCol           = (plVec4){0.89f, 0.89f, 0.91f, 1.00f};
+    gptCtx->tColorScheme.tFrameBgHoveredCol    = (plVec4){0.95f, 0.82f, 0.85f, 1.00f};
+    gptCtx->tColorScheme.tFrameBgActiveCol     = (plVec4){0.90f, 0.72f, 0.77f, 1.00f};
+
+    gptCtx->tColorScheme.tHeaderCol            = (plVec4){0.91f, 0.79f, 0.83f, 1.00f};
+    gptCtx->tColorScheme.tHeaderHoveredCol     = (plVec4){0.85f, 0.67f, 0.73f, 1.00f};
+    gptCtx->tColorScheme.tHeaderActiveCol      = (plVec4){0.79f, 0.55f, 0.64f, 1.00f};
+
+    gptCtx->tColorScheme.tScrollbarBgCol       = (plVec4){0.88f, 0.88f, 0.89f, 1.00f};
+    gptCtx->tColorScheme.tScrollbarHandleCol   = (plVec4){0.70f, 0.65f, 0.68f, 1.00f};
+    gptCtx->tColorScheme.tScrollbarFrameCol    = (plVec4){0.00f, 0.00f, 0.00f, 0.00f};
+    gptCtx->tColorScheme.tScrollbarActiveCol   = gptCtx->tColorScheme.tButtonActiveCol;
+    gptCtx->tColorScheme.tScrollbarHoveredCol  = gptCtx->tColorScheme.tButtonHoveredCol;
+
+    gptCtx->tColorScheme.tSeparatorCol         = (plVec4){0.73f, 0.71f, 0.73f, 1.00f};
+
+    gptCtx->tColorScheme.tTabCol               = (plVec4){0.88f, 0.82f, 0.84f, 1.00f};
+    gptCtx->tColorScheme.tTabHoveredCol        = gptCtx->tColorScheme.tButtonHoveredCol;
+    gptCtx->tColorScheme.tTabSelectedCol       = (plVec4){0.86f, 0.68f, 0.73f, 1.00f};
+
+    gptCtx->tColorScheme.tResizeGripCol        = (plVec4){0.70f, 0.50f, 0.56f, 1.00f};
+    gptCtx->tColorScheme.tResizeGripHoveredCol = (plVec4){0.65f, 0.32f, 0.43f, 1.00f};
+    gptCtx->tColorScheme.tResizeGripActiveCol  = (plVec4){0.55f, 0.08f, 0.20f, 1.00f};
+
+    gptCtx->tColorScheme.tSliderCol            = gptCtx->tColorScheme.tButtonCol;
+    gptCtx->tColorScheme.tSliderHoveredCol     = gptCtx->tColorScheme.tButtonHoveredCol;
+    gptCtx->tColorScheme.tSliderActiveCol      = gptCtx->tColorScheme.tButtonActiveCol;
+
+    gptCtx->tColorScheme.tPopupBgColor         = (plVec4){0.98f, 0.97f, 0.98f, 0.99f};
+    gptCtx->tColorScheme.tTreeLineCol          = (plVec4){0.52f, 0.54f, 0.57f, 0.65f};
+}
+
+void
 pl_ui_set_dark_theme(void)
 {
     // styles
@@ -138,7 +215,7 @@ pl_ui_wants_text_input(void)
 }
 
 void
-pl_ui_new_frame(void)
+pl_ui_begin_frame(void)
 {
 
     pl_sb_reset(gptCtx->sbtBeginPopupStack);
@@ -2638,7 +2715,14 @@ pl_ui_show_style_editor_window(bool* pbOpen)
     if(pl_ui_begin_window("Pilot Light UI Style", pbOpen, 0))
     {
 
-        if(pl_ui_button("Revert"))
+        pl_ui_layout_static(0.0f, 100.0f, 2);
+        if(pl_ui_button("Light"))
+        {
+            pl_ui_set_light_theme();
+            gptCtx->tStyle.fFontSize = gptCtx->tFont->fSize;
+        }
+
+        if(pl_ui_button("Dark"))
         {
             pl_ui_set_dark_theme();
             gptCtx->tStyle.fFontSize = gptCtx->tFont->fSize;
@@ -2711,34 +2795,53 @@ pl_ui_show_style_editor_window(bool* pbOpen)
             {
                 pl_ui_vertical_spacing();
                 pl_ui_separator_text("Title");
-                pl_ui_slider_float("Title Padding", &ptStyle->fTitlePadding, 0.0f, 32.0f, 0);
+
+                uint32_t uTempValue = (uint32_t)ptStyle->fTitlePadding;
+                if(pl_ui_slider_uint("Title Padding", &uTempValue, 0, 32, 0)) ptStyle->fTitlePadding = (float)uTempValue;
 
                 pl_ui_vertical_spacing();
                 pl_ui_separator_text("Window");
-                pl_ui_slider_float("Horizontal Padding## window", &ptStyle->fWindowHorizontalPadding, 0.0f, 32.0f, 0);
-                pl_ui_slider_float("Vertical Padding## window", &ptStyle->fWindowVerticalPadding, 0.0f, 32.0f, 0);
-                pl_ui_slider_int("Border Size## window", &ptStyle->iWindowBorderSize, 0, 1, 0);
+
+                uTempValue = (uint32_t)ptStyle->fWindowHorizontalPadding;
+                if(pl_ui_slider_uint("Horizontal Padding## window", &uTempValue, 0, 32, 0)) ptStyle->fWindowHorizontalPadding = (float)uTempValue;
+                uTempValue = (uint32_t)ptStyle->fWindowVerticalPadding;
+                if(pl_ui_slider_uint("Vertical Padding## window", &uTempValue, 0, 32, 0)) ptStyle->fWindowVerticalPadding = (float)uTempValue;
+                uTempValue = (uint32_t)ptStyle->iWindowBorderSize;
+                if(pl_ui_slider_uint("Border Size## window", &uTempValue, 0, 1, 0)) ptStyle->iWindowBorderSize = (int)uTempValue;
 
                 pl_ui_vertical_spacing();
                 pl_ui_separator_text("Scrollbar");
-                pl_ui_slider_float("Size##scrollbar", &ptStyle->fScrollbarSize, 0.0f, 32.0f, 0);
+
+                uTempValue = (uint32_t)ptStyle->fScrollbarSize;
+                if(pl_ui_slider_uint("Size##scrollbar", &uTempValue, 0, 32, 0)) ptStyle->fScrollbarSize = (float)uTempValue;
 
                 pl_ui_vertical_spacing();
                 pl_ui_separator_text("Rounding");
-                pl_ui_slider_float("Window Rounding", &ptStyle->fWindowRounding, 0.0f, 12.0f, 0);
-                pl_ui_slider_float("Child Rounding", &ptStyle->fChildRounding, 0.0f, 12.0f, 0);
-                pl_ui_slider_float("Frame Rounding", &ptStyle->fFrameRounding, 0.0f, 12.0f, 0);
-                pl_ui_slider_float("Scrollbar Rounding", &ptStyle->fScrollbarRounding, 0.0f, 12.0f, 0);
-                pl_ui_slider_float("Grab Rounding", &ptStyle->fGrabRounding, 0.0f, 12.0f, 0);
-                pl_ui_slider_float("Tab Rounding", &ptStyle->fTabRounding, 0.0f, 12.0f, 0);
+                uTempValue = (uint32_t)ptStyle->fWindowRounding;
+                if(pl_ui_slider_uint("Window Rounding", &uTempValue, 0, 12, 0)) ptStyle->fWindowRounding = (float)uTempValue;
+                uTempValue = (uint32_t)ptStyle->fChildRounding;
+                if(pl_ui_slider_uint("Child Rounding", &uTempValue, 0, 12, 0)) ptStyle->fChildRounding = (float)uTempValue;
+                uTempValue = (uint32_t)ptStyle->fFrameRounding;
+                if(pl_ui_slider_uint("Frame Rounding", &uTempValue, 0, 12, 0)) ptStyle->fFrameRounding = (float)uTempValue;
+                uTempValue = (uint32_t)ptStyle->fScrollbarRounding;
+                if(pl_ui_slider_uint("Scrollbar Rounding", &uTempValue, 0, 12, 0)) ptStyle->fScrollbarRounding = (float)uTempValue;
+                uTempValue = (uint32_t)ptStyle->fGrabRounding;
+                if(pl_ui_slider_uint("Grab Rounding", &uTempValue, 0, 12, 0)) ptStyle->fGrabRounding = (float)uTempValue;
+                uTempValue = (uint32_t)ptStyle->fTabRounding;
+                if(pl_ui_slider_uint("Tab Rounding", &uTempValue, 0, 12, 0)) ptStyle->fTabRounding = (float)uTempValue;
                 
                 pl_ui_vertical_spacing();
                 pl_ui_separator_text("Misc");
-                pl_ui_slider_float("Indent", &ptStyle->fIndentSize, 0.0f, 32.0f, 0); 
-                pl_ui_slider_float("Slider Size", &ptStyle->fSliderSize, 3.0f, 32.0f, 0); 
-                pl_ui_slider_float("Treeline Size", &ptStyle->fTreeLineSize, 0.0f, 10.0f, 0); 
-                pl_ui_slider_float("Color Marker Size", &ptStyle->fColorMarkerSize, 0.0f, 10.0f, 0); 
-                pl_ui_slider_float("Font Size", &ptStyle->fFontSize, 13.0f, 48.0f, 0); 
+                uTempValue = (uint32_t)ptStyle->fIndentSize;
+                if(pl_ui_slider_uint("Indent", &uTempValue, 0, 32, 0)) ptStyle->fIndentSize = (float)uTempValue;
+                uTempValue = (uint32_t)ptStyle->fSliderSize;
+                if(pl_ui_slider_uint("Slider Size", &uTempValue, 3, 32, 0)) ptStyle->fSliderSize = (float)uTempValue;
+                uTempValue = (uint32_t)ptStyle->fTreeLineSize;
+                if(pl_ui_slider_uint("Treeline Size", &uTempValue, 0, 10, 0)) ptStyle->fTreeLineSize = (float)uTempValue;
+                uTempValue = (uint32_t)ptStyle->fColorMarkerSize;
+                if(pl_ui_slider_uint("Color Marker Size", &uTempValue, 0, 10, 0)) ptStyle->fColorMarkerSize = (float)uTempValue;
+                uTempValue = (uint32_t)ptStyle->fFontSize;
+                if(pl_ui_slider_uint("Font Size", &uTempValue, 13, 48, 0)) ptStyle->fFontSize = (float)uTempValue;
 
                 pl_ui_vertical_spacing();
                 pl_ui_separator_text("Widgets");
@@ -2928,6 +3031,53 @@ pl__ui_color_tooltip(const char* pcLabel, float* afColRGBA, plUiColorEditFlags t
     pl_ui_end_tooltip();
 }
 
+static bool
+pl__ui_button_ex(const char* pcText, const plVec2* ptSize, const plVec2* ptPos)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    bool bPressed = false;
+    if(pl__ui_should_render(ptPos, ptSize))
+    {
+        const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
+        plRect tBoundingBox = pl_calculate_rect(*ptPos, *ptSize);
+        const plRect* ptClipRect = gptDraw->get_clip_rect(ptWindow->ptDrawlist);
+        tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
+
+        bool bHovered = false;
+        bool bHeld = false;
+        bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, *ptPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tButtonActiveCol)});
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, *ptPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tButtonHoveredCol)});
+        else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, *ptPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tButtonCol)});
+
+        const plVec2 tTextSize = pl__calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, pcText, -1.0f);
+        const plRect tTextBounding = gptDraw->calculate_text_bb(*ptPos, pcText,
+            (plDrawTextOptions){
+                .ptFont = gptCtx->tFont,
+                .fSize = gptCtx->tStyle.fFontSize,
+                .pcTextEnd = pl__find_renderered_text_end(pcText, NULL),
+                .fWrap = -1.0f
+        });
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+
+        plVec2 tTextStartPos = {
+            .x = ptPos->x,
+            .y = ptPos->y + ptPos->y + ptSize->y / 2.0f - tTextActualCenter.y
+        };
+
+        if((pl_rect_width(&tBoundingBox) < tTextSize.x)) // clipping, so start at beginning of widget
+            tTextStartPos.x += gptCtx->tStyle.tFramePadding.x;
+        else // not clipping, so center on widget
+            tTextStartPos.x += ptPos->x + ptSize->x / 2.0f - tTextActualCenter.x;
+
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, tBoundingBox.tMin, tBoundingBox.tMax, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcText, 0.0f);
+        pl__add_widget(uHash);
+    }
+    return bPressed;
+}
+
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -2941,7 +3091,7 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_draw_lists                        = pl_ui_get_draw_lists,
         .get_debug_draw_list                   = pl_ui_get_debug_draw_list,
         .get_debug_draw_layer                  = pl_ui_get_debug_draw_layer,
-        .new_frame                             = pl_ui_new_frame,
+        .begin_frame                           = pl_ui_begin_frame,
         .end_frame                             = pl_ui_end_frame,
         .wants_keyboard_capture                = pl_ui_wants_keyboard_capture,
         .wants_text_input                      = pl_ui_wants_text_input,
@@ -2949,6 +3099,7 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .show_debug_window                     = pl_ui_show_debug_window,
         .show_style_editor_window              = pl_ui_show_style_editor_window,
         .set_dark_theme                        = pl_ui_set_dark_theme,
+        .set_light_theme                       = pl_ui_set_light_theme,
         .push_theme_color                      = pl_ui_push_theme_color,
         .pop_theme_color                       = pl_ui_pop_theme_color,
         .set_default_font                      = pl_ui_set_default_font,
@@ -2998,14 +3149,17 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .input_text                            = pl_ui_input_text,
         .input_text_hint                       = pl_ui_input_text_hint,
         .input_float                           = pl_ui_input_float,
+        .input_float_ex                        = pl_ui_input_float_ex,
         .input_float2                          = pl_ui_input_float2,
         .input_float3                          = pl_ui_input_float3,
         .input_float4                          = pl_ui_input_float4,
         .input_int                             = pl_ui_input_int,
+        .input_int_ex                          = pl_ui_input_int_ex,
         .input_int2                            = pl_ui_input_int2,
         .input_int3                            = pl_ui_input_int3,
         .input_int4                            = pl_ui_input_int4,
         .input_uint                            = pl_ui_input_uint,
+        .input_uint_ex                         = pl_ui_input_uint_ex,
         .input_uint2                           = pl_ui_input_uint2,
         .input_uint3                           = pl_ui_input_uint3,
         .input_uint4                           = pl_ui_input_uint4,

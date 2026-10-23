@@ -42,6 +42,7 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                 static int iValue117 = 117;
 
                 gptUI->input_float("label 2", &fValue, "%0.3f", 0);
+                gptUI->input_float_ex("label 2##", &fValue, 1.0f, 10.0f, "%0.3f", 0);
                 gptUI->input_int("label 3", &iValue117, 0);
 
                 static int iValue = 0;

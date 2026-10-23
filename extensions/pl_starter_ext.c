@@ -506,7 +506,7 @@ pl_starter_begin_frame(void)
         gptDraw->new_frame();
 
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_UI_EXT)
-        gptUI->new_frame();
+        gptUI->begin_frame();
 
     // update statistics
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_STATS_EXT)
