@@ -493,6 +493,7 @@ typedef struct _plUiContext
     uint32_t           uComboDepth;
 
     // window state
+    plUiWindow** sbptCreatedWindows;     // all created windows
     plUiWindow** sbptWindows;            // windows stored in display order
     plUiWindow** sbptFocusedWindows;     // root windows stored in display order
     plUiWindow** sbptWindowStack;

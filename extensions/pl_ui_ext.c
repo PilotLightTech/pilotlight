@@ -1543,6 +1543,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
         // add window to storage
         pl__set_ptr(&gptCtx->tWindows, uWindowID, ptWindow);
+        pl_sb_push(gptCtx->sbptCreatedWindows, ptWindow);
     }
     else
     {
@@ -2403,34 +2404,20 @@ pl_ui_initialize(void)
 void
 pl_ui_cleanup(void)
 {
-    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptFocusedWindows); i++)
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptCreatedWindows); i++)
     {
-        
-        for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbptFocusedWindows[i]->sbtChildWindows); j++)
-        {
-            pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->tStorage.sbtData);
-            pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbtRowStack);
-            pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbfAvailableSizeStack);
-            pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbfMaxCursorYStack);
-            pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbtCursorStack);
-            pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbtRowTemplateEntries);
-            pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbtTempLayoutSort);
-            pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbuTempLayoutIndexSort);
-            PL_FREE(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->pcName);
-            PL_FREE(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]);
-        }
-        pl_sb_free(gptCtx->sbptFocusedWindows[i]->tStorage.sbtData);
-        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows);
-        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbfAvailableSizeStack);
-        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbfMaxCursorYStack);
-        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtRowStack);
-        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtCursorStack);
-        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtTreeNodeStack);
-        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtRowTemplateEntries);
-        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtTempLayoutSort);
-        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbuTempLayoutIndexSort);
-        PL_FREE(gptCtx->sbptFocusedWindows[i]->pcName);
-        PL_FREE(gptCtx->sbptFocusedWindows[i]);
+        pl_sb_free(gptCtx->sbptCreatedWindows[i]->tStorage.sbtData);
+        pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbtChildWindows);
+        pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbfAvailableSizeStack);
+        pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbfMaxCursorYStack);
+        pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbtRowStack);
+        pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbtCursorStack);
+        pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbtTreeNodeStack);
+        pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbtRowTemplateEntries);
+        pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbtTempLayoutSort);
+        pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbuTempLayoutIndexSort);
+        PL_FREE(gptCtx->sbptCreatedWindows[i]->pcName);
+        PL_FREE(gptCtx->sbptCreatedWindows[i]);
     }
     pl_sb_free(gptCtx->sbptWindowStack);
     pl_sb_free(gptCtx->sbcTempBuffer);
@@ -2442,6 +2429,7 @@ pl_ui_cleanup(void)
     pl_sb_free(gptCtx->sbuIdStack);
     pl_sb_free(gptCtx->sbtBeginPopupStack);
     pl_sb_free(gptCtx->sbtOpenPopupStack);
+    pl_sb_free(gptCtx->sbptCreatedWindows);
     pl_sb_free(gptCtx->tWindows.sbtData);
     pl_sb_free(gptCtx->tInputTextState.sbInitialTextA);
     pl_sb_free(gptCtx->tInputTextState.sbTextA);
