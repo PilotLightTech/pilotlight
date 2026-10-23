@@ -193,7 +193,7 @@ pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plAssetHandle tAsset)
         uint32_t i = k % ptTerrainAsset->uHorizontalTiles;
         uint32_t j = (k - i) / ptTerrainAsset->uVerticalTiles;
 
-        const char* pcAssetPath = gptAsset->get_path(ptTerrainAsset->atTiles[i].tHeightmap);
+        const char* pcAssetPath = gptAsset->get_path(ptTerrainAsset->atTiles[k].tHeightmap);
 
         char acFileNameOnly[256] = {0};
         pl_str_get_file_name_only(pcAssetPath, acFileNameOnly, 256);
@@ -254,81 +254,61 @@ pl__unload_children(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
     if(ptChunk->aptChildren[3]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[3]);    
 }
 
-bool
+static inline bool
 pl__all_children_resident(plTerrainChunk* ptChunk)
 {
-    if(ptChunk->aptChildren[0] == NULL)
-        return false;
-    if(ptChunk->aptChildren[0]->ptIndexHole == NULL) return false;
-    if(ptChunk->aptChildren[1]->ptIndexHole == NULL) return false;
-    if(ptChunk->aptChildren[2]->ptIndexHole == NULL) return false;
-    if(ptChunk->aptChildren[3]->ptIndexHole == NULL) return false;
+    for(uint32_t i = 0; i < 4; i++)
+    {
+        if(!pl__chunk_is_resident(ptChunk->aptChildren[i]))
+            return false;
+    }
     return true;
 }
 
 // Free from LRU tail until we have at least the requested bytes for BOTH pools.
 // Never evict level 0, and never evict non-leaves (chunks with resident children).
 static void
-pl__free_chunk_until(plTerrain* P,
-                     uint64_t idx_bytes_needed,
-                     uint64_t vtx_bytes_needed)
+pl__free_chunk_until(plTerrain* P, uint64_t idx_bytes_needed, uint64_t vtx_bytes_needed)
 {
     // Walk to tail (oldest / least-recently-used)
     plTerrainChunk* tail = P->tReplacementQueue.ptNext;
-    if (!tail) {
-        printf("Couldn't free chunks (replacement list empty)\n");
+    if(!tail)
+    {
+        PL_LOG_WARN_API(gptLog, gptData->uLogChannelTerrain, "Couldn't free chunks (replacement list empty)");
         return;
     }
-    while (tail->ptNext) tail = tail->ptNext;
+
+    while (tail->ptNext)
+        tail = tail->ptNext;
 
     uint64_t freed_idx = 0;
     uint64_t freed_vtx = 0;
 
     // Pass 1: strictly leaf, non-root, LRU → MRU until enough bytes
-    for (plTerrainChunk* c = tail; c; c = c->ptPrev) {
-        if (!c->ptIndexHole) continue;            // not resident -> skip
-        if (c->uLevel == 0) continue;             // keep roots
-        if (!pl__is_leaf_resident(c)) continue;   // don't drop nodes with resident children
+    for (plTerrainChunk* c = tail; c; c = c->ptPrev)
+    {
+        plTerrainChunk* ptPrev = c->ptPrev;
 
-        freed_idx += (uint64_t)c->uIndexCount * sizeof(uint32_t);
-        freed_vtx += (uint64_t)c->ptVertexHole->uSize; // size was requested to freelist; safe to use
+        if(pl__chunk_is_resident(c) && c->ptParent != NULL && pl__is_leaf_resident(c))
+        {
+            freed_idx += c->ptIndexHole->uSize;
+            freed_vtx += c->ptVertexHole->uSize;
 
-        pl__make_unresident(P, c);
+            pl__make_unresident(P, c);
 
-        if (freed_idx >= idx_bytes_needed && freed_vtx >= vtx_bytes_needed)
-            return; // sufficient
-    }
+            if(freed_idx >= idx_bytes_needed &&
+            freed_vtx >= vtx_bytes_needed)
+                return;
+        }
 
-    // Pass 2: allow evicting non-leaf (still avoid root). Prefer aged items.
-    const uint64_t now = gptIOI->get_io()->ulFrameCount;
-    for (plTerrainChunk* c = tail; c; c = c->ptPrev) {
-        if (!c->ptIndexHole) continue;
-        if (c->uLevel == 0) continue;
-        if (now - c->uLastFrameUsed <= 30) continue;
-
-        freed_idx += (uint64_t)c->uIndexCount * sizeof(uint32_t);
-        freed_vtx += (uint64_t)c->ptVertexHole->uSize;
-        pl__make_unresident(P, c);
-
-        if (freed_idx >= idx_bytes_needed && freed_vtx >= vtx_bytes_needed)
-            return; // ✅ sufficient
-    }
-
-    // Pass 3: final fallback — evict oldest non-root regardless of age/leaf.
-    for (plTerrainChunk* c = tail; c; c = c->ptPrev) {
-        if (!c->ptIndexHole) continue;
-        if (c->uLevel == 0) continue;
-
-        pl__make_unresident(P, c);
-        return; // free at least one to make progress
+        c = ptPrev;
     }
 
     // If we reached here, nothing could be evicted (only root is resident)
-    printf("Eviction failed: only root or no resident chunks available\n");
+    PL_LOG_WARN_API(gptLog, gptData->uLogChannelTerrain, "Eviction failed: only root or no resident chunks available");
 }
 
-
-void
+static void
 pl__remove_from_residency_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 {
     plTerrainResidencyNode* ptCurrentRequest = ptTerrain->tRequestQueue.ptNext;
@@ -359,6 +339,7 @@ pl__remove_from_residency_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
             ptExistingRequest->ptNext->ptPrev = ptExistingRequest->ptPrev;
 
         uint32_t uIndex = (uint32_t)(ptExistingRequest - &ptTerrain->atRequests[0]);
+        memset(ptExistingRequest, 0, sizeof(*ptExistingRequest));
         pl_sb_push(ptTerrain->sbuFreeRequests, uIndex);
     }
 }
@@ -389,8 +370,9 @@ pl__make_unresident(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 {
     pl__remove_from_residency_queue(ptTerrain, ptChunk);
     pl__remove_from_replacement_queue(ptTerrain, ptChunk);
-    if(ptChunk->ptIndexHole && ptChunk->uIndexCount > 0)
+    if(pl__chunk_is_resident(ptChunk))
     {
+        PL_LOG_DEBUG_API(gptLog, gptData->uLogChannelTerrain, "Made chunk unresident");
         if(ptChunk->ptIndexHole)
             gptFreeList->return_node(&ptTerrain->tIndexBufferManager, ptChunk->ptIndexHole);
         if(ptChunk->ptVertexHole)
@@ -410,37 +392,108 @@ pl__make_unresident(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
     }
 }
 
+static bool
+pl__read_chunk_mesh(const char* pcPath, size_t szLocation, uint64_t uMaxVertexBytes, uint64_t uMaxIndexBytes,
+                    plTerrainVertex** pptVertices, uint32_t** ppuIndices, uint32_t* puVertexCount, uint32_t* puIndexCount)
+{
+    FILE* ptFile = NULL;
+    plTerrainVertex* ptVertices = NULL;
+    uint32_t* puIndices = NULL;
+    uint32_t uVertices = 0, uIndices = 0;
+    uint64_t uVertexBytes, uIndexBytes, uRemaining;
+    const size_t szHeader = sizeof(plVec3) * 2 + sizeof(int) * 4;
+    long lFileSize;
+    bool bOK = false;
+
+    *pptVertices = NULL;
+    *ppuIndices = NULL;
+    *puVertexCount = *puIndexCount = 0;
+    if (!pcPath || szHeader > (size_t)LONG_MAX || szLocation > (size_t)LONG_MAX - szHeader)
+        return false;
+
+    ptFile = fopen(pcPath, "rb");
+    if (!ptFile || fseek(ptFile, 0, SEEK_END) != 0)
+        goto cleanup;
+
+    lFileSize = ftell(ptFile);
+    if (lFileSize < 0 || (uint64_t)lFileSize < (uint64_t)szLocation + szHeader)
+        goto cleanup;
+
+    uRemaining = (uint64_t)lFileSize - szLocation - szHeader;
+    if (fseek(ptFile, (long)(szLocation + szHeader), SEEK_SET) != 0 || uRemaining < sizeof(uint32_t) || fread(&uVertices, sizeof(uVertices), 1, ptFile) != 1)
+        goto cleanup;
+        
+    uRemaining -= sizeof(uint32_t);
+    uVertexBytes = (uint64_t)uVertices * sizeof(plTerrainVertex);
+    if (uVertices == 0 || uVertexBytes > uMaxVertexBytes || uVertexBytes > (uint64_t)SIZE_MAX || uVertexBytes > uRemaining || uRemaining - uVertexBytes < sizeof(uint32_t))
+        goto cleanup;
+
+    ptVertices = PL_ALLOC((size_t)uVertexBytes);
+    if (fread(ptVertices, 1, (size_t)uVertexBytes, ptFile) != (size_t)uVertexBytes)
+        goto cleanup;
+    uRemaining -= uVertexBytes;
+
+    if (fread(&uIndices, sizeof(uIndices), 1, ptFile) != 1)
+        goto cleanup;
+
+    uRemaining -= sizeof(uint32_t);
+    uIndexBytes = (uint64_t)uIndices * sizeof(uint32_t);
+    if (uIndices == 0 || uIndexBytes > uMaxIndexBytes || uIndexBytes > (uint64_t)SIZE_MAX || uIndexBytes > uRemaining)
+        goto cleanup;
+
+    puIndices = PL_ALLOC((size_t)uIndexBytes);
+    if (fread(puIndices, 1, (size_t)uIndexBytes, ptFile) != (size_t)uIndexBytes)
+        goto cleanup;
+
+    for (uint32_t i = 0; i < uIndices; ++i)
+    {
+        if (puIndices[i] >= uVertices)
+            goto cleanup;
+    }
+    bOK = true;
+
+    cleanup:
+        if (ptFile)
+            fclose(ptFile);
+        if (!bOK)
+        {
+            if (ptVertices) PL_FREE(ptVertices);
+            if (puIndices) PL_FREE(puIndices);
+            return false;
+        }
+        *pptVertices = ptVertices;
+        *ppuIndices = puIndices;
+        *puVertexCount = uVertices;
+        *puIndexCount = uIndices;
+        return true;
+}
+
 static void
 pl__handle_residency(plTerrain* ptTerrain)
 {
     const uint64_t uCurrentFrame = gptIOI->get_io()->ulFrameCount;
 
     plTerrainResidencyNode* ptCurrentRequest = ptTerrain->tRequestQueue.ptNext;
-    // ptCurrentRequest->uFrameRequested
 
     if(ptCurrentRequest)
     {
 
         plTerrainChunk* ptChunk = ptCurrentRequest->ptChunk;
 
-        FILE* ptDataFile = fopen(ptTerrain->sbtChunkFiles[ptChunk->uFileID].tFile.acFile, "rb");
-        fseek(ptDataFile, (long)ptChunk->szFileLocation, SEEK_SET);
-
-        fseek(ptDataFile, sizeof(plVec3) * 2 + sizeof(int) * 4, SEEK_CUR);
-
+        plTerrainVertex* ptVertices = NULL;
+        uint32_t* ptIndices = NULL;
         uint32_t uVertexCount = 0;
-        fread(&uVertexCount, 1, sizeof(uint32_t), ptDataFile);
-
-        plTerrainVertex* ptVertices = PL_ALLOC(uVertexCount * sizeof(plTerrainVertex));
-        fread(ptVertices, 1, sizeof(plTerrainVertex) * uVertexCount, ptDataFile);
-
         uint32_t uIndexCount = 0;
-        fread(&uIndexCount, 1, sizeof(uint32_t), ptDataFile);
-        
-        uint32_t* ptIndices = PL_ALLOC(uIndexCount * sizeof(uint32_t));
-        fread(ptIndices, 1, sizeof(uint32_t) * uIndexCount, ptDataFile);
 
-        
+        if (ptChunk->uFileID >= pl_sb_size(ptTerrain->sbtChunkFiles) || !pl__read_chunk_mesh(ptTerrain->sbtChunkFiles[ptChunk->uFileID].tFile.acFile,
+                ptChunk->szFileLocation, ptTerrain->tVertexBufferManager.uSize, ptTerrain->tIndexBufferManager.uSize,
+                &ptVertices, &ptIndices, &uVertexCount, &uIndexCount))
+        {
+            pl__remove_from_residency_queue(ptTerrain, ptChunk);
+            /* Log this chunk/path; production code should throttle retries. */
+            return;
+        }
+
         // bytes needed for this chunk
         const uint64_t idx_bytes = (uint64_t)uIndexCount * sizeof(uint32_t);
         const uint64_t vtx_bytes = (uint64_t)uVertexCount * sizeof(plTerrainVertex);
@@ -493,8 +546,6 @@ pl__handle_residency(plTerrain* ptTerrain)
         PL_FREE(ptVertices);
         PL_FREE(ptIndices);
 
-        fclose(ptDataFile);
-
         pl__remove_from_residency_queue(ptTerrain, ptCurrentRequest->ptChunk);
         pl__touch_chunk(ptTerrain, ptChunk);
 
@@ -544,69 +595,42 @@ pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 static void
 pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 {
-    if(ptChunk == NULL)
+    plTerrainResidencyNode* ptNode = NULL;
+    plTerrainResidencyNode* ptTail = NULL;
+    uint32_t uSlot = 0;
+    uint64_t uFrame = 0;
+
+    if (!ptChunk)
         return;
 
-    if(ptChunk->ptIndexHole == NULL)
+    if (ptChunk->ptIndexHole && ptChunk->ptVertexHole && ptChunk->uIndexCount != 0)
+        return;
+
+    uFrame = gptIOI->get_io()->ulFrameCount;
+    for(ptNode = ptTerrain->tRequestQueue.ptNext; ptNode; ptNode = ptNode->ptNext)
     {
-        plTerrainResidencyNode* ptCurrentRequest = ptTerrain->tRequestQueue.ptNext;
-
-        plTerrainResidencyNode* ptExistingRequest = NULL;
-        plTerrainResidencyNode* ptLastRequest = NULL;
-
-        while(ptCurrentRequest)
+        if (ptNode->ptChunk == ptChunk)
         {
-            if(ptCurrentRequest->ptChunk == ptChunk)
-            {
-                ptExistingRequest = ptCurrentRequest;
-                break;
-            }
-            if(ptCurrentRequest->ptNext == NULL)
-                ptLastRequest = ptCurrentRequest;
-            ptCurrentRequest = ptCurrentRequest->ptNext;
+            ptNode->uFrameRequested = uFrame;
+            return;
         }
-
-        if(ptExistingRequest)
-        {
-
-            // remove node
-            if(ptExistingRequest->ptPrev)
-                ptExistingRequest->ptPrev->ptNext = ptExistingRequest->ptNext;
-
-            if(ptExistingRequest->ptNext)
-                ptExistingRequest->ptNext->ptPrev = ptExistingRequest->ptPrev;    
-        }
-        else
-        {
-            if(pl_sb_size(ptTerrain->sbuFreeRequests) > 0)
-            {
-                uint32_t uNewIndex = pl_sb_pop(ptTerrain->sbuFreeRequests);
-                ptExistingRequest = &ptTerrain->atRequests[uNewIndex];
-
-            }
-            else if(ptLastRequest)
-            {
-                if(ptLastRequest->ptPrev)
-                    ptLastRequest->ptPrev->ptNext = NULL;
-                ptExistingRequest = ptLastRequest; 
-            }
-            else
-            {
-                PL_ASSERT(false);
-            }
-        }
-
-        // place node at beginning
-        ptExistingRequest->ptPrev = NULL;
-        if(ptExistingRequest != ptTerrain->tRequestQueue.ptNext)
-            ptExistingRequest->ptNext = ptTerrain->tRequestQueue.ptNext;
-        ptTerrain->tRequestQueue.ptNext = ptExistingRequest;
-        if(ptExistingRequest->ptNext)
-            ptExistingRequest->ptNext->ptPrev = ptExistingRequest;
-
-        ptExistingRequest->uFrameRequested = gptIOI->get_io()->ulFrameCount;
-        ptExistingRequest->ptChunk = ptChunk;
+        ptTail = ptNode;
     }
+
+    // Keep admitted work. Traversal retries unadmitted work next frame.
+    if (pl_sb_size(ptTerrain->sbuFreeRequests) == 0)
+        return;
+
+    uSlot = pl_sb_pop(ptTerrain->sbuFreeRequests);
+    ptNode = &ptTerrain->atRequests[uSlot];
+    ptNode->ptChunk = ptChunk;
+    ptNode->uFrameRequested = uFrame;
+    ptNode->ptPrev = ptTail;
+    ptNode->ptNext = NULL;
+    if (ptTail)
+        ptTail->ptNext = ptNode;
+    else
+        ptTerrain->tRequestQueue.ptNext = ptNode;
 }
 
 static void
@@ -695,6 +719,8 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         memcpy(ptDynamic, &tDynamic, sizeof(plGpuDynTerrainData));
         gptGfx->bind_graphics_bind_groups(ptCmdBuffer, ptScene->tTerrainShader, 0, 0, NULL, 1, &tDynamicBinding);
 
+        PL_ASSERT(ptChunk->ptVertexHole->uOffset % sizeof(plTerrainVertex) == 0);
+
         const plDrawIndex tDraw = {
             .uInstanceCount = 1,
             .uIndexCount    = ptChunk->uIndexCount,
@@ -738,6 +764,15 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
         .tMin = ptChunk->tMinBound,
         .tMax = ptChunk->tMaxBound
     };
+
+    plFrustum tFrustum = {0};
+    if(ptCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
+        pl__camera_build_perspective_frustum(ptCamera, &tFrustum);
+    else
+        pl__camera_build_orthographic_frustum(ptCamera, &tFrustum);
+
+    if(!gptGjk->pen(pl_gjk_support_aabb, &tAABB, pl_gjk_support_frustum, &tFrustum, NULL))
+        return;
 
     pl__request_residency(ptTerrain, ptChunk);
 
