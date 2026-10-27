@@ -4519,6 +4519,11 @@ pl_ui_dummy(plVec2 tSize)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+
+    if(tSize.y <= 0.0f) tSize.y = tWidgetSize.y;
+    if(tSize.x <= 0.0f) tSize.x = tWidgetSize.x;
+
     pl__smart_advance_cursor(tSize.x, tSize.y);
 }
 
