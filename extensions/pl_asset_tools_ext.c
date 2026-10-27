@@ -546,7 +546,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                 if(ptEnvironment)
                 {
-                    if(gptUI->collapsing_header("Environment1", 0))
+                    if(gptUI->collapsing_header("Environment", 0))
                     {
                         gptUI->stash_layout();
                         gptUI->text("Environment: %s", gptAsset->get_path(ptEnvironment->tEnvironment));
@@ -585,6 +585,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
 
                         gptUI->checkbox_flags("Wireframe", &ptTerrain->tFlags, PL_TERRAIN_FLAGS_WIREFRAME);
                         gptUI->checkbox_flags("Show Levels", &ptTerrain->tFlags, PL_TERRAIN_FLAGS_SHOW_LEVELS);
+                        gptUI->checkbox_flags("Show Tiles", &ptTerrain->tFlags, PL_TERRAIN_FLAGS_SHOW_TILES);
 
                         gptUI->slider_float("fSlopeStart", &ptTerrain->fSlopeStart, 0.0f, 1.0f, 0);
                         gptUI->slider_float("fSlopeEnd", &ptTerrain->fSlopeEnd, 0.0f, 1.0f, 0);
@@ -1332,7 +1333,7 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->input_float("alpha cutoff", &ptMaterial->fAlphaCutoff, "%g", 0);
                     gptUI->checkbox_flags("double sided", &ptMaterial->eFlags, PL_MATERIAL_FLAG_DOUBLE_SIDED);
                     gptUI->color_edit4("base color", ptMaterial->tBaseColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE, NULL);
-                    gptUI->input_float4("base color#3", ptMaterial->tBaseColor.d, "%g", 0);
+                    gptUI->input_float4("base color##3", ptMaterial->tBaseColor.d, "%g", 0);
                     // gptUI->input_float4("base color2", ptMaterial->tBaseColor.d, "%g", 0);
                     gptUI->input_float("metalness", &ptMaterial->fMetalness, "%g", 0);
                     gptUI->input_float("roughness", &ptMaterial->fRoughness, "%g", 0);
@@ -1731,12 +1732,12 @@ pl_asset_tools_show_assets(bool* bValue)
                             gptUI->radio_button("Linear Fog", &ptSettings->tFog.tMode, 0);
                             gptUI->radio_button("Exponential Fog", &ptSettings->tFog.tMode, 1);
                             gptUI->slider_float("Fog Start", &ptSettings->tFog.fStart, 0.0f, 100.0f, 0);
-                            gptUI->slider_float("Fog End", &ptSettings->tFog.fCutOffDistance, 0.0f, 10000.0f, 0);
-                            gptUI->input_float3("Fog Color", ptSettings->tFog.tColor.d, "%g", 0);
+                            gptUI->slider_float("Fog End", &ptSettings->tFog.fCutOffDistance, 0.0f, 100000.0f, 0);
+                            gptUI->color_edit3("Fog Color", ptSettings->tFog.tColor.d, 0, ptSettings->tFog.tColor.d);
                             if(ptSettings->tFog.tMode == PL_RENDERER_FOG_MODE_EXPONENTIAL)
                             {
                                 gptUI->slider_float("Fog Max Opacity", &ptSettings->tFog.fMaxOpacity, 0.0f, 1.0f, 0);
-                                gptUI->slider_float("Fog Density", &ptSettings->tFog.fDensity, 0.0f, 1.0f, 0);
+                                gptUI->slider_float("Fog Density", &ptSettings->tFog.fDensity, 0.0f, 10.0f, 0);
                                 gptUI->slider_float("Fog Height", &ptSettings->tFog.fHeight, -100.0f, 100.0f, 0);
                                 gptUI->slider_float("Fog Height Falloff", &ptSettings->tFog.fHeightFalloff, 0.0f, 1.0f, 0);
                             }  

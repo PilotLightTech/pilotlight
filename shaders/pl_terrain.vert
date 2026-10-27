@@ -59,7 +59,7 @@ void main()
     atColors[6] = vec3(fColorStrength, fColorStrength, fColorStrength);
     atColors[7] = vec3(fColorStrength * 4, fColorStrength, fColorStrength);
 
-    tShaderOut.tColor.rgb = atColors[tDynamicData.tData.iLevel % 8];
+    tShaderOut.tColor.rgb = tDynamicData.tData.tDebugColor.rgb;
     tShaderOut.tColor.a = 1.0;
 
     // if(bool(tDynamicData.tData.tFlags & PL_TERRAIN_SHADER_FLAGS_WIREFRAME))

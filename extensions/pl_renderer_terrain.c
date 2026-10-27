@@ -76,7 +76,7 @@ static void pl__touch_chunk                  (plTerrain*, plTerrainChunk*);
 static void pl__make_unresident              (plTerrain*, plTerrainChunk*);
 static void pl__remove_from_replacement_queue(plTerrain*, plTerrainChunk*);
 
-static void pl__render_chunk(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t);
+static void pl__render_chunk(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t, float fViewportWidth);
 static void pl__render_chunk_shadow(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t uGlobalIndex, float fShadowViewportWidth, float fShadowViewportHeight);
 static void pl__free_chunk_until(plTerrain*, uint64_t idx_bytes_needed, uint64_t vtx_bytes_needed);
 
@@ -634,7 +634,7 @@ pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 }
 
 static void
-pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex)
+pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex, float fViewportWidth)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -660,7 +660,6 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     if(ptChunk->ptIndexHole == NULL)
         return;
     
-    float fViewportWidth = gptIOI->get_io()->tMainViewportSize.x;
     float fHorizontalFieldOfView = 2.0f * atanf(tanf(0.5f * ptCamera->fYFov) * ptCamera->fAspectRatio);
 
     float fK = fViewportWidth / (2.0f * tanf(0.5f * fHorizontalFieldOfView));
@@ -674,6 +673,37 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     float tauSubdivide = ptTerrainComp->fTau;
     bool bChildrenResident = pl__all_children_resident(ptChunk);
 
+    static plVec3 atColors[] = {
+        { 0.1f, 0.0f, 0.0f},
+        { 0.0f, 0.1f, 0.0f},
+        { 0.0f, 0.0f, 0.1f},
+        { 0.1f, 0.1f, 0.0f},
+        { 0.1f, 0.0f, 0.1f},
+        { 0.0f, 0.1f, 0.1f},
+        { 0.1f, 0.1f, 0.1f},
+        { 0.4f, 0.1f, 0.1f},
+        { 0.4f, 0.0f, 0.0f},
+        { 0.0f, 0.4f, 0.0f},
+        { 0.0f, 0.0f, 0.4f},
+        { 0.4f, 0.4f, 0.0f},
+        { 0.4f, 0.0f, 0.4f},
+        { 0.0f, 0.4f, 0.4f},
+        { 0.4f, 0.4f, 0.4f},
+        { 0.3f, 0.4f, 0.4f}
+    };
+    uint32_t uDebugColorSlot = 0;
+
+    if(ptTerrainComp->tFlags & PL_TERRAIN_FLAGS_SHOW_TILES)
+    {
+        uint32_t uDepth = ptFile->iTreeDepth - 1 - ptChunk->uLevel;
+        uint32_t uGridSize = 1u << uDepth;
+
+        uint32_t uX = (uint32_t)roundf(ptChunk->fX * (float)uGridSize);
+        uint32_t uY = (uint32_t)roundf(ptChunk->fY * (float)uGridSize);
+
+        uDebugColorSlot = (uX * 3u + uY * 5u + ptChunk->uLevel * 7u) % 16u;
+    }
+
     // Decide refinement using hysteresis
     if(!bChildrenResident || fRho <= tauSubdivide)
     {
@@ -683,7 +713,18 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         
         plGpuDynTerrainData tDynamic = {0};
         tDynamic.iLevel          = (int)ptChunk->uLevel;
-        tDynamic.tFlags          = ptTerrainComp->tFlags;
+        if(ptTerrainComp->tFlags & PL_TERRAIN_FLAGS_SHOW_LEVELS)
+        {
+            tDynamic.tFlags |= PL_TERRAIN_SHADER_FLAGS_SHOW_DEBUG_COLOR;
+            tDynamic.tDebugColor.rgb = atColors[ptChunk->uLevel % 16];
+        }
+
+        if(ptTerrainComp->tFlags & PL_TERRAIN_FLAGS_SHOW_TILES)
+        {
+            tDynamic.tFlags |= PL_TERRAIN_SHADER_FLAGS_SHOW_DEBUG_COLOR;
+            tDynamic.tDebugColor.rgb = atColors[uDebugColorSlot];
+        }
+
         tDynamic.tUVInfo.xy       = ptChunk->tUVScale;
         tDynamic.tUVInfo.zw       = ptChunk->tUVOffset;
         tDynamic.iPointLightCount = pl_sb_size(ptScene->sbtPointLights);
@@ -693,7 +734,7 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         tDynamic.uGlobalIndex = uGlobalIndex;
         tDynamic.fSlopeStart = ptTerrainComp->fSlopeStart;
         tDynamic.fSlopeEnd = ptTerrainComp->fSlopeEnd;
-
+        
         uint32_t uZoneCount = ptAsset->uElevationZoneCount;
         size_t szZoneCapacity = sizeof(tDynamic.atElevationZones) / sizeof(tDynamic.atElevationZones[0]);
 
@@ -749,7 +790,7 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     {
         // Descend into children
         for(uint32_t i = 0; i < 4; i++)
-            pl__render_chunk(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk->aptChildren[i], ptFile, uGlobalIndex);
+            pl__render_chunk(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk->aptChildren[i], ptFile, uGlobalIndex, fViewportWidth);
     }
 }
 
@@ -781,13 +822,10 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
 
     plTerrainComponent* ptTerrainComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tTerrainComponentType, ptScene->tTerrain);
 
-
     // Geometric error is measured in world units.
     float fGeometricError = ptFile->fMaxBaseError * (float)ptChunk->uLevel;
 
     // Orthographic projection has constant screen-space scale.
-    //
-    // Adjust the matrix member access for your actual plMat4 layout.
     const float fProjectionScaleX = fabsf(ptCamera->tProjMat.col[0].x);
     const float fProjectionScaleY = fabsf(ptCamera->tProjMat.col[1].y);
     const float fPixelsPerWorldUnitX = 0.5f * fShadowViewportWidth * fProjectionScaleX;

@@ -425,7 +425,8 @@ enum _plTerrainFlags
 {
     PL_TERRAIN_FLAGS_NONE        = 0,
     PL_TERRAIN_FLAGS_WIREFRAME   = 1 << 0,
-    PL_TERRAIN_FLAGS_SHOW_LEVELS = 1 << 1
+    PL_TERRAIN_FLAGS_SHOW_LEVELS = 1 << 1,
+    PL_TERRAIN_FLAGS_SHOW_TILES  = 1 << 2,
 };
 
 enum _plLightFlags

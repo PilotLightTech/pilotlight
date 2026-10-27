@@ -90,38 +90,13 @@ void main()
         tDynamicData.tData.atElevationZones[2].tSteepMaterial.tBaseColor,
         slopeBlend);
 
-    // vec4 zone0 = mix(
-    //     vec4(0.66, 0.598, 0.402, 1.0),
-    //     vec4(0.20, 0.18, 0.16, 1.0),
-    //     slopeBlend);
-
-    // vec4 zone1 = mix(
-    //     vec4(0.05, 0.30, 0.05, 1.0),
-    //     vec4(0.08, 0.07, 0.06, 1.0),
-    //     slopeBlend);
-
-    // vec4 zone2 = mix(
-    //     vec4(0.85, 0.85, 0.82, 1.0),
-    //     vec4(0.45, 0.45, 0.43, 1.0),
-    //     slopeBlend);
-
     outAlbedo = zone0 * w0 + zone1 * w1 + zone2 * w2;
-    // outAlbedo = vec4(0.2, 0.2, 0.2, 1.0);
 
     outNormal = Encode(normal);
     outAOMetalnessRoughness = vec4(1.0, 0.0, 1.0, 1.0);
 
-
-    if(bool(tDynamicData.tData.tFlags & PL_TERRAIN_SHADER_FLAGS_SHOW_LEVELS))
+    if(bool(tDynamicData.tData.tFlags & PL_TERRAIN_SHADER_FLAGS_SHOW_DEBUG_COLOR))
     {
-        // outColor = tShaderIn.tColor;
         outAlbedo = tShaderIn.tColor;
-        // outAlbedo += tShaderIn.tColor;
     }
-
-    // if(bool(tDynamicData.tData.tFlags & PL_TERRAIN_SHADER_FLAGS_WIREFRAME))
-    // {
-    //     outAlbedo = tShaderIn.tColor;
-    // }
-
 }

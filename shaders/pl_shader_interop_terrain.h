@@ -18,9 +18,9 @@
 //-----------------------------------------------------------------------------
 
 PL_BEGIN_ENUM(plTerrainShaderFlags)
-    PL_ENUM_ITEM(PL_TERRAIN_SHADER_FLAGS_NONE,        0)
-    PL_ENUM_ITEM(PL_TERRAIN_SHADER_FLAGS_WIREFRAME,   1 << 0)
-    PL_ENUM_ITEM(PL_TERRAIN_SHADER_FLAGS_SHOW_LEVELS, 1 << 1)
+    PL_ENUM_ITEM(PL_TERRAIN_SHADER_FLAGS_NONE,             0)
+    PL_ENUM_ITEM(PL_TERRAIN_SHADER_FLAGS_WIREFRAME,        1 << 0)
+    PL_ENUM_ITEM(PL_TERRAIN_SHADER_FLAGS_SHOW_DEBUG_COLOR, 1 << 1)
 PL_END_ENUM
 
 //-----------------------------------------------------------------------------
@@ -70,6 +70,8 @@ PL_BEGIN_STRUCT(plGpuDynTerrainData)
     float    fSlopeEnd;
     float    fPadding0;
     float    fPadding1;
+
+    vec4 tDebugColor;
 
     plGpuTerrainElevationZone atElevationZones[3];
 

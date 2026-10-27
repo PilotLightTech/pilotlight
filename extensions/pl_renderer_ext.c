@@ -1870,7 +1870,10 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         );
 
         for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
-            pl__render_chunk(ptScene, ptScene->ptTerrain, ptCamera, ptSceneCmdBuffer, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, 0);
+        {
+            float fViewportWidth = ptView->tTargetSize.x;
+            pl__render_chunk(ptScene, ptScene->ptTerrain, ptView->bFrozenCamera ? &ptView->tCullCamera : ptCamera, ptSceneCmdBuffer, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, 0, fViewportWidth);
+        }
 
         gptGfx->pop_debug_group(ptSceneCmdBuffer);
     }
