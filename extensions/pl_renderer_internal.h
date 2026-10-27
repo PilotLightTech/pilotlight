@@ -80,7 +80,6 @@ Index of this file:
 #include "pl_shader_interop_renderer.h"
 #include "pl_shader_interop_terrain.h"
 
-
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
@@ -129,27 +128,25 @@ Index of this file:
     static const plEcsI*           gptEcs           = NULL;
     static const plUiI*            gptUI            = NULL;
     static const plTransformI*     gptTransform     = NULL;
-    
-    // experimental apis
-    static const plJsonI*             gptJson          = NULL;
-    static const plCameraI*           gptCamera        = NULL;
-    static const plCameraEcsI*        gptCameraEcs     = NULL;
-    static const plBVHI*              gptBvh           = NULL;
-    static const plAnimationI*        gptAnimation     = NULL;
-    static const plMeshI*             gptMesh          = NULL;
-    static const plShaderLibraryI*    gptShaderLibrary = NULL;
-    static const plMaterialI*         gptMaterial      = NULL;
-    static const plTerrainI*          gptTerrain       = NULL;
-    static const plStageI*            gptStage         = NULL;
-    static const plFreeListI*         gptFreeList      = NULL;
-    static const plImageOpsI*         gptImageOps      = NULL;
-    static const plScriptI*           gptScript        = NULL;
-    static const plGjkI*              gptGjk           = NULL;
-    static const plCollisionI*        gptCollision     = NULL;
-    static const plAssetI*            gptAsset         = NULL;
-    static const plStlI*              gptStl           = NULL;
-    static const plSkeletonI*         gptSkeleton      = NULL;
-    static const plTextureI*          gptTexture       = NULL;
+    static const plJsonI*          gptJson          = NULL;
+    static const plCameraI*        gptCamera        = NULL;
+    static const plCameraEcsI*     gptCameraEcs     = NULL;
+    static const plBVHI*           gptBvh           = NULL;
+    static const plAnimationI*     gptAnimation     = NULL;
+    static const plMeshI*          gptMesh          = NULL;
+    static const plShaderLibraryI* gptShaderLibrary = NULL;
+    static const plMaterialI*      gptMaterial      = NULL;
+    static const plTerrainI*       gptTerrain       = NULL;
+    static const plStageI*         gptStage         = NULL;
+    static const plFreeListI*      gptFreeList      = NULL;
+    static const plImageOpsI*      gptImageOps      = NULL;
+    static const plScriptI*        gptScript        = NULL;
+    static const plGjkI*           gptGjk           = NULL;
+    static const plCollisionI*     gptCollision     = NULL;
+    static const plAssetI*         gptAsset         = NULL;
+    static const plStlI*           gptStl           = NULL;
+    static const plSkeletonI*      gptSkeleton      = NULL;
+    static const plTextureI*       gptTexture       = NULL;
     
 #endif
 
@@ -162,13 +159,13 @@ Index of this file:
 // basic types
 typedef struct _plView                  plView;
 typedef struct _plScene                 plScene;
-typedef struct _plRefRendererData       plRefRendererData;
+typedef struct _plRendererData       plRendererData;
 typedef struct _plSkinData              plSkinData;
 typedef struct _plDrawable              plDrawable;
 typedef struct _plCullData              plCullData;
 typedef struct _plMemCpyJobData         plMemCpyJobData;
-typedef struct _plOBB                   plOBB;
 typedef struct _plEnvironmentProbeData  plEnvironmentProbeData;
+typedef struct _plTerrain plTerrain; // opaque type for a terrain
 
 // enums & flags
 typedef int plDrawableFlags;
@@ -200,7 +197,7 @@ enum _plSceneInternalFlags
 
 enum _plRenderBucket
 {
-    PL_RENDER_BUCKET_DEFERRED,
+    PL_RENDER_BUCKET_DEFERRED = 0,
     PL_RENDER_BUCKET_DEFERRED_DOUBLE_SIDED,
     PL_RENDER_BUCKET_FORWARD,
     PL_RENDER_BUCKET_FORWARD_DOUBLE_SIDED,
@@ -224,13 +221,6 @@ typedef struct _plDrawableKey
     uint32_t uSubmesh;
     uint32_t _padding;
 } plDrawableKey;
-
-typedef struct _plOBB
-{
-    plVec3 tCenter;
-    plVec3 tExtents;
-    plVec3 atAxes[3]; // Orthonormal basis
-} plOBB;
 
 typedef struct _plRendererLight
 {
@@ -636,7 +626,7 @@ typedef struct _plScene
     bool bDynamicBVH;
 } plScene;
 
-typedef struct _plRefRendererData
+typedef struct _plRendererData
 {
     bool            bFullyInitialized;
     plDevice*       ptDevice;
@@ -707,7 +697,7 @@ typedef struct _plRefRendererData
 
     // debug tools
     bool bShowTools;
-} plRefRendererData;
+} plRendererData;
 
 typedef struct _plCullData
 {
@@ -738,7 +728,7 @@ typedef struct _plCSMInfo
 //-----------------------------------------------------------------------------
 
 // context data
-static plRefRendererData* gptData = NULL;
+static plRendererData* gptData = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal API

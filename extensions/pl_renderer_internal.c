@@ -1536,7 +1536,7 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
 
 
 
-        plMat4 atCamViewProjs[PL_MAX_SHADOW_CASCADES] = {0};
+        plMat4 atCamViewProjs[4] = {0};
         float fLastSplitDist = ptSceneCamera->fNearZ;
         const plVec3 tDirection = pl_norm_vec3(ptScene->tSceneData.tDirection);
 

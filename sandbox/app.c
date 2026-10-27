@@ -381,7 +381,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptShaderLibrary->initialize(tShaderVariantInit);
 
     // setup reference renderer
-    plRendererSettings tRenderSettings = PL_ZERO_INIT;
+    plRendererInit tRenderSettings = PL_ZERO_INIT;
     tRenderSettings.ptDevice              = ptAppData->ptDevice;
     tRenderSettings.ptSwapchain           = gptStarter->get_swapchain();
     gptRenderer->initialize(&tRenderSettings);

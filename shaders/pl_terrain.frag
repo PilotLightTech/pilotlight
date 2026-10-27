@@ -60,7 +60,6 @@ void main()
 
     float upness = clamp(dot(normal, vec3(0.0, 1.0, 0.0)), 0.0, 1.0);
     float steepness = 1.0 - upness;
-    // float slopeBlend = smoothstep(0.0, 0.45, steepness);
     float slopeBlend = smoothstep(tDynamicData.tData.fSlopeStart, tDynamicData.tData.fSlopeEnd, steepness);
 
     // float w0 = terrain_zone_weight(height, -1000.0, 20.0, 30.0);

@@ -18,17 +18,9 @@ Index of this file:
 #include "pl_renderer_terrain.c"
 #include "pl_renderer_internal.c"
 
-
 //-----------------------------------------------------------------------------
 // [SECTION] implementation
 //-----------------------------------------------------------------------------
-
-static void
-pl__renderer_console_shader_reload(const char* pcName, void* pData)
-{
-    for(uint32_t i = 0; i < pl_sb_size(gptData->sbptScenes); i++)
-        pl_renderer_editor_reload_scene_shaders(gptData->sbptScenes[i]);
-}
 
 plEcsTypeKey
 pl_renderer_get_type_key_object(void)
@@ -67,11 +59,11 @@ pl_renderer_get_type_key_terrain(void)
 }
 
 bool
-pl_renderer_initialize(const plRendererSettings* ptSettings)
+pl_renderer_initialize(const plRendererInit* ptSettings)
 {
     // allocate renderer data
-    gptData = PL_ALLOC(sizeof(plRefRendererData));
-    memset(gptData, 0, sizeof(plRefRendererData));
+    gptData = PL_ALLOC(sizeof(plRendererData));
+    memset(gptData, 0, sizeof(plRendererData));
 
     if(gptConsole->add_bool_variable)
     {
@@ -85,7 +77,7 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
     gptStage->initialize((plStageInit){.ptDevice = gptData->ptDevice});
 
     // register data with registry (for reloads)
-    gptDataRegistry->set_data("ref renderer data", gptData);
+    gptDataRegistry->set_data("renderer data", gptData);
 
     // add specific log channel for renderer
     plLogExtChannelInit tLogInit = {
@@ -150,11 +142,11 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     plSceneDesc tInit = *ptInit;
 
-    if(tInit.szIndexBufferSize == 0)    tInit.szIndexBufferSize = 64000000;
-    if(tInit.szVertexBufferSize == 0)   tInit.szVertexBufferSize = 64000000;
-    if(tInit.szDataBufferSize == 0)     tInit.szDataBufferSize = 64000000;
+    if(tInit.szIndexBufferSize == 0)    tInit.szIndexBufferSize    = 64000000;
+    if(tInit.szVertexBufferSize == 0)   tInit.szVertexBufferSize   = 64000000;
+    if(tInit.szDataBufferSize == 0)     tInit.szDataBufferSize     = 64000000;
     if(tInit.szMaterialBufferSize == 0) tInit.szMaterialBufferSize = 8000000;
-    if(tInit.szSkinBufferSize == 0)     tInit.szSkinBufferSize = 8000000;
+    if(tInit.szSkinBufferSize == 0)     tInit.szSkinBufferSize     = 8000000;
 
     plScene* ptScene = PL_ALLOC(sizeof(plScene));
     memset(ptScene, 0, sizeof(plScene));
@@ -163,15 +155,12 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     ptScene->tInit = tInit;
     ptScene->ptShaderLibrary = gptShaderLibrary->create_library();
 
-
     ptScene->tEnvironment = gptAsset->load("/assets/environments/skybox.plenvironment");
     ptScene->tSettings = gptAsset->load("/assets/settings/default.plrenderer");
     ptScene->uSunShadowAtlasResolution = 4096 * 4; // TODO: make this an option
 
-
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         ptScene->abSunTransmissionLutDirty[i] = true;
-
 
     ptScene->pcName = "unnamed scene";
     ptScene->tInternalFlags = PL_SCENE_INTERNAL_FLAG_ACTIVE;
@@ -205,7 +194,6 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     // create scene resources
     //-----------------------------------------------------------------------------
 
-    
     pl__renderer_scene_create_textures(ptScene);
     pl__renderer_scene_create_buffers(ptScene);
     pl__renderer_scene_create_bindgroups(ptScene);
@@ -3779,7 +3767,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     if(bReload)
     {
-        gptData = gptDataRegistry->get_data("ref renderer data");
+        gptData = gptDataRegistry->get_data("renderer data");
     }   
 }
 
