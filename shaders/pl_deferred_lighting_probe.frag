@@ -90,63 +90,75 @@ void main()
     // Calculate lighting contribution from image based lighting source (IBL)
     {
 
-        int aiActiveProbes[3];
-        aiActiveProbes[0] = -1;
-        aiActiveProbes[1] = -1;
-        aiActiveProbes[2] = -1;
+        int aiActiveProbes[3] = int[3](-1, -1, -1);
+        float distances[3] = float[3](1e30, 1e30, 1e30);
+
+        int K = 0;
+
+        // Probe 0 is the global sky probe
+        for(int i = 1; i < tObjectInfo.tData.iProbeCount; i++)
+        {
+            vec3 delta = tProbeData.atData[i].tPosition - tWorldPosition.xyz;
+            float distSqr = dot(delta, delta);
+
+            if(distSqr > tProbeData.atData[i].fRangeSqr)
+                continue;
+
+            // Find an empty slot, otherwise the furthest selected probe
+            int slot = -1;
+
+            for(int j = 0; j < 3; j++)
+            {
+                if(aiActiveProbes[j] == -1)
+                {
+                    slot = j;
+                    break;
+                }
+            }
+
+            if(slot == -1)
+            {
+                slot = 0;
+                for(int j = 1; j < 3; j++)
+                {
+                    if(distances[j] > distances[slot])
+                        slot = j;
+                }
+            }
+
+            // Replace if closer
+            if(aiActiveProbes[slot] == -1 || distSqr < distances[slot])
+            {
+                if(aiActiveProbes[slot] == -1)
+                    K++;
+
+                aiActiveProbes[slot] = i;
+                distances[slot] = distSqr;
+            }
+        }
+
+        // Global sky fallback
+        if(K == 0)
+        {
+            aiActiveProbes[0] = 0;
+            distances[0] = 0.0;
+            K = 1;
+        }
+
+        // Find closest selected probe
+        int iClosestIndex = 0;
+
+        for(int j = 1; j < K; j++)
+        {
+            if(distances[j] < distances[iClosestIndex])
+                iClosestIndex = j;
+        }
+        vec3 R = reflect(-v, n);
 
         float weights[3];
         weights[0] = 0.0;
         weights[1] = 0.0;
         weights[2] = 0.0;
-
-        float distances[3];
-        distances[0] = 10000.0;
-        distances[1] = 10000.0;
-        distances[2] = 10000.0;
-
-        int K = 0;
-
-        for(int i = 0; i < tObjectInfo.tData.iProbeCount; i++)
-        {
-            vec3 tDist = tProbeData.atData[i].tPosition - tWorldPosition.xyz;
-            tDist = tDist * tDist;
-            float fDistSqr = tDist.x + tDist.y + tDist.z;
-            
-            if(fDistSqr <= tProbeData.atData[i].fRangeSqr)
-            {
-                
-                int iFurthest = 0;
-                for(int j = 0; j < 3; j++)
-                {
-                    if(distances[j] > distances[iFurthest])
-                    {
-                        iFurthest = j;
-                    }
-                }
-
-                if(distances[iFurthest] > fDistSqr)
-                {
-                    K++;
-                    aiActiveProbes[iFurthest] = i;
-                    distances[iFurthest] = fDistSqr;
-                }
-            }
-        }
-
-        int iClosestIndex = 0;
-        float maxDis = distances[0];
-        for(int j = 0; j < 3; j++)
-        {
-            if(distances[j] < distances[iClosestIndex])
-            {
-                iClosestIndex = j;
-            }
-        }
-
-
-        K = min(K, 3);
-        vec3 R = reflect(-v, n);
         float summing = computeProbeWeights(tWorldPosition.xyz, R, 2.0, K, aiActiveProbes, weights);
 
         int iClosestProbeIndex = aiActiveProbes[iClosestIndex];

@@ -2787,7 +2787,7 @@ pl__renderer_return_bindless_cube_texture_index(plScene* ptScene, plTextureHandl
 }
 
 static void
-pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeData* ptProbe)
+pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeData* ptProbe, uint32_t uSampleCount)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
@@ -2803,7 +2803,6 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
     plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptProbe->tRawOutputTexture);
     const int iResolution = (int)(ptTexture->tDesc.tDimensions.x);
     const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
-    plEnvironmentProbeComponent* ptProbeComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
 
     // copy to cube
     {
@@ -3009,7 +3008,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         plGpuDynFilterSpec* ptDynamicData = (plGpuDynFilterSpec*)tDynamicBinding.pcData;
         ptDynamicData->iResolution = iResolution;
         ptDynamicData->fRoughness = 0.0f;
-        ptDynamicData->iSampleCount = (int)ptProbeComp->uSamples;
+        ptDynamicData->iSampleCount = (int)uSampleCount;
         ptDynamicData->iWidth = iResolution;
         ptDynamicData->fLodBias = 0.0f;
         ptDynamicData->iCurrentMipLevel = 0;
@@ -3108,7 +3107,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
             plGpuDynFilterSpec* ptDynamicData = (plGpuDynFilterSpec*)tDynamicBinding.pcData;
             ptDynamicData->iResolution = iResolution;
             ptDynamicData->fRoughness = (float)i / (float)(ptEnvTexture->tDesc.uMips - 1);
-            ptDynamicData->iSampleCount = i == 0 ? 1 : (int)ptProbeComp->uSamples;
+            ptDynamicData->iSampleCount = i == 0 ? 1 : (int)uSampleCount;
             ptDynamicData->iWidth = currentWidth;
             ptDynamicData->fLodBias = 0.0f;
             ptDynamicData->iCurrentMipLevel = i;
@@ -3208,7 +3207,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
             plGpuDynFilterSpec* ptDynamicData = (plGpuDynFilterSpec*)tDynamicBinding.pcData;
             ptDynamicData->iResolution = iResolution;
             ptDynamicData->fRoughness = (float)i / (float)(ptEnvTexture->tDesc.uMips - 1);
-            ptDynamicData->iSampleCount = i == 0 ? 1 : (int)ptProbeComp->uSamples;
+            ptDynamicData->iSampleCount = i == 0 ? 1 : (int)uSampleCount;
             ptDynamicData->iWidth = currentWidth;
             ptDynamicData->fLodBias = 0.0f;
             ptDynamicData->iCurrentMipLevel = i;
@@ -3657,7 +3656,6 @@ pl__render_view_forward_pass(plScene* ptScene, plCommandBuffer* ptCommandBuffer,
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
-
 
     const uint32_t uVisibleForwardDoubleSidedDrawCount = pl_sb_size(ptScene->asbuRenderBuckets[ptInfo->tBucket]);
     gptGfx->reset_draw_stream(ptStream, uVisibleForwardDoubleSidedDrawCount);
@@ -4818,7 +4816,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
     plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
 
     const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
-    for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
+    for(uint32_t uProbeIndex = 1; uProbeIndex < uProbeCount; uProbeIndex++)
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
         plEnvironmentProbeComponent* ptProbeComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
@@ -4855,7 +4853,10 @@ pl__renderer_probe_update_all(plScene* ptScene)
     }
 
     pl_sb_reset(ptScene->sbtGPUProbeData);
-    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtProbeData); i++)
+
+    pl__renderer_update_sky_probe(ptScene);
+
+    for(uint32_t i = 1; i < pl_sb_size(ptScene->sbtProbeData); i++)
     {
         plEnvironmentProbeData* ptProbeData = &ptScene->sbtProbeData[i];
         plEnvironmentProbeComponent* ptProbe = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbeData->tEntity);
@@ -4899,7 +4900,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
     };
 
 
-    for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
+    for(uint32_t uProbeIndex = 1; uProbeIndex < uProbeCount; uProbeIndex++)
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
         plEnvironmentProbeComponent* ptProbeComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
@@ -5228,6 +5229,15 @@ pl__renderer_probe_update_all(plScene* ptScene)
 
             //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+            plGbufferFillPassInfo tGbufferFillPassInfo1 = {
+                .uGlobalIndex = uFace,
+                .tBG2 = ptProbe->tGBufferBG,
+                .ptArea = &tArea,
+                .tBucket = PL_RENDER_BUCKET_DEFERRED,
+                .tShader = ptScene->bWireframe ? ptScene->tGBufferFillWireframeShader : ptScene->tGBufferFillShader
+            };
+            pl__render_view_gbuffer_fill_pass(ptScene, ptCmdBuffer, &tGbufferFillPassInfo1);
+
             plGbufferFillPassInfo tGbufferFillPassInfo0 = {
                 .uGlobalIndex = uFace,
                 .tBG2 = ptProbe->tGBufferBG,
@@ -5237,14 +5247,31 @@ pl__renderer_probe_update_all(plScene* ptScene)
             };
             pl__render_view_gbuffer_fill_pass(ptScene, ptCmdBuffer, &tGbufferFillPassInfo0);
 
-            plGbufferFillPassInfo tGbufferFillPassInfo1 = {
-                .uGlobalIndex = uFace,
-                .tBG2 = ptProbe->tGBufferBG,
-                .ptArea = &tArea,
-                .tBucket = PL_RENDER_BUCKET_DEFERRED,
-                .tShader = ptScene->bWireframe ? ptScene->tGBufferFillWireframeShader : ptScene->tGBufferFillShader
-            };
-            pl__render_view_gbuffer_fill_pass(ptScene, ptCmdBuffer, &tGbufferFillPassInfo1);
+            if(ptScene->ptTerrain)
+            {
+                gptGfx->push_debug_group(ptCmdBuffer, "Probe Terrain", (plVec4){0.33f, 0.42f, 0.20f, 1.0f});
+
+                plTerrainComponent* ptTerrainComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tTerrainComponentType, ptScene->tTerrain);
+
+                gptGfx->set_depth_bias(ptCmdBuffer, 0.0f, 0.0f, 0.0f);
+                gptGfx->bind_shader(ptCmdBuffer, ptScene->tTerrainShader);
+                gptGfx->bind_vertex_buffer(ptCmdBuffer, ptScene->ptTerrain->tVertexBuffer);
+                plBindGroupHandle atBindGroups[] = {ptScene->atSceneBindGroups[uFrameIdx], ptProbe->tGBufferBG};
+                gptGfx->bind_graphics_bind_groups(
+                    ptCmdBuffer,
+                    ptScene->tTerrainShader,
+                    0, 2,
+                    atBindGroups,
+                    0, NULL
+                );
+
+                for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
+                {
+                    pl__render_chunk(ptScene, ptScene->ptTerrain, &atEnvironmentCamera[uFace], ptCmdBuffer, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, uFace, ptProbe->tTargetSize.x);
+                }
+
+                gptGfx->pop_debug_group(ptCmdBuffer);
+            }
             
 
             //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 1 - lighting~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -5411,7 +5438,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submission~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-        pl__renderer_probe_create_environment_map(ptScene, ptProbe);
+        pl__renderer_probe_create_environment_map(ptScene, ptProbe, ptProbeComp->uSamples);
 
         ptProbe->uCurrentFace = (ptProbe->uCurrentFace + ptProbeComp->uInterval) % 6;
 
@@ -7808,7 +7835,9 @@ pl__renderer_view_update_bindgroups(plView* ptView)
 static void
 pl__renderer_probe_create_textures(plScene* ptScene, plEnvironmentProbeData* ptProbeData)
 {
-    plEnvironmentProbeComponent* ptProbe = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbeData->tEntity);
+    // plEnvironmentProbeComponent* ptProbe = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbeData->tEntity);
+
+    // uint32_t uResol
 
     const plTextureDesc tRawOutputTextureCubeDesc = {
         .tDimensions   = {ptProbeData->tTargetSize.x, ptProbeData->tTargetSize.y, 1},
@@ -7822,7 +7851,7 @@ pl__renderer_probe_create_textures(plScene* ptScene, plEnvironmentProbeData* ptP
     gptStarter->create_texture(&tRawOutputTextureCubeDesc, NULL, 0, &ptProbeData->tRawOutputTexture);
 
     const plTextureDesc tSpecularTextureDesc = {
-        .tDimensions = {(float)ptProbe->uResolution, (float)ptProbe->uResolution, 1},
+        .tDimensions = {ptProbeData->tTargetSize.x, ptProbeData->tTargetSize.y, 1},
         .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
         .uLayers     = 6,
         .uMips       = 1,
@@ -7834,10 +7863,10 @@ pl__renderer_probe_create_textures(plScene* ptScene, plEnvironmentProbeData* ptP
     ptProbeData->uLambertianEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, ptProbeData->tLambertianEnvTexture);
 
     const plTextureDesc tTextureDesc = {
-        .tDimensions = {(float)ptProbe->uResolution, (float)ptProbe->uResolution, 1},
+        .tDimensions = {ptProbeData->tTargetSize.x, ptProbeData->tTargetSize.y, 1},
         .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
         .uLayers     = 6,
-        .uMips       = (uint32_t)floorf(log2f((float)ptProbe->uResolution)) - 3, // guarantee final dispatch during filtering is 16 threads
+        .uMips       = (uint32_t)floorf(log2f(ptProbeData->tTargetSize.x)) - 3, // guarantee final dispatch during filtering is 16 threads
         .eType       = PL_TEXTURE_TYPE_CUBE,
         .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName = "probe tGGXEnvTexture"
@@ -8904,4 +8933,263 @@ pl__renderer_render_debug_view(plView* ptView, const plRenderViewDesc* ptViewDes
     }
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+}
+
+static void
+pl__renderer_update_sky_probe(plScene* ptScene)
+{
+
+    plRenderEnvironment* ptEnvironment = gptAsset->get_data(ptScene->tEnvironment);
+    plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
+
+    const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
+
+    // for convience
+    plDevice* ptDevice = gptData->ptDevice;
+    plDrawStream* ptStream = &gptData->tDrawStream;
+
+    const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
+    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
+    plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
+
+    plEnvironmentProbeDataPack* ptPack = &ptScene->sbtProbeDataPacks[ptScene->tDefaultProbeData.uDataPackIndex];
+    plGpuProbe tProbeData = {
+        .tPosition              = {0},
+        .fRangeSqr              = FLT_MAX,
+        .uGGXEnvSampler         = ptScene->tDefaultProbeData.uGGXEnvSampler,
+        .uLambertianEnvSampler  = ptScene->tDefaultProbeData.uLambertianEnvSampler,
+        .uCharlieEnvSampler     = ptScene->tDefaultProbeData.uSheenEnvSampler,
+        .tMin.xyz               = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX},
+        .tMax.xyz               = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX},
+        .iMips                  = ptScene->tDefaultProbeData.iMips,
+        .iParallaxCorrection    = 0
+    };
+    pl_sb_push(ptScene->sbtGPUProbeData, tProbeData);
+
+    if(ptScene->tFlags & PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY)
+    {
+
+    }
+    else
+        return;
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~common data~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    const plVec3 atPitchYawRoll[6] = {
+        {    0.0f,  PL_PI_2,  0.0f },
+        {    0.0f, -PL_PI_2,  0.0f },
+        {  PL_PI_2,   PL_PI,  0.0f },
+        { -PL_PI_2,   PL_PI,  0.0f },
+        {    PL_PI,    0.0f, PL_PI },
+        {     0.0f,    0.0f,  0.0f },
+    };
+
+    const plBindGroupUpdateSamplerData tSkyboxBG1SamplerData = {
+        .tSampler = gptData->tSamplerLinearRepeat,
+        .uSlot    = 1
+    };
+
+    // for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
+    {
+        ptScene->tDefaultProbeData.tViewData.tViewportSize = (plVec4){.x = ptScene->tDefaultProbeData.tTargetSize.x, .y = ptScene->tDefaultProbeData.tTargetSize.y, .z = 1.0f, .w = 1.0f};
+        ptScene->tDefaultProbeData.tViewData.tCameraPos.xyz = (plVec3){0};
+        ptScene->tDefaultProbeData.tViewData.fCameraRange  = 100000.0f - 0.26f;
+        ptScene->tDefaultProbeData.tViewData.fCameraNearZ  = 0.26f;
+        ptScene->tDefaultProbeData.tViewData.fAspectRatio  = 1.0f;
+
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~probe face pre-calc~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        plDrawArea tArea = {
+            .ptDrawStream = ptStream,
+            .atScissors = 
+            {
+                    {
+                        .uWidth  = (uint32_t)ptScene->tDefaultProbeData.tTargetSize.x,
+                        .uHeight = (uint32_t)ptScene->tDefaultProbeData.tTargetSize.x,
+                    }
+            },
+            .atViewports =
+            {
+                    {
+                        .fWidth  = (float)ptScene->tDefaultProbeData.tTargetSize.x,
+                        .fHeight = (float)ptScene->tDefaultProbeData.tTargetSize.x,
+                        .fMaxDepth = 1.0f
+                    }
+            }
+        };
+        
+
+        plCamera atEnvironmentCamera[6] = {0};
+
+        for(uint32_t uFaceIndex = 0; uFaceIndex < 6; uFaceIndex++)
+        {
+            gptCamera->init(&atEnvironmentCamera[uFaceIndex]);
+            atEnvironmentCamera[uFaceIndex].eProjectionType = PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE;
+            atEnvironmentCamera[uFaceIndex].eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
+            atEnvironmentCamera[uFaceIndex].tPosition   = (plVec3d){0};
+            atEnvironmentCamera[uFaceIndex].fNearZ       = 0.26f;
+            atEnvironmentCamera[uFaceIndex].fFarZ        = 100000.0f;
+            atEnvironmentCamera[uFaceIndex].fYFov        = PL_PI_2;
+            atEnvironmentCamera[uFaceIndex].fAspectRatio = 1.0f;
+            gptCamera->set_euler(&atEnvironmentCamera[uFaceIndex], atPitchYawRoll[uFaceIndex].x, atPitchYawRoll[uFaceIndex].y, atPitchYawRoll[uFaceIndex].z);
+            gptCamera->update(&atEnvironmentCamera[uFaceIndex]);
+
+            ptScene->tDefaultProbeData.tViewData.tCameraProjection[uFaceIndex]     = atEnvironmentCamera[uFaceIndex].tProjMat;
+            ptScene->tDefaultProbeData.tViewData.tCameraView[uFaceIndex]           = atEnvironmentCamera[uFaceIndex].tViewMat;
+            ptScene->tDefaultProbeData.tViewData.tInvViewMatNoTranslation[uFaceIndex] = atEnvironmentCamera[uFaceIndex].tInvViewMatNoTranslation;
+            ptScene->tDefaultProbeData.tViewData.tCameraProjectionInv[uFaceIndex]  = pl_mat4_invert(&atEnvironmentCamera[uFaceIndex].tProjMat);
+            ptScene->tDefaultProbeData.tViewData.tCameraViewInv[uFaceIndex]        = pl_mat4_invert(&atEnvironmentCamera[uFaceIndex].tViewMat);
+            ptScene->tDefaultProbeData.tViewData.tCameraViewProjection[uFaceIndex] = pl_mul_mat4(&atEnvironmentCamera[uFaceIndex].tProjMat, &atEnvironmentCamera[uFaceIndex].tViewMat);
+        }
+
+        // copy global buffer data for probe rendering
+        plBuffer* ptProbeGlobalBuffer = gptGfx->get_buffer(ptDevice, ptScene->tDefaultProbeData.tViewBuffer);
+        memcpy(ptProbeGlobalBuffer->tMemoryAllocation.pHostMapped, &ptScene->tDefaultProbeData.tViewData, sizeof(plGpuViewData));
+
+        for(uint32_t uFaceIndex = 0; uFaceIndex < 6; uFaceIndex++)
+        {
+
+            if(ptEnvironment->eMode & PL_RENDERER_SKY_MODE_REALISTIC)
+            {
+                plCommandBuffer* ptSunCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "sun transmission");
+                gptGfx->begin_command_recording(ptSunCmdBuffer);
+
+                plPassResources tPassResources0 = {
+                    .atTextures = {
+                        {
+                            .eUsage  = PL_TEXTURE_USAGE_SAMPLED,
+                            .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
+                            .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                            .tHandle = ptScene->atSunTransmissionLut[uFrameIdx]
+                        },
+                        {
+                            .eUsage  = PL_TEXTURE_USAGE_SAMPLED,
+                            .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
+                            .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                            .tHandle = ptScene->atSunMultiscatterLut[uFrameIdx]
+                        },
+                        {
+                            .eUsage  = PL_TEXTURE_USAGE_STORAGE,
+                            .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
+                            .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                            .tHandle = ptScene->tSkyProbeLut
+                        }
+                    }
+                };
+
+                gptGfx->begin_compute_pass(ptSunCmdBuffer, &tPassResources0);
+                gptGfx->push_debug_group(ptSunCmdBuffer, "Sky LUT", (plVec4){0.33f, 0.42f, 0.70f, 1.0f});
+
+                plDispatch tDispatch3 = {
+                    .uGroupCountX = (uint32_t)ceilf(ptSettings->tSky.tSkyLutResolution.x / 8.0f),
+                    .uGroupCountY = (uint32_t)ceilf(ptSettings->tSky.tSkyLutResolution.y / 8.0f),
+                    .uGroupCountZ = 1,
+                    .uThreadPerGroupX = 8,
+                    .uThreadPerGroupY = 8,
+                    .uThreadPerGroupZ = 1
+                };
+
+                // vertical blur
+                gptGfx->bind_compute_shader(ptSunCmdBuffer, ptScene->tSkyViewLutShader);
+                plBindGroupHandle atSkyLutBGs[] = {ptScene->atSceneBindGroups[uFrameIdx], ptScene->tDefaultProbeData.tViewBG, ptScene->tSkyProbeLutBG2 };
+                gptGfx->bind_compute_bind_groups(ptSunCmdBuffer, ptScene->tSkyViewLutShader, 0, PL_ARRAYSIZE(atSkyLutBGs), atSkyLutBGs, 0, NULL);
+
+                gptGfx->dispatch(ptSunCmdBuffer, 1, &tDispatch3);
+
+                gptGfx->pop_debug_group(ptSunCmdBuffer);
+                gptGfx->end_compute_pass(ptSunCmdBuffer);
+
+                gptGfx->end_command_recording(ptSunCmdBuffer);
+
+                const plSubmitInfo tSunTransmissionSubmitInfo = {
+                    .uWaitSemaphoreCount     = 1,
+                    .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+                    .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+                    .uSignalSemaphoreCount   = 1,
+                    .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+                    .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+                };
+                gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
+                gptGfx->return_command_buffer(ptSunCmdBuffer);
+            }
+
+            plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "probe");
+            gptGfx->begin_command_recording(ptCmdBuffer);
+
+            uint32_t uFace = ptScene->tDefaultProbeData.uCurrentFace + uFaceIndex;
+            uFace = uFace % 6;
+
+            plRenderInfo tForwardRenderInfo = {
+           .tRenderArea = {
+                    .tMin = {0},
+                    .tMax = ptScene->tDefaultProbeData.tTargetSize
+                },
+                .atColorAttachments = {
+                    {
+                        .tTexture       = ptScene->tDefaultProbeData.atRawOutputTextureViews[uFace],
+                        .eLoadOp        = PL_LOAD_OP_CLEAR,
+                        .eStoreOp       = PL_STORE_OP_STORE,
+                        .eUsage         = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+                        .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
+                    }
+                },
+                .tDepthAttachment = {
+                    .tTexture        = ptPack->atDepthTextureViews[uFace],
+                    .eLoadOp         = PL_LOAD_OP_CLEAR,
+                    .eStoreOp        = PL_STORE_OP_STORE,
+                    .eUsage          = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+                    .fClearZ         = 0.0f
+                },
+                .tStencilAttachment = {
+                    .tTexture        = ptPack->atDepthTextureViews[uFace],
+                    .eLoadOp         = PL_LOAD_OP_CLEAR,
+                    .eStoreOp        = PL_STORE_OP_STORE,
+                    .eUsage          = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+                    .uClearStencil   = 0
+                }
+            };
+
+            gptGfx->consumer_barrier(ptCmdBuffer, PL_PIPELINE_STAGE_FRAGMENT | PL_PIPELINE_STAGE_VERTEX, PL_PIPELINE_STAGE_VERTEX | PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
+            gptGfx->begin_render_pass(ptCmdBuffer, &tForwardRenderInfo, NULL);
+            gptGfx->set_depth_bias(ptCmdBuffer, 0.0f, 0.0f, 0.0f);
+            
+            if(ptEnvironment->eMode == PL_RENDERER_SKY_MODE_SKYBOX && ptScene->tSkyboxTexture.uIndex != 0)
+            {
+                plMat4 tTransformMat = pl_identity_mat4();
+                pl__render_view_skybox_pass(ptScene, ptCmdBuffer, ptScene->tDefaultProbeData.tViewBG, &tTransformMat, &tArea, uFace);  
+            }
+            else if(ptEnvironment->eMode == PL_RENDERER_SKY_MODE_REALISTIC)
+            {
+                plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(uint32_t));
+                uint32_t* ptDynamicData = (uint32_t*)tDynamicBinding.pcData;
+                *ptDynamicData = uFace;
+                gptGfx->bind_shader(ptCmdBuffer, ptScene->tSkyShader);
+                plBindGroupHandle atSkyBGs[] = {ptScene->atSceneBindGroups[uFrameIdx], ptScene->tDefaultProbeData.tViewBG, ptScene->tSkyProbeBG2 };
+                gptGfx->bind_graphics_bind_groups(ptCmdBuffer, ptScene->tSkyShader, 0, PL_ARRAYSIZE(atSkyBGs), atSkyBGs, 1, &tDynamicBinding);
+                plDraw tDraw = {
+                    .uInstanceCount = 1,
+                    .uVertexCount = 3
+                };
+                gptGfx->draw(ptCmdBuffer, 1, &tDraw);
+            }
+
+            gptGfx->end_render_pass(ptCmdBuffer);
+
+            gptGfx->end_command_recording(ptCmdBuffer);
+
+            const plSubmitInfo tProbeSubmitInfo = {
+                .uWaitSemaphoreCount     = 1,
+                .atWaitSempahores        = {tSemHandle},
+                .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+                .uSignalSemaphoreCount   = 1,
+                .atSignalSempahores      = {tSemHandle},
+                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+            };
+            gptGfx->submit_command_buffer(ptCmdBuffer, &tProbeSubmitInfo);
+            gptGfx->wait_on_command_buffer(ptCmdBuffer);
+            gptGfx->return_command_buffer(ptCmdBuffer);
+        }
+        
+        pl__renderer_probe_create_environment_map(ptScene, &ptScene->tDefaultProbeData, 512);
+    }
 }

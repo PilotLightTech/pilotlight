@@ -608,6 +608,7 @@ typedef struct _plScene
     plEnvironmentProbeData* sbtProbeData;
     uint32_t*               sbuFreeProbeDataSlots;
     uint64_t                uLastProbeAddFrame;
+    plEnvironmentProbeData  tDefaultProbeData;
 
     // skin data management
     plSkinData* sbtSkinData;
@@ -814,7 +815,8 @@ static void     pl__renderer_probe_create_bindgroups     (plScene*, plEnvironmen
 static void     pl__renderer_probe_update_bindgroups     (plScene*, plEnvironmentProbeData*);
 static uint32_t pl__renderer_probe_data_pack_index       (plScene*, uint32_t res);
 static void     pl__renderer_probe_update_all            (plScene*);
-static void     pl__renderer_probe_create_environment_map(plScene*, plEnvironmentProbeData*);
+static void     pl__renderer_update_sky_probe            (plScene*);
+static void     pl__renderer_probe_create_environment_map(plScene*, plEnvironmentProbeData*, uint32_t uSampleCount);
 
 // ecs helpers
 static bool pl__renderer_add_drawable_objects_to_scene(plScene*, uint32_t count, const plEntity* objects);

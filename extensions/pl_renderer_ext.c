@@ -243,6 +243,21 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     // create probe material & mesh
     ptScene->tUnitSphereDrawable.uMaterialIndex = pl__renderer_get_or_create_material_slot(ptScene, ptMesh->atSubmeshes->tMaterial);
     pl_renderer_update_scene_asset(ptScene, ptMesh->atSubmeshes->tMaterial);
+
+    plEnvironmentProbeData tProbeData = {
+        // .tEntity = atProbes[i],
+        .tTargetSize = {512.0f, 512.0f}
+    };
+    ptScene->tDefaultProbeData = tProbeData;
+
+    pl__renderer_probe_create_textures(ptScene, &ptScene->tDefaultProbeData);
+    pl__renderer_probe_create_buffers(ptScene, &ptScene->tDefaultProbeData);
+    pl__renderer_probe_create_bindgroups(ptScene, &ptScene->tDefaultProbeData);
+    pl__renderer_probe_update_bindgroups(ptScene, &ptScene->tDefaultProbeData);
+    ptScene->tDefaultProbeData.uDataPackIndex = pl__renderer_probe_data_pack_index(ptScene, (uint32_t)ptScene->tDefaultProbeData.tTargetSize.x);
+    ptScene->tDefaultProbeData.iMips = (int)(uint32_t)floorf(log2f(ptScene->tDefaultProbeData.tTargetSize.x)) - 3; // guarantee final dispatch during filtering is 16 threads
+    pl_sb_push(ptScene->sbtProbeData, ptScene->tDefaultProbeData);
+
     return ptScene;
 }
 
@@ -1297,7 +1312,9 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     //-----------------------------------------------------------------------------
 
     if(uFrameIdx == 0) // multiple frames in flight may fight
+    {
         pl__renderer_probe_update_all(ptScene);
+    }
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }

@@ -1,8 +1,6 @@
 {    
     "format": "plscene", 
     "version": 1, 
-    "environment": "/assets/environments/realistic.plenvironment",
-    "renderer": "/assets/settings/terrain.plrenderer",
     "entities": [
         {
             "id": 117118,
@@ -32,13 +30,33 @@
                 "show_levels": false
             }
         },
+        {            
+            "id": 434, 
+            "tag": {                
+                "name": "Damaged Helmet"
+            }, 
+            "transform": {                
+                "translation": [ -7964, 68, 1500 ], 
+                "rotation": [ 0.707106829, 0, 0, 0.707106829 ], 
+                "scale": [ 1, 1, 1 ]
+            }, 
+            "object": {                
+                "mesh": "/assets/meshes/mesh_helmet_LP_13930damagedHelmet.plmesh", 
+                "first_submesh": 0, 
+                "submesh_count": 1, 
+                "transform": 434, 
+                "casts_shadow": true, 
+                "receives_shadow": true, 
+                "renderable": true
+            }
+        },
         {
             "id": 3,
             "tag": {
                 "name": "Probe 0"
             },
             "transform": {                
-                "translation": [0.0, 5.0, 0.0], 
+                "translation": [-7964, 73, 1500], 
                 "rotation": [0.0, 0.0, 0.0, 1.0], 
                 "scale": [1.0, 1.0, 1.0]
             },
@@ -52,7 +70,7 @@
                 "renderable": true
             }, 
             "probe": {
-                "range": 30.0,
+                "range": 10000.0,
                 "resolution": 128,
                 "samples": 128,
                 "interval": 1,
