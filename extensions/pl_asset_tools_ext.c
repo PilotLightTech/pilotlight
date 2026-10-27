@@ -141,7 +141,7 @@ static const char* apcAssetIcons[] = {
 };
 
 static const char* apcAssetNames[] = {
-    "None",
+    "All",
     PL_ICON_FA_PALETTE " material",
     PL_ICON_FA_CHESS_BOARD " texture",
     PL_ICON_FA_DRAW_POLYGON " mesh",
@@ -1124,14 +1124,6 @@ pl_asset_tools_show_assets(bool* bValue)
     {
         const plVec2 tWindowSize = gptUI->get_window_size();
 
-        gptUI->layout_dynamic(0.0f, 2);
-
-        if(gptUI->input_text_hint("Asset Filter", "Filter (inc,-exc)", gptAssetToolsCtx->tAssetFilter.acInputBuffer, 256, 0))
-        {
-            gptUI->text_filter_build(&gptAssetToolsCtx->tAssetFilter);
-        }
-
-        
         plAssetTypeKey atAssetTypesTypes[] = {
             INT32_MAX,
             gptMaterial->get_asset_type_key(),
@@ -1146,37 +1138,47 @@ pl_asset_tools_show_assets(bool* bValue)
             gptSkeleton->get_asset_type_key_skeleton(),
         };
 
-        static uint32_t uAssetFilter = 0;
-        bool abCombo[PL_ARRAYSIZE(atAssetTypesTypes)] = {0};
-        if(gptUI->begin_combo(PL_ICON_FA_FILTER, apcAssetNames[uAssetFilter], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
+        const float afSizes[] = {0.20f, 0.80f};
+        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, afSizes);
+
+        gptUI->text("Asset Type");
+
+        if(gptUI->input_text_hint("Asset Filter", "Filter (inc,-exc)", gptAssetToolsCtx->tAssetFilter.acInputBuffer, 256, 0))
         {
-            for(uint32_t i = 0; i < PL_ARRAYSIZE(atAssetTypesTypes); i++)
-            {
-                if(gptUI->selectable(apcAssetNames[i], &abCombo[i], 0))
-                {
-                    uAssetFilter = i;
-                    gptUI->close_current_popup();
-                } 
-            }
-            gptUI->end_combo();
+            gptUI->text_filter_build(&gptAssetToolsCtx->tAssetFilter);
         }
+        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 80.0f, 2, afSizes);
 
-        gptUI->layout_dynamic(tWindowSize.y - 80.0f, 1);
+        static int iAssetFilter = 0;
+        gptUI->push_theme_color(PL_UI_COLOR_CHILD_BG, (plVec4){0});
+        if(gptUI->begin_child("Assets Types Left", 0, 0))
+        {
+            gptUI->layout_dynamic(0.0f, 1);
+            for(int j = 0; j < PL_ARRAYSIZE(atAssetTypesTypes); j++)
+            {
+                // gptUI->radio_button(apcAssetNames[j], &iAssetFilter, (int)j);
+                bool bPlaceHolder = j == iAssetFilter;
+                if(gptUI->selectable(apcAssetNames[j], &bPlaceHolder, 0))
+                    iAssetFilter = j;
+            }
+            gptUI->end_child();
+        }
+        gptUI->pop_theme_color(1);
 
-        if(gptUI->begin_child("Assets Left", 0, 0))
+        if(gptUI->begin_child("Assets Types Right", 0, 0))
         {
             gptUI->layout_dynamic(0.0f, 1);
 
-            if(uAssetFilter != 0 || gptUI->text_filter_active(&gptAssetToolsCtx->tAssetFilter))
+            if(iAssetFilter != 0 || gptUI->text_filter_active(&gptAssetToolsCtx->tAssetFilter))
             {
                 for(uint32_t i = 0; i < uAssetCount; i++)
                 {
                     size_t szUnused = 0;
                     plAssetHandle tAssetHandle = atAssetHandles[i];
                     plAssetTypeKey tAssetType = gptAsset->get_type_key(tAssetHandle);
-                    if(uAssetFilter != 0)
+                    if(iAssetFilter != 0)
                     {
-                        if(atAssetTypesTypes[uAssetFilter] != tAssetType)
+                        if(atAssetTypesTypes[iAssetFilter] != tAssetType)
                             continue;
                     }
                     const char* pcAssetPath = gptAsset->get_path(tAssetHandle);
@@ -1263,6 +1265,7 @@ pl_asset_tools_show_assets(bool* bValue)
                     } 
                 }
             }
+
             gptUI->end_child();
         }
         gptUI->end_window();
