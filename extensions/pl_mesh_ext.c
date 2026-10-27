@@ -1083,6 +1083,53 @@ pl_mesh_allocate(plMesh* ptMesh, const plSubmeshAllocationDesc* atAllocDesc, uin
 }
 
 void
+pl_mesh_split(plMesh* ptMesh, plMesh* meshesOut)
+{
+    if(ptMesh->uSubmeshCount <= 1)
+        return;
+    
+    for(uint32_t uSubmeshIndex = 0; uSubmeshIndex < ptMesh->uSubmeshCount; uSubmeshIndex++)
+    {
+        plSubmesh* ptSubmesh = &ptMesh->atSubmeshes[uSubmeshIndex];
+        
+        plMesh* ptNewMesh = &meshesOut[uSubmeshIndex];
+
+        plSubmeshAllocationDesc tMeshAlloc = {
+            .uVertexStreamMask = ptSubmesh->uVertexStreamMask,
+            .szVertexCount     = ptSubmesh->szVertexCount,
+            .szIndexCount      = ptSubmesh->szIndexCount
+        };
+        pl_mesh_allocate(ptMesh, &tMeshAlloc, 1);
+
+        ptNewMesh->tAABB = ptSubmesh->tAABB;
+        ptNewMesh->atSubmeshes[0].tAABB = ptSubmesh->tAABB;
+        ptNewMesh->atSubmeshes[0].tMaterial = ptSubmesh->tMaterial;
+        if(ptSubmesh->ptVertexPositions)
+            memcpy(ptNewMesh->atSubmeshes[0].ptVertexPositions, ptSubmesh->ptVertexPositions, sizeof(plVec3) * ptSubmesh->szVertexCount);
+        if(ptSubmesh->ptVertexNormals)
+            memcpy(ptNewMesh->atSubmeshes[0].ptVertexNormals, ptSubmesh->ptVertexNormals, sizeof(plVec3) * ptSubmesh->szVertexCount);
+        if(ptSubmesh->ptVertexTangents)
+            memcpy(ptNewMesh->atSubmeshes[0].ptVertexTangents, ptSubmesh->ptVertexTangents, sizeof(plVec4) * ptSubmesh->szVertexCount);
+        if(ptSubmesh->ptVertexColors)
+            memcpy(ptNewMesh->atSubmeshes[0].ptVertexColors, ptSubmesh->ptVertexColors, sizeof(plVec4) * ptSubmesh->szVertexCount);
+        if(ptSubmesh->ptVertexWeights[0])
+            memcpy(ptNewMesh->atSubmeshes[0].ptVertexWeights[0], ptSubmesh->ptVertexWeights[0], sizeof(plVec4) * ptSubmesh->szVertexCount);
+        if(ptSubmesh->ptVertexWeights[1])
+            memcpy(ptNewMesh->atSubmeshes[0].ptVertexWeights[1], ptSubmesh->ptVertexWeights[1], sizeof(plVec4) * ptSubmesh->szVertexCount);
+        if(ptSubmesh->ptVertexJoints[0])
+            memcpy(ptNewMesh->atSubmeshes[0].ptVertexJoints[0], ptSubmesh->ptVertexJoints[0], sizeof(plVec4) * ptSubmesh->szVertexCount);
+        if(ptSubmesh->ptVertexJoints[1])
+            memcpy(ptNewMesh->atSubmeshes[0].ptVertexJoints[1], ptSubmesh->ptVertexJoints[1], sizeof(plVec4) * ptSubmesh->szVertexCount);
+        if(ptSubmesh->ptVertexTextureCoordinates[0])
+            memcpy(ptNewMesh->atSubmeshes[0].ptVertexTextureCoordinates[0], ptSubmesh->ptVertexTextureCoordinates[0], sizeof(plVec2) * ptSubmesh->szVertexCount);
+        if(ptSubmesh->ptVertexTextureCoordinates[1])
+            memcpy(ptNewMesh->atSubmeshes[0].ptVertexTextureCoordinates[1], ptSubmesh->ptVertexTextureCoordinates[1], sizeof(plVec2) * ptSubmesh->szVertexCount);
+        if(ptSubmesh->puIndices)
+            memcpy(ptNewMesh->atSubmeshes[0].puIndices, ptSubmesh->puIndices, sizeof(uint32_t) * ptSubmesh->szIndexCount);
+    }
+}
+
+void
 pl_mesh_cleanup(plMesh* ptMesh)
 {
     pl__mesh_cleanup(ptMesh);
@@ -1551,6 +1598,7 @@ pl_load_mesh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .allocate              = pl_mesh_allocate,
         .cleanup               = pl_mesh_cleanup,
         .generate_indices      = pl_mesh_generate_indices,
+        .split                 = pl_mesh_split,
     };
     pl_set_api(ptApiRegistry, plMeshI, &ptApi0);
 

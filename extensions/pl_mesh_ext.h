@@ -95,7 +95,7 @@ typedef struct _plMeshI
     bool (*generate_uvs)      (plMesh*);
     void (*calculate_bounds)  (plMesh*);
     bool (*generate_indices)  (plMesh*);
-    // void (*split_submeshes)     (plMesh*, plMesh* meshesOut);
+    void (*split)             (plMesh*, plMesh* meshesOut);
 
     // helpers
     void (*create_sphere) (float radius, uint32_t latitudeBands, uint32_t longitudeBands, plMesh*);

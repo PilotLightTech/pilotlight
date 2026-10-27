@@ -1599,6 +1599,34 @@ pl_asset_tools_show_assets(bool* bValue)
                     if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1) gptUI->text("Joints 1");
                     if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0) gptUI->text("Weights 0");
                     if(ptSubmesh->uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1) gptUI->text("Weights 1");
+
+                    if(ptMesh->uSubmeshCount > 1)
+                    {
+                        if(gptUI->button("Split"))
+                        {
+                            plMesh* atMeshes = PL_ALLOC(sizeof(plMesh) * ptMesh->uSubmeshCount);
+                            memset(atMeshes, 0, sizeof(plMesh) * ptMesh->uSubmeshCount);
+                            gptMesh->split(ptMesh, atMeshes);
+
+                            char acFileNameOnly[1024] = {0};
+                            pl_str_get_file_name_only(gptAsset->get_path(tAssetHandle), acFileNameOnly, 1024);
+
+                            char* sbcTempBuffer = NULL;
+                            for(uint32_t i = 0; i < ptMesh->uSubmeshCount; i++)
+                            {
+                                pl_sb_reset(sbcTempBuffer);
+                                pl_sb_sprintf(sbcTempBuffer, "%s_%u.plmesh", acFileNameOnly, i);
+                                plAssetDesc tNewAssetDesc = {
+                                    .eFlags = PL_ASSET_FLAG_NONE,
+                                    .tType = gptMesh->get_asset_type_key(),
+                                    .pcPath = sbcTempBuffer
+                                };
+                                gptAsset->create(&tNewAssetDesc, &atMeshes[i]);
+                            }
+                            pl_sb_free(sbcTempBuffer);
+                            PL_FREE(atMeshes);
+                        }
+                    }
                 }
                 else if(tAssetType == gptRenderer->get_asset_type_key_settings())
                 {
