@@ -53,9 +53,9 @@ struct MaterialInfo
 #ifdef PL_INCLUDE_MATERIAL_FUNCTIONS
 
 vec2
-pl_get_uv(int iSlot)
+pl_get_uv(int iSlot, int iMaterialIndex)
 {
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
     vec2 UV = (mat3(material.atTextureTransforms[iSlot]) * vec3(tShaderIn.tUV[material.aiTextureUVSet[iSlot]], 1.0)).xy;
     return UV;
 }
@@ -69,10 +69,10 @@ struct NormalInfo {
 };
 
 NormalInfo
-pl_get_normal_info()
+pl_get_normal_info(int iMaterialIndex)
 {
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
-    vec2 UV = pl_get_uv(PL_TEXTURE_NORMAL);
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
+    vec2 UV = pl_get_uv(PL_TEXTURE_NORMAL, iMaterialIndex);
 
     vec2 uv_dx = dFdx(UV);
     vec2 uv_dy = dFdy(UV);
@@ -146,11 +146,11 @@ pl_get_normal_info()
 }
 
 vec4
-getBaseColor(vec4 u_ColorFactor, int iUVSet)
+getBaseColor(vec4 u_ColorFactor, int iUVSet, int iMaterialIndex)
 {
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
     vec4 baseColor = vec4(1);
-    vec2 UV = pl_get_uv(PL_TEXTURE_BASE_COLOR);
+    vec2 UV = pl_get_uv(PL_TEXTURE_BASE_COLOR, iMaterialIndex);
 
     // if(bool(MATERIAL_SPECULARGLOSSINESS))
     // {
@@ -178,10 +178,10 @@ getBaseColor(vec4 u_ColorFactor, int iUVSet)
 }
 
 MaterialInfo
-getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor, float u_RoughnessFactor)
+getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor, float u_RoughnessFactor, int iMaterialIndex)
 {
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
-    vec2 UV = pl_get_uv(PL_TEXTURE_METAL_ROUGHNESS);
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
+    vec2 UV = pl_get_uv(PL_TEXTURE_METAL_ROUGHNESS, iMaterialIndex);
 
     info.metallic = u_MetallicFactor;
     info.perceptualRoughness = u_RoughnessFactor;
@@ -202,10 +202,10 @@ getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor, float u_Roug
 }
 
 MaterialInfo
-getSheenInfo(MaterialInfo info, vec3 u_SheenColorFactor, float u_SheenRoughnessFactor)
+getSheenInfo(MaterialInfo info, vec3 u_SheenColorFactor, float u_SheenRoughnessFactor, int iMaterialIndex)
 {
 
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
 
     info.sheenColorFactor = u_SheenColorFactor;
     info.sheenRoughnessFactor = u_SheenRoughnessFactor;
@@ -213,25 +213,25 @@ getSheenInfo(MaterialInfo info, vec3 u_SheenColorFactor, float u_SheenRoughnessF
 
     if(bool(material.iTextureMappingFlags & PL_HAS_SHEEN_COLOR_MAP))
     {
-        vec4 sheenColorSample = pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_SHEEN_COLOR])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_SHEEN_COLOR)));
+        vec4 sheenColorSample = pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_SHEEN_COLOR])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_SHEEN_COLOR, iMaterialIndex)));
         info.sheenColorFactor *= sheenColorSample.rgb;
     }
 
     if(bool(material.iTextureMappingFlags & PL_HAS_SHEEN_ROUGHNESS_MAP))
     {
-        vec4 sheenRoughnessSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_SHEEN_ROUGHNESS])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_SHEEN_ROUGHNESS));
+        vec4 sheenRoughnessSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_SHEEN_ROUGHNESS])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_SHEEN_ROUGHNESS, iMaterialIndex));
         info.sheenRoughnessFactor *= sheenRoughnessSample.a;
     }
     return info;
 }
 
 vec3
-getClearcoatNormal(NormalInfo normalInfo)
+getClearcoatNormal(NormalInfo normalInfo, int iMaterialIndex)
 {
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
     if(bool(material.iTextureMappingFlags & PL_HAS_CLEARCOAT_NORMAL_MAP))
     {
-        vec3 n = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_CLEARCOAT_NORMAL])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_CLEARCOAT_NORMAL)).rgb * 2.0 - vec3(1.0);
+        vec3 n = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_CLEARCOAT_NORMAL])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_CLEARCOAT_NORMAL, iMaterialIndex)).rgb * 2.0 - vec3(1.0);
         // n *= vec3(u_ClearcoatNormalScale, u_ClearcoatNormalScale, 1.0);
         n = mat3(normalInfo.t, normalInfo.b, normalInfo.ng) * normalize(n);
         return n;
@@ -243,48 +243,48 @@ getClearcoatNormal(NormalInfo normalInfo)
 }
 
 MaterialInfo
-getClearCoatInfo(MaterialInfo info, NormalInfo tNormalInfo, float u_ClearcoatFactor, float u_ClearcoatRoughnessFactor)
+getClearCoatInfo(MaterialInfo info, NormalInfo tNormalInfo, float u_ClearcoatFactor, float u_ClearcoatRoughnessFactor, int iMaterialIndex)
 {
     info.clearcoatFactor = u_ClearcoatFactor;
     info.clearcoatRoughness = u_ClearcoatRoughnessFactor;
     info.clearcoatF0 = vec3(pow((info.ior - 1.0) / (info.ior + 1.0), 2.0));
     info.clearcoatF90 = vec3(1.0);
 
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
 
     if(bool(material.iTextureMappingFlags & PL_HAS_CLEARCOAT_MAP))
     {
-        vec4 clearcoatSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_CLEARCOAT])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_CLEARCOAT));
+        vec4 clearcoatSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_CLEARCOAT])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_CLEARCOAT, iMaterialIndex));
         info.clearcoatFactor *= clearcoatSample.r;
     }
 
     if(bool(material.iTextureMappingFlags & PL_HAS_CLEARCOAT_ROUGHNESS_MAP))
     {
-        vec4 clearcoatSampleRoughness = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_CLEARCOAT_ROUGHNESS])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_CLEARCOAT_ROUGHNESS));
+        vec4 clearcoatSampleRoughness = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_CLEARCOAT_ROUGHNESS])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_CLEARCOAT_ROUGHNESS, iMaterialIndex));
         info.clearcoatRoughness *= clearcoatSampleRoughness.g;
     }
 
-    info.clearcoatNormal = getClearcoatNormal(tNormalInfo);
+    info.clearcoatNormal = getClearcoatNormal(tNormalInfo, iMaterialIndex);
     info.clearcoatRoughness = clamp(info.clearcoatRoughness, 0.0, 1.0);
     return info;
 }
 
 MaterialInfo
-getIridescenceInfo(MaterialInfo info, float u_IridescenceFactor, float u_IridescenceIor, float u_IridescenceThicknessMaximum, float u_IridescenceThicknessMinimum)
+getIridescenceInfo(MaterialInfo info, float u_IridescenceFactor, float u_IridescenceIor, float u_IridescenceThicknessMaximum, float u_IridescenceThicknessMinimum, int iMaterialIndex)
 {
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
     info.iridescenceFactor = u_IridescenceFactor;
     info.iridescenceIor = u_IridescenceIor;
     info.iridescenceThickness = u_IridescenceThicknessMaximum;
 
     if(bool(material.iTextureMappingFlags & PL_HAS_CLEARCOAT_ROUGHNESS_MAP))
     {
-        info.iridescenceFactor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_IRIDESCENCE])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_IRIDESCENCE)).r;
+        info.iridescenceFactor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_IRIDESCENCE])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_IRIDESCENCE, iMaterialIndex)).r;
     }
 
     if(bool(material.iTextureMappingFlags & PL_HAS_CLEARCOAT_ROUGHNESS_MAP))
     {
-        float thicknessSampled = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_IRIDESCENCE_THICKNESS])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_IRIDESCENCE_THICKNESS)).g;
+        float thicknessSampled = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_IRIDESCENCE_THICKNESS])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_IRIDESCENCE_THICKNESS, iMaterialIndex)).g;
         float thickness = mix(u_IridescenceThicknessMinimum, u_IridescenceThicknessMaximum, thicknessSampled);
         info.iridescenceThickness = thickness;
     }
@@ -293,14 +293,14 @@ getIridescenceInfo(MaterialInfo info, float u_IridescenceFactor, float u_Iridesc
 }
 
 MaterialInfo
-getAnisotropyInfo(MaterialInfo info, NormalInfo normalInfo, vec3 u_Anisotropy)
+getAnisotropyInfo(MaterialInfo info, NormalInfo normalInfo, vec3 u_Anisotropy, int iMaterialIndex)
 {
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
     vec2 direction = vec2(1.0, 0.0);
     float strengthFactor = 1.0;
     if(bool(material.iTextureMappingFlags & PL_HAS_ANISOTROPY_MAP))
     {
-        vec3 anisotropySample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_ANISOTROPY])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_ANISOTROPY)).xyz;
+        vec3 anisotropySample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_ANISOTROPY])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_ANISOTROPY, iMaterialIndex)).xyz;
         direction = anisotropySample.xy * 2.0 - vec2(1.0);
         strengthFactor = anisotropySample.z;
     }
@@ -315,23 +315,23 @@ getAnisotropyInfo(MaterialInfo info, NormalInfo normalInfo, vec3 u_Anisotropy)
 }
 
 MaterialInfo
-getIorInfo(MaterialInfo info)
+getIorInfo(MaterialInfo info, int iMaterialIndex)
 {
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
     info.f0_dielectric = vec3(pow(( material.fIor - 1.0) /  (material.fIor + 1.0), 2.0));
     info.ior = material.fIor;
     return info;
 }
 
 MaterialInfo
-getTransmissionInfo(MaterialInfo info, float u_TransmissionFactor)
+getTransmissionInfo(MaterialInfo info, float u_TransmissionFactor, int iMaterialIndex)
 {
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
     info.transmissionFactor = u_TransmissionFactor;
 
     if(bool(material.iTextureMappingFlags & PL_HAS_TRANSMISSION_MAP))
     {
-        vec4 transmissionSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_TRANSMISSION])], tSamplerLinearClamp), pl_get_uv(PL_TEXTURE_TRANSMISSION));
+        vec4 transmissionSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_TRANSMISSION])], tSamplerLinearClamp), pl_get_uv(PL_TEXTURE_TRANSMISSION, iMaterialIndex));
         info.transmissionFactor *= transmissionSample.r;
     }
 
@@ -340,32 +340,32 @@ getTransmissionInfo(MaterialInfo info, float u_TransmissionFactor)
 }
 
 MaterialInfo
-getVolumeInfo(MaterialInfo info)
+getVolumeInfo(MaterialInfo info, int iMaterialIndex)
 {
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
     if(bool(material.iTextureMappingFlags & PL_HAS_THICKNESS_MAP))
     {
-        vec4 thicknessSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_THICKNESS])], tSamplerLinearClamp), pl_get_uv(PL_TEXTURE_THICKNESS));
+        vec4 thicknessSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_THICKNESS])], tSamplerLinearClamp), pl_get_uv(PL_TEXTURE_THICKNESS, iMaterialIndex));
         info.thickness *= thicknessSample.g;
     }
     return info;
 }
 
 MaterialInfo
-getDiffuseTransmissionInfo(MaterialInfo info)
+getDiffuseTransmissionInfo(MaterialInfo info, int iMaterialIndex)
 {
-    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
     info.diffuseTransmissionFactor = material.fDiffuseTransmission;
     info.diffuseTransmissionColorFactor = material.tDiffuseTransmissionColor;
 
     if(bool(material.iTextureMappingFlags & PL_HAS_DIFFUSE_TRANSMISSION_MAP))
     {
-        info.diffuseTransmissionFactor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_DIFFUSE_TRANSMISSION])], tSamplerLinearClamp), pl_get_uv(PL_TEXTURE_DIFFUSE_TRANSMISSION)).a;
+        info.diffuseTransmissionFactor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_DIFFUSE_TRANSMISSION])], tSamplerLinearClamp), pl_get_uv(PL_TEXTURE_DIFFUSE_TRANSMISSION, iMaterialIndex)).a;
     }
 
     if(bool(material.iTextureMappingFlags & PL_HAS_DIFFUSE_TRANSMISSION_COLOR_MAP))
     {
-        info.diffuseTransmissionColorFactor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_DIFFUSE_TRANSMISSION_COLOR])], tSamplerLinearClamp), pl_get_uv(PL_TEXTURE_DIFFUSE_TRANSMISSION_COLOR)).rgb;
+        info.diffuseTransmissionColorFactor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_DIFFUSE_TRANSMISSION_COLOR])], tSamplerLinearClamp), pl_get_uv(PL_TEXTURE_DIFFUSE_TRANSMISSION_COLOR, iMaterialIndex)).rgb;
     }
 
     return info;

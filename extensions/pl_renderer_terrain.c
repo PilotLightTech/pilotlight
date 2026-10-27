@@ -76,10 +76,7 @@ static void pl__touch_chunk                  (plTerrain*, plTerrainChunk*);
 static void pl__make_unresident              (plTerrain*, plTerrainChunk*);
 static void pl__remove_from_replacement_queue(plTerrain*, plTerrainChunk*);
 
-static void pl__render_chunk(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t, float fViewportWidth);
-static void pl__render_chunk_shadow(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t uGlobalIndex, float fShadowViewportWidth, float fShadowViewportHeight);
 static void pl__free_chunk_until(plTerrain*, uint64_t idx_bytes_needed, uint64_t vtx_bytes_needed);
-
 
 static inline bool pl__is_leaf_resident(const plTerrainChunk* c)
 {
@@ -172,7 +169,7 @@ pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plAssetHandle tAsset)
     };
     gptStarter->create_buffer(&tIndexBufferDesc, NULL, &ptTerrain->tIndexBuffer);
 
-    plTerrainAsset* ptTerrainAsset = gptAsset->get_data(tAsset);
+    plTerrainAsset* ptTerrainAsset = gptAsset->get_data(tAsset);    
 
     {
         float fX = ptTerrainAsset->atTiles[0].tCenter.x;
@@ -712,7 +709,8 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         plDynamicBinding tDynamicBinding =  pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynTerrainData));
         
         plGpuDynTerrainData tDynamic = {0};
-        tDynamic.iLevel          = (int)ptChunk->uLevel;
+        tDynamic.iLevel      = (int)ptChunk->uLevel;
+        tDynamic.tDebugColor = (plVec4){1.0f, 1.0f, 1.0f, 1.0f};
         if(ptTerrainComp->tFlags & PL_TERRAIN_FLAGS_SHOW_LEVELS)
         {
             tDynamic.tFlags |= PL_TERRAIN_SHADER_FLAGS_SHOW_DEBUG_COLOR;
@@ -742,18 +740,15 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
             uZoneCount = 0;
         if ((size_t)uZoneCount > szZoneCapacity)
             uZoneCount = (uint32_t)szZoneCapacity;
+        tDynamic.iZoneCount = (int)uZoneCount;
 
         for(uint32_t i = 0; i < uZoneCount; i++)
         {
             tDynamic.atElevationZones[i].tElevation.x = ptAsset->atElevationZones[i].fMinElevation;
             tDynamic.atElevationZones[i].tElevation.y = ptAsset->atElevationZones[i].fMaxElevation;
             tDynamic.atElevationZones[i].tElevation.z = ptAsset->atElevationZones[i].fBlendSize;
-
-            plMaterial* ptFlatMaterial = gptAsset->get_data(ptAsset->atElevationZones[i].tFlatMaterial);
-            plMaterial* ptSteepMaterial = gptAsset->get_data(ptAsset->atElevationZones[i].tSteepMaterial);
-
-            tDynamic.atElevationZones[i].tFlatMaterial.tBaseColor = ptFlatMaterial->tBaseColor;
-            tDynamic.atElevationZones[i].tSteepMaterial.tBaseColor = ptSteepMaterial->tBaseColor;
+            tDynamic.atElevationZones[i].iFlatMaterialIndex = (int)ptScene->auCurrentFlatMaterial[i];
+            tDynamic.atElevationZones[i].iSteepMaterialIndex = (int)ptScene->auCurrentSteepMaterial[i];
         }
 
         plGpuDynTerrainData* ptDynamic = (plGpuDynTerrainData*)tDynamicBinding.pcData;

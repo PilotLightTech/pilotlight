@@ -612,6 +612,8 @@ typedef struct _plScene
     // terrain
     plEntity   tTerrain;
     plTerrain* ptTerrain;
+    uint32_t   auCurrentFlatMaterial[5];
+    uint32_t   auCurrentSteepMaterial[5];
 
     // debug stuff
     bool bWireframe;
@@ -812,6 +814,13 @@ static void     pl__renderer_probe_create_environment_map(plScene*, plEnvironmen
 static bool pl__renderer_add_drawable_objects_to_scene(plScene*, uint32_t count, const plEntity* objects);
 static void pl__renderer_add_probes_to_scene          (plScene*, uint32_t count, const plEntity* probes);
 static void pl__renderer_add_lights_to_scene          (plScene*, uint32_t count, const plEntity* lights);
+
+// terrain
+bool              pl_chlod_load_chunk_file(plTerrain*, const char* pcPath);
+static plTerrain* pl__renderer_terrain_create(plCommandBuffer*, plAssetHandle);
+static void       pl__renderer_terrain_destroy(plTerrain*);
+static void       pl__render_chunk(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t, float fViewportWidth);
+static void       pl__render_chunk_shadow(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t uGlobalIndex, float fShadowViewportWidth, float fShadowViewportHeight);
 
 // forward declarations
 plBindGroupHandle pl_renderer_get_view_color_bind_group  (plView* ptView, plVec2* ptMaxUVOut);

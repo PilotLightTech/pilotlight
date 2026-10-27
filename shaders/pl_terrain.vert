@@ -32,7 +32,8 @@ layout(location = 0) out struct plShaderOut {
     vec4 tColor;
     vec3 tWorldPosition;
     vec3 tWorldNormal;
-    vec2 tUV;
+    vec2 tUV[2];
+    mat3 tTBN;
 } tShaderOut;
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
@@ -46,26 +47,26 @@ void main()
 
     tShaderOut.tWorldPosition = inPos;
     tShaderOut.tWorldNormal = Decode(inNormal);
-    tShaderOut.tUV = inUV;
-
-    vec3 atColors[8];
-    float fColorStrength = 0.1;
-    atColors[0] = vec3(fColorStrength, 0.0, 0.0);
-    atColors[1] = vec3(0.0, fColorStrength, 0.0);
-    atColors[2] = vec3(0.0, 0.0, fColorStrength);
-    atColors[3] = vec3(fColorStrength, fColorStrength, 0.0);
-    atColors[4] = vec3(fColorStrength, 0.0, fColorStrength);
-    atColors[5] = vec3(0.0, fColorStrength, fColorStrength);
-    atColors[6] = vec3(fColorStrength, fColorStrength, fColorStrength);
-    atColors[7] = vec3(fColorStrength * 4, fColorStrength, fColorStrength);
+    float fUVFactor = float(1 << tDynamicData.tData.iLevel);
+    vec2 tUVFactor = vec2(fUVFactor, fUVFactor);
+    tShaderOut.tUV[0] = inUV * tUVFactor;
+    tShaderOut.tUV[1] = inUV * tUVFactor;
 
     tShaderOut.tColor.rgb = tDynamicData.tData.tDebugColor.rgb;
     tShaderOut.tColor.a = 1.0;
 
-    // if(bool(tDynamicData.tData.tFlags & PL_TERRAIN_SHADER_FLAGS_WIREFRAME))
-    // {
-    //     // tShaderOut.tColor.rgb += vec3(0.3);
-    // }
+    // vec3 tangent = normalize(inTangent.xyz);
+    // vec3 WorldTangent = mat3(tTransform) * tangent;
+    // vec3 WorldBitangent = cross(normalize(inNormal), tangent) * inTangent.w;
+    // WorldBitangent = mat3(tTransform) * WorldBitangent;
+    // tShaderIn.tTBN = mat3(WorldTangent, WorldBitangent, tShaderIn.tWorldNormal);
 
-    // tShaderOut.tColor = vec4(1.0);
+    // Tangent follows the terrain's +X direction
+    vec3 T = normalize(vec3(tShaderOut.tWorldNormal.y, -tShaderOut.tWorldNormal.x, 0.0));
+
+    // Bitangent follows the terrain's +Z direction
+    vec3 B = normalize(-cross(tShaderOut.tWorldNormal, T));
+
+    // Construct world-space TBN
+    tShaderOut.tTBN = mat3(T, B, tShaderOut.tWorldNormal);
 }

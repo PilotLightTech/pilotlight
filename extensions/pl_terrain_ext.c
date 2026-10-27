@@ -924,7 +924,7 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainAsset* 
 
         // scale for 16 bit
         for(uint32_t i = 0; i < uPixelCount; i++)
-            puConvertedData[i] = (uint16_t)(((float)puImageData[i] / 255.0f) * 65535.0f);
+            puConvertedData[i] = (uint16_t)puImageData[i] * 257u;
 
         gptImage->free(puImageData);
         pucImageData = (unsigned char*)puConvertedData;
@@ -1207,15 +1207,15 @@ pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX
         }
 
         // If our base-edge was marked as “must split”, force it
-        // plEdgeKey tBaseKey = pl__base_edge_key(t.uLevel, t.uLeft, t.uRight);
-        // uint64_t uBaseHash = pl_hm_hash(&tBaseKey, sizeof(plEdgeKey), 0);
-        // const bool bForced = pl_hm_has_key(&tRequiredSplit, uBaseHash);
+        plEdgeKey tBaseKey = pl__base_edge_key(t.uLevel, t.uLeft, t.uRight);
+        uint64_t uBaseHash = pl_hm_hash(&tBaseKey, sizeof(plEdgeKey), 0);
+        const bool bForced = pl_hm_has_key(&tRequiredSplit, uBaseHash);
 
         // If midpoint activation is >= iLevel => we MUST keep the split => so top-down we split.
         const int iActivation = pl__mid_activation(ptHeightMap, t.uLeft, t.uRight);
-        // const bool bShouldSplit = bForced || (iActivation >= iLevel);
+        const bool bShouldSplit = bForced || (iActivation >= iLevel);
 
-        if(iActivation < iLevel)
+        if(!bShouldSplit)
         {
             // keep as leaf
             pl_sb_push(gptTerrainCtx->tMeshScratch.sbtLeaves, t);
@@ -1560,11 +1560,11 @@ void
 pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plTerrainI tApi = {
-        .process         = pl_terrain_process,
-        .load_chunk_file = pl_terrain_load_chunk_file,
-        .unload_chunk_file = pl_terrain_unload_chunk_file,
+        .process              = pl_terrain_process,
+        .load_chunk_file      = pl_terrain_load_chunk_file,
+        .unload_chunk_file    = pl_terrain_unload_chunk_file,
         .register_asset_types = pl_terrain_register_asset_type,
-        .get_asset_type_key = pl_terrain_get_asset_type_key
+        .get_asset_type_key   = pl_terrain_get_asset_type_key
     };
     pl_set_api(ptApiRegistry, plTerrainI, &tApi);
 
@@ -1599,6 +1599,8 @@ pl_unload_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
 
+    pl__terrain_free_scratch();
+    
     const plTerrainI* ptApi = pl_get_api_latest(ptApiRegistry, plTerrainI);
     ptApiRegistry->remove_api(ptApi);
 }

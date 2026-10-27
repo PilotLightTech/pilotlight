@@ -35,7 +35,7 @@ extern "C" {
 // [SECTION] defines
 //-----------------------------------------------------------------------------
 
-#define PL_MAX_TERRAIN_ELEVATION_ZONES 3
+#define PL_MAX_TERRAIN_ELEVATION_ZONES 5
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

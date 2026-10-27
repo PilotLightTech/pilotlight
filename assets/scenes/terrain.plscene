@@ -1,32 +1,31 @@
 {    
     "format": "plscene", 
     "version": 1, 
-    "entities": [
-        {
-            "id": 117118,
-            "tag":{
+    "entities": [ {            
+            "id": 117118, 
+            "tag": {                
                 "name": "settings"
-            },
-            "environment": {
+            }, 
+            "environment": {                
                 "environment": "/assets/environments/realistic.plenvironment"
-            },
-            "renderer": {
+            }, 
+            "renderer": {                
                 "renderer": "/assets/settings/terrain.plrenderer"
             }
         },
         {            
             "id": 1, 
-            "tag": {
+            "tag": {                
                 "name": "Terrain"
-            },
+            }, 
             "terrain": {                
-                "terrain": "/assets/terrains/mountains.plterrain",
-                "tau": 0.2,
-                "slope_start": 0.0,
-                "slope_end": 0.45,
-                "depth_bias": -100.0,
-                "slope_depth_bias": -10.0,
-                "wireframe": false,
+                "terrain": "/assets/terrains/mountains.plterrain", 
+                "tau": 0.2, 
+                "slope_start": 0.13, 
+                "slope_end": 0.43, 
+                "depth_bias": -100, 
+                "slope_depth_bias": -10, 
+                "wireframe": false, 
                 "show_levels": false
             }
         },
@@ -36,7 +35,7 @@
                 "name": "Damaged Helmet"
             }, 
             "transform": {                
-                "translation": [ -7964, 68, 1500 ], 
+                "translation": [ 3652, 1666, 3530 ], 
                 "rotation": [ 0.707106829, 0, 0, 0.707106829 ], 
                 "scale": [ 1, 1, 1 ]
             }, 
@@ -50,16 +49,16 @@
                 "renderable": true
             }
         },
-        {
-            "id": 3,
-            "tag": {
+        {            
+            "id": 3, 
+            "tag": {                
                 "name": "Probe 0"
-            },
+            }, 
             "transform": {                
-                "translation": [-7964, 73, 1500], 
-                "rotation": [0.0, 0.0, 0.0, 1.0], 
-                "scale": [1.0, 1.0, 1.0]
-            },
+                "translation": [ 3652, 1676, 3533 ], 
+                "rotation": [ 0, 0, 0, 1 ], 
+                "scale": [ 1, 1, 1 ]
+            }, 
             "object": {                
                 "mesh": "/assets/meshes/probe.plmesh", 
                 "first_submesh": 0, 
@@ -67,38 +66,37 @@
                 "transform": 3, 
                 "casts_shadow": false, 
                 "receives_shadow": true, 
-                "renderable": true
+                "renderable": false
             }, 
-            "probe": {
-                "range": 10000.0,
-                "resolution": 128,
-                "samples": 128,
-                "interval": 1,
-                "include_sky": true,
-                "realtime": false
+            "probe": {                
+                "resolution": 128, 
+                "samples": 128, 
+                "interval": 1, 
+                "range": 10000, 
+                "realtime": false, 
+                "include_sky": true
             }
         },
-        {
-            "id": 4,
-            "tag": {
+        {            
+            "id": 4, 
+            "tag": {                
                 "name": "Main Camera"
-            },
-            "camera": {
-                "projection": "perspective",
-                "depth_mode": "reverse",
-                "yfov": 1.04719755,
-                "near": 0.1,
-                "far": 100000.0,
-                "pitch": -0.325,
-                "yaw": 2.569,
-                "roll": 0.0,
-                "position": [-7964, 69, 1504]
-            },
-            "script": {
-                "file": "pl_script_camera",
-                "playing": true,
+            }, 
+            "script": {                
+                "file": "pl_script_camera", 
+                "playing": true, 
+                "play_once": false, 
                 "reloadable": true
+            }, 
+            "camera": {                
+                "projection": "perspective", 
+                "position": [ 3652.0315718013735, 1666.8123762756586, 3534.9376658014953 ], 
+                "near": 0.100000001, 
+                "far": 100000, 
+                "pitch": -0.195000052, 
+                "yaw": 3.12399888, 
+                "roll": 0, 
+                "yfov": 1.04719758
             }
-        }
-    ]
+        } ]
 }

@@ -26,6 +26,7 @@ assets/materials/*
 !assets/materials/rock.plmaterial
 !assets/materials/snow.plmaterial
 !assets/materials/sand.plmaterial
+!assets/materials/dirt.plmaterial
 
 assets/meshes/*
 !assets/meshes/plane.plmesh

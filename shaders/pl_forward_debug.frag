@@ -55,7 +55,7 @@ void main()
 {
 
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
-    vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.aiTextureUVSet[PL_TEXTURE_BASE_COLOR]);
+    vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.aiTextureUVSet[PL_TEXTURE_BASE_COLOR], tObjectInfo.tData.iMaterialIndex);
 
     if(material.eAlphaMode == PL_SHADER_ALPHA_MODE_OPAQUE)
     {
@@ -63,7 +63,7 @@ void main()
     }
     vec3 color = vec3(0);
 
-    NormalInfo tNormalInfo = pl_get_normal_info();
+    NormalInfo tNormalInfo = pl_get_normal_info(tObjectInfo.tData.iMaterialIndex);
 
     vec3 n = tNormalInfo.n;
     vec3 t = tNormalInfo.t;
@@ -83,46 +83,46 @@ void main()
     materialInfo.f0_dielectric = vec3(0.04);
     materialInfo.specularWeight = 1.0;
 
-    materialInfo = getIorInfo(materialInfo);
+    materialInfo = getIorInfo(materialInfo, tObjectInfo.tData.iMaterialIndex);
 
     // if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
     {
-        materialInfo = getMetallicRoughnessInfo(materialInfo, material.fMetallicFactor, material.fRoughnessFactor);
+        materialInfo = getMetallicRoughnessInfo(materialInfo, material.fMetallicFactor, material.fRoughnessFactor, tObjectInfo.tData.iMaterialIndex);
     }
 
     if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
     {
-        materialInfo = getSheenInfo(materialInfo, material.tSheenColorFactor, material.fSheenRoughnessFactor);
+        materialInfo = getSheenInfo(materialInfo, material.tSheenColorFactor, material.fSheenRoughnessFactor, tObjectInfo.tData.iMaterialIndex);
     }
 
     if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
     {
-        materialInfo = getClearCoatInfo(materialInfo, tNormalInfo, material.fClearcoatFactor, material.fClearcoatRoughnessFactor);
+        materialInfo = getClearCoatInfo(materialInfo, tNormalInfo, material.fClearcoatFactor, material.fClearcoatRoughnessFactor, tObjectInfo.tData.iMaterialIndex);
     }
 
     if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
     {
-        materialInfo = getTransmissionInfo(materialInfo, material.fTransmissionFactor);
+        materialInfo = getTransmissionInfo(materialInfo, material.fTransmissionFactor, tObjectInfo.tData.iMaterialIndex);
     }
 
     if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
     {
-        materialInfo = getVolumeInfo(materialInfo);
+        materialInfo = getVolumeInfo(materialInfo, tObjectInfo.tData.iMaterialIndex);
     }
 
     if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
     {
-        materialInfo = getIridescenceInfo(materialInfo, material.fIridescenceFactor, material.fIridescenceIor, material.fIridescenceThicknessMax, material.fIridescenceThicknessMin);
+        materialInfo = getIridescenceInfo(materialInfo, material.fIridescenceFactor, material.fIridescenceIor, material.fIridescenceThicknessMax, material.fIridescenceThicknessMin, tObjectInfo.tData.iMaterialIndex);
     }
 
     if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
     {
-        materialInfo = getDiffuseTransmissionInfo(materialInfo);
+        materialInfo = getDiffuseTransmissionInfo(materialInfo, tObjectInfo.tData.iMaterialIndex);
     }
 
     if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
     {
-        materialInfo = getAnisotropyInfo(materialInfo, tNormalInfo, material.tAnisotropy);
+        materialInfo = getAnisotropyInfo(materialInfo, tNormalInfo, material.tAnisotropy, tObjectInfo.tData.iMaterialIndex);
     }
 
     materialInfo.perceptualRoughness = clamp(materialInfo.perceptualRoughness, 0.0, 1.0);
@@ -165,7 +165,7 @@ void main()
     float ao = 1.0;
     if(bool(material.iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
-        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_OCCLUSION])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_OCCLUSION)).r;
+        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_OCCLUSION])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_OCCLUSION, tObjectInfo.tData.iMaterialIndex)).r;
         color = color * (1.0 + material.fOcclusionStrength * (ao - 1.0)); 
     }
 
@@ -176,7 +176,7 @@ void main()
         f_emissive = material.tEmissiveFactor * material.fEmissiveStrength;
         if(bool(material.iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
         {
-            f_emissive *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_EMISSIVE])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_EMISSIVE)).rgb);
+            f_emissive *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_EMISSIVE])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_EMISSIVE, tObjectInfo.tData.iMaterialIndex)).rgb);
         }
     }
 
@@ -310,7 +310,7 @@ void main()
             vec2 direction = vec2(1.0, 0.0);
             if(bool(material.iTextureMappingFlags & PL_HAS_ANISOTROPY_MAP))
             {
-                direction = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_ANISOTROPY])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_ANISOTROPY)).xy;
+                direction = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_ANISOTROPY])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_ANISOTROPY, tObjectInfo.tData.iMaterialIndex)).xy;
                 direction = direction * 2.0 - vec2(1.0); // [0, 1] -> [-1, 1]
             }
             vec2 directionRotation = material.tAnisotropy.xy; // cos(theta), sin(theta)
