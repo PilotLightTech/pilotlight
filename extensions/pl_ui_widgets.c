@@ -1831,7 +1831,7 @@ pl_ui_input_float2(const char* pcLabel, float* afValue, const char* pcFormat, pl
     {
         pl_ui_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, pcFormat, afValue[i]);
@@ -1878,7 +1878,7 @@ pl_ui_input_float3(const char* pcLabel, float* afValue, const char* pcFormat, pl
     {
         pl_ui_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, pcFormat, afValue[i]);
@@ -1920,15 +1920,16 @@ pl_ui_input_float4(const char* pcLabel, float* afValue, const char* pcFormat, pl
     pl_ui_push_id_string(pcLabel);
     bool bChanged = false;
 
+    const float fActualSubWidth = 2.0f * tWidgetSize.x / 12.0f;
+
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
         plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
-        const float fActualSubWidth = 2.0f * tWidgetSize.x / 12.0f;
         for(uint32_t i = 0; i < 4; i++)
         {
             pl_ui_push_id_uint(i);
             
-            plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+            plVec2 tSubWidgetSize = {fActualSubWidth, tWidgetSize.y};
             
             char acBuffer[64] = {0};
             pl_sprintf(acBuffer, pcFormat, afValue[i]);
@@ -2052,7 +2053,7 @@ pl_ui_input_int2(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
     {
         pl_ui_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%d", aiValue[i]);
@@ -2097,7 +2098,7 @@ pl_ui_input_int3(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
     {
         pl_ui_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%d", aiValue[i]);
@@ -2142,7 +2143,7 @@ pl_ui_input_int4(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
     {
         pl_ui_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%d", aiValue[i]);
@@ -2265,7 +2266,7 @@ pl_ui_input_uint2(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFl
     {
         pl_ui_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%u", auValue[i]);
@@ -2310,7 +2311,7 @@ pl_ui_input_uint3(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFl
     {
         pl_ui_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%u", auValue[i]);
@@ -2355,7 +2356,7 @@ pl_ui_input_uint4(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFl
     {
         pl_ui_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%u", auValue[i]);
@@ -4039,10 +4040,9 @@ pl_ui_color_edit3(const char* pcLabel, float colRGBA[3], plUiColorEditFlags tFla
 
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
-        
+        const float fActualSubWidth = ((2.0f * tWidgetSize.x / 3.0f) - fButtonSize) / 3.0f;
         plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
-        const float fActualSubWidth = 2.0f * (tWidgetSize.x - fButtonSize) / 9.0f;
-
+        
         static uint32_t sauColors[4] = {
             PL_COLOR_32_RED,
             PL_COLOR_32_GREEN,
@@ -4056,7 +4056,7 @@ pl_ui_color_edit3(const char* pcLabel, float colRGBA[3], plUiColorEditFlags tFla
 
             const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
             
-            plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+            plVec2 tSubWidgetSize = {fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
             
             char acBuffer[64] = {0};
             pl_sprintf(acBuffer, "%0.3f", colRGBA[i]);
@@ -4183,7 +4183,7 @@ pl_ui_color_edit4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tFla
     {
         
         plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
-        const float fActualSubWidth = 2.0f * (tWidgetSize.x - fButtonSize) / 12.0f;
+        const float fActualSubWidth = ((2.0f * tWidgetSize.x / 3.0f) - fButtonSize) / 4.0f;
 
         static uint32_t sauColors[4] = {
             PL_COLOR_32_RED,
@@ -4198,7 +4198,7 @@ pl_ui_color_edit4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tFla
 
             const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
             
-            plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+            plVec2 tSubWidgetSize = {fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
             
             char acBuffer[64] = {0};
             pl_sprintf(acBuffer, "%0.3f", colRGBA[i]);

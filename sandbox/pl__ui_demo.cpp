@@ -84,6 +84,10 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                 gptUI->input_float3("input float 3", afFloatArray, "%0.3f", 0);
                 gptUI->input_float4("input float 4", afFloatArray, "%0.3f", 0);
 
+                static plVec4 tColor = {1.0f, 0.0f, 1.0f, 0.75f};
+                gptUI->color_edit3("Color Edit 3", tColor.d, 0, tColor.d);
+                gptUI->color_edit4("Color Edit 4", tColor.d, 0, tColor.d);
+
                 if(gptUI->menu_item("Menu item 0", NULL, false, true))
                 {
                     printf("menu item 0\n");
