@@ -67,6 +67,19 @@ typedef struct _plTerrainChunkFile plTerrainChunkFile;
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plTerrainMeshScratch
+{
+    plTrianglePrimitive* sbtWork;
+    plTrianglePrimitive* sbtLeaves;
+    uint32_t*            sbuUniqueVertices;
+
+    plTerrainVertex*     atVertices;
+    uint32_t*            atIndices;
+
+    uint32_t             uVertexCapacity;
+    uint32_t             uIndexCapacity;
+} plTerrainMeshScratch;
+
 typedef struct _plTerrainMapElement
 {
     int16_t  iX;
@@ -128,7 +141,8 @@ typedef struct _plTerrainHeightMap
 
 typedef struct _plTerrainContext
 {
-    plAssetTypeKey tAssetTypeKey;
+    plAssetTypeKey       tAssetTypeKey;
+    plTerrainMeshScratch tMeshScratch;
 } plTerrainContext;
 
 //-----------------------------------------------------------------------------
@@ -168,6 +182,37 @@ static plTerrainContext* gptTerrainCtx = NULL;
 //-----------------------------------------------------------------------------
 // [SECTION] internal helpers (preprocessing)
 //-----------------------------------------------------------------------------
+
+static void
+pl__terrain_reset_scratch(void)
+{
+    pl_sb_reset(gptTerrainCtx->tMeshScratch.sbtWork);
+    pl_sb_reset(gptTerrainCtx->tMeshScratch.sbtLeaves);
+    pl_sb_reset(gptTerrainCtx->tMeshScratch.sbuUniqueVertices);
+}
+
+static void
+pl__terrain_free_scratch(void)
+{
+    pl_sb_free(gptTerrainCtx->tMeshScratch.sbtWork);
+    pl_sb_free(gptTerrainCtx->tMeshScratch.sbtLeaves);
+    pl_sb_free(gptTerrainCtx->tMeshScratch.sbuUniqueVertices);
+
+    if(gptTerrainCtx->tMeshScratch.atIndices)
+    {
+        PL_FREE(gptTerrainCtx->tMeshScratch.atIndices);
+        gptTerrainCtx->tMeshScratch.atIndices = NULL;
+    }
+
+    if(gptTerrainCtx->tMeshScratch.atVertices)
+    {
+        PL_FREE(gptTerrainCtx->tMeshScratch.atVertices);
+        gptTerrainCtx->tMeshScratch.atVertices = NULL;
+    }
+
+    gptTerrainCtx->tMeshScratch.uVertexCapacity = 0;
+    gptTerrainCtx->tMeshScratch.uIndexCapacity = 0;
+}
 
 static inline int
 pl__lowest_one(int x)
@@ -348,7 +393,6 @@ pl_terrain_process(plTerrainAsset* ptInfo)
         for(int j = 0; j < tHeightMap.iLogSize; j++)
         {
             pl__propagate_activation_level(&tHeightMap, tHeightMap.iSize >> 1, tHeightMap.iSize >> 1, tHeightMap.iLogSize - 1, j);
-            pl__propagate_activation_level(&tHeightMap, tHeightMap.iSize >> 1, tHeightMap.iSize >> 1, tHeightMap.iLogSize - 1, j);
         }
 
         // meshing step
@@ -381,6 +425,8 @@ pl_terrain_process(plTerrainAsset* ptInfo)
 
         fclose(ptDataFile);
     }
+
+    pl__terrain_free_scratch();
 }
 
 static void pl__chlod_read_chunk(plTerrainChunkFile* ptFileOut, int iRecurseCount, FILE* ptDataFile, uint32_t* puCurrentChunk);
@@ -706,7 +752,7 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainAsset* 
         {
             float* pufImageData = gptImage->load_hdr(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
             uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
-            uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
+            uint16_t* puConvertedData = PL_ALLOC(sizeof(uint16_t) * uPixelCount);
 
             // scale for 16 bit
             for(uint32_t i = 0; i < uPixelCount; i++)
@@ -721,7 +767,7 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainAsset* 
         {
             uint8_t* puImageData = gptImage->load(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
             uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
-            uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
+            uint16_t* puConvertedData = PL_ALLOC(sizeof(uint16_t) * uPixelCount);
 
             // scale for 16 bit
             for(uint32_t i = 0; i < uPixelCount; i++)
@@ -859,7 +905,7 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainAsset* 
     {
         float* pufImageData = gptImage->load_hdr(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
         uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
-        uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
+        uint16_t* puConvertedData = PL_ALLOC(sizeof(uint16_t) * uPixelCount);
 
         // scale for 16 bit
         for(uint32_t i = 0; i < uPixelCount; i++)
@@ -874,7 +920,7 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainAsset* 
     {
         uint8_t* puImageData = gptImage->load(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
         uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
-        uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
+        uint16_t* puConvertedData = PL_ALLOC(sizeof(uint16_t) * uPixelCount);
 
         // scale for 16 bit
         for(uint32_t i = 0; i < uPixelCount; i++)
@@ -891,17 +937,14 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainAsset* 
     uint32_t uMaxX = (uint32_t)iImageWidth;
     uint32_t uMaxY = (uint32_t)iImageHeight;
 
-    for(uint32_t i = 0; i < (uint32_t)iImageWidth; i++)
+    const uint16_t* puSource = (const uint16_t*)pucImageData;
+
+    for(int j = 0; j < iImageHeight; j++)
     {
-        for(uint32_t j = 0; j < (uint32_t)iImageHeight; j++)
-        {
-            uint16_t uRawValue = *(uint16_t*)&pucImageData[(i + j * iImageWidth) * sizeof(uint16_t)];
-
-            uint32_t uGlobalXIndex = i;
-            uint32_t uGlobalYIndex = j;
-
-            auHeightMapData[uGlobalYIndex * ptHeightMap->iSize + uGlobalXIndex] = uRawValue;
-        }
+        memcpy(
+            &auHeightMapData[j * ptHeightMap->iSize],
+            &puSource[j * iImageWidth],
+            (size_t)iImageWidth * sizeof(uint16_t));
     }
 
     if(pImageData)
@@ -1145,48 +1188,45 @@ pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX
 
     // top-down refinement -----------------------------
 
-    plTrianglePrimitive* sbtWork   = NULL;
-    plTrianglePrimitive* sbtLeaves = NULL;
-
-    pl_sb_push(sbtWork, tRoot0);
-    pl_sb_push(sbtWork, tRoot1);
+    pl_sb_push(gptTerrainCtx->tMeshScratch.sbtWork, tRoot0);
+    pl_sb_push(gptTerrainCtx->tMeshScratch.sbtWork, tRoot1);
 
     // “force mate to split” table keyed by base-edge at a given level
     // value is unused; we just need membership
     plHashMap tRequiredSplit = {0};
 
-    while(pl_sb_size(sbtWork) > 0)
+    while(pl_sb_size(gptTerrainCtx->tMeshScratch.sbtWork) > 0)
     {
-        plTrianglePrimitive t = pl_sb_pop(sbtWork);
+        plTrianglePrimitive t = pl_sb_pop(gptTerrainCtx->tMeshScratch.sbtWork);
 
         // Stop if already at max depth
         if(t.uLevel == uMaxLevel)
         {
-            pl_sb_push(sbtLeaves, t);
+            pl_sb_push(gptTerrainCtx->tMeshScratch.sbtLeaves, t);
             continue;
         }
 
         // If our base-edge was marked as “must split”, force it
-        plEdgeKey tBaseKey = pl__base_edge_key(t.uLevel, t.uLeft, t.uRight);
-        uint64_t uBaseHash = pl_hm_hash(&tBaseKey, sizeof(plEdgeKey), 0);
-        const bool bForced = pl_hm_has_key(&tRequiredSplit, uBaseHash);
+        // plEdgeKey tBaseKey = pl__base_edge_key(t.uLevel, t.uLeft, t.uRight);
+        // uint64_t uBaseHash = pl_hm_hash(&tBaseKey, sizeof(plEdgeKey), 0);
+        // const bool bForced = pl_hm_has_key(&tRequiredSplit, uBaseHash);
 
         // If midpoint activation is >= iLevel => we MUST keep the split => so top-down we split.
         const int iActivation = pl__mid_activation(ptHeightMap, t.uLeft, t.uRight);
-        const bool bShouldSplit = bForced || (iActivation >= iLevel);
+        // const bool bShouldSplit = bForced || (iActivation >= iLevel);
 
-        if(!bShouldSplit)
+        if(iActivation < iLevel)
         {
             // keep as leaf
-            pl_sb_push(sbtLeaves, t);
+            pl_sb_push(gptTerrainCtx->tMeshScratch.sbtLeaves, t);
             continue;
         }
 
         // If we split this triangle, its mate across the base must also be split to avoid T-junctions.
         // Mark the base-edge as “required split” at this level. When mate is encountered it will split too.
         // (If the mate never exists because boundary, this is harmless.)
-        if(!pl_hm_has_key(&tRequiredSplit, uBaseHash))
-            pl_hm_insert(&tRequiredSplit, uBaseHash, 1);
+        // if(!pl_hm_has_key(&tRequiredSplit, uBaseHash))
+        //     pl_hm_insert(&tRequiredSplit, uBaseHash, 1);
 
         // split into 2 children
         plTerrainMapElement* ptR = &(ptHeightMap->atElements[t.uRight]);
@@ -1211,41 +1251,44 @@ pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX
             .uRight = t.uApex
         };
 
-        pl_sb_push(sbtWork, c0);
-        pl_sb_push(sbtWork, c1);
+        pl_sb_push(gptTerrainCtx->tMeshScratch.sbtWork, c0);
+        pl_sb_push(gptTerrainCtx->tMeshScratch.sbtWork, c1);
     }
 
     pl_hm_free(&tRequiredSplit);
-    pl_sb_free(sbtWork);
+    pl_sb_free(gptTerrainCtx->tMeshScratch.sbtWork);
 
     // ------------------------------------------------
     // Unique vertex gathering
     plVec3 tMinBounding = { .x = FLT_MAX,  .y = FLT_MAX,  .z = FLT_MAX };
     plVec3 tMaxBounding = { .x = -FLT_MAX, .y = -FLT_MAX, .z = -FLT_MAX };
 
-    uint32_t uPresentCount = (uint32_t)pl_sb_size(sbtLeaves);
+    uint32_t uPresentCount = (uint32_t)pl_sb_size(gptTerrainCtx->tMeshScratch.sbtLeaves);
 
-    uint32_t* sbuUniqueVertices = NULL;
     for(uint32_t it = 0; it < uPresentCount; it++)
     {
-        plTrianglePrimitive t = sbtLeaves[it];
+        plTrianglePrimitive t = gptTerrainCtx->tMeshScratch.sbtLeaves[it];
 
         plTerrainMapElement* e0 = &(ptHeightMap->atElements[t.uApex]);
         plTerrainMapElement* e1 = &(ptHeightMap->atElements[t.uRight]);
         plTerrainMapElement* e2 = &(ptHeightMap->atElements[t.uLeft]);
 
-        if(e0->uFrameStamp != ptHeightMap->uFrameStamp) { e0->uVertexBufferIndex = pl_sb_size(sbuUniqueVertices); e0->uFrameStamp = ptHeightMap->uFrameStamp; pl_sb_push(sbuUniqueVertices, t.uApex); }
-        if(e1->uFrameStamp != ptHeightMap->uFrameStamp) { e1->uVertexBufferIndex = pl_sb_size(sbuUniqueVertices); e1->uFrameStamp = ptHeightMap->uFrameStamp; pl_sb_push(sbuUniqueVertices, t.uRight); }
-        if(e2->uFrameStamp != ptHeightMap->uFrameStamp) { e2->uVertexBufferIndex = pl_sb_size(sbuUniqueVertices); e2->uFrameStamp = ptHeightMap->uFrameStamp; pl_sb_push(sbuUniqueVertices, t.uLeft); }
+        if(e0->uFrameStamp != ptHeightMap->uFrameStamp) { e0->uVertexBufferIndex = pl_sb_size(gptTerrainCtx->tMeshScratch.sbuUniqueVertices); e0->uFrameStamp = ptHeightMap->uFrameStamp; pl_sb_push(gptTerrainCtx->tMeshScratch.sbuUniqueVertices, t.uApex); }
+        if(e1->uFrameStamp != ptHeightMap->uFrameStamp) { e1->uVertexBufferIndex = pl_sb_size(gptTerrainCtx->tMeshScratch.sbuUniqueVertices); e1->uFrameStamp = ptHeightMap->uFrameStamp; pl_sb_push(gptTerrainCtx->tMeshScratch.sbuUniqueVertices, t.uRight); }
+        if(e2->uFrameStamp != ptHeightMap->uFrameStamp) { e2->uVertexBufferIndex = pl_sb_size(gptTerrainCtx->tMeshScratch.sbuUniqueVertices); e2->uFrameStamp = ptHeightMap->uFrameStamp; pl_sb_push(gptTerrainCtx->tMeshScratch.sbuUniqueVertices, t.uLeft); }
     }
 
-    uint32_t uVertexCount = (uint32_t)pl_sb_size(sbuUniqueVertices);
-    plTerrainVertex* atVertexData = PL_ALLOC(uVertexCount * sizeof(plTerrainVertex));
+    uint32_t uVertexCount = (uint32_t)pl_sb_size(gptTerrainCtx->tMeshScratch.sbuUniqueVertices);
+    if(uVertexCount > gptTerrainCtx->tMeshScratch.uVertexCapacity)
+    {
+        gptTerrainCtx->tMeshScratch.atVertices = PL_ALLOC(uVertexCount * sizeof(plTerrainVertex));
+        gptTerrainCtx->tMeshScratch.uVertexCapacity = uVertexCount;
+    }
 
     for(uint32_t i = 0; i < uVertexCount; i++)
     {
-        plTerrainMapElement* e = &(ptHeightMap->atElements[sbuUniqueVertices[i]]);
-        plTerrainVertex* v = &atVertexData[e->uVertexBufferIndex];
+        plTerrainMapElement* e = &(ptHeightMap->atElements[gptTerrainCtx->tMeshScratch.sbuUniqueVertices[i]]);
+        plTerrainVertex* v = &gptTerrainCtx->tMeshScratch.atVertices[e->uVertexBufferIndex];
 
         v->tPosition = pl__get_cartesian(ptHeightMap, e);
         v->tNormal   = pl__get_normal(ptHeightMap, e);
@@ -1259,41 +1302,42 @@ pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX
         if(v->tPosition.z < tMinBounding.z) tMinBounding.z = v->tPosition.z;
         if(v->tPosition.z > tMaxBounding.z) tMaxBounding.z = v->tPosition.z;
     }
-    pl_sb_free(sbuUniqueVertices);
 
     // Indices from leaves
     uint32_t uIndexCount = 3u * uPresentCount;
-    uint32_t* atIndexData = PL_ALLOC(uIndexCount * sizeof(uint32_t));
+
+    if(uIndexCount > gptTerrainCtx->tMeshScratch.uIndexCapacity)
+    {
+        gptTerrainCtx->tMeshScratch.atIndices = PL_ALLOC(uIndexCount * sizeof(uint32_t));
+        gptTerrainCtx->tMeshScratch.uIndexCapacity = uIndexCount;
+    }
 
     uint32_t uCurrentIndex = 0;
     for(uint32_t it = 0; it < uPresentCount; it++)
     {
-        plTrianglePrimitive t = sbtLeaves[it];
+        plTrianglePrimitive t = gptTerrainCtx->tMeshScratch.sbtLeaves[it];
 
         plTerrainMapElement* e0 = &(ptHeightMap->atElements[t.uApex]);
         plTerrainMapElement* e1 = &(ptHeightMap->atElements[t.uRight]);
         plTerrainMapElement* e2 = &(ptHeightMap->atElements[t.uLeft]);
 
-        atIndexData[uCurrentIndex + 0] = e0->uVertexBufferIndex;
-        atIndexData[uCurrentIndex + 1] = e2->uVertexBufferIndex;
-        atIndexData[uCurrentIndex + 2] = e1->uVertexBufferIndex;
+        gptTerrainCtx->tMeshScratch.atIndices[uCurrentIndex + 0] = e0->uVertexBufferIndex;
+        gptTerrainCtx->tMeshScratch.atIndices[uCurrentIndex + 1] = e2->uVertexBufferIndex;
+        gptTerrainCtx->tMeshScratch.atIndices[uCurrentIndex + 2] = e1->uVertexBufferIndex;
         uCurrentIndex += 3;
     }
-
-    pl_sb_free(sbtLeaves);
 
     // Write out
     fwrite(&tMinBounding, 1, sizeof(plVec3), ptFile);
     fwrite(&tMaxBounding, 1, sizeof(plVec3), ptFile);
 
     fwrite(&uVertexCount, 1, sizeof(uint32_t), ptFile);
-    fwrite(atVertexData, 1, sizeof(plTerrainVertex) * uVertexCount, ptFile);
+    fwrite(gptTerrainCtx->tMeshScratch.atVertices, 1, sizeof(plTerrainVertex) * uVertexCount, ptFile);
 
     fwrite(&uIndexCount, 1, sizeof(uint32_t), ptFile);
-    fwrite(atIndexData,  1, sizeof(uint32_t) * uIndexCount, ptFile);
+    fwrite(gptTerrainCtx->tMeshScratch.atIndices,  1, sizeof(uint32_t) * uIndexCount, ptFile);
 
-    PL_FREE(atVertexData);
-    PL_FREE(atIndexData);
+    pl__terrain_reset_scratch();
 
     // Recurse into children chunks
     if(iLevel > 0)
@@ -1304,6 +1348,7 @@ pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX
         pl__terrain_mesh(ptFile, ptHeightMap, iStartIndexX + 0,         iStartIndexY + childHalf,     iLogSize - 1, iLevel - 1);
         pl__terrain_mesh(ptFile, ptHeightMap, iStartIndexX + childHalf, iStartIndexY + childHalf,     iLogSize - 1, iLevel - 1);
     }
+    
 }
 
 static plVec3
