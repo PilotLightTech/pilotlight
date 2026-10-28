@@ -656,7 +656,10 @@ pl_app_update(plAppData* ptAppData)
 
             plObjectComponent* ptSelectedObject = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
             if(ptSelectedObject)
+            {
                 ptSelectedObject->tFlags &= ~PL_OBJECT_FLAGS_OUTLINE;
+                ptSelectedObject->tFlags |= PL_OBJECT_FLAGS_DIRTY;
+            }
             
             if(!gptEcs->is_entity_valid(ptLibrary, tNextEntity))
             {
@@ -675,7 +678,10 @@ pl_app_update(plAppData* ptAppData)
             }
             ptSelectedObject = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
             if(ptSelectedObject)
+            {
                 ptSelectedObject->tFlags |= PL_OBJECT_FLAGS_OUTLINE;
+                ptSelectedObject->tFlags |= PL_OBJECT_FLAGS_DIRTY;
+            }
         }
 
         if(gptIO->is_key_pressed(PL_KEY_M, true))

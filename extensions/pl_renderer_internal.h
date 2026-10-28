@@ -159,7 +159,7 @@ Index of this file:
 // basic types
 typedef struct _plView                  plView;
 typedef struct _plScene                 plScene;
-typedef struct _plRendererData       plRendererData;
+typedef struct _plRendererData          plRendererData;
 typedef struct _plSkinData              plSkinData;
 typedef struct _plDrawable              plDrawable;
 typedef struct _plCullData              plCullData;
@@ -259,14 +259,15 @@ typedef struct _plDrawable
     uint32_t        uIndexOffset;
     uint32_t        uTriangleCount;
     uint32_t        uInstanceCount;
-    uint32_t        uTransformIndex;
-    uint32_t        uInstanceIndex; // used in shadows
+    uint32_t        uTransformIndex; // used in regular drawing (instance offset)
+    uint32_t        uInstanceIndex;  // used in shadows (instance offset)
     plDrawableFlags tFlags;
     bool            bCulled; // replace with better system soon
 } plDrawable;
 
 typedef struct _plDrawableResources
 {
+    plFreeListNode* ptTransformNode;
     plFreeListNode* ptIndexBufferNode;
     plFreeListNode* ptVertexBufferNode;
     plFreeListNode* ptDataBufferNode;
@@ -274,6 +275,7 @@ typedef struct _plDrawableResources
     uint32_t        uSubmeshIndex;
     uint32_t        uSubmeshCount;
     plEntity        tEntity;
+    plEntity*       sbtEntities; // for instancing
     uint32_t        uSkinIndex;
 } plDrawableResources;
 
@@ -395,6 +397,7 @@ typedef struct _plView
     // view based options
     bool bDrawLightsDebug;
     bool bDrawBoundingBoxesDebug;
+    bool bDrawObjectNames;
     bool bDrawBvhDebug;
     bool bFrustumCulling;
     bool bFreezeCameraNextFrame;
@@ -448,10 +451,10 @@ typedef struct _plScene
     plPackRect*       sbtShadowRects;
 
     // shadow atlas
-    plPackRect*       sbtShadowViewRects;
-    uint32_t          uSunShadowAtlasIndex;
-    uint32_t          uSunShadowAtlasResolution;
-    plPackRect        tSunPackRect;
+    plPackRect* sbtShadowViewRects;
+    uint32_t    uSunShadowAtlasIndex;
+    uint32_t    uSunShadowAtlasResolution;
+    plPackRect  tSunPackRect;
 
     // CPU buffers (temporary staging)
     uint32_t* sbuIndexBuffer;
@@ -464,6 +467,7 @@ typedef struct _plScene
     plHashMap64 tTextureIndexHashmap;     // texture handle <-> index
     plHashMap64 tCubeTextureIndexHashmap; // texture handle <-> index
     plHashMap64 tDrawableHashmap;         // entity <-> drawable
+    plHashMap64 tInstanceHashmap;         // entity <-> base entity
 
     // textures
     plTextureHandle tBrdfLutTexture;
@@ -604,10 +608,10 @@ typedef struct _plScene
     plSkinData* sbtSkinData;
     uint32_t*   sbuFreeSkinSlots;
 
-    // transform index management
-    uint32_t  uCurrentTransformIndex;
-    bool      bTransformRecyclingStarted;
-    uint32_t* sbuFreeTransformIndices;
+    // transform index & instancing management
+    uint32_t  uTransformCapacity;
+    uint32_t  uShadowInstanceCapacity;
+    plFreeList tTransformFreelist;
 
     // terrain
     plEntity   tTerrain;
@@ -739,10 +743,6 @@ static plRendererData* gptData = NULL;
 // misc.
 static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice, uint32_t uSize){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock, uSize);}
 static bool pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex, uint32_t uSubmeshIndex);
-
-// transform index management
-static uint32_t pl__renderer_get_transform_slot(plScene*);
-static void     pl__renderer_return_transform_slot(plScene*, uint32_t);
 
 // drawable index management
 static uint32_t pl__renderer_get_drawable_slot   (plScene*);

@@ -589,6 +589,7 @@ Index of this file:
 
 #include <string.h> // memset
 #include <stdbool.h>
+#include <stdio.h>
 
 #ifndef pl_snprintf
     #include <stdio.h>

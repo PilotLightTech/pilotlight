@@ -845,10 +845,10 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         gptUI->text("Submeshes:       %u", ptObjectComp->uSubmeshCount);
                         gptUI->text("Transform Entity: %s, %u", ptTransformTagComp->pcName, ptObjectComp->tTransform.uIndex);
 
-                        gptUI->checkbox_flags("Renderable", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RENDERABLE);
-                        gptUI->checkbox_flags("Cast Shadow", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_CAST_SHADOW);
-                        gptUI->checkbox_flags("Receive Shadow", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RECEIVE_SHADOW);
-                        gptUI->checkbox_flags("Outline", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_OUTLINE);
+                        if(gptUI->checkbox_flags("Renderable", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RENDERABLE)) ptObjectComp->tFlags |= PL_OBJECT_FLAGS_DIRTY;
+                        if(gptUI->checkbox_flags("Cast Shadow", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_CAST_SHADOW)) ptObjectComp->tFlags |= PL_OBJECT_FLAGS_DIRTY;
+                        if(gptUI->checkbox_flags("Receive Shadow", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RECEIVE_SHADOW)) ptObjectComp->tFlags |= PL_OBJECT_FLAGS_DIRTY;
+                        if(gptUI->checkbox_flags("Outline", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_OUTLINE)) ptObjectComp->tFlags |= PL_OBJECT_FLAGS_DIRTY;
 
                         if(ptObjectComp->atMaterialOverrides)
                         {

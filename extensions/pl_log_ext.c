@@ -304,3 +304,11 @@ pl_unload_log_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     pl__cleanup_log_context();
 }
+
+#ifndef PL_UNITY_BUILD
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+#endif

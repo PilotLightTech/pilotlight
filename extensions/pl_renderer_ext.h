@@ -400,7 +400,8 @@ enum _plObjectFlags
     PL_OBJECT_FLAGS_RENDERABLE     = 1 << 0,
     PL_OBJECT_FLAGS_CAST_SHADOW    = 1 << 1,
     PL_OBJECT_FLAGS_RECEIVE_SHADOW = 1 << 2,
-    PL_OBJECT_FLAGS_OUTLINE        = 1 << 3
+    PL_OBJECT_FLAGS_OUTLINE        = 1 << 3,
+    PL_OBJECT_FLAGS_DIRTY          = 1 << 4
 };
 
 enum _plRenderSceneFlags
