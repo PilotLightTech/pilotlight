@@ -604,6 +604,8 @@ pl_app_update(plAppData* ptAppData)
         ptAppData->bResize = false;
     }
 
+    gptAssetTools->run();
+
     if(ptAppData->ptScene)
     {
         plComponentLibrary* ptLibrary = (plComponentLibrary*)gptAsset->get_data(ptAppData->tSceneHandle);
@@ -678,8 +680,6 @@ pl_app_update(plAppData* ptAppData)
 
         if(gptIO->is_key_pressed(PL_KEY_M, true))
             gptGizmo->next_mode();
-
-        gptAssetTools->run();
 
         plEcsChange* atEcsChanges = NULL;
         uint32_t uEcsChangeCount = 0;
@@ -812,11 +812,15 @@ pl_app_update(plAppData* ptAppData)
         if(gptUI->begin_window("Select Dev Scene", NULL, PL_UI_WINDOW_FLAGS_NO_MOVE | PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE))
         { 
             // gptUI->layout_static(0.0f, 100.0f, 2);
-            float afSizes[] = {100.0f, 200.0f};
-            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, afSizes);
+            float afSizes[] = {100.0f, 100.0f, 120.0f, 120.0f};
+            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 4, afSizes);
             if(gptUI->button("Refresh"))
                 pl__refresh_files(ptAppData);
-            gptUI->checkbox("Show Import Options", &ptAppData->bShowImportOptions);
+            if(gptUI->button("Clear Assets"))
+                gptAsset->clear_assets();
+            if(gptUI->button("Load Assets"))
+                pl__load_assets(ptAppData);
+            gptUI->checkbox("Imports", &ptAppData->bShowImportOptions);
             gptUI->layout_dynamic(ptIO->tMainViewportSize.y * 0.35f, 1);
 
             if(gptUI->begin_child("Scenes", 0, 0))
@@ -987,8 +991,6 @@ pl_app_update(plAppData* ptAppData)
         &tRenderInfo);
         
     gptStarter->end_main_pass();
-
-
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     gptStarter->end_frame();

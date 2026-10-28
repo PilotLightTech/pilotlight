@@ -47,6 +47,10 @@ Index of this file:
 #else
 
 static const plMemoryI*   gptMemory = NULL;
+#define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+#define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
 static const plEcsI*      gptEcs      = NULL;
 static const plAnimationI*  gptAnimation = NULL;
 static const plUiI*       gptUI       = NULL;
@@ -1300,21 +1304,26 @@ pl_asset_tools_show_assets(bool* bValue)
             gptUI->layout_dynamic(tWindowSize.y - 80.0f, 1);
             if(gptUI->begin_child("Assets Right", 0, 0))
             {
+                bool bDestroy = false;
                 gptUI->layout_dynamic(0.0f, 1);
                 gptUI->labeled_text("Path", "%s", gptAsset->get_path(tAssetHandle));
                 gptUI->labeled_text("Type", "%u", gptAsset->get_type_key(tAssetHandle));
 
-                gptUI->layout_static(0.0f, 150.0f, 2);
-                if(gptUI->button("Load"))          gptAsset->load(gptAsset->get_path(tAssetHandle));
+                gptUI->layout_static(0.0f, 150.0f, 4);
+                if(gptUI->button("Load"))   gptAsset->load(gptAsset->get_path(tAssetHandle));
+                if(gptUI->button("Reload")) gptAsset->reload(tAssetHandle);
+                if(gptUI->button("Update")) gptAsset->mark_changed(tAssetHandle);
+                if(gptUI->button("Unload")) bDestroy = true;
+
+                gptUI->layout_static(0.0f, 150.0f, 3);
+
                 if(gptUI->button("Save"))          gptAsset->save(tAssetHandle, PL_ASSET_ENCODING_AUTO);
                 if(gptUI->button("Save (text)"))   gptAsset->save(tAssetHandle, PL_ASSET_ENCODING_TEXT);
                 if(gptUI->button("Save (binary)")) gptAsset->save(tAssetHandle, PL_ASSET_ENCODING_BINARY);
 
                 gptUI->layout_static(0.0f, 150.0f, 1);
-                if(gptUI->button("Update"))
-                {
-                    gptAsset->mark_changed(tAssetHandle);
-                }
+                
+
                 gptUI->layout_dynamic(0.0f, 1);
 
                 if(tAssetType == gptMaterial->get_asset_type_key())
@@ -1783,12 +1792,6 @@ pl_asset_tools_show_assets(bool* bValue)
                 {
                     plRenderEnvironment* ptEnvironment = gptAsset->get_data(tAssetHandle);
 
-                    gptUI->layout_static(0.0f, 75.0f, 1);
-                    if(gptUI->button("Update"))
-                    {
-                        gptAsset->mark_changed(tAssetHandle);
-                    }
-
                     gptUI->layout_dynamic(0.0f, 1);
                     gptUI->radio_button("Method: None", &ptEnvironment->eMode, PL_RENDERER_SKY_MODE_NONE);
                     gptUI->radio_button("Method: Skybox", &ptEnvironment->eMode, PL_RENDERER_SKY_MODE_SKYBOX);
@@ -1960,6 +1963,9 @@ pl_asset_tools_show_assets(bool* bValue)
                     // separate window below
                 }
                 gptUI->end_child();
+
+                if(bDestroy)
+                    gptAsset->destroy(tAssetHandle);
             }
             gptUI->end_window();
         }

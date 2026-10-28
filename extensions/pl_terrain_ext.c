@@ -550,9 +550,17 @@ pl__terrain_cleanup(void* pTerrain)
     //     ptTile->
     // }
 
-    PL_FREE(ptTerrain->atElevationZones);
-    PL_FREE(ptTerrain->atTiles);
+    if(ptTerrain->atElevationZones)
+    {
+        PL_FREE(ptTerrain->atElevationZones);
+    }
+
+    if(ptTerrain->atTiles)
+    {
+        PL_FREE(ptTerrain->atTiles);
+    }
     ptTerrain->atTiles = NULL;
+    ptTerrain->atElevationZones = NULL;
 }
 
 static bool

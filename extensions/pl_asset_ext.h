@@ -77,9 +77,10 @@ PL_API void pl_unload_asset_ext(plApiRegistryI*, bool reload);
 typedef struct _plAssetI
 {
     // system
-    void (*initialize)(plAssetInit);
-    void (*finalize)  (void);
-    void (*cleanup)   (void);
+    void (*initialize)  (plAssetInit);
+    void (*finalize)    (void);
+    void (*cleanup)     (void);
+    void (*clear_assets)(void);
 
     // Creates an asset and copies szSize bytes from data into asset-owned storage.
     // data may be NULL to create a zero-initialized asset.
@@ -100,8 +101,9 @@ typedef struct _plAssetI
     void (*mark_changed) (plAssetHandle);
 
     // serialization
-    plAssetHandle (*load)(const char*);
-    bool          (*save)(plAssetHandle, plAssetEncoding);
+    plAssetHandle (*load)  (const char*);
+    void          (*reload)(plAssetHandle);
+    bool          (*save)  (plAssetHandle, plAssetEncoding);
 
     // type registration
     plAssetTypeKey         (*register_type)       (plAssetTypeDesc);

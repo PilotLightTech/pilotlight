@@ -489,6 +489,22 @@ pl_asset_destroy(plAssetHandle tHandle)
     gptAssetCtx->sbtAssets[tHandle.uIndex].uVersion = UINT32_MAX;
 }
 
+void
+pl_asset_clear_assets(void)
+{
+    uint32_t uAssetCount = pl_sb_size(gptAssetCtx->sbtAssets);
+    for(uint32_t i = 0; i < uAssetCount; i++)
+    {
+        plAssetHandle tHandle = {
+            .uIndex = i,
+            .uGeneration = gptAssetCtx->sbtAssetGenerations[i]
+        };
+        if(gptAssetCtx->sbtAssets[tHandle.uIndex].pcName != NULL)
+            pl_asset_destroy(tHandle);
+    }
+    
+}
+
 plAssetHandle
 pl_asset_load(const char* pcFile)
 {
@@ -502,7 +518,6 @@ pl_asset_load(const char* pcFile)
         return tAsset;
     }
     
-
     // find new asset home slot
     uint64_t uIndex = pl_hm_get_free_index(&gptAssetCtx->tAssetLookup);
     if(uIndex == PL_DS_HASH_INVALID)
@@ -574,6 +589,18 @@ pl_asset_load(const char* pcFile)
     return tNewAsset;
 }
 
+void
+pl_asset_reload(plAssetHandle tAssetHandle)
+{
+    if(!pl_asset_is_valid(tAssetHandle))
+        return;
+
+    plAsset* ptAsset = &gptAssetCtx->sbtAssets[tAssetHandle.uIndex];
+
+    plAssetRegisteredType* ptType = &gptAssetCtx->sbtTypeDescriptions[ptAsset->tType];
+    ptType->tDesc.deserialize(ptAsset->pcName, &((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize]);
+}
+
 bool
 pl_asset_save(plAssetHandle tHandle, plAssetEncoding tEncoding)
 {
@@ -637,6 +664,7 @@ pl_load_asset_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .initialize            = pl_asset_initialize,
         .finalize              = pl_asset_finalize,
         .cleanup               = pl_asset_cleanup,
+        .clear_assets          = pl_asset_clear_assets,
         .load                  = pl_asset_load,
         .find                  = pl_asset_find,
         .create                = pl_asset_create,
@@ -647,6 +675,7 @@ pl_load_asset_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .clear_changes         = pl_asset_clear_changes,
         .mark_changed          = pl_asset_mark_changed,
         .save                  = pl_asset_save,
+        .reload                = pl_asset_reload,
         .get_path              = pl_asset_get_path,
         .get_source_path       = pl_asset_get_source_path,
         .is_valid              = pl_asset_is_valid,
