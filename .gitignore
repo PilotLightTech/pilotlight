@@ -31,6 +31,7 @@ assets/materials/*
 assets/meshes/*
 !assets/meshes/plane.plmesh
 !assets/meshes/probe.plmesh
+!assets/meshes/sphere.plmesh
 
 assets/models/*
 !assets/models/cube.plscene

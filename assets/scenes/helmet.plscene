@@ -57,7 +57,7 @@
         {            
             "id": 434, 
             "tag": {                
-                "name": "Damaged Helmet"
+                "name": "Damaged Helmet 1"
             }, 
             "transform": {                
                 "translation": [ 0, 3, 0 ], 
@@ -75,6 +75,46 @@
             }
         },
         {            
+            "id": 435, 
+            "tag": {                
+                "name": "Damaged Helmet 2"
+            }, 
+            "transform": {                
+                "translation": [ -3, 3, 0 ], 
+                "rotation": [ 0.707106829, 0, 0, 0.707106829 ], 
+                "scale": [ 1, 1, 1 ]
+            }, 
+            "object": {                
+                "mesh": "/assets/meshes/mesh_helmet_LP_13930damagedHelmet.plmesh", 
+                "first_submesh": 0, 
+                "submesh_count": 1, 
+                "transform": 435, 
+                "casts_shadow": true, 
+                "receives_shadow": true, 
+                "renderable": true
+            }
+        },
+        {            
+            "id": 436, 
+            "tag": {                
+                "name": "Damaged Helmet 3"
+            }, 
+            "transform": {                
+                "translation": [ 3, 3, 0 ], 
+                "rotation": [ 0.707106829, 0, 0, 0.707106829 ], 
+                "scale": [ 1, 1, 1 ]
+            }, 
+            "object": {                
+                "mesh": "/assets/meshes/mesh_helmet_LP_13930damagedHelmet.plmesh", 
+                "first_submesh": 0, 
+                "submesh_count": 1, 
+                "transform": 436, 
+                "casts_shadow": true, 
+                "receives_shadow": true, 
+                "renderable": true
+            }
+        },
+        {            
             "id": 1, 
             "tag": {                
                 "name": "Floor"
@@ -82,7 +122,7 @@
             "transform": {                
                 "translation": [ 0, 0, 0 ], 
                 "rotation": [ 0, 0, 0, 1 ], 
-                "scale": [ 10, 1, 10 ]
+                "scale": [ 15, 1, 15 ]
             }, 
             "object": {                
                 "mesh": "/assets/meshes/plane.plmesh", 
