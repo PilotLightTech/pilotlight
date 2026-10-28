@@ -32,7 +32,7 @@ Index of this file:
 // libs
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-#undef pl_vnsprintf
+#undef pl_vsnprintf
 #include "pl_memory.h"
 #include "pl_string.h"
 

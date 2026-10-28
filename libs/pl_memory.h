@@ -235,9 +235,9 @@ Index of this file:
 
 #define PL__ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
 
-#ifndef pl_vnsprintf
+#ifndef pl_vsnprintf
     #include <stdio.h>
-    #define pl_vnsprintf vsnprintf
+    #define pl_vsnprintf vsnprintf
 #endif
 
 #include <stdarg.h> // varargs
@@ -505,12 +505,12 @@ pl__temp_allocator_sprintf_va(plTempAllocator* ptAllocator, const char* cPFormat
     // sprint
     va_list args2;
     va_copy(args2, args);
-    int32_t n = pl_vnsprintf(NULL, 0, cPFormat, args2);
+    int32_t n = pl_vsnprintf(NULL, 0, cPFormat, args2);
     va_end(args2);
 
     pRequestedMemory = pl_temp_allocator_alloc(ptAllocator, n + 1);
     memset(pRequestedMemory, 0, n + 1);
-    pl_vnsprintf((char*)pRequestedMemory, n + 1, cPFormat, args);
+    pl_vsnprintf((char*)pRequestedMemory, n + 1, cPFormat, args);
 
     return (char*)pRequestedMemory;
 }

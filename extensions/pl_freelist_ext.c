@@ -17,7 +17,7 @@ Index of this file:
 #include "pl.h"
 #include "pl_freelist_ext.h"
 
-#undef pl_vnsprintf
+#undef pl_vsnprintf
 #include "pl_memory.h"
 
 //-----------------------------------------------------------------------------

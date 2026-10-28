@@ -144,7 +144,7 @@ pl_screen_log_add_message_va(uint64_t uKey, double dTimeToDisplay, uint32_t uCol
                     {
                         va_list parm_copy;
                         va_copy(parm_copy, args);
-                        pl_vnsprintf(gptScreenLogCtx->sbtMessages[i].acBuffer, 1024, pcFormat, parm_copy); 
+                        pl_vsnprintf(gptScreenLogCtx->sbtMessages[i].acBuffer, 1024, pcFormat, parm_copy); 
                         va_end(parm_copy);
                     }
 
@@ -171,7 +171,7 @@ pl_screen_log_add_message_va(uint64_t uKey, double dTimeToDisplay, uint32_t uCol
 
         va_list parm_copy;
         va_copy(parm_copy, args);
-        pl_vnsprintf(tData.acBuffer, 1024, pcFormat, parm_copy); 
+        pl_vsnprintf(tData.acBuffer, 1024, pcFormat, parm_copy); 
         va_end(parm_copy);
 
         tData.szBufferSize   = strlen(tData.acBuffer);

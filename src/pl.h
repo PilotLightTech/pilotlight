@@ -510,12 +510,14 @@ typedef struct _plAllocationEntry
 #ifdef PL_USE_STB_SPRINTF
     #include "stb_sprintf.h"
     #define pl_sprintf stbsp_sprintf
+    #define pl_snprintf stbsp_snprintf
     #define pl_vsprintf stbsp_vsprintf
-    #define pl_vnsprintf stbsp_vsnprintf
+    #define pl_vsnprintf stbsp_vsnprintf
 #else
     #define pl_sprintf sprintf
+    #define pl_snprintf snprintf
     #define pl_vsprintf vsprintf
-    #define pl_vnsprintf vsnprintf
+    #define pl_vsnprintf vsnprintf
 #endif
 
 #ifndef PL_ASSERT
