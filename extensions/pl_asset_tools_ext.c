@@ -42,6 +42,8 @@ Index of this file:
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
+#include "pl_string.h"
+
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
 #else
@@ -2096,4 +2098,9 @@ pl_unload_asset_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         #include "stb_sprintf.h"
         #undef STB_SPRINTF_IMPLEMENTATION
     #endif
+
+    #define PL_STRING_IMPLEMENTATION
+    #include "pl_string.h"
+    #undef PL_STRING_IMPLEMENTATION
+
 #endif
