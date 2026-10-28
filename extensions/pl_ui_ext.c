@@ -415,6 +415,12 @@ pl_ui_end_window(void)
         // if(gptCtx->ptCurrentWindow && !gptCtx->ptCurrentWindow->bCollapsed)
         //     gptDraw->push_clip_rect(gptCtx->ptDrawlist, gptCtx->ptCurrentWindow->tInnerClipRect, false);
     }
+
+    if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
+    {
+        if(!ptWindow->bCollapsed)
+            gptDraw->pop_clip_rect(ptWindow->ptDrawlist);
+    }
 }
 
 bool
@@ -1663,6 +1669,16 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     ptWindow->tOuterRectClipped = ptWindow->tOuterRect;
     ptWindow->tInnerRect = ptWindow->tOuterRect;
 
+    // remove padding for inner clip rect
+    ptWindow->tInnerClipRect = pl_rect_expand_vec2(&ptWindow->tInnerRect, (plVec2){-gptCtx->tStyle.fWindowHorizontalPadding, 0.0f});
+
+    if(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
+    {
+        const plRect* ptParentRect = gptDraw->get_clip_rect(ptParentWindow->ptDrawlist);
+        ptWindow->tOuterRectClipped = pl_rect_clip_full(&ptWindow->tOuterRectClipped, ptParentRect);
+        ptWindow->tInnerClipRect = pl_rect_clip_full(&ptWindow->tInnerClipRect, ptParentRect);
+    }
+
     ptWindow->tScrollMax = pl_sub_vec2(ptWindow->tContentSize, (plVec2){ptWindow->tSize.x, ptWindow->tSize.y - fTitleBarHeight});
     
     // clamp scrolling max
@@ -1778,9 +1794,6 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     if(ptWindow->bAppearing)
         ptWindow->uHideFrames = 1;
 
-    // remove padding for inner clip rect
-    ptWindow->tInnerClipRect = pl_rect_expand_vec2(&ptWindow->tInnerRect, (plVec2){-gptCtx->tStyle.fWindowHorizontalPadding, 0.0f});
-
     // update layout cursors
     ptWindow->tTempData.tCursorStartPos.x = gptCtx->tStyle.fWindowHorizontalPadding + tStartPos.x - ptWindow->tScroll.x;
     ptWindow->tTempData.tCursorStartPos.y = gptCtx->tStyle.fWindowVerticalPadding + tStartPos.y + fTitleBarHeight - ptWindow->tScroll.y;
@@ -1856,7 +1869,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         const float fHoverPadding = 4.0f;
 
         // draw border
-        if(!(tFlags & PL_UI_WINDOW_FLAGS_NO_BACKGROUND))
+        if(!(tFlags & PL_UI_WINDOW_FLAGS_NO_BACKGROUND) &&  !pl_rect_is_inverted(&tBgRect))
         {
             if(gptCtx->tStyle.iWindowBorderSize != 0)
             {
@@ -2105,22 +2118,29 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
     if(!ptWindow->bCollapsed)
     {
-        const plVec2 tStartClip = { ptWindow->tPos.x, ptWindow->tPos.y + fTitleBarHeight };
+        // const plVec2 tStartClip = { ptWindow->tPos.x, ptWindow->tPos.y + fTitleBarHeight };
 
-        const plVec2 tInnerClip = { 
-            ptWindow->tSize.x - (ptWindow->bScrollbarY ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f),
-            ptWindow->tSize.y - fTitleBarHeight - (ptWindow->bScrollbarX ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f)
-        };
+        // const plVec2 tInnerClip = { 
+        //     ptWindow->tSize.x - (ptWindow->bScrollbarY ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f),
+        //     ptWindow->tSize.y - fTitleBarHeight - (ptWindow->bScrollbarX ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f)
+        // };
 
         // const plRect* ptClipRect = gptDraw->get_clip_rect(ptWindow->ptDrawlist);
 
         // if(ptClipRect)
         // {
         //     ptWindow->tInnerClipRect = pl_rect_clip_full(&ptWindow->tInnerClipRect, ptClipRect);
-        //     ptWindow->tOuterRectClipped = pl_rect_clip_full(&ptWindow->tOuterRectClipped, ptClipRect);
+            
         // }
 
-        gptDraw->push_clip_rect(ptWindow->ptDrawlist, ptWindow->tInnerClipRect, false);
+        if(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
+        {
+            const plRect* ptParentRect = gptDraw->get_clip_rect(ptParentWindow->ptDrawlist);
+            // ptWindow->tOuterRectClipped = pl_rect_clip_full(&ptWindow->tOuterRectClipped, ptParentRect);
+            gptDraw->push_clip_rect(ptWindow->ptDrawlist, *ptParentRect, false);
+        }
+
+        gptDraw->push_clip_rect(ptWindow->ptDrawlist, ptWindow->tInnerClipRect, true);
     }
 
     if(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
