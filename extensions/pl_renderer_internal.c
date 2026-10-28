@@ -7055,6 +7055,54 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
     }
 
    {
+        int iDataHolder = 0;
+        plShaderDesc tDesc = {
+            .pcDebugName     = "terrain_debug",
+            .tVertexShader   = gptShader->load_glsl("pl_terrain.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_terrain_debug.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled  = true,
+                .eDepthMode          = PL_COMPARE_MODE_GREATER,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 },
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT2 },
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT2 }
+                    }
+                }
+            },
+            .atFragmentConstants = {
+                { .eType = PL_DATA_TYPE_INT }
+            },
+            .atBlendStates = {
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_NONE },
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL},
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL},
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL}
+            },
+            .pFragmentTempConstantData = &iDataHolder,
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "terrain_debug", &tDesc);
+    }
+
+   {
         plShaderDesc tDesc = {
             .pcDebugName   = "terrain_shadow",
             .tVertexShader = gptShader->load_glsl("pl_terrain_shadow.vert", "main", NULL, NULL),
@@ -8516,9 +8564,13 @@ pl__renderer_load_shaders(plScene* ptScene)
     ptScene->tProbeLightingShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting", &tDeferredVariant);
 
     plShaderVariantDesc tTerrainVariant = {
-        .ptAttachmentInfo = &gptData->tRenderPassLayout
+        .ptAttachmentInfo = &gptData->tRenderPassLayout,
+        .pFragmentConstants = aiLightingConstantData,
     };
-    ptScene->tTerrainShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "terrain", &tTerrainVariant);
+    if(ptScene->tShaderDebugMode)
+        ptScene->tTerrainShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "terrain_debug", &tTerrainVariant);
+    else
+        ptScene->tTerrainShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "terrain", &tTerrainVariant);
 
     plShaderVariantDesc tShadowVariant = {
         .ptAttachmentInfo = &gptData->tDepthRenderPassLayout
@@ -8762,9 +8814,8 @@ pl__renderer_load_shaders(plScene* ptScene)
 
     plShaderVariantDesc tTerrainWireframeVariant = {
         .ptAttachmentInfo = &gptData->tRenderPassLayout,
-        .ptGraphicsState = &tTerrainVariantTemp
+        .ptGraphicsState = &tTerrainVariantTemp,
     };
-
     ptScene->tTerrainWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "terrain", &tTerrainWireframeVariant);
     
     gptShader->set_options(&tOriginalOptions);

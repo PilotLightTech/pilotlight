@@ -267,16 +267,21 @@ pl_shader_library_get_shader(plShaderLibrary* ptLibrary, const char* pcName, con
     plDevice* ptDevice = gptShaderLibraryCtx->ptDevice;
 
     size_t szVertexSpecializationSize = 0;
-    for(uint32_t i = 0; i < ptEntry->tDesc._uVertexConstantCount; i++)
+    for(uint32_t i = 0; i < PL_MAX_SHADER_SPECIALIZATION_CONSTANTS; i++)
     {
         const plSpecializationConstant* ptConstant = &ptEntry->tDesc.atVertexConstants[i];
+        if(ptConstant->eType == PL_DATA_TYPE_UNSPECIFIED)
+            break;
         szVertexSpecializationSize += gptGfx->get_data_type_size(ptConstant->eType);
     }
 
     size_t szFragmentSpecializationSize = 0;
-    for(uint32_t i = 0; i < ptEntry->tDesc._uFragmentConstantCount; i++)
+    for(uint32_t i = 0; i < PL_MAX_SHADER_SPECIALIZATION_CONSTANTS; i++)
     {
+    
         const plSpecializationConstant* ptConstant = &ptEntry->tDesc.atFragmentConstants[i];
+        if(ptConstant->eType == PL_DATA_TYPE_UNSPECIFIED)
+            break;
         szFragmentSpecializationSize += gptGfx->get_data_type_size(ptConstant->eType);
     }
 
