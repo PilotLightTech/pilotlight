@@ -76,6 +76,7 @@ Index of this file:
 #include "pl_texture_ext.h"
 #include "pl_terrain_ext.h"
 #include "pl_stl_ext.h"
+#include "pl_dialog_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -134,6 +135,7 @@ const plSkeletonI*          gptSkeleton         = nullptr;
 const plTextureI*           gptTexture          = nullptr;
 const plTerrainI*           gptTerrain          = nullptr;
 const plStlI*               gptStl              = nullptr;
+const plDialogI*            gptDialog           = nullptr;
 
 // helpful macros for memory tracking
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
@@ -344,6 +346,7 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptTexture          = pl_get_api_latest(ptApiRegistry, plTextureI);
     gptTerrain          = pl_get_api_latest(ptApiRegistry, plTerrainI);
     gptStl              = pl_get_api_latest(ptApiRegistry, plStlI);
+    gptDialog           = pl_get_api_latest(ptApiRegistry, plDialogI);
 }
 
 void
@@ -405,4 +408,5 @@ pl__load_extensions(plApiRegistryI* ptApiRegistry)
     ptExtensionRegistry->load("pl_json_ext", "pl_load_json_ext", "pl_unload_json_ext", false);
     ptExtensionRegistry->load("pl_stl_ext", "pl_load_stl_ext", "pl_unload_stl_ext", false);
     ptExtensionRegistry->load("pl_texture_ext", "pl_load_texture_ext", "pl_unload_texture_ext", false);
+    ptExtensionRegistry->load("pl_dialog_ext", "pl_load_dialog_ext", "pl_unload_dialog_ext", false);
 }

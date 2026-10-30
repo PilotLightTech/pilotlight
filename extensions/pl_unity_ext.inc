@@ -80,6 +80,7 @@ static const struct _plGltfI*              gptGltf             = 0;
 static const struct _plSkeletonI*          gptSkeleton         = 0;
 static const struct _plTextureI*           gptTexture          = 0;
 static const struct _plStlI*               gptStl              = 0;
+static const struct _plDialogI*            gptDialog           = 0;
 
 // context
 static struct _plIO* gptIO = 0;

@@ -84,6 +84,7 @@ Index of this file:
 #include "pl_texture_ext.h"
 #include "pl_terrain_ext.h"
 #include "pl_stl_ext.h"
+#include "pl_dialog_ext.h"
 
 // shaders
 #include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
@@ -137,6 +138,7 @@ const plSkeletonI*          gptSkeleton         = NULL;
 const plTextureI*           gptTexture          = NULL;
 const plTerrainI*           gptTerrain          = NULL;
 const plStlI*               gptStl              = NULL;
+const plDialogI*            gptDialog           = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -978,6 +980,21 @@ pl_app_update(plAppData* ptAppData)
 #endif
     }
 
+    // if(gptUI->begin_window("Debug", NULL, 0))
+    // {
+    //     if(gptUI->button("Select File"))
+    //     {
+    //         gptDialog->open_file_dialog(NULL);
+    //     }
+    //     gptUI->end_window();
+    // }
+
+    // if(gptDialog->draw_file_dialog())
+    // {
+    //     const char* pcPath = gptDialog->get_file_dialog_path();
+    //     gptScreenLog->add_message(1.0, pcPath);
+    // }
+
 
     if(ptAppData->bShowUiDemo)
         pl__show_ui_demo_window(ptAppData);
@@ -1054,6 +1071,7 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptTexture          = pl_get_api_latest(ptApiRegistry, plTextureI);
     gptTerrain          = pl_get_api_latest(ptApiRegistry, plTerrainI);
     gptStl              = pl_get_api_latest(ptApiRegistry, plStlI);
+    gptDialog           = pl_get_api_latest(ptApiRegistry, plDialogI);
 }
 
 void
@@ -1066,7 +1084,7 @@ pl__refresh_files(plAppData* ptAppData)
         plDirectoryInfo tDirectoryInfo = {0};
         gptFile->get_directory_info("../assets/scenes/", &tDirectoryInfo);
         pl_sb_reserve(ptAppData->sbtSceneFilesCore, tDirectoryInfo.uFileCount);
-        for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
+        for(uint32_t i = 0; i < tDirectoryInfo.uEntryCount; i++)
         {
             if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
             {

@@ -74,6 +74,7 @@ Index of this file:
 #include "pl_skeleton_ext.c"
 #include "pl_texture_ext.c"
 #include "pl_stl_ext.c"
+#include "pl_dialog_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -381,6 +382,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptJson              = pl_get_api_latest(ptApiRegistry, plJsonI);
     gptVirtualMemory     = pl_get_api_latest(ptApiRegistry, plVirtualMemoryI);
     gptStl               = pl_get_api_latest(ptApiRegistry, plStlI);
+    gptDialog            = pl_get_api_latest(ptApiRegistry, plDialogI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -434,11 +436,13 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_texture_ext(ptApiRegistry, bReload);
     pl_load_json_ext(ptApiRegistry, bReload);
     pl_load_stl_ext(ptApiRegistry, bReload);
+    pl_load_dialog_ext(ptApiRegistry, bReload);
 }
 
 void
 pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    pl_unload_dialog_ext(ptApiRegistry, bReload);
     pl_unload_stl_ext(ptApiRegistry, bReload);
     pl_unload_json_ext(ptApiRegistry, bReload);
     pl_unload_texture_ext(ptApiRegistry, bReload);
