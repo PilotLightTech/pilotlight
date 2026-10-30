@@ -1012,6 +1012,8 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
         if(ptObject->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW)
             ptDrawable->tFlags |= PL_DRAWABLE_FLAG_CASTS_SHADOW;
+        else
+            ptDrawable->tFlags &= ~PL_DRAWABLE_FLAG_CASTS_SHADOW;
 
         bool bForward = false;
 
@@ -2138,7 +2140,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
         plTerrainComponent* ptTerrainComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tTerrainComponentType, ptScene->tTerrain);
 
-        if(ptTerrainComp->tFlags & PL_TERRAIN_FLAGS_WIREFRAME)
+        if(ptTerrainComp->tFlags & PL_TERRAIN_FLAGS_WIREFRAME || ptScene->bWireframe)
             tTerrainShader = ptScene->tTerrainWireframeShader;
 
         gptGfx->set_depth_bias(ptSceneCmdBuffer, 0.0f, 0.0f, 0.0f);
@@ -2532,142 +2534,35 @@ pl_renderer_begin_frame(void)
     if(gptData->bShowTools)
     {
 
-        static const char* apcShaderDebugModeText[] = {
-            "None",
-            "Base Color",
-            "Metallic",
-            "Roughness",
-            "Alpha",
-            "Emissive",
-            "Occlusion",
-            "Shading Normal",
-            "Texture Normal",
-            "Geometry Normal",
-            "Geometry Tangent",
-            "Geometry Bitangent",
-            "UV 0",
-            "Clearcoat",
-            "Clearcoat Roughness",
-            "Clearcoat Normal",
-            "Sheen Color",
-            "Sheen Roughness",
-            "Iridescence Factor",
-            "Iridescence Thickness",
-            "Anisotropy Strength",
-            "Anisotropy Direction",
-            "Transmission Strength",
-            "Volume Thickness",
-            "Diffuse Transmission Strength",
-            "Diffuse Transmission Color",
-        };
-
-        if(pl_sb_size(gptData->sbptScenes) > 0 && gptUI->begin_window("Renderer", &gptData->bShowTools, 0))
+        for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
         {
-            const float pfRatios[] = {1.0f};
-            const float pfRatios2[] = {0.5f, 0.5f};
-            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-            
-            gptUI->separator_text("Scenes");
+            plScene* ptScene = gptData->sbptScenes[uSceneIndex];
 
-            for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
+            if(ptScene->bToolShowTerrain && ptScene->ptTerrain)
             {
-                plScene* ptScene = gptData->sbptScenes[uSceneIndex];
-                bool bReloadShaders = false;
-                if(gptUI->tree_node_f("Scene: %u", PL_UI_TREE_NODE_FLAGS_DEFAULT_OPEN, uSceneIndex))
+                if(gptUI->begin_window("Terrain", &ptScene->bToolShowTerrain, 0))
                 {
-                    if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
-                        continue;
-
-                    // gptUI->layout_dynamic(0.0f, 2);
-
-                    gptUI->checkbox("Show Probes", &ptScene->bShowProbes);
-                    gptUI->checkbox("Show Probe Ranges", &ptScene->bShowProbeRange);
-                    gptUI->checkbox("Dynamic BVH", &ptScene->bDynamicBVH);
-                    gptUI->checkbox("Wireframe", &ptScene->bWireframe);
-
-                    gptUI->layout_static(0.0f, 200.0f, 2);
-
-                    if(gptUI->button("Reload Shaders"))
-                        bReloadShaders = true;
-
-                    if(gptUI->button("Update Environment"))
-                    {
-                        ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
-                        ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_SKY_LUTS_DIRTY;
-                    }
-
                     gptUI->layout_dynamic(0.0f, 1);
-
-                    bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
-                    abShaderDebugMode[ptScene->tShaderDebugMode] = true;
-                    if(gptUI->begin_combo("Shader Debug Mode", apcShaderDebugModeText[ptScene->tShaderDebugMode], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
+                    for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
                     {
-                        plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
-                        for(uint32_t i = 0; i < PL_ARRAYSIZE(apcShaderDebugModeText); i++)
+
+                        if(gptUI->tree_node_f("Chunk File: %s", PL_UI_TREE_NODE_FLAGS_DRAW_LINES_TO_NODES, ptScene->ptTerrain->sbtChunkFiles[i].tFile.acFile))
                         {
-                            if(gptUI->selectable(apcShaderDebugModeText[i], &abShaderDebugMode[i], 0))
-                            {
-                                if(i == 0)
-                                    ptSettings->tTonemap.tMode = PL_TONEMAP_MODE_SIMPLE;
-                                else
-                                    ptSettings->tTonemap.tMode = PL_TONEMAP_MODE_NONE;
-                                ptScene->tShaderDebugMode = i;
-                                gptUI->close_current_popup();
-                                bReloadShaders = true;
-                                
-                            } 
-                        }
-                        gptUI->end_combo();
-                    }
-
-                    if(ptScene->ptTerrain)
-                    {
-                        if(gptUI->collapsing_header("Terrain", 0))
-                        {
-                            gptUI->stash_layout();
-
-                            for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
-                            {
-
-                                if(gptUI->tree_node_f("Chunk File: %s", PL_UI_TREE_NODE_FLAGS_DRAW_LINES_TO_NODES, ptScene->ptTerrain->sbtChunkFiles[i].tFile.acFile))
-                                {
-                                    gptUI->input_int("Tree Depth", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.iTreeDepth, PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
-                                    gptUI->input_float("Max. Base Error", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.fMaxBaseError, "%g", PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
-                                    gptUI->input_uint("Chunk Count", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.uChunkCount, PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
-                                    pl__renderer_ui_terrain_node(ptScene, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0]);
-                                    gptUI->tree_pop();
-                                }
-                            }
-
-                            gptUI->apply_layout();
-                        }
-                    }
-
-                    gptUI->separator_text("Views");
-
-                    for(uint32_t uViewIndex = 0; uViewIndex < pl_sb_size(ptScene->sbptViews); uViewIndex++)
-                    {
-                        plView* ptView = ptScene->sbptViews[uViewIndex];
-                        if(gptUI->tree_node_f("View: %u", 0, uViewIndex))
-                        {
-                            gptUI->checkbox("Show Origin", &ptView->bShowOrigin);
-                            gptUI->checkbox("Show Grid", &ptView->bShowGrid);
-                            gptUI->checkbox("Show Lights", &ptView->bDrawLightsDebug);
-                            gptUI->checkbox("Show Bounding Boxes", &ptView->bDrawBoundingBoxesDebug);
-                            gptUI->checkbox("Show Names", &ptView->bDrawObjectNames);
-                            gptUI->checkbox("Show BVH", &ptView->bDrawBvhDebug);
-                            gptUI->checkbox("Selected Bounding Box", &ptView->bShowSelectedBoundingBox);
-                            gptUI->checkbox("Frustum Culling", &ptView->bFrustumCulling);
-                            if(gptUI->checkbox("Freeze Culling", &ptView->bFrozenCamera))
-                            {
-                                if(ptView->bFrozenCamera)
-                                    ptView->bFreezeCameraNextFrame = true;
-                            }
-                            gptUI->slider_uint("Outline Width", &ptView->uOutlineWidth, 2, 50, 0);
+                            gptUI->input_int("Tree Depth", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.iTreeDepth, PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
+                            gptUI->input_float("Max. Base Error", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.fMaxBaseError, "%g", PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
+                            gptUI->input_uint("Chunk Count", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.uChunkCount, PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
+                            pl__renderer_ui_terrain_node(ptScene, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0]);
                             gptUI->tree_pop();
                         }
                     }
+                    gptUI->end_window();
+                }
+            }
 
+            if(ptScene->bToolShowDrawables)
+            {
+                if(gptUI->begin_window("Drawables", &ptScene->bToolShowDrawables, 0))
+                {
                     const plVec2 tWindowSize = gptUI->get_window_size();
                     const plVec2 tWindowPos = gptUI->get_window_pos();
                     const plVec2 tCursorPos = gptUI->get_cursor_pos();
@@ -2736,6 +2631,131 @@ pl_renderer_begin_frame(void)
                             // plDrawableFlags tFlags;
                         }
                         gptUI->end_child();
+                    }
+                    gptUI->end_window();
+                }
+            }
+
+        }
+
+        static const char* apcShaderDebugModeText[] = {
+            "None",
+            "Base Color",
+            "Metallic",
+            "Roughness",
+            "Alpha",
+            "Emissive",
+            "Occlusion",
+            "Shading Normal",
+            "Texture Normal",
+            "Geometry Normal",
+            "Geometry Tangent",
+            "Geometry Bitangent",
+            "UV 0",
+            "Clearcoat",
+            "Clearcoat Roughness",
+            "Clearcoat Normal",
+            "Sheen Color",
+            "Sheen Roughness",
+            "Iridescence Factor",
+            "Iridescence Thickness",
+            "Anisotropy Strength",
+            "Anisotropy Direction",
+            "Transmission Strength",
+            "Volume Thickness",
+            "Diffuse Transmission Strength",
+            "Diffuse Transmission Color",
+        };
+
+        if(pl_sb_size(gptData->sbptScenes) > 0 && gptUI->begin_window("Renderer", &gptData->bShowTools, 0))
+        {
+            const float pfRatios[] = {1.0f};
+            const float pfRatios2[] = {0.5f, 0.5f};
+            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+            
+            gptUI->separator_text("Scenes");
+
+            for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
+            {
+                plScene* ptScene = gptData->sbptScenes[uSceneIndex];
+                bool bReloadShaders = false;
+                if(gptUI->tree_node_f("Scene: %u", PL_UI_TREE_NODE_FLAGS_DEFAULT_OPEN, uSceneIndex))
+                {
+                    if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
+                        continue;
+
+                    // gptUI->layout_dynamic(0.0f, 2);
+
+                    gptUI->checkbox("Show Probes", &ptScene->bShowProbes);
+                    gptUI->checkbox("Show Probe Ranges", &ptScene->bShowProbeRange);
+                    gptUI->checkbox("Dynamic BVH", &ptScene->bDynamicBVH);
+                    gptUI->checkbox("Wireframe", &ptScene->bWireframe);
+
+
+                    gptUI->layout_static(0.0f, 200.0f, 2);
+
+                    if(gptUI->button("Reload Shaders"))
+                        bReloadShaders = true;
+
+                    if(gptUI->button("Update Environment"))
+                    {
+                        ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
+                        ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_SKY_LUTS_DIRTY;
+                    }
+
+                    gptUI->layout_dynamic(0.0f, 1);
+
+                    bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
+                    abShaderDebugMode[ptScene->tShaderDebugMode] = true;
+                    if(gptUI->begin_combo("Shader Debug Mode", apcShaderDebugModeText[ptScene->tShaderDebugMode], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
+                    {
+                        plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
+                        for(uint32_t i = 0; i < PL_ARRAYSIZE(apcShaderDebugModeText); i++)
+                        {
+                            if(gptUI->selectable(apcShaderDebugModeText[i], &abShaderDebugMode[i], 0))
+                            {
+                                if(i == 0)
+                                    ptSettings->tTonemap.tMode = PL_TONEMAP_MODE_SIMPLE;
+                                else
+                                    ptSettings->tTonemap.tMode = PL_TONEMAP_MODE_NONE;
+                                ptScene->tShaderDebugMode = i;
+                                gptUI->close_current_popup();
+                                bReloadShaders = true;
+                                
+                            } 
+                        }
+                        gptUI->end_combo();
+                    }
+
+                    gptUI->separator_text("Tools");
+                    gptUI->checkbox("Drawables", &ptScene->bToolShowDrawables);
+                    gptUI->checkbox("Terrain", &ptScene->bToolShowTerrain);
+
+
+
+                    gptUI->separator_text("Views");
+
+                    for(uint32_t uViewIndex = 0; uViewIndex < pl_sb_size(ptScene->sbptViews); uViewIndex++)
+                    {
+                        plView* ptView = ptScene->sbptViews[uViewIndex];
+                        if(gptUI->tree_node_f("View: %u", 0, uViewIndex))
+                        {
+                            gptUI->checkbox("Show Origin", &ptView->bShowOrigin);
+                            gptUI->checkbox("Show Grid", &ptView->bShowGrid);
+                            gptUI->checkbox("Show Lights", &ptView->bDrawLightsDebug);
+                            gptUI->checkbox("Show Bounding Boxes", &ptView->bDrawBoundingBoxesDebug);
+                            gptUI->checkbox("Show Names", &ptView->bDrawObjectNames);
+                            gptUI->checkbox("Show BVH", &ptView->bDrawBvhDebug);
+                            gptUI->checkbox("Selected Bounding Box", &ptView->bShowSelectedBoundingBox);
+                            gptUI->checkbox("Frustum Culling", &ptView->bFrustumCulling);
+                            if(gptUI->checkbox("Freeze Culling", &ptView->bFrozenCamera))
+                            {
+                                if(ptView->bFrozenCamera)
+                                    ptView->bFreezeCameraNextFrame = true;
+                            }
+                            gptUI->slider_uint("Outline Width", &ptView->uOutlineWidth, 2, 50, 0);
+                            gptUI->tree_pop();
+                        }
                     }
 
                     if(bReloadShaders)

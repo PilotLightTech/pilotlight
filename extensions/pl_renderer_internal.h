@@ -630,6 +630,10 @@ typedef struct _plScene
     plVisibleDrawable* sbtVisibleDrawables1;
 
     bool bDynamicBVH;
+
+    // tools
+    bool bToolShowDrawables;
+    bool bToolShowTerrain;
 } plScene;
 
 typedef struct _plRendererData

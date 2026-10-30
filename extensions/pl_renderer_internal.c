@@ -621,13 +621,16 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
                 plVisibleDrawable tVisibleDrawable = {
                     .uDrawableIndex = uDrawableIndex
                 };
-                if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_HAS_ALPHA)
+                if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_CASTS_SHADOW)
                 {
-                    pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
-                }
-                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_CASTS_SHADOW)
-                {
-                    pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
+                    if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_HAS_ALPHA)
+                    {
+                        pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
+                    }
+                    else
+                    {
+                        pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
+                    }
                 }
             }
         }
@@ -1340,13 +1343,16 @@ pl__renderer_generate_direction_view_map(plCommandBuffer* ptCommandBuffer, plSce
                 plVisibleDrawable tVisibleDrawable = {
                     .uDrawableIndex = uDrawableIndex
                 };
-                if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_HAS_ALPHA)
+                if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_CASTS_SHADOW)
                 {
-                    pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
-                }
-                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_CASTS_SHADOW)
-                {
-                    pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
+                    if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_HAS_ALPHA)
+                    {
+                        pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
+                    }
+                    else
+                    {
+                        pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
+                    }
                 }
             }
         }
@@ -1795,13 +1801,17 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
                 plVisibleDrawable tVisibleDrawable = {
                     .uDrawableIndex = uDrawableIndex
                 };
-                if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_HAS_ALPHA)
+
+                if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_CASTS_SHADOW)
                 {
-                    pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
-                }
-                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_CASTS_SHADOW)
-                {
-                    pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
+                    if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_HAS_ALPHA)
+                    {
+                        pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
+                    }
+                    else
+                    {
+                        pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
+                    }
                 }
             }
         }
@@ -3968,11 +3978,15 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
             plTransformComponent* ptTransform = gptEcs->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
             
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynPick));
+            plGpuDynPick tDynPick = {
+                .uID = uId,
+                .tModel = ptTransform->tWorld,
+                .tMousePos = {
+                    .xy = tMousePos
+                }
+            };
             plGpuDynPick* ptDynamicData = (plGpuDynPick*)tDynamicBinding.pcData;
-            
-            ptDynamicData->uID = uId;
-            ptDynamicData->tModel = ptTransform->tWorld;
-            ptDynamicData->tMousePos.xy = tMousePos;
+            memcpy(ptDynamicData, &tDynPick, sizeof(plGpuDynPick));
             
             gptGfx->bind_graphics_bind_groups(ptSceneCmdBuffer, tPickShader, 0, 0, NULL, 1, &tDynamicBinding);
 
@@ -6536,9 +6550,9 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
             .tVertexShader   = gptShader->load_glsl("pl_picking.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_picking.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled  = false,
-                .eDepthMode          = PL_COMPARE_MODE_EQUAL,
-                .eCullMode           = PL_CULL_MODE_NONE,
+                .bDepthWriteEnabled  = true,
+                .eDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+                .eCullMode           = PL_CULL_MODE_CULL_BACK,
                 .bWireframe          = false,
                 .bDepthClampEnabled  = false,
                 .bStencilTestEnabled = false,
@@ -8791,6 +8805,7 @@ pl__renderer_load_shaders(plScene* ptScene)
         tForwardVariantTemp.eCullMode = PL_CULL_MODE_NONE;
         ptScene->tForwardNoCullWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tForwardVariant);
 
+        tForwardVariantTemp.bDepthWriteEnabled = false;
         tForwardVariantTemp.eCullMode = PL_CULL_MODE_CULL_BACK;
         tForwardVariantTemp.bWireframe = true;
         tForwardVariantTemp.bDepthWriteEnabled = false;
