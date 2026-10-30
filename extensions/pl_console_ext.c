@@ -101,7 +101,6 @@ typedef struct _plConsoleContext
 {
     // state
     plUiTextFilter tFilter;
-    bool bJustOpened;
     bool bOpen;
 
     // options
@@ -376,7 +375,6 @@ pl_console_open(void)
     if(gptConsoleCtx->bPopup)
         gptUI->open_popup("Console Window##0", 0);
     gptConsoleCtx->bOpen = true;
-    gptConsoleCtx->bJustOpened = true;
     memset(gptConsoleCtx->tFilter.acInputBuffer, 0, 256);
 }
 
@@ -384,7 +382,6 @@ void
 pl_console_close(void)
 {
     gptConsoleCtx->bOpen = false;
-    gptConsoleCtx->bJustOpened = false;
     memset(gptConsoleCtx->tFilter.acInputBuffer, 0, 256);
 }
 
@@ -461,7 +458,7 @@ pl_console_update(void)
 
             // just opened, reset things
             static char acValueBuffer[256] = {0};
-            if(gptConsoleCtx->bJustOpened)
+            if(gptUI->is_window_appearing())
             {
                 memset(acValueBuffer, 0, 256);
                 memset(gptConsoleCtx->tFilter.acInputBuffer, 0, 256);
@@ -485,10 +482,9 @@ pl_console_update(void)
             }
 
             // focus when just opened so user can immediately begin typing
-            if(gptConsoleCtx->bJustOpened)
+            if(gptUI->is_window_appearing())
             {
                 gptUI->set_keyboard_focus_last_item();
-                gptConsoleCtx->bJustOpened = false;
             }
 
             // go ahead & check if any items match
@@ -763,7 +759,6 @@ pl_console_update(void)
             if(gptIOI->is_key_pressed(PL_KEY_ENTER, false) || gptIOI->is_key_pressed(PL_KEY_KEYPAD_ENTER, false))
             {
                 ptActiveCommand = ptFirstCommand;
-                gptConsoleCtx->bJustOpened = true;
             }
 
             if(ptActiveCommand)
@@ -850,7 +845,7 @@ pl_console_update(void)
                     bClosePopup = true;
             }
 
-            if(bClosePopup || gptIOI->is_key_pressed(PL_KEY_ESCAPE, false))
+            if(bClosePopup)
             {
                 if(bPopup)
                     gptUI->close_current_popup();

@@ -270,6 +270,12 @@ pl_ui_begin_frame(void)
         pl_sb_reset(gptCtx->sbtOpenPopupStack);
         pl__set_nav_window(NULL);
     }
+    else if(gptIOI->is_key_pressed(PL_KEY_ESCAPE, false))
+    {
+        // gptCtx->uActiveWindowId = 0;
+        pl_sb_reset(gptCtx->sbtOpenPopupStack);
+        pl__set_nav_window(NULL);
+    }
 
     if(gptCtx->ptNavWindow)
     {
@@ -519,15 +525,21 @@ pl_ui_begin_child(const char* pcName, plUiChildFlags tChildFlags, plUiWindowFlag
 }
 
 void
-pl_ui_open_popup(const char* pcName, plUiPopupFlags tFlags)
+pl_ui_open_popup_id(uint32_t uHash, plUiPopupFlags tFlags)
 {
-    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
-    const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
     plUiPopupData tPopupData = {
         .uId = uHash,
         .ulOpenFrameCount = gptIO->ulFrameCount
     };
     pl_sb_push(gptCtx->sbtOpenPopupStack, tPopupData);
+}
+
+void
+pl_ui_open_popup(const char* pcName, plUiPopupFlags tFlags)
+{
+    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+    const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
+    pl_ui_open_popup_id(uHash, tFlags);
 }
 
 void
@@ -555,12 +567,17 @@ pl_ui_end_popup(void)
     pl_ui_end_window();
 }
 
-bool
-pl_ui_is_popup_open(const char* pcName)
+uint32_t
+pl_ui_get_id(const char* pcName)
 {
-    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
-    const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
+    if(pcName)
+        return pl__ui_get_id(pcName);
+    return pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+}
 
+bool
+pl_ui_is_popup_open_id(uint32_t uHash)
+{
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtOpenPopupStack); i++)
     {
         if(gptCtx->sbtOpenPopupStack[i].uId == uHash)
@@ -572,11 +589,18 @@ pl_ui_is_popup_open(const char* pcName)
 }
 
 bool
+pl_ui_is_popup_open(const char* pcName)
+{
+    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+    const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
+    return pl_ui_is_popup_open_id(uHash);
+}
+
+bool
 pl_ui_begin_popup(const char* pcName, plUiWindowFlags tFlags)
 {
     uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
     const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
-
     bool bIsOpen = false;
     bool bNewOpen = false;
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtOpenPopupStack); i++)
@@ -671,6 +695,13 @@ pl_ui_end_tooltip(void)
 
     gptDraw->pop_clip_rect(ptWindow->ptDrawlist);
     gptCtx->ptCurrentWindow = ptWindow->ptParentWindow;
+}
+
+bool
+pl_ui_is_window_appearing(void)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    return ptWindow->bAppearing;
 }
 
 plVec2
@@ -3125,12 +3156,16 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .begin_child                           = pl_ui_begin_child,
         .end_child                             = pl_ui_end_child,
         .is_popup_open                         = pl_ui_is_popup_open,
+        .is_popup_open_id                      = pl_ui_is_popup_open_id,
+        .get_id                                = pl_ui_get_id,
         .close_current_popup                   = pl_ui_close_current_popup,
         .open_popup                            = pl_ui_open_popup,
+        .open_popup_id                         = pl_ui_open_popup_id,
         .begin_popup                           = pl_ui_begin_popup,
         .end_popup                             = pl_ui_end_popup,
         .begin_tooltip                         = pl_ui_begin_tooltip,
         .end_tooltip                           = pl_ui_end_tooltip,
+        .is_window_appearing                   = pl_ui_is_window_appearing,
         .get_window_pos                        = pl_ui_get_window_pos,
         .get_window_size                       = pl_ui_get_window_size,
         .get_window_scroll                     = pl_ui_get_window_scroll,

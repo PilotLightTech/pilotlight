@@ -472,21 +472,24 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
 void
 pl_ui_push_id_string(const char* pcText)
 {
-    const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
+    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+    const uint32_t uHash = pl_str_hash(pcText, 0, uHashSeed);
     pl_sb_push(gptCtx->sbuIdStack, uHash);
 }
 
 void
 pl_ui_push_id_pointer(const void* ptr)
 {
-    const uint32_t uHash = pl_str_hash_data(&ptr, sizeof(void*), pl_sb_top(gptCtx->sbuIdStack));
+    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+    const uint32_t uHash = pl_str_hash_data(&ptr, sizeof(void*), uHashSeed);
     pl_sb_push(gptCtx->sbuIdStack, uHash);
 }
 
 void
 pl_ui_push_id_uint(uint32_t uInt)
 {
-    const uint32_t uHash = pl_str_hash_data(&uInt, sizeof(uint32_t), pl_sb_top(gptCtx->sbuIdStack));
+    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+    const uint32_t uHash = pl_str_hash_data(&uInt, sizeof(uint32_t), uHashSeed);
     pl_sb_push(gptCtx->sbuIdStack, uHash);
 }
 

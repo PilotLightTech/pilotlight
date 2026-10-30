@@ -707,4 +707,12 @@ pl__ui_hsv_to_rgb(float h, float s, float v, float* pfR, float* pfG, float* pfB)
 
 static void pl__ui_color_tooltip(const char* pcLabel, float* afColRGBA, plUiColorEditFlags);
 
+static inline uint32_t
+pl__ui_get_id(const char* pcName)
+{
+    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+    const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
+    return uHash;
+}
+
 #endif // PL_UI_INTERNAL_H

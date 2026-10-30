@@ -155,8 +155,10 @@ typedef struct _plUiI
     // - "begin_popup()" will return false if collapsed or clipped
     // - if you use autosize, make sure at least 1 row has a static component (or the window will grow unbounded)
     void (*open_popup)         (const char* name, plUiPopupFlags);
+    void (*open_popup_id)      (uint32_t, plUiPopupFlags);
     void (*close_current_popup)(void);
     bool (*is_popup_open)      (const char* name);
+    bool (*is_popup_open_id)   (uint32_t);
     bool (*begin_popup)        (const char* name, plUiWindowFlags);
     void (*end_popup)          (void);
 
@@ -178,6 +180,7 @@ typedef struct _plUiI
 
     // window utilities
     // - refers to current window (between "begin_window()" & "end_window()")
+    bool   (*is_window_appearing)  (void);
     plVec2 (*get_window_pos)       (void);
     plVec2 (*get_window_size)      (void);
     plVec2 (*get_window_scroll)    (void);
@@ -368,10 +371,11 @@ typedef struct _plUiI
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ID stack~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    void (*push_id_string) (const char*);
-    void (*push_id_pointer)(const void*);
-    void (*push_id_uint)   (uint32_t);
-    void (*pop_id)         (void);
+    void     (*push_id_string) (const char*);
+    void     (*push_id_pointer)(const void*);
+    void     (*push_id_uint)   (uint32_t);
+    void     (*pop_id)         (void);
+    uint32_t (*get_id)         (const char*);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~state query~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
