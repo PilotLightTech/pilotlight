@@ -1020,11 +1020,11 @@ pl__draw_add_text(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plDrawTe
             float x1,y1,s1,t1; // bottom-right
 
             // adjust for left side bearing if first char
-            if(bFirstCharacter)
-            {
-                if(ptGlyph->fLeftBearing > 0.0f) p.x += ptGlyph->fLeftBearing * fScale;
-                bFirstCharacter = false;
-            }
+            // if(bFirstCharacter)
+            // {
+            //     if(ptGlyph->fLeftBearing > 0.0f) p.x += ptGlyph->fLeftBearing * fScale;
+            //     bFirstCharacter = false;
+            // }
 
             x0 = p.x + ptGlyph->x0 * fScale;
             x1 = p.x + ptGlyph->x1 * fScale;
@@ -1070,11 +1070,11 @@ pl__draw_add_text(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plDrawTe
             float x1,y1,s1,t1; // bottom-right
 
             // adjust for left side bearing if first char
-            if(bFirstCharacter)
-            {
-                if(ptGlyph->fLeftBearing > 0.0f) p.x += ptGlyph->fLeftBearing * fScale;
-                bFirstCharacter = false;
-            }
+            // if(bFirstCharacter)
+            // {
+            //     if(ptGlyph->fLeftBearing > 0.0f) p.x += ptGlyph->fLeftBearing * fScale;
+            //     bFirstCharacter = false;
+            // }
 
             x0 = p.x + ptGlyph->x0 * fScale;
             x1 = p.x + ptGlyph->x1 * fScale;
@@ -1168,12 +1168,12 @@ pl__draw_add_text_clipped(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, 
             float x1,y1,s1,t1; // bottom-right
 
             // adjust for left side bearing if first char
-            if(bFirstCharacter)
-            {
-                if(ptGlyph->fLeftBearing > 0.0f)
-                    p.x += ptGlyph->fLeftBearing * fScale;
-                bFirstCharacter = false;
-            }
+            // if(bFirstCharacter)
+            // {
+            //     if(ptGlyph->fLeftBearing > 0.0f)
+            //         p.x += ptGlyph->fLeftBearing * fScale;
+            //     bFirstCharacter = false;
+            // }
 
             x0 = p.x + ptGlyph->x0 * fScale;
             x1 = p.x + ptGlyph->x1 * fScale;
@@ -1218,12 +1218,12 @@ pl__draw_add_text_clipped(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, 
             float x1,y1,s1,t1; // bottom-right
 
             // adjust for left side bearing if first char
-            if(bFirstCharacter)
-            {
-                if(ptGlyph->fLeftBearing > 0.0f)
-                    p.x += ptGlyph->fLeftBearing * fScale;
-                bFirstCharacter = false;
-            }
+            // if(bFirstCharacter)
+            // {
+            //     if(ptGlyph->fLeftBearing > 0.0f)
+            //         p.x += ptGlyph->fLeftBearing * fScale;
+            //     bFirstCharacter = false;
+            // }
 
             x0 = p.x + ptGlyph->x0 * fScale;
             x1 = p.x + ptGlyph->x1 * fScale;
@@ -2164,8 +2164,8 @@ pl_draw_calculate_text_size(const char* pcText, plDrawTextOptions tOptions)
             // adjust for left side bearing if first char
             if(bFirstCharacter)
             {
-                if(ptGlyph->fLeftBearing > 0.0f)
-                    tCursor.x += ptGlyph->fLeftBearing * fScale;
+                // if(ptGlyph->fLeftBearing > 0.0f)
+                //     tCursor.x += ptGlyph->fLeftBearing * fScale;
                 bFirstCharacter = false;
                 tOriginalPosition.x = tCursor.x + ptGlyph->x0 * fScale;
                 tOriginalPosition.y = tCursor.y + ptGlyph->y0 * fScale;
@@ -2283,8 +2283,8 @@ pl_draw_calculate_text_bb(plVec2 tP, const char* pcText, plDrawTextOptions tOpti
             // adjust for left side bearing if first char
             if(bFirstCharacter)
             {
-                if(ptGlyph->fLeftBearing > 0.0f)
-                    tCursor.x += ptGlyph->fLeftBearing * fScale;
+                // if(ptGlyph->fLeftBearing > 0.0f)
+                //     tCursor.x += ptGlyph->fLeftBearing * fScale;
                 bFirstCharacter = false;
                 tOriginalPosition.x = tCursor.x + ptGlyph->x0 * fScale;
                 tOriginalPosition.y = tCursor.y + ptGlyph->y0 * fScale;
