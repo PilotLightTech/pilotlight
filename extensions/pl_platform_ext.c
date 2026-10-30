@@ -36,6 +36,7 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_directory       = pl_file_create_directory,
         .remove_directory       = pl_file_remove_directory,
         .get_directory_info     = pl_file_get_directory_info,
+        .reset_directory_info   = pl_file_reset_directory_info,
         .cleanup_directory_info = pl_file_cleanup_directory_info,
     };
 

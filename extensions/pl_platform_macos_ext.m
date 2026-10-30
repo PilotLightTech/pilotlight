@@ -1390,10 +1390,22 @@ pl_file_remove_directory(const char* pcPath)
 }
 
 void
+pl_file_reset_directory_info(plDirectoryInfo* ptInfo)
+{
+    pl_sb_reset(ptInfo->sbtEntries);
+    ptInfo->uEntryCount = 0;
+    ptInfo->uDirectoryCount = 0;
+    ptInfo->uFileCount = 0;
+}
+
+void
 pl_file_cleanup_directory_info(plDirectoryInfo* ptInfoOut)
 {
     pl_sb_free(ptInfoOut->sbtEntries);
+    ptInfoOut->sbtEntries = NULL;
     ptInfoOut->uEntryCount = 0;
+    ptInfoOut->uDirectoryCount = 0;
+    ptInfoOut->uFileCount = 0;
 }
 
 plFileResult

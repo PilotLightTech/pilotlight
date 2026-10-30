@@ -205,6 +205,7 @@ typedef struct _plFileI
 
     // directory info
     plFileResult (*get_directory_info)    (const char* path, plDirectoryInfo* infoOut);
+    void         (*reset_directory_info)  (plDirectoryInfo* info);
     void         (*cleanup_directory_info)(plDirectoryInfo* infoOut);
 
 } plFileI;
