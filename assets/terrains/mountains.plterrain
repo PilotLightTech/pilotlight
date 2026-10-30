@@ -26,20 +26,20 @@
     "elevation_zones": [
         {
             "min_elevation": -1000.0,
-            "max_elevation": 60.0,
+            "max_elevation": 300.0,
             "blend_size": 30.0,
             "flat_material": "/assets/materials/sand.plmaterial",
             "steep_material": "/assets/materials/rock.plmaterial"
         },
         {
-            "min_elevation": 60.0,
-            "max_elevation": 300.0,
+            "min_elevation": 300.0,
+            "max_elevation": 500.0,
             "blend_size": 100.0,
             "flat_material": "/assets/materials/dirt.plmaterial",
             "steep_material": "/assets/materials/rock.plmaterial"
         },
         {
-            "min_elevation": 200.0,
+            "min_elevation": 400.0,
             "max_elevation": 800.0,
             "blend_size": 60.0,
             "flat_material": "/assets/materials/grass.plmaterial",

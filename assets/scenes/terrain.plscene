@@ -30,12 +30,33 @@
             }
         },
         {            
+            "id": 18498471, 
+            "tag": {                
+                "name": "Water"
+            }, 
+            "transform": {                
+                "translation": [ 0, 255, 0 ], 
+                "rotation": [ 0, 0, 0, 1 ], 
+                "scale": [ 40960, 1, 40960 ]
+            }, 
+            "object": {                
+                "mesh": "/assets/meshes/plane.plmesh", 
+                "first_submesh": 0, 
+                "submesh_count": 1, 
+                "transform": 18498471, 
+                "casts_shadow": false, 
+                "receives_shadow": true, 
+                "renderable": true,
+                "material_overrides": ["/assets/materials/water.plmaterial"]
+            }
+        },
+        {            
             "id": 434, 
             "tag": {                
                 "name": "Damaged Helmet"
             }, 
             "transform": {                
-                "translation": [ 3652, 1666, 3530 ], 
+                "translation": [ 8000, 268, 14897 ], 
                 "rotation": [ 0.707106829, 0, 0, 0.707106829 ], 
                 "scale": [ 1, 1, 1 ]
             }, 
@@ -55,7 +76,7 @@
                 "name": "Probe 0"
             }, 
             "transform": {                
-                "translation": [ 3652, 1676, 3533 ], 
+                "translation": [ 0, 2000, 0 ], 
                 "rotation": [ 0, 0, 0, 1 ], 
                 "scale": [ 1, 1, 1 ]
             }, 
@@ -69,10 +90,10 @@
                 "renderable": false
             }, 
             "probe": {                
-                "resolution": 128, 
-                "samples": 128, 
+                "resolution": 256, 
+                "samples": 256, 
                 "interval": 1, 
-                "range": 10000, 
+                "range": 100000, 
                 "realtime": false, 
                 "include_sky": true
             }
@@ -90,7 +111,7 @@
             }, 
             "camera": {                
                 "projection": "perspective", 
-                "position": [ 3652.0315718013735, 1666.8123762756586, 3534.9376658014953 ], 
+                "position": [ 8000, 268, 14900 ], 
                 "near": 0.100000001, 
                 "far": 100000, 
                 "pitch": -0.195000052, 

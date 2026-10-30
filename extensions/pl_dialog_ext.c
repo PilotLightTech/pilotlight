@@ -259,3 +259,16 @@ pl_unload_dialog_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plDialogI* ptApi = pl_get_api_latest(ptApiRegistry, plDialogI);
     ptApiRegistry->remove_api(ptApi);
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
+
+#ifndef PL_UNITY_BUILD
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+
+#endif
