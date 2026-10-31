@@ -1,0 +1,25 @@
+{    
+    "format": "planimation", 
+    "version": 1, 
+    "start": 0, 
+    "end": 10.0, 
+    "channels": [
+        {
+            "data": 0, 
+            "target": 0, 
+            "path": "translation", 
+            "mode": "linear"
+        }
+    ],
+    "data": [ {            
+            "times": [ 0.0, 2.5, 5.0, 7.5, 10.0], 
+            "data": [
+                0, 255, 0,
+                0, 256, 0,
+                0, 257, 0,
+                0, 256, 0,
+                0, 255, 0
+            ]
+        }
+    ]
+}

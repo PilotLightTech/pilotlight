@@ -48,6 +48,14 @@
                 "receives_shadow": true, 
                 "renderable": true,
                 "material_overrides": ["/assets/materials/water.plmaterial"]
+            },
+            "animation": {                
+                "animation": "/assets/animations/tide.planimation", 
+                "speed": 1, 
+                "blend_amount": 1, 
+                "playing": true, 
+                "looped": true, 
+                "targets": [ 18498471 ]
             }
         },
         {            
@@ -93,7 +101,35 @@
                 "resolution": 256, 
                 "samples": 256, 
                 "interval": 1, 
-                "range": 100000, 
+                "range": 100, 
+                "realtime": false, 
+                "include_sky": true
+            }
+        },
+            {            
+            "id": 33, 
+            "tag": {                
+                "name": "Probe 1"
+            }, 
+            "transform": {                
+                "translation": [ 8000, 275, 14897 ], 
+                "rotation": [ 0, 0, 0, 1 ], 
+                "scale": [ 1, 1, 1 ]
+            }, 
+            "object": {                
+                "mesh": "/assets/meshes/probe.plmesh", 
+                "first_submesh": 0, 
+                "submesh_count": 1, 
+                "transform": 33, 
+                "casts_shadow": false, 
+                "receives_shadow": true, 
+                "renderable": false
+            }, 
+            "probe": {                
+                "resolution": 256, 
+                "samples": 256, 
+                "interval": 1, 
+                "range": 100, 
                 "realtime": false, 
                 "include_sky": true
             }

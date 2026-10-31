@@ -342,9 +342,248 @@ static plVec2 pl__get_normal(plTerrainHeightMap*, plTerrainMapElement*);
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
+static void
+pl__terrain_load_for_sampling(plTerrainAsset* ptTerrain, uint32_t uTileIndex)
+{
+    const char* pcAssetPath = gptAsset->get_path(ptTerrain->atTiles[uTileIndex].tHeightmap);
+
+    plTextureAsset* ptTextureAsset = gptAsset->get_data(ptTerrain->atTiles[uTileIndex].tHeightmap);
+    size_t szFileSize = gptVfs->get_file_size_str(ptTextureAsset->pcSourceFile);
+    plVfsFileHandle tHeightMap = gptVfs->open_file(ptTextureAsset->pcSourceFile, PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tHeightMap, NULL, &szFileSize);
+    uint8_t* puFileData = PL_ALLOC(szFileSize + 1);
+    memset(puFileData, 0, szFileSize + 1);
+    gptVfs->read_file(tHeightMap, puFileData, &szFileSize);
+    gptVfs->close_file(tHeightMap);
+
+    // load image info
+    plImageInfo tImageInfo = {0};
+    gptImage->get_info(puFileData, (int)szFileSize, &tImageInfo);
+    int iImageWidth = tImageInfo.iWidth;
+    int iImageHeight = tImageInfo.iHeight;
+
+    void*          pImageData     = NULL;
+    void*          pConvertedData = NULL; // if not loaded as 16 bit
+    unsigned char* pucImageData   = NULL; // could be converted or not (aliased)
+
+    int _unused = 0;
+    if(tImageInfo.b16Bit)
+    {
+        uint16_t* puImageData = gptImage->load_16bit(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+        pucImageData = (unsigned char*)puImageData;
+        pImageData = puImageData;
+    }
+    else if(tImageInfo.bHDR)
+    {
+        float* pufImageData = gptImage->load_hdr(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+        uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
+        uint16_t* puConvertedData = PL_ALLOC(sizeof(uint16_t) * uPixelCount);
+
+        // scale for 16 bit
+        for(uint32_t i = 0; i < uPixelCount; i++)
+            puConvertedData[i] = (uint16_t)(pufImageData[i] * 65535.0f);
+
+        gptImage->free(pufImageData);
+        pucImageData = (unsigned char*)puConvertedData;
+        pConvertedData = puConvertedData;
+
+    }
+    else
+    {
+        uint8_t* puImageData = gptImage->load(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+        uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
+        uint16_t* puConvertedData = PL_ALLOC(sizeof(uint16_t) * uPixelCount);
+
+        // scale for 16 bit
+        for(uint32_t i = 0; i < uPixelCount; i++)
+            puConvertedData[i] = (uint16_t)puImageData[i] * 257u;
+
+        gptImage->free(puImageData);
+        pucImageData = (unsigned char*)puConvertedData;
+        pConvertedData = puConvertedData;
+    }
+
+    PL_FREE(puFileData);
+    puFileData = NULL;
+
+    uint32_t uMaxX = (uint32_t)iImageWidth;
+    uint32_t uMaxY = (uint32_t)iImageHeight;
+
+    const uint16_t* puSource = (const uint16_t*)pucImageData;
+    ptTerrain->atTiles[uTileIndex]._pfHeightData = PL_ALLOC(sizeof(float) * uMaxX * uMaxY);
+    memset(ptTerrain->atTiles[uTileIndex]._pfHeightData, 0, sizeof(float) * uMaxX * uMaxY);
+
+    for(int j = 0; j < iImageHeight; j++)
+    {
+        for(int k = 0; k < iImageWidth; k++)
+        {
+            const uint16_t uHeight = puSource[j * iImageWidth + k];
+            float fHeight = (float)uHeight / (float)UINT16_MAX;
+            fHeight *= (ptTerrain->atTiles[uTileIndex].fMaxHeight - ptTerrain->atTiles[uTileIndex].fMinHeight);
+            fHeight += ptTerrain->atTiles[uTileIndex].fMinHeight;
+            ptTerrain->atTiles[uTileIndex]._pfHeightData[j * iImageWidth + k] = fHeight;
+        }
+    }
+
+    if(pImageData)
+        gptImage->free(pImageData);
+    if(pConvertedData)
+    {
+        PL_FREE(pConvertedData);
+    }
+}
+
+void
+pl_terrain_unload_sampling_data(plTerrainAsset* ptTerrain)
+{
+    for(uint32_t i = 0; i < ptTerrain->uTileCount; i++)
+    {
+        plTerrainProcessTileInfo* ptTile = &ptTerrain->atTiles[i];
+        if(ptTile->_pfHeightData)
+        {
+            PL_FREE(ptTile->_pfHeightData);
+        }
+        ptTile->_pfHeightData = NULL;
+    }
+}
+
+// plTerrainSampleResult
+// pl_terrain_sample_height(plTerrainAsset* ptTerrain, float fWorldX, float fWorldZ, float* pfHeightOut)
+// {
+//     // if(ptTerrain->_pfHeightData == NULL)
+//     //     return PL_TERRAIN_SAMPLE_NOT_READY;
+
+//     const float fRawWidth = (float)(ptTerrain->uSize * ptTerrain->uHorizontalTiles) * ptTerrain->fMetersPerPixel;
+//     const float fRawHeight = (float)(ptTerrain->uSize * ptTerrain->uVerticalTiles) * ptTerrain->fMetersPerPixel;
+//     const float fStartX = ptTerrain->tCenter.x - 0.5f * fRawWidth;
+//     const float fStartZ = ptTerrain->tCenter.z - 0.5f * fRawHeight;
+//     const float fTileSize = (float)ptTerrain->uSize * ptTerrain->fMetersPerPixel;
+
+//     if(fWorldX < fStartX)              return PL_TERRAIN_SAMPLE_OUT_OF_BOUNDS;
+//     if(fWorldZ < fStartZ)              return PL_TERRAIN_SAMPLE_OUT_OF_BOUNDS;
+//     if(fWorldX > fStartX + fRawWidth)  return PL_TERRAIN_SAMPLE_OUT_OF_BOUNDS;
+//     if(fWorldZ > fStartZ + fRawHeight) return PL_TERRAIN_SAMPLE_OUT_OF_BOUNDS;
+
+//     // determine tile
+//     const uint32_t uTileCol = (uint32_t)floorf((fWorldX - fStartX) / fTileSize);
+//     const uint32_t uTileRow = (uint32_t)floorf((fWorldZ - fStartZ) / fTileSize);
+
+//     plTerrainProcessTileInfo* ptTile = &ptTerrain->atTiles[uTileRow * ptTerrain->uHorizontalTiles + uTileCol];
+
+//     const plVec2 tUV = {
+//         .x = (fWorldX - (ptTile->_tCenter.x - fTileSize * 0.5f)) / fTileSize,
+//         .y = (fWorldZ - (ptTile->_tCenter.z - fTileSize * 0.5f)) / fTileSize,
+//     };
+
+//     uint32_t uSampleCol = (uint32_t)floorf(tUV.x * (float)ptTerrain->uSize);
+//     uint32_t uSampleRow = (uint32_t)floorf(tUV.y * (float)ptTerrain->uSize);
+
+//     if(ptTile->_pfHeightData == NULL)
+//         pl__terrain_load_for_sampling(ptTerrain, uTileRow * ptTerrain->uHorizontalTiles + uTileCol);
+
+//     *pfHeightOut = ptTile->_pfHeightData[uSampleRow * ptTerrain->uSize + uSampleCol];
+//     return PL_TERRAIN_SAMPLE_SUCCESS;
+// }
+
+static inline float
+pl__lerpf(float a, float b, float t)
+{
+    return a + (b - a) * t;
+}
+
+plTerrainSampleResult
+pl_terrain_sample_height(plTerrainAsset* ptTerrain, float fWorldX, float fWorldZ, float* pfHeightOut)
+{
+    const uint32_t uSize = ptTerrain->uSize;
+    const uint32_t uCols = ptTerrain->uHorizontalTiles;
+    const uint32_t uRows = ptTerrain->uVerticalTiles;
+    const float fSpacing = ptTerrain->fMetersPerPixel;
+
+    if(!pfHeightOut || !uSize || !uCols || !uRows || fSpacing <= 0.0f)
+        return PL_TERRAIN_SAMPLE_NOT_READY;
+
+    const float fRawWidth  = (float)(uSize * uCols) * fSpacing;
+    const float fRawHeight = (float)(uSize * uRows) * fSpacing;
+
+    const float fStartX = ptTerrain->tCenter.x - 0.5f * fRawWidth;
+    const float fStartZ = ptTerrain->tCenter.z - 0.5f * fRawHeight;
+
+    // convert world position to global heightfield coordinates
+    const float fGridX = (fWorldX - fStartX) / fSpacing;
+    const float fGridZ = (fWorldZ - fStartZ) / fSpacing;
+
+    const uint32_t uMaxX = uSize * uCols;
+    const uint32_t uMaxZ = uSize * uRows;
+
+    // bounds check (inclusive of outer edges)
+    if(fGridX < 0.0f || fGridZ < 0.0f ||
+       fGridX > (float)uMaxX || fGridZ > (float)uMaxZ)
+        return PL_TERRAIN_SAMPLE_OUT_OF_BOUNDS;
+
+    // surrounding global sample coordinates
+    const uint32_t uX0 = (uint32_t)floorf(fGridX);
+    const uint32_t uZ0 = (uint32_t)floorf(fGridZ);
+    const uint32_t uX1 = pl_minu(uX0 + 1, uMaxX);
+    const uint32_t uZ1 = pl_minu(uZ0 + 1, uMaxZ);
+
+    // interpolation weights
+    const float fTx = fGridX - (float)uX0;
+    const float fTz = fGridZ - (float)uZ0;
+
+    const uint32_t auX[2] = {uX0, uX1};
+    const uint32_t auZ[2] = {uZ0, uZ1};
+
+    float afHeights[2][2];
+
+    // fetch four heights, potentially from neighboring tiles
+    for(uint32_t z = 0; z < 2; z++)
+    {
+        for(uint32_t x = 0; x < 2; x++)
+        {
+            const uint32_t uGlobalX = auX[x];
+            const uint32_t uGlobalZ = auZ[z];
+
+            // determine owning tile
+            const uint32_t uTileCol = pl_minu(uGlobalX / uSize, uCols - 1);
+            const uint32_t uTileRow = pl_minu(uGlobalZ / uSize, uRows - 1);
+            const uint32_t uTileIndex = uTileRow * uCols + uTileCol;
+
+            // local coordinates within the source heightmap
+            const uint32_t uLocalX = pl_minu(uGlobalX - uTileCol * uSize, uSize - 1);
+            const uint32_t uLocalZ = pl_minu(uGlobalZ - uTileRow * uSize, uSize - 1);
+
+            plTerrainProcessTileInfo* ptTile = &ptTerrain->atTiles[uTileIndex];
+
+            // load CPU height data if necessary
+            if(ptTile->_pfHeightData == NULL)
+                pl__terrain_load_for_sampling(ptTerrain, uTileIndex);
+
+            if(ptTile->_pfHeightData == NULL)
+                return PL_TERRAIN_SAMPLE_NOT_READY;
+
+            afHeights[z][x] = ptTile->_pfHeightData[uLocalZ * uSize + uLocalX];
+        }
+    }
+
+    // bilinear interpolation
+    const float fH0 = pl__lerpf(afHeights[0][0], afHeights[0][1], fTx);
+    const float fH1 = pl__lerpf(afHeights[1][0], afHeights[1][1], fTx);
+
+    *pfHeightOut = pl__lerpf(fH0, fH1, fTz) + ptTerrain->tCenter.y;
+
+    return PL_TERRAIN_SAMPLE_SUCCESS;
+}
+
 void
 pl_terrain_process(plTerrainAsset* ptInfo)
 {
+    const float fRawWidth = (float)(ptInfo->uSize * ptInfo->uHorizontalTiles) * ptInfo->fMetersPerPixel;
+    const float fRawHeight = (float)(ptInfo->uSize * ptInfo->uVerticalTiles) * ptInfo->fMetersPerPixel;
+    const float fStartX = ptInfo->tCenter.x - 0.5f * fRawWidth;
+    const float fStartZ = ptInfo->tCenter.z - 0.5f * fRawHeight;
+
+    const float fTileSize = (float)ptInfo->uSize * ptInfo->fMetersPerPixel;
+
     for(uint32_t i = 0; i < ptInfo->uTileCount; i++)
     {
         const char* pcAssetPath = gptAsset->get_path(ptInfo->atTiles[i].tHeightmap);
@@ -358,6 +597,9 @@ pl_terrain_process(plTerrainAsset* ptInfo)
         if(gptVfs->does_file_exist(acCacheFile))
             continue;
 
+        uint32_t uRow = (uint32_t)floorf((float)i / (float)ptInfo->uHorizontalTiles);
+        uint32_t uCol = i % ptInfo->uHorizontalTiles;
+
         plTerrainHeightMap tHeightMap = {
             .fSampleSpacing  = 1.0f,
             .fMaxBaseError   = ptInfo->atTiles[i].fMaxBaseError,
@@ -365,9 +607,9 @@ pl_terrain_process(plTerrainAsset* ptInfo)
             .fMaxHeight      = ptInfo->atTiles[i].fMaxHeight,
             .fMinHeight      = ptInfo->atTiles[i].fMinHeight,
             .tCenter         = {
-                .x = ptInfo->atTiles[i].tCenter.x,
-                .y = ptInfo->atTiles[i].tCenter.y,
-                .z = ptInfo->atTiles[i].tCenter.z,
+                .x = fStartX + ((float)uCol + 0.5f) * fTileSize,
+                .y = ptInfo->tCenter.y,
+                .z = fStartZ + ((float)uRow + 0.5f) * fTileSize,
             },
             .uRequestedSize  = ptInfo->uSize
         };
@@ -594,7 +836,8 @@ pl__terrain_deserialize(const char* pcName, void* pTerrain)
         gptJson->load((const char*)puFileBuffer, &ptRoot);
         
         ptTerrain->fMetersPerPixel = gptJson->float_member(ptRoot, "meters_per_pixel", 1.0f);
-        ptTerrain->uSize = gptJson->uint32_member(ptRoot, "tile_size", 4096);
+        ptTerrain->uSize = gptJson->uint32_member(ptRoot, "tile_size", 1024);
+        gptJson->float_array_member(ptRoot, "center", ptTerrain->tCenter.d, NULL);
 
         plJsonObject* ptJsonGrid = gptJson->member(ptRoot, "grid");
         if(ptJsonGrid)
@@ -613,7 +856,6 @@ pl__terrain_deserialize(const char* pcName, void* pTerrain)
 
             ptTile->fMinHeight = gptJson->float_member(ptJsonTile, "min_height", 0.0f);
             ptTile->fMaxHeight = gptJson->float_member(ptJsonTile, "max_height", 0.0f);
-            gptJson->float_array_member(ptJsonTile, "center", ptTile->tCenter.d, NULL);
 
             gptJson->string_member(ptJsonTile, "heightmap", acTempBuffer, 256);
             ptTile->tHeightmap = gptAsset->load(acTempBuffer);
@@ -949,10 +1191,32 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainAsset* 
 
     for(int j = 0; j < iImageHeight; j++)
     {
-        memcpy(
-            &auHeightMapData[j * ptHeightMap->iSize],
-            &puSource[j * iImageWidth],
-            (size_t)iImageWidth * sizeof(uint16_t));
+        memcpy(&auHeightMapData[j * ptHeightMap->iSize], &puSource[j * iImageWidth], (size_t)iImageWidth * sizeof(uint16_t));
+    }
+
+    // Fill outer terrain boundaries where no neighboring tiles exist.
+    // The heightfield contains N+1 vertices for N source samples.
+
+    const int iSize = ptHeightMap->iSize;
+
+    // eastern boundary
+    if(uCol == ptInfo->uHorizontalTiles - 1)
+    {
+        for(int j = 0; j < iSize; j++)
+        {
+            auHeightMapData[j * iSize + (iSize - 1)] =
+                auHeightMapData[j * iSize + (iSize - 2)];
+        }
+    }
+
+    // southern boundary
+    if(uRow == ptInfo->uVerticalTiles - 1)
+    {
+        for(int i = 0; i < iSize; i++)
+        {
+            auHeightMapData[(iSize - 1) * iSize + i] =
+                auHeightMapData[(iSize - 2) * iSize + i];
+        }
     }
 
     if(pImageData)
@@ -1167,8 +1431,8 @@ pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX
     fwrite(&iChunkLabel, 1, sizeof(int), ptFile);
     fwrite(&iLevel,      1, sizeof(int), ptFile);
 
-    float fXWrite = (float)iStartIndexX / ptHeightMap->iSize;
-    float fYWrite = (float)iStartIndexY / ptHeightMap->iSize;
+    float fXWrite = (float)iStartIndexX / (ptHeightMap->iSize - 1);
+    float fYWrite = (float)iStartIndexY / (ptHeightMap->iSize - 1);
 
     fwrite(&fXWrite, 1, sizeof(float), ptFile);
     fwrite(&fYWrite, 1, sizeof(float), ptFile);
@@ -1362,10 +1626,12 @@ pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX
 static plVec3
 pl__get_cartesian(plTerrainHeightMap* ptHeightMap, plTerrainMapElement* ptElement)
 {
+    const float fHalfExtent = (float)(ptHeightMap->iSize - 1) * ptHeightMap->fMetersPerPixel * 0.5f;
+
     plVec3 tResult = {
-        (float)ptElement->iX * ptHeightMap->fMetersPerPixel + ptHeightMap->tCenter.x - ptHeightMap->iSize * ptHeightMap->fMetersPerPixel * 0.5f,
+        (float)ptElement->iX * ptHeightMap->fMetersPerPixel + ptHeightMap->tCenter.x - fHalfExtent,
         ptElement->fY + ptHeightMap->tCenter.y,
-        (float)ptElement->iZ * ptHeightMap->fMetersPerPixel + ptHeightMap->tCenter.z - ptHeightMap->iSize * ptHeightMap->fMetersPerPixel * 0.5f,
+        (float)ptElement->iZ * ptHeightMap->fMetersPerPixel + ptHeightMap->tCenter.z - fHalfExtent,
     };
     return tResult;
 }
@@ -1572,6 +1838,8 @@ pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .load_chunk_file      = pl_terrain_load_chunk_file,
         .unload_chunk_file    = pl_terrain_unload_chunk_file,
         .register_asset_types = pl_terrain_register_asset_type,
+        .sample_height        = pl_terrain_sample_height,
+        .unload_sampling_data = pl_terrain_unload_sampling_data,
         .get_asset_type_key   = pl_terrain_get_asset_type_key
     };
     pl_set_api(ptApiRegistry, plTerrainI, &tApi);

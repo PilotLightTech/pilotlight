@@ -58,6 +58,9 @@ typedef struct _plTerrainProcessTileInfo plTerrainProcessTileInfo;
 typedef struct _plTerrainAsset           plTerrainAsset;
 typedef struct _plTerrainElevationZone   plTerrainElevationZone;
 
+// enums/flags
+typedef int plTerrainSampleResult;
+
 // external
 typedef struct _plFreeListNode plFreeListNode; // pl_freelist_ext.h
 
@@ -79,6 +82,10 @@ typedef struct _plTerrainI
     bool (*load_chunk_file)  (const char* path, plTerrainChunkFile* fileOut, uint32_t fileID);
     void (*unload_chunk_file)(plTerrainChunkFile* fileOut);
 
+    // sampling
+    plTerrainSampleResult (*sample_height)(plTerrainAsset*, float worldX, float worldZ, float* heightOut);
+    void                  (*unload_sampling_data)(plTerrainAsset*);
+
     // assets
     void           (*register_asset_types)(void);
     plAssetTypeKey (*get_asset_type_key)(void);
@@ -87,16 +94,6 @@ typedef struct _plTerrainI
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
-
-typedef struct _plTerrainProcessTileInfo
-{
-    float         fMaxBaseError;
-    float         fMaxHeight;
-    float         fMinHeight;
-    int           iTreeDepth;
-    plVec3        tCenter;
-    plAssetHandle tHeightmap;
-} plTerrainProcessTileInfo;
 
 typedef struct _plTerrainChunk
 {
@@ -156,20 +153,48 @@ typedef struct _plTerrainElevationZone
     plAssetHandle tSteepMaterial;
 } plTerrainElevationZone;
 
+typedef struct _plTerrainProcessTileInfo
+{
+    float         fMaxBaseError;
+    float         fMaxHeight;
+    float         fMinHeight;
+    int           iTreeDepth;
+    // plVec3        tCenter;
+    plAssetHandle tHeightmap;
+
+    // [INTERNAL]
+    float* _pfHeightData;
+    plVec3 _tCenter;
+} plTerrainProcessTileInfo;
+
 typedef struct _plTerrainAsset
 {
-    float    fMetersPerPixel;
-    uint32_t uHorizontalTiles;
-    uint32_t uVerticalTiles;
-    uint32_t uSize;
-
+    float                     fMetersPerPixel;
+    plVec3                    tCenter;
+    uint32_t                  uHorizontalTiles;
+    uint32_t                  uVerticalTiles;
+    uint32_t                  uSize;
     uint32_t                  uTileCount;
     plTerrainProcessTileInfo* atTiles;
+    uint32_t                  uElevationZoneCount;
+    plTerrainElevationZone*   atElevationZones;
+    // float*                    _pfHeightData;
 
-    uint32_t                uElevationZoneCount;
-    plTerrainElevationZone* atElevationZones;
+    // [INTERNAL]
+
 
 } plTerrainAsset;
+
+//-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
+
+enum _plTerrainSampleResult
+{
+    PL_TERRAIN_SAMPLE_SUCCESS = 0,
+    PL_TERRAIN_SAMPLE_OUT_OF_BOUNDS,
+    PL_TERRAIN_SAMPLE_NOT_READY
+};
 
 #ifdef __cplusplus
 }

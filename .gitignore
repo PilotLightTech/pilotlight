@@ -42,8 +42,10 @@ assets/scenes/*
 !assets/scenes/humanoid.plscene
 !assets/scenes/terrain.plscene
 
-assets/skeletons/*
 assets/animations/*
+!assets/animations/tide.planimation
+
+assets/skeletons/*
 assets/skins/*
 
 assets/textures/*

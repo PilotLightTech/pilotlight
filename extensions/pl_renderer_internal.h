@@ -165,7 +165,7 @@ typedef struct _plDrawable              plDrawable;
 typedef struct _plCullData              plCullData;
 typedef struct _plMemCpyJobData         plMemCpyJobData;
 typedef struct _plEnvironmentProbeData  plEnvironmentProbeData;
-typedef struct _plTerrain plTerrain; // opaque type for a terrain
+typedef struct _plTerrain               plTerrain; // opaque type for a terrain
 
 // enums & flags
 typedef int plDrawableFlags;

@@ -1693,6 +1693,9 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
                         .tCenter = ptTransform->tTranslation
                     };
                     gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere, 6, 6, (plDrawLineOptions){.uColor = PL_COLOR_32_LIGHT_GREY, .fThickness = 0.005f});
+
+                    if(pl_length_vec3(pl_sub_vec3(ptCamera->tPositionF, ptTransform->tTranslation)) > ptProbeComp->fRange)
+                        gptDraw->add_3d_sphere_filled(ptView->pt3DDrawList, tSphere, 36, 36, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.25f)});
                 }
             }
         }
@@ -2738,7 +2741,7 @@ pl_renderer_begin_frame(void)
                     for(uint32_t uViewIndex = 0; uViewIndex < pl_sb_size(ptScene->sbptViews); uViewIndex++)
                     {
                         plView* ptView = ptScene->sbptViews[uViewIndex];
-                        if(gptUI->tree_node_f("View: %u", 0, uViewIndex))
+                        if(gptUI->tree_node_f("View: %u", PL_UI_TREE_NODE_FLAGS_DEFAULT_OPEN, uViewIndex))
                         {
                             gptUI->checkbox("Show Origin", &ptView->bShowOrigin);
                             gptUI->checkbox("Show Grid", &ptView->bShowGrid);

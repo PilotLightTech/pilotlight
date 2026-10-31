@@ -171,18 +171,22 @@ pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plAssetHandle tAsset)
 
     plTerrainAsset* ptTerrainAsset = gptAsset->get_data(tAsset);    
 
+    const float fRawWidth = (float)(ptTerrainAsset->uSize * ptTerrainAsset->uHorizontalTiles) * ptTerrainAsset->fMetersPerPixel;
+    const float fRawHeight = (float)(ptTerrainAsset->uSize * ptTerrainAsset->uVerticalTiles) * ptTerrainAsset->fMetersPerPixel;
+    const float fStartX = ptTerrainAsset->tCenter.x - 0.5f * fRawWidth;
+    const float fStartZ = ptTerrainAsset->tCenter.z - 0.5f * fRawHeight;
+    const float fTileSize = (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel;
+
     {
-        float fX = ptTerrainAsset->atTiles[0].tCenter.x;
-        float fY = ptTerrainAsset->atTiles[0].tCenter.z;
-        ptTerrain->tTopLeftGlobal.x = fX - 0.5f * (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel;
-        ptTerrain->tTopLeftGlobal.y = fY - 0.5f * (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel;
+        float fX = ptTerrainAsset->tCenter.x - (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel * 0.5f * ((float)ptTerrainAsset->uHorizontalTiles + 1.0f);
+        float fY = ptTerrainAsset->tCenter.z - (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel * 0.5f * ((float)ptTerrainAsset->uVerticalTiles + 1.0f);
+        ptTerrain->tTopLeftGlobal.x = fStartX;
+        ptTerrain->tTopLeftGlobal.y = fStartZ;
     }
 
     {
-        float fX = ptTerrainAsset->atTiles[ptTerrainAsset->uTileCount - 1].tCenter.x;
-        float fY = ptTerrainAsset->atTiles[ptTerrainAsset->uTileCount - 1].tCenter.z;
-        ptTerrain->tBottomRightGlobal.x = fX - 0.5f * (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel;
-        ptTerrain->tBottomRightGlobal.y = fY - 0.5f * (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel;
+        ptTerrain->tBottomRightGlobal.x = fStartX + fRawWidth;
+        ptTerrain->tBottomRightGlobal.y = fStartZ + fRawHeight;
     }
 
     for(uint32_t k = 0; k < ptTerrainAsset->uTileCount; k++)

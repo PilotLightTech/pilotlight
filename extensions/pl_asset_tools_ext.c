@@ -1869,6 +1869,7 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->input_uint("vertical tiles", &ptTerrain->uVerticalTiles, 0);
                     gptUI->labeled_text("size", "%u", ptTerrain->uSize);
                     gptUI->labeled_text("tiles", "%u", ptTerrain->uTileCount);
+                    gptUI->input_float3("center", ptTerrain->tCenter.d, "%0.6f", 0);
 
                     static uint32_t uSelectedTile = 0;
                     uSelectedTile = pl_clampu(0, uSelectedTile, ptTerrain->uTileCount - 1);
@@ -1898,8 +1899,6 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->input_float("max. height", &ptTile->fMaxHeight, "%g", 0);
                     gptUI->input_float("min. height", &ptTile->fMinHeight, "%g", 0);
                     gptUI->input_int("tree depth", &ptTile->iTreeDepth,  0);
-                    gptUI->input_float3("center", ptTile->tCenter.d, "%0.6f", 0);
-
 
                 }
                 else if(tAssetType == gptAnimation->get_asset_type_key())
