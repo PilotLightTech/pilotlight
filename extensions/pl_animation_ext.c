@@ -603,6 +603,7 @@ pl__animation_deserialize(const char* pcName, void* pAnimation)
             gptJson->float_array_member(ptJsonData, "data", (float*)ptAnimation->atData[i].pKeyFrameData, NULL);
         }
 
+        gptJson->unload(&ptRoot);
         PL_FREE(puFileBuffer);
     }
 

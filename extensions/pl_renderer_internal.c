@@ -6220,7 +6220,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "jfa_1"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tPostProcessRenderPassLayout
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "jumpfloodalgo2", &tDesc);
     }
@@ -6672,7 +6672,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
             .tVertexShader   = gptShader->load_glsl("pl_full_screen.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_probe.frag", "main", NULL, NULL),
             .tGraphicsState = {
-                .bDepthWriteEnabled  = true,
+                .bDepthWriteEnabled  = false,
                 .eDepthMode          = PL_COMPARE_MODE_ALWAYS,
                 .eCullMode           = PL_CULL_MODE_NONE,
                 .bWireframe          = false,

@@ -1388,10 +1388,18 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     {
         pipelineDescriptor.depthAttachmentPixelFormat = pl__metal_format(ptDescription->tRenderAttachmentInfo.eDepthFormat);
     }
+    else
+    {
+        pipelineDescriptor.depthAttachmentPixelFormat = MTLPixelFormatInvalid;
+    }
 
     if(ptDescription->tRenderAttachmentInfo.eStencilFormat != 0)
     {
         pipelineDescriptor.stencilAttachmentPixelFormat = pl__metal_format(ptDescription->tRenderAttachmentInfo.eStencilFormat);
+    }
+    else
+    {
+        pipelineDescriptor.stencilAttachmentPixelFormat = MTLPixelFormatInvalid;
     }
 
     for(uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
