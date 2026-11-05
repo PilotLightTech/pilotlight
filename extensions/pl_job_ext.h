@@ -53,7 +53,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plJobI_version {2, 3, 0}
+#define plJobI_version {2, 4, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -104,6 +104,8 @@ typedef struct _plJobI
 
     // long running jobs should check this & exit themselves
     bool (*is_shutting_down)(void);
+
+    uint32_t (*get_thread_count)(void);
 } plJobI;
 
 //-----------------------------------------------------------------------------

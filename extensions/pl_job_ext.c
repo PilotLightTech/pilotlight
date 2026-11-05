@@ -87,7 +87,6 @@ typedef struct _plJobContext
     // queue data
     plConditionVariable* ptConditionVariable;
     plCriticalSection*   ptCriticalSection;
-    plAtomicCounter*     ptQueueLatch; // 1 - locked, 0 - unlocked
     uint32_t             uFrontIndex;
     uint32_t             uBackIndex;
     uint32_t             uBatchCount;
@@ -112,113 +111,131 @@ pl__job_add_node_to_freelist(uint32_t uNode)
     gptJobCtx->uFreeList = uNode;
 }
 
-static void
-pl__job_remove_node_from_freelist(uint32_t uNode)
+static uint32_t
+pl__job_acquire_counter_node(void)
 {
-
-    bool bFound = false;
-    if(gptJobCtx->uFreeList == uNode)
-    {
-        gptJobCtx->uFreeList = gptJobCtx->sbtNodes[uNode].uNextNode;
-        bFound = true;
-    }
-    else
-    {
-        uint32_t uNextNode = gptJobCtx->uFreeList;
-        while(uNextNode != UINT32_MAX)
-        {
-            uint32_t uPrevNode = uNextNode;
-            uNextNode = gptJobCtx->sbtNodes[uPrevNode].uNextNode;
-            
-            if(uNextNode == uNode)
-            {
-                gptJobCtx->sbtNodes[uPrevNode].uNextNode = gptJobCtx->sbtNodes[uNode].uNextNode;
-                bFound = true;
-                break;
-            }
-        }
-    }
-
-    plAtomicCounterNode* ptNode = &gptJobCtx->sbtNodes[uNode];
-    ptNode->uNextNode = UINT32_MAX;
-    PL_ASSERT(bFound && "could not find node to remove");
-
+    // Allocate another node if no free nodes remain.
     if(gptJobCtx->uFreeList == UINT32_MAX)
     {
         plAtomicCounterNode tNewNode = {
             .uNextNode = UINT32_MAX
         };
+
         gptAtomics->create_counter(0, &tNewNode.ptCounter);
+        const uint32_t uNode = (uint32_t)pl_sb_size(gptJobCtx->sbtNodes);
         pl_sb_push(gptJobCtx->sbtNodes, tNewNode);
+        return uNode;
     }
 
+    // Pop head of free list.
+    const uint32_t uNode = gptJobCtx->uFreeList;
+    gptJobCtx->uFreeList = gptJobCtx->sbtNodes[uNode].uNextNode;
+    gptJobCtx->sbtNodes[uNode].uNextNode = UINT32_MAX;
+
+    return uNode;
+}
+
+// Caller must hold ptCriticalSection
+static bool
+pl__job_pop_batch_locked(plSubmittedBatch* ptBatchOut)
+{
+    if(gptJobCtx->uBatchCount == 0)
+        return false;
+
+    *ptBatchOut = gptJobCtx->sbtBatches[gptJobCtx->uFrontIndex];
+
+    // Advance front.
+    if(gptJobCtx->uFrontIndex == 0)
+        gptJobCtx->uFrontIndex = gptJobCtx->uBatchCapacity - 1;
+    else
+        gptJobCtx->uFrontIndex--;
+
+    gptJobCtx->uBatchCount--;
+    return true;
 }
 
 static bool
 pl__pop_batch_off_queue(plSubmittedBatch* ptBatchOut)
 {
-    bool bHasBatch = false;
-
-    // try to unlock (spin lock)
-    while(true)
-    {
-        if(gptAtomics->compare_exchange(gptJobCtx->ptQueueLatch, 0, 1))
-        {
-            if(gptJobCtx->uBatchCount != 0)
-            {
-                *ptBatchOut = gptJobCtx->sbtBatches[gptJobCtx->uFrontIndex];
-                gptJobCtx->sbtBatches[gptJobCtx->uFrontIndex].pData = NULL;
-                gptJobCtx->sbtBatches[gptJobCtx->uFrontIndex].task = NULL;
-                gptJobCtx->sbtBatches[gptJobCtx->uFrontIndex].ptCounter = NULL;
-                gptJobCtx->sbtBatches[gptJobCtx->uFrontIndex].tInvocationData.uBatchSize = UINT32_MAX;
-                gptJobCtx->sbtBatches[gptJobCtx->uFrontIndex].tInvocationData.uGlobalIndex = UINT32_MAX;
-                gptJobCtx->sbtBatches[gptJobCtx->uFrontIndex].tInvocationData.uBatchIndex = UINT32_MAX;
-                gptJobCtx->uFrontIndex--;
-                if(gptJobCtx->uFrontIndex == UINT32_MAX) // wrap
-                    gptJobCtx->uFrontIndex = gptJobCtx->uBatchCapacity - 1;
-
-                // update total job count
-                gptJobCtx->uBatchCount--;
-                bHasBatch = true;
-            }
-            break;
-        }
-    }
-
-    // unlock
-    gptAtomics->store(gptJobCtx->ptQueueLatch, 0);
-
-    return bHasBatch;
+    gptThreads->enter_critical_section(gptJobCtx->ptCriticalSection);
+    bool bResult = pl__job_pop_batch_locked(ptBatchOut);
+    gptThreads->leave_critical_section(gptJobCtx->ptCriticalSection);
+    return bResult;
 }
 
 static void
 pl__maybe_grow_batch_capacity(uint32_t uJobCount)
 {
-    gptJobCtx->uBatchCount += uJobCount;
-    if(gptJobCtx->uBatchCount < gptJobCtx->uBatchCapacity)
-        return;
+    const uint32_t uOldCount = gptJobCtx->uBatchCount;
+    const uint32_t uRequired = uOldCount + uJobCount;
 
-    const uint32_t uNewJobsNeeded = gptJobCtx->uBatchCount - gptJobCtx->uBatchCapacity;
-    pl_sb_resize(gptJobCtx->sbtBatches, gptJobCtx->uBatchCapacity + uNewJobsNeeded);
+    PL_ASSERT(uRequired >= uOldCount); // overflow
 
-    for(uint32_t i = 0; i < uNewJobsNeeded; i++)
+    if(uRequired <= gptJobCtx->uBatchCapacity)
     {
-        gptJobCtx->sbtBatches[gptJobCtx->uBatchCapacity + i].task = NULL;
-        gptJobCtx->sbtBatches[gptJobCtx->uBatchCapacity + i].pData = NULL;
-        gptJobCtx->sbtBatches[gptJobCtx->uBatchCapacity + i].tInvocationData.uBatchIndex = UINT32_MAX;
-        gptJobCtx->sbtBatches[gptJobCtx->uBatchCapacity + i].tInvocationData.uGlobalIndex = UINT32_MAX;
-        gptJobCtx->sbtBatches[gptJobCtx->uBatchCapacity + i].tInvocationData.uBatchSize = UINT32_MAX;
-        gptJobCtx->sbtBatches[gptJobCtx->uBatchCapacity + i].tInvocationData.szSharedMemorySize = gptJobCtx->szSharedMemorySize;
+        gptJobCtx->uBatchCount = uRequired;
+        return;
     }
 
-    gptJobCtx->uBatchCapacity += uNewJobsNeeded;
+    const uint32_t uOldCapacity = gptJobCtx->uBatchCapacity;
+
+    // Grow geometrically to avoid frequent allocations.
+    uint32_t uNewCapacity = uOldCapacity;
+
+    while(uNewCapacity < uRequired)
+    {
+        PL_ASSERT(uNewCapacity <= UINT32_MAX / 2);
+        uNewCapacity *= 2;
+    }
+
+    // Copy existing batches in their execution order.
+    plSubmittedBatch* ptPending = NULL;
+
+    if(uOldCount > 0)
+    {
+        ptPending = PL_ALLOC(sizeof(plSubmittedBatch) * uOldCount);
+
+        uint32_t uIndex = gptJobCtx->uFrontIndex;
+
+        for(uint32_t i = 0; i < uOldCount; i++)
+        {
+            ptPending[i] = gptJobCtx->sbtBatches[uIndex];
+
+            if(uIndex == 0)
+                uIndex = uOldCapacity - 1;
+            else
+                uIndex--;
+        }
+    }
+
+    // Resize backing storage.
+    pl_sb_resize(gptJobCtx->sbtBatches, uNewCapacity);
+
+    // Place old batches into their new ring positions.
+    // Oldest is at uOldCount, newest is at 1.
+    for(uint32_t i = 0; i < uOldCount; i++)
+    {
+        gptJobCtx->sbtBatches[uOldCount - i] = ptPending[i];
+    }
+
+    PL_FREE(ptPending);
+
+    // Initialize shared-memory metadata for new slots.
+    for(uint32_t i = uOldCapacity; i < uNewCapacity; i++)
+    {
+        gptJobCtx->sbtBatches[i].tInvocationData.szSharedMemorySize = gptJobCtx->szSharedMemorySize;
+    }
+
+    // Restore ring invariants.
+    gptJobCtx->uFrontIndex = uOldCount;
+    gptJobCtx->uBackIndex = 0;
+    gptJobCtx->uBatchCapacity = uNewCapacity;
+    gptJobCtx->uBatchCount = uRequired;
 }
 
 static void*
 pl__thread_procedure(void* pData)
 {
-    
-    plSubmittedBatch tBatch = {0};
 
     // allocate thread local storage data for groups
     void* pThreadLocalData = NULL;
@@ -228,37 +245,43 @@ pl__thread_procedure(void* pData)
         memset(pThreadLocalData, 0, gptJobCtx->szSharedMemorySize);
     }
 
-    while(gptJobCtx->bRunning)
+    gptThreads->enter_critical_section(gptJobCtx->ptCriticalSection);
+
+    // Wait while there is no work and the system is running.
+    while(gptJobCtx->bRunning && gptJobCtx->uBatchCount == 0)
     {
-        
-        // check for available batch
-        if(pl__pop_batch_off_queue(&tBatch))
-        {
-            // run tasks
-            plInvocationData tInvocationData = tBatch.tInvocationData;
-            for(uint32_t i = 0; i < tBatch.tInvocationData.uBatchSize; i++)
-            {
-                // set per job invocation members
-                tInvocationData.uLocalIndex = i;
-                tInvocationData.uGlobalIndex = tBatch.tInvocationData.uGlobalIndex + i;
-
-                // run actual job
-                tBatch.task(tInvocationData, tBatch.pData, pThreadLocalData);
-            }
-
-            // decrement atomic counter
-            if(tBatch.ptCounter)
-                gptAtomics->decrement(tBatch.ptCounter);
-
-        }
-        else // no jobs
-        {
-            // sleep thread based on conditional variable (to be awaken once new jobs are pushed onto queue)
-            gptThreads->enter_critical_section(gptJobCtx->ptCriticalSection);
-            gptThreads->sleep_condition_variable(gptJobCtx->ptConditionVariable, gptJobCtx->ptCriticalSection);
-            gptThreads->leave_critical_section(gptJobCtx->ptCriticalSection);
-        }
+        gptThreads->sleep_condition_variable(
+            gptJobCtx->ptConditionVariable,
+            gptJobCtx->ptCriticalSection);
     }
+
+    // Shutdown after the queue has been drained.
+    if(!gptJobCtx->bRunning && gptJobCtx->uBatchCount == 0)
+    {
+        gptThreads->leave_critical_section(gptJobCtx->ptCriticalSection);
+        return NULL;
+    }
+
+    // Guaranteed to have work here.
+    plSubmittedBatch tBatch = {0};
+    pl__job_pop_batch_locked(&tBatch);
+
+    gptThreads->leave_critical_section(gptJobCtx->ptCriticalSection);
+
+    // Execute OUTSIDE the lock.
+    plInvocationData tInvocationData = tBatch.tInvocationData;
+
+    for(uint32_t i = 0; i < tBatch.tInvocationData.uBatchSize; i++)
+    {
+        tInvocationData.uLocalIndex = i;
+        tInvocationData.uGlobalIndex =
+            tBatch.tInvocationData.uGlobalIndex + i;
+
+        tBatch.task(tInvocationData, tBatch.pData, pThreadLocalData);
+    }
+
+    if(tBatch.ptCounter)
+        gptAtomics->decrement(tBatch.ptCounter);
 
     if(gptJobCtx->szSharedMemorySize > 0)
         gptThreads->free_thread_local_data(gptJobCtx->ptThreadLocalKey, pThreadLocalData);
@@ -273,49 +296,47 @@ void
 pl_job_dispatch_jobs(uint32_t uJobCount, plJobDesc* ptJobs, plAtomicCounter** pptCounter)
 {
 
+    if(pptCounter)
+        *pptCounter = NULL;
+
+    if(uJobCount == 0)
+        return;
+
     plAtomicCounter* ptCounter = NULL;
 
-    // try to unlock (spin lock)
-    while(true)
+    gptThreads->enter_critical_section(gptJobCtx->ptCriticalSection);
+
+    if(pptCounter)
     {
-        if(gptAtomics->compare_exchange(gptJobCtx->ptQueueLatch, 0, 1))
-        {
+        // get free atomic counter node
+        uint32_t uNode = pl__job_acquire_counter_node();
+        
+        ptCounter = gptJobCtx->sbtNodes[uNode].ptCounter;
+        *pptCounter = ptCounter;
 
-            if(pptCounter)
-            {
-                // get free atomic counter node
-                uint32_t uNode = gptJobCtx->uFreeList;
-                pl__job_remove_node_from_freelist(uNode);
-                
-                ptCounter = gptJobCtx->sbtNodes[uNode].ptCounter;
-                *pptCounter = ptCounter;
-
-                // store job count into counter
-                gptAtomics->store(ptCounter, (uint64_t)uJobCount);
-            }
-
-            // set total job count in queue
-            pl__maybe_grow_batch_capacity(uJobCount);
-
-            // push jobs into queue
-            for(uint32_t i = 0; i < uJobCount; i++)
-            {
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].task = ptJobs[i].task;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].pData = ptJobs[i].pData;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].ptCounter = ptCounter;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchIndex = 0;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uGlobalIndex = i;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchSize = 1;
-                gptJobCtx->uBackIndex--;
-                if(gptJobCtx->uBackIndex == UINT32_MAX) // wrap around
-                    gptJobCtx->uBackIndex = gptJobCtx->uBatchCapacity - 1;
-            }
-            break;
-        }
+        // store job count into counter
+        gptAtomics->store(ptCounter, (uint64_t)uJobCount);
     }
 
-    // unlock
-    gptAtomics->store(gptJobCtx->ptQueueLatch, 0);
+    // set total job count in queue
+    pl__maybe_grow_batch_capacity(uJobCount);
+
+    // push jobs into queue
+    for(uint32_t i = 0; i < uJobCount; i++)
+    {
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].task = ptJobs[i].task;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].pData = ptJobs[i].pData;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].ptCounter = ptCounter;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchIndex = 0;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uGlobalIndex = i;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchSize = 1;
+        gptJobCtx->uBackIndex--;
+        if(gptJobCtx->uBackIndex == UINT32_MAX) // wrap around
+            gptJobCtx->uBackIndex = gptJobCtx->uBatchCapacity - 1;
+    }
+
+    gptThreads->wake_all_condition_variable(gptJobCtx->ptConditionVariable);
+    gptThreads->leave_critical_section(gptJobCtx->ptCriticalSection);
 
     // wake any sleeping threads
     gptThreads->wake_all_condition_variable(gptJobCtx->ptConditionVariable);
@@ -324,6 +345,9 @@ pl_job_dispatch_jobs(uint32_t uJobCount, plJobDesc* ptJobs, plAtomicCounter** pp
 void
 pl_job_dispatch_batch(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc tJobDesc, plAtomicCounter** pptCounter)
 {
+
+    if(pptCounter)
+        *pptCounter = NULL;
 
     if(uJobCount == 0)
         return;
@@ -343,59 +367,50 @@ pl_job_dispatch_batch(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc tJobDes
     if(uGroupSize > uJobCount)
         uGroupSize = uJobCount;
 
-    // try to unlock (spin lock)
-    while(true)
+    gptThreads->enter_critical_section(gptJobCtx->ptCriticalSection);
+        
+    uint32_t uBatches = (uint32_t)floorf((float)uJobCount / (float)uGroupSize);
+    uint32_t uLeftOverJobs = uJobCount % uGroupSize;
+
+    if(pptCounter)
     {
-        if(gptAtomics->compare_exchange(gptJobCtx->ptQueueLatch, 0, 1))
-        {
-            
-            uint32_t uBatches = (uint32_t)floorf((float)uJobCount / (float)uGroupSize);
-            uint32_t uLeftOverJobs = uJobCount % uGroupSize;
-
-            if(pptCounter)
-            {
-                uint32_t uNode = gptJobCtx->uFreeList;
-                pl__job_remove_node_from_freelist(uNode);
-                ptCounter = gptJobCtx->sbtNodes[uNode].ptCounter;
-                *pptCounter = ptCounter;
-                gptAtomics->store(ptCounter, (uint64_t)uBatches + (uLeftOverJobs > 0 ? 1 : 0));
-            }
-
-            pl__maybe_grow_batch_capacity(uBatches + (uLeftOverJobs > 0 ? 1 : 0));
-
-            // push batches into queue
-            for(uint32_t i = 0; i < uBatches; i++)
-            {
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].task = tJobDesc.task;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].pData = tJobDesc.pData;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].ptCounter = ptCounter;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uGlobalIndex = i * uGroupSize;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchSize = uGroupSize;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchIndex = i;
-                gptJobCtx->uBackIndex--;
-                if(gptJobCtx->uBackIndex == UINT32_MAX) // wrap around
-                    gptJobCtx->uBackIndex = gptJobCtx->uBatchCapacity - 1;
-            }
-
-            if(uLeftOverJobs > 0)
-            {
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].task = tJobDesc.task;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].pData = tJobDesc.pData;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].ptCounter = ptCounter;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uGlobalIndex = uBatches * uGroupSize;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchIndex = uBatches;
-                gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchSize = uLeftOverJobs;
-                gptJobCtx->uBackIndex--;
-                if(gptJobCtx->uBackIndex == UINT32_MAX) // wrap around
-                    gptJobCtx->uBackIndex = gptJobCtx->uBatchCapacity - 1; 
-            }
-
-            break;
-        }
+        uint32_t uNode = pl__job_acquire_counter_node();
+        ptCounter = gptJobCtx->sbtNodes[uNode].ptCounter;
+        *pptCounter = ptCounter;
+        gptAtomics->store(ptCounter, (uint64_t)uBatches + (uLeftOverJobs > 0 ? 1 : 0));
     }
 
-    // unlock
-    gptAtomics->store(gptJobCtx->ptQueueLatch, 0);
+    pl__maybe_grow_batch_capacity(uBatches + (uLeftOverJobs > 0 ? 1 : 0));
+
+    // push batches into queue
+    for(uint32_t i = 0; i < uBatches; i++)
+    {
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].task = tJobDesc.task;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].pData = tJobDesc.pData;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].ptCounter = ptCounter;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uGlobalIndex = i * uGroupSize;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchSize = uGroupSize;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchIndex = i;
+        gptJobCtx->uBackIndex--;
+        if(gptJobCtx->uBackIndex == UINT32_MAX) // wrap around
+            gptJobCtx->uBackIndex = gptJobCtx->uBatchCapacity - 1;
+    }
+
+    if(uLeftOverJobs > 0)
+    {
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].task = tJobDesc.task;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].pData = tJobDesc.pData;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].ptCounter = ptCounter;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uGlobalIndex = uBatches * uGroupSize;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchIndex = uBatches;
+        gptJobCtx->sbtBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchSize = uLeftOverJobs;
+        gptJobCtx->uBackIndex--;
+        if(gptJobCtx->uBackIndex == UINT32_MAX) // wrap around
+            gptJobCtx->uBackIndex = gptJobCtx->uBatchCapacity - 1; 
+    }
+
+    gptThreads->wake_all_condition_variable(gptJobCtx->ptConditionVariable);
+    gptThreads->leave_critical_section(gptJobCtx->ptCriticalSection);
 
     // wake any sleeping threads
     gptThreads->wake_all_condition_variable(gptJobCtx->ptConditionVariable);
@@ -440,35 +455,36 @@ pl_job_wait_for_counter(plAtomicCounter* ptCounter)
         }
     }
 
-    // try to unlock (spin lock)
-    while(true)
+    gptThreads->enter_critical_section(gptJobCtx->ptCriticalSection);
+
+    // find counter index & return to free list
+    bool bFound = false;
+    const uint32_t uNodeCount = pl_sb_size(gptJobCtx->sbtNodes);
+    for(uint32_t i = 0; i < uNodeCount; i++)
     {
-        if(gptAtomics->compare_exchange(gptJobCtx->ptQueueLatch, 0, 1))
+        if(gptJobCtx->sbtNodes[i].ptCounter == ptCounter)
         {
-            // find counter index & return to free list
-            bool bFound = false;
-            for(uint32_t i = 0; i < gptJobCtx->uBatchCapacity; i++)
-            {
-                if(gptJobCtx->sbtNodes[i].ptCounter == ptCounter)
-                {
-                    pl__job_add_node_to_freelist(i);
-                    bFound = true;
-                    break;
-                }
-            }
-            PL_ASSERT(bFound);
+            pl__job_add_node_to_freelist(i);
+            bFound = true;
             break;
         }
     }
-
-    // unlock
-    gptAtomics->store(gptJobCtx->ptQueueLatch, 0);
+    PL_ASSERT(bFound);
+    
+    gptThreads->wake_all_condition_variable(gptJobCtx->ptConditionVariable);
+    gptThreads->leave_critical_section(gptJobCtx->ptCriticalSection);
 }
 
 bool
 pl_job_is_shutting_down(void)
 {
     return !gptJobCtx->bRunning;
+}
+
+uint32_t
+pl_job_get_thread_count(void)
+{
+    return gptJobCtx->uThreadCount;
 }
 
 void
@@ -493,7 +509,6 @@ pl_job_initialize(plJobSystemInit tInit)
     PL_ASSERT(tInit.uThreadCount < PL_MAX_JOB_THREADS);
     gptJobCtx->bRunning = true;
     gptJobCtx->uThreadCount = tInit.uThreadCount;
-    gptAtomics->create_counter(0, &gptJobCtx->ptQueueLatch);
     gptThreads->create_condition_variable(&gptJobCtx->ptConditionVariable);
     gptThreads->create_critical_section(&gptJobCtx->ptCriticalSection);
 
@@ -511,6 +526,8 @@ pl_job_initialize(plJobSystemInit tInit)
         gptAtomics->create_counter(0, &gptJobCtx->sbtNodes[i].ptCounter);
         gptJobCtx->sbtNodes[i].uNextNode = i + 1;
     }
+    gptJobCtx->sbtNodes[gptJobCtx->uBatchCapacity - 1].uNextNode = UINT32_MAX;
+
     gptJobCtx->uFreeList = 0;
 
     // allocate thread local key if needed
@@ -532,8 +549,10 @@ pl_job_initialize(plJobSystemInit tInit)
 void
 pl_job_cleanup(void)
 {
+    gptThreads->enter_critical_section(gptJobCtx->ptCriticalSection);
     gptJobCtx->bRunning = false;
     gptThreads->wake_all_condition_variable(gptJobCtx->ptConditionVariable);
+    gptThreads->leave_critical_section(gptJobCtx->ptCriticalSection);
     for(uint32_t i = 0; i < gptJobCtx->uThreadCount; i++)
     {
         gptThreads->destroy_thread(&gptJobCtx->aptThreads[i]);
@@ -546,7 +565,6 @@ pl_job_cleanup(void)
     if(gptJobCtx->szSharedMemorySize > 0)
         gptThreads->free_thread_local_key(&gptJobCtx->ptThreadLocalKey);
 
-    gptAtomics->destroy_counter(&gptJobCtx->ptQueueLatch);
     gptThreads->destroy_condition_variable(&gptJobCtx->ptConditionVariable);
     gptThreads->destroy_critical_section(&gptJobCtx->ptCriticalSection);
 
@@ -580,6 +598,7 @@ pl_load_job_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .dispatch_jobs    = pl_job_dispatch_jobs,
         .dispatch_batch   = pl_job_dispatch_batch,
         .is_shutting_down = pl_job_is_shutting_down,
+        .get_thread_count = pl_job_get_thread_count,
     };
     pl_set_api(ptApiRegistry, plJobI, &tApi);
 
