@@ -74,6 +74,8 @@ pl_get_normal_info(int iMaterialIndex)
     plGpuMaterial material = tMaterialInfo.atMaterials[iMaterialIndex];
     vec2 UV = pl_get_uv(PL_TEXTURE_NORMAL, iMaterialIndex);
 
+    bool bUseFoliageNormals = bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_FOLIAGE_NORMALS);
+
     vec2 uv_dx = dFdx(UV);
     vec2 uv_dy = dFdy(UV);
 
@@ -118,7 +120,7 @@ pl_get_normal_info(int iMaterialIndex)
 
 
     // For a back-facing surface, the tangential basis vectors are negated.
-    if (gl_FrontFacing == false)
+    if (gl_FrontFacing == false && !bUseFoliageNormals)
     {
         t *= -1.0;
         b *= -1.0;

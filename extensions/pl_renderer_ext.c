@@ -1042,7 +1042,11 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
             bForward = true;
 
         // check if transmission textures are required
-        if(ptMaterial->eFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->eFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->eFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
+        if(bFoliage)
+        {
+            ptDrawable->tFlags |= PL_DRAWABLE_FLAG_PATH_FOLIAGE;
+        }
+        else if(ptMaterial->eFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->eFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->eFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
         {
             ptDrawable->tFlags |= PL_DRAWABLE_FLAG_PATH_TRANSMISSION;
             ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED;
@@ -1960,7 +1964,11 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
                 // outlined objects
                 if(ptObject->tFlags & PL_OBJECT_FLAGS_OUTLINE)
                 {
-                    if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_TRANSMISSION)
+                    if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_FOLIAGE)
+                    {
+                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FOLIAGE_OUTLINE], uDrawableIndex);
+                    }
+                    else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_TRANSMISSION)
                     {
                         pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE_TRANSMISSION], uDrawableIndex);
                     }
@@ -1972,6 +1980,13 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
                     {
                         pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE], uDrawableIndex);  
                     }
+                    pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
+                }
+
+                // foliage
+                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_FOLIAGE)
+                {
+                    pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FOLIAGE], uDrawableIndex);
                     pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
                 }
 
@@ -2118,24 +2133,6 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         }
     };
 
-    plGbufferFillPassInfo tGbufferFillPassInfo1 = {
-        .uGlobalIndex = 0,
-        .tBG2 = ptView->atDeferredBG1[uFrameIdx],
-        .ptArea = &tArea,
-        .tBucket = PL_RENDER_BUCKET_DEFERRED,
-        .tShader = ptScene->bWireframe ? ptScene->tGBufferFillWireframeShader : ptScene->tGBufferFillShader
-    };
-    pl__render_view_gbuffer_fill_pass(ptScene, ptSceneCmdBuffer, &tGbufferFillPassInfo1);
-
-    plGbufferFillPassInfo tGbufferFillPassInfo0 = {
-        .uGlobalIndex = 0,
-        .tBG2 = ptView->atDeferredBG1[uFrameIdx],
-        .ptArea = &tArea,
-        .tBucket = PL_RENDER_BUCKET_DEFERRED_DOUBLE_SIDED,
-        .tShader = ptScene->bWireframe ? ptScene->tGBufferFillNoCullWireframeShader : ptScene->tGBufferFillNoCullShader
-    };
-    pl__render_view_gbuffer_fill_pass(ptScene, ptSceneCmdBuffer, &tGbufferFillPassInfo0);
-
     if(ptScene->ptTerrain)
     {
         gptGfx->push_debug_group(ptSceneCmdBuffer, "Terrain", (plVec4){0.33f, 0.42f, 0.20f, 1.0f});
@@ -2173,6 +2170,26 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
         gptGfx->pop_debug_group(ptSceneCmdBuffer);
     }
+
+    plGbufferFillPassInfo tGbufferFillPassInfo1 = {
+        .uGlobalIndex = 0,
+        .tBG2 = ptView->atDeferredBG1[uFrameIdx],
+        .ptArea = &tArea,
+        .tBucket = PL_RENDER_BUCKET_DEFERRED,
+        .tShader = ptScene->bWireframe ? ptScene->tGBufferFillWireframeShader : ptScene->tGBufferFillShader
+    };
+    pl__render_view_gbuffer_fill_pass(ptScene, ptSceneCmdBuffer, &tGbufferFillPassInfo1);
+
+    plGbufferFillPassInfo tGbufferFillPassInfo0 = {
+        .uGlobalIndex = 0,
+        .tBG2 = ptView->atDeferredBG1[uFrameIdx],
+        .ptArea = &tArea,
+        .tBucket = PL_RENDER_BUCKET_DEFERRED_DOUBLE_SIDED,
+        .tShader = ptScene->bWireframe ? ptScene->tGBufferFillNoCullWireframeShader : ptScene->tGBufferFillNoCullShader
+    };
+    pl__render_view_gbuffer_fill_pass(ptScene, ptSceneCmdBuffer, &tGbufferFillPassInfo0);
+
+
     
     // deferred lighting
     //-----------------------------------------------------------------------------
@@ -2296,6 +2313,14 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     };
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo2);
 
+    plForwardPassInfo tForwardPassInfo22 = {
+        .tBucket = PL_RENDER_BUCKET_FOLIAGE_OUTLINE,
+        .tShader = ptScene->tOutlineNoCullShader,
+        .ptArea = &tArea,
+        .uGlobalIndex = 0
+    };
+    pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo22);
+
     plForwardPassInfo tForwardPassInfo1 = {
         .tBucket = PL_RENDER_BUCKET_FORWARD,
         .tShader = ptScene->bWireframe ? ptScene->tForwardWireframeShader : ptScene->tForwardShader,
@@ -2327,6 +2352,14 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         .uGlobalIndex = 0
     };
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo6);
+
+    plForwardPassInfo tForwardPassInfo7 = {
+        .tBucket = PL_RENDER_BUCKET_FOLIAGE,
+        .tShader = ptScene->tFoliageShader,
+        .ptArea = &tArea,
+        .uGlobalIndex = 0
+    };
+    pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo7);
     
     gptGfx->pop_debug_group(ptSceneCmdBuffer);
 

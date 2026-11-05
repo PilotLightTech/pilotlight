@@ -2496,7 +2496,7 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
         gptStage->stage_buffer_upload(ptScene->tStorageBuffer, ptVertexDataBufferNode->uOffset, ptScene->sbtVertexDataBuffer, sizeof(plVec4) * uVertexCount * uStride);
     
     ptDrawable->uIndexOffset  = (uint32_t)(ptIndexBufferNode->uOffset / sizeof(uint32_t));
-    ptDrawable->uVertexOffset = (uint32_t)(ptVertexBufferNode->uOffset / sizeof(plVec3));
+    ptDrawable->uVertexOffset = uVertexPosStartIndex;
 
     if(ptVertexDataBufferNode)
         ptDrawable->uDataOffset = (uint32_t)(ptVertexDataBufferNode->uOffset / sizeof(plVec4));
@@ -5122,8 +5122,14 @@ pl__renderer_probe_update_all(plScene* ptScene)
                     plSubmesh*                   ptMesh              = &ptMainMesh->atSubmeshes[ptDrawableResources->uSubmeshIndex];
                     plMaterial*                  ptMaterial          = gptAsset->get_data(ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[ptDrawableResources->uSubmeshIndex - ptObject->uFirstSubmesh] : ptMesh->tMaterial);
                     
+
+                    if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_FOLIAGE)
+                    {
+                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FOLIAGE], uDrawableIndex);
+                    }
+
                     // deferred objects
-                    if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_DEFERRED)
+                    else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_DEFERRED)
                     {
                         if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                         {
@@ -5360,6 +5366,15 @@ pl__renderer_probe_update_all(plScene* ptScene)
                 .bProbe = true
             };
             pl__render_view_forward_pass(ptScene, ptCmdBuffer, ptProbe->tViewBG, &tForwardPassInfo4);
+
+            plForwardPassInfo tForwardPassInfo7 = {
+                .tBucket = PL_RENDER_BUCKET_FOLIAGE,
+                .tShader = ptScene->tForwardNoCullShader,
+                .ptArea = &tArea,
+                .uGlobalIndex = uFace,
+                .bProbe = true
+            };
+            pl__render_view_forward_pass(ptScene, ptCmdBuffer, ptProbe->tViewBG, &tForwardPassInfo7);
 
             gptGfx->end_render_pass(ptCmdBuffer);
 
@@ -6346,6 +6361,46 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     {
         plShaderDesc tDesc = {
+            .pcDebugName     = "foliage",
+            .tVertexShader   = gptShader->load_glsl("pl_forward.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("pl_forward_foliage.frag", "main", NULL, NULL),
+            .tGraphicsState = {
+                .bDepthWriteEnabled  = true,
+                .eDepthMode          = PL_COMPARE_MODE_GREATER,
+                .eCullMode           = PL_CULL_MODE_NONE,
+                .bWireframe          = false,
+                .bDepthClampEnabled  = false,
+                .bStencilTestEnabled = false,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .atAttributes = {
+                        {.eFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atBlendStates = {
+                {
+                    .bBlendEnabled   = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
+                }
+            },
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc
+            },
+            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+        };
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "foliage", &tDesc);
+    }
+
+    {
+        plShaderDesc tDesc = {
             .pcDebugName     = "forward",
             .tVertexShader   = gptShader->load_glsl("pl_forward.vert", "main", NULL, NULL),
             .tFragmentShader = gptShader->load_glsl("pl_forward.frag", "main", NULL, NULL),
@@ -6962,7 +7017,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
             .tGraphicsState = {
                 .bDepthWriteEnabled  = true,
                 .eDepthMode          = PL_COMPARE_MODE_GREATER,
-                .eCullMode           = PL_CULL_MODE_NONE,
+                .eCullMode           = PL_CULL_MODE_CULL_BACK,
                 .bWireframe          = false,
                 .bDepthClampEnabled  = false,
                 .bStencilTestEnabled = false,
@@ -6983,7 +7038,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 }
             },
             .atBlendStates = {
-                { .bBlendEnabled = false, .uColorWriteMask = 0 },
+                { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_NONE },
                 { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL},
                 { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL},
                 { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL}
@@ -8695,7 +8750,7 @@ pl__renderer_load_shaders(plScene* ptScene)
     ptScene->tShadowAlphaShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "alphashadow", &tAlphaShadowVariant);
 
     plGraphicsState tGBufferFileVariantTemp = {
-        .bDepthWriteEnabled  = 1,
+        .bDepthWriteEnabled  = true,
         .eDepthMode          = PL_COMPARE_MODE_GREATER,
         .eCullMode           = PL_CULL_MODE_CULL_BACK,
         .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -8825,6 +8880,14 @@ pl__renderer_load_shaders(plScene* ptScene)
         ptScene->tForwardNoCullTransparent = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "forward", &tForwardVariant);
     }
 
+    plShaderVariantDesc tFoliageVariant = {
+        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout,
+        .pVertexConstants = aiLightingConstantData,
+        .pFragmentConstants = aiLightingConstantData,
+        // .ptGraphicsState = &tForwardVariantTemp
+    };
+
+    ptScene->tFoliageShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "foliage", &tFoliageVariant);
 
     plGraphicsState tTransmissionVariantTemp = {
         .bDepthWriteEnabled  = 1,

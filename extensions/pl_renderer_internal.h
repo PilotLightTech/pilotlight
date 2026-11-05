@@ -183,7 +183,8 @@ enum _plDrawableFlags
     PL_DRAWABLE_FLAG_PATH_DEFERRED     = 1 << 1,
     PL_DRAWABLE_FLAG_PATH_TRANSMISSION = 1 << 2,
     PL_DRAWABLE_FLAG_HAS_ALPHA         = 1 << 3, // for shadow pass
-    PL_DRAWABLE_FLAG_CASTS_SHADOW      = 1 << 4
+    PL_DRAWABLE_FLAG_CASTS_SHADOW      = 1 << 4,
+    PL_DRAWABLE_FLAG_PATH_FOLIAGE      = 1 << 5,
 };
 
 enum _plSceneInternalFlags
@@ -207,6 +208,8 @@ enum _plRenderBucket
     PL_RENDER_BUCKET_OUTLINE,
     PL_RENDER_BUCKET_OUTLINE_DOUBLE_SIDED,
     PL_RENDER_BUCKET_OUTLINE_TRANSMISSION,
+    PL_RENDER_BUCKET_FOLIAGE,
+    PL_RENDER_BUCKET_FOLIAGE_OUTLINE,
 
     PL_RENDER_BUCKET_COUNT
 };
@@ -485,6 +488,7 @@ typedef struct _plScene
     plShaderHandle tForwardShader;
     plShaderHandle tForwardNoCullShader;
     plShaderHandle tTransmissionShader;
+    plShaderHandle tFoliageShader;
     plShaderHandle tGBufferFillWireframeShader;
     plShaderHandle tGBufferFillNoCullWireframeShader;
     plShaderHandle tForwardTransparent;

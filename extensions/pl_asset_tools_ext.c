@@ -1335,7 +1335,24 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->separator_text("base");
 
                     gptUI->layout_dynamic(0.0f, 1);
-                    gptUI->labeled_text("material model", "PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS");
+
+                    static const char* apcMaterialModelText[] = {
+                        "PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS",
+                        "PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS_FOLIAGE"
+                    };
+                    if(gptUI->begin_combo("Model", apcMaterialModelText[ptMaterial->eMaterialModel], PL_UI_COMBO_FLAGS_NONE))
+                    {
+                        for(uint32_t i = 0; i < PL_ARRAYSIZE(apcMaterialModelText); i++)
+                        {
+                            bool bPlaceHolder = ptMaterial->eMaterialModel == (int)i;
+                            if(gptUI->selectable(apcMaterialModelText[i], &bPlaceHolder, 0))
+                            {
+                                ptMaterial->eMaterialModel = (int)i;
+                                gptUI->close_current_popup();
+                            }
+                        }
+                        gptUI->end_combo();
+                    }
 
                     const char* apcAlphaMode[] = {
                         "PL_MATERIAL_ALPHA_MODE_OPAQUE",
@@ -1368,6 +1385,7 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->checkbox_flags("volume", &ptMaterial->eFlags, PL_MATERIAL_FLAG_VOLUME);
                     gptUI->checkbox_flags("dispersion", &ptMaterial->eFlags, PL_MATERIAL_FLAG_DISPERSION);
                     gptUI->checkbox_flags("diffuse transmission", &ptMaterial->eFlags, PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION);
+                    gptUI->checkbox_flags("foliage normals", &ptMaterial->eFlags, PL_MATERIAL_FLAG_FOLIAGE_NORMALS);
 
                     gptUI->layout_dynamic(0.0f, 1);
 

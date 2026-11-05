@@ -134,6 +134,10 @@ pl__material_serialize(const char* pcName, const void* pMaterial, plAssetEncodin
             gptJson->add_string_member(ptRoot, "model", "pbr_metallic_roughness");
             break;
 
+        case PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS_FOLIAGE:
+            gptJson->add_string_member(ptRoot, "model", "pbr_metallic_roughness_foliage");
+            break;
+
         default:
             PL_ASSERT(false && "unknown material model");
             break;
@@ -148,6 +152,7 @@ pl__material_serialize(const char* pcName, const void* pMaterial, plAssetEncodin
     gptJson->add_float_member(ptRoot, "normal_map_strength", ptMaterial->fNormalMapStrength);
     gptJson->add_float_member(ptRoot, "occlusion_strength", ptMaterial->fOcclusionStrength);
     gptJson->add_bool_member(ptRoot, "double_sided", (bool)(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED));
+    gptJson->add_bool_member(ptRoot, "foliage_normals", (bool)(ptMaterial->eFlags & PL_MATERIAL_FLAG_FOLIAGE_NORMALS));
 
     // alpha stuff
     plJsonObject* ptAlpha = gptJson->add_member(ptRoot, "alpha");
@@ -318,6 +323,14 @@ pl__material_deserialize(const char* pcName, void* pMaterial)
 
     if(gptJson->bool_member(ptRoot, "double_sided", (bool)(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)))
         ptMaterial->eFlags |= PL_MATERIAL_FLAG_DOUBLE_SIDED;
+
+    if(gptJson->bool_member(ptRoot, "foliage_normals", (bool)(ptMaterial->eFlags & PL_MATERIAL_FLAG_FOLIAGE_NORMALS)))
+        ptMaterial->eFlags |= PL_MATERIAL_FLAG_FOLIAGE_NORMALS;
+
+    strncpy(acTempBuffer, "pbr_metallic_roughness", 256);
+    gptJson->string_member(ptRoot, "model", acTempBuffer, 256);
+    if     (acTempBuffer[23] == 'f') ptMaterial->eMaterialModel = PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS_FOLIAGE;
+    else                             ptMaterial->eMaterialModel = PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS;
 
     // alpha stuff
     plJsonObject* ptAlpha = gptJson->member(ptRoot, "alpha");
