@@ -23,7 +23,7 @@
         "pcf": true,
         "multiviewport": true,
         "constant_bias": -1.25,
-        "slope_bias": -1.75
+        "slope_bias": -10.75
     },
 
     "bloom": {

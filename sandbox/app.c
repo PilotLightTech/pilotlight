@@ -1109,6 +1109,37 @@ pl__refresh_files(plAppData* ptAppData)
         }
         gptFile->cleanup_directory_info(&tDirectoryInfo);
     }
+
+    // local
+    {
+        plDirectoryInfo tDirectoryInfo = {0};
+        gptFile->get_directory_info("../resources/development/scenes/", &tDirectoryInfo);
+        pl_sb_reserve(ptAppData->sbtSceneFilesCore, tDirectoryInfo.uFileCount);
+        for(uint32_t i = 0; i < tDirectoryInfo.uEntryCount; i++)
+        {
+            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+            {
+                char acExtensionBuffer[16] = {0};
+                char acFileNameOnly[PL_MAX_PATH_LENGTH] = {0};
+                pl_str_get_file_extension(tDirectoryInfo.sbtEntries[i].acName, acExtensionBuffer, 16);
+                if(pl_str_equal("plscene", acExtensionBuffer))
+                {
+                    pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
+                    char acCurrentScene[PL_MAX_PATH_LENGTH] = {0};
+                    char acFullPath[PL_MAX_PATH_LENGTH] = {0};
+                    pl_sprintf(acCurrentScene, "../resources/development/scenes/%s.plscene", acFileNameOnly);
+                    pl_sprintf(acFullPath, "../resources/development/scenes/%s.plscene", acFileNameOnly);
+                    // if(pl__verify_scene(ptAppData, acCurrentScene))
+                    {
+                        pl_sb_add(ptAppData->sbtSceneFilesCore);
+                        strncpy(pl_sb_back(ptAppData->sbtSceneFilesCore).acName, acFileNameOnly, PL_MAX_PATH_LENGTH);
+                        strncpy(pl_sb_back(ptAppData->sbtSceneFilesCore).acTemplate, acFullPath, PL_MAX_PATH_LENGTH);
+                    }
+                }
+            }
+        }
+        gptFile->cleanup_directory_info(&tDirectoryInfo);
+    }
 }
 
 void

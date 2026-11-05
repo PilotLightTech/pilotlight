@@ -1763,6 +1763,7 @@ pl_asset_tools_show_assets(bool* bValue)
 
                     if(gptUI->collapsing_header("Bloom", 0))
                     {
+                        gptUI->stash_layout();
                         bool bBloomActive = ptSettings->tBloom.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE;
                         gptUI->checkbox("Bloom", &bBloomActive);
 

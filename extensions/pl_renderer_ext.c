@@ -340,6 +340,18 @@ pl_renderer_set_scene_flags(plScene* ptScene, plSceneFlags tFlags)
         ptScene->tFlags = tFlags;
 }
 
+static inline plQuat
+pl_quat_rotation_y(float fRadians)
+{
+    const float fHalfAngle = fRadians * 0.5f;
+    return (plQuat){
+        .x = 0.0f,
+        .y = sinf(fHalfAngle),
+        .z = 0.0f,
+        .w = cosf(fHalfAngle)
+    };
+}
+
 void
 pl_renderer_load_component_library(plScene* ptScene, plComponentLibrary* ptLibrary)
 {
@@ -416,7 +428,137 @@ pl_renderer_load_component_library(plScene* ptScene, plComponentLibrary* ptLibra
         }
 
         gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
+
+#if 0
+
+        // Load once
+        plAssetHandle tGrassMesh = gptAsset->load("/assets/meshes/grass.plmesh");
+        plAssetHandle tTreeMesh0 = gptAsset->load("/assets/meshes/tree.003_0.plmesh");
+        plAssetHandle tTreeMesh1 = gptAsset->load("/assets/meshes/tree.002_1.plmesh");
+
+        uint32_t uSpan = 50;
+        float fSpacing = 1.5f;
+
+        for(uint32_t i = 0; i < uSpan; i++)
+        {
+            for(uint32_t j = 0; j < uSpan; j++)
+            {
+                uint64_t ulId = 8008 * (j + 1) + i;
+
+                plEntity tNewEntity = gptEcs->create_entity_with_id(ptLibrary, "Grass Cluster", ulId);
+
+                plTransformComponent* ptNewTransform = gptEcs->add_component(
+                    ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity);
+
+                // Random values in [0, 1]
+                float rx = (float)rand() / (float)RAND_MAX;
+                float rz = (float)rand() / (float)RAND_MAX;
+                float rr = (float)rand() / (float)RAND_MAX;
+                float rs = (float)rand() / (float)RAND_MAX;
+
+                // Randomize position within each grid cell
+                ptNewTransform->tTranslation.x = 5200.0f  + -0.5f * (float)uSpan * fSpacing + (float)i * fSpacing + rx;
+                ptNewTransform->tTranslation.z = 14897.0f + -0.5f * (float)uSpan * fSpacing + (float)j * fSpacing + rz;
+
+                gptTerrain->sample_height(ptTerrainAsset, ptNewTransform->tTranslation.x, ptNewTransform->tTranslation.z, &ptNewTransform->tTranslation.y);
+                ptNewTransform->tTranslation.y -= 0.2f;
+
+                // Random uniform scale (0.7 - 1.3)
+                float fScale = 0.7f + rs * 0.6f;
+                ptNewTransform->tScale = (plVec3){fScale, fScale, fScale};
+
+                // Random Y rotation (assuming quaternion rotation)
+                float fAngle = rr * 6.28318530718f;
+                ptNewTransform->tRotation = pl_quat_rotation_y(fAngle); // use your quaternion helper
+
+                plObjectComponent* ptNewObject = gptEcs->add_component(
+                    ptLibrary, gptData->tObjectComponentType, tNewEntity);
+
+                ptNewObject->tMesh = tGrassMesh;
+                ptNewObject->tTransformId = ulId;
+                ptNewObject->uFirstSubmesh = 0;
+                ptNewObject->uSubmeshCount = 1;
+                ptNewObject->tTransform = tNewEntity;
+
+                pl__renderer_add_drawable_objects_to_scene(ptScene, 1, &tNewEntity);
+            }
+        }
+
+        uSpan = 10;
+        fSpacing = 75.0f;
+        for(uint32_t i = 0; i < uSpan; i++)
+        {
+            for(uint32_t j = 0; j < uSpan; j++)
+            {
+
+                // Random values in [0, 1]
+                float rx = 25.0f * (float)rand() / (float)RAND_MAX;
+                float rz = 25.0f * (float)rand() / (float)RAND_MAX;
+                float rr = 25.0f * (float)rand() / (float)RAND_MAX;
+                float rs = (float)rand() / (float)RAND_MAX;
+
+                // Random uniform scale (0.7 - 1.3)
+                float fScale = 20.0f + rs * 10.0f;
+
+                // Random Y rotation (assuming quaternion rotation)
+                float fAngle = rr * 6.28318530718f;
+
+                uint64_t ulId0 = 880080 * (j + 1) + i;
+                uint64_t ulId1 = 990080 * (j + 1) + i;
+
+                plEntity tNewEntity0 = gptEcs->create_entity_with_id(ptLibrary, "Grass Cluster", ulId0);
+                plEntity tNewEntity1 = gptEcs->create_entity_with_id(ptLibrary, "Grass Cluster", ulId1);
+
+                plTransformComponent* ptNewTransform0 = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity0);
+
+                // Randomize position within each grid cell
+                ptNewTransform0->tTranslation.x = 5200.0f  + -0.5f * (float)uSpan * fSpacing + (float)i * fSpacing + rx;
+                ptNewTransform0->tTranslation.z = 14897.0f + -0.5f * (float)uSpan * fSpacing + (float)j * fSpacing + rz;
+                ptNewTransform0->tScale = (plVec3){fScale, fScale, fScale};
+                ptNewTransform0->tRotation = pl_quat_rotation_y(fAngle); // use your quaternion helper
+
+                gptTerrain->sample_height(ptTerrainAsset, ptNewTransform0->tTranslation.x, ptNewTransform0->tTranslation.z, &ptNewTransform0->tTranslation.y);
+                ptNewTransform0->tTranslation.y -= 0.5f;
+
+                plTransformComponent* ptNewTransform1 = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity1);
+
+                // Randomize position within each grid cell
+                ptNewTransform1->tTranslation.x = 5200.0f  + -0.5f * (float)uSpan * fSpacing + (float)i * fSpacing + rx;
+                ptNewTransform1->tTranslation.z = 14897.0f + -0.5f * (float)uSpan * fSpacing + (float)j * fSpacing + rz;
+                ptNewTransform1->tScale = (plVec3){fScale, fScale, fScale};
+                ptNewTransform1->tRotation = pl_quat_rotation_y(fAngle); // use your quaternion helper
+
+                gptTerrain->sample_height(ptTerrainAsset, ptNewTransform1->tTranslation.x, ptNewTransform1->tTranslation.z, &ptNewTransform1->tTranslation.y);
+                ptNewTransform1->tTranslation.y -= 0.5f;
+
+
+                plObjectComponent* ptNewObject = gptEcs->add_component(ptLibrary, gptData->tObjectComponentType, tNewEntity0);
+
+                ptNewObject->tMesh = tTreeMesh0;
+                ptNewObject->tTransformId = ulId0;
+                ptNewObject->uFirstSubmesh = 0;
+                ptNewObject->uSubmeshCount = 1;
+                ptNewObject->tTransform = tNewEntity0;
+
+                pl__renderer_add_drawable_objects_to_scene(ptScene, 1, &tNewEntity0);
+
+                ptNewObject = gptEcs->add_component(ptLibrary, gptData->tObjectComponentType, tNewEntity1);
+
+                ptNewObject->tMesh = tTreeMesh1;
+                ptNewObject->tTransformId = ulId1;
+                ptNewObject->uFirstSubmesh = 0;
+                ptNewObject->uSubmeshCount = 1;
+                ptNewObject->tTransform = tNewEntity1;
+
+                pl__renderer_add_drawable_objects_to_scene(ptScene, 1, &tNewEntity1);
+            }
+        }
+        gptTerrain->unload_sampling_data(ptTerrainAsset);
+
+#endif
     }
+
+
     pl_renderer_editor_rebuild_scene_bvh(ptScene);
 }
 
