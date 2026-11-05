@@ -69,6 +69,7 @@ typedef struct _plTerrainChunkFile plTerrainChunkFile;
 
 typedef struct _plTerrainMeshScratch
 {
+    uint8_t*             sbtUsedSlots;
     plTrianglePrimitive* sbtWork;
     plTrianglePrimitive* sbtLeaves;
     uint32_t*            sbuUniqueVertices;
@@ -86,7 +87,7 @@ typedef struct _plTerrainMapElement
     int16_t  iZ;
     float    fY;
     float    fError;
-    uint8_t  uFrameStamp;
+    uint32_t uFrameStamp;
     int8_t   iActivationLevel;
     uint32_t uVertexBufferIndex;
 } plTerrainMapElement;
@@ -128,7 +129,7 @@ typedef struct _plTerrainHeightMap
     plVec3               tMinBounding;
     plVec3               tMaxBounding;
     uint32_t             uChunkCount;
-    uint8_t              uFrameStamp;
+    uint32_t             uFrameStamp;
     plTrianglePrimitive* sbtPrimitives;
 
     plTerrainMapElement* atHaloElements;
@@ -187,6 +188,7 @@ static void
 pl__terrain_reset_scratch(void)
 {
     pl_sb_reset(gptTerrainCtx->tMeshScratch.sbtWork);
+    pl_sb_reset(gptTerrainCtx->tMeshScratch.sbtUsedSlots);
     pl_sb_reset(gptTerrainCtx->tMeshScratch.sbtLeaves);
     pl_sb_reset(gptTerrainCtx->tMeshScratch.sbuUniqueVertices);
 }
@@ -195,6 +197,7 @@ static void
 pl__terrain_free_scratch(void)
 {
     pl_sb_free(gptTerrainCtx->tMeshScratch.sbtWork);
+    pl_sb_free(gptTerrainCtx->tMeshScratch.sbtUsedSlots);
     pl_sb_free(gptTerrainCtx->tMeshScratch.sbtLeaves);
     pl_sb_free(gptTerrainCtx->tMeshScratch.sbuUniqueVertices);
 
@@ -1092,7 +1095,7 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainAsset* 
             for(uint32_t i = 0; i < (uint32_t)iImageWidth; i++)
             {
                 int x = i;
-                int y = 2;
+                int y = 1;
                 uint16_t uRawValue = *(uint16_t*)&pucImageData[(x + y * iImageWidth) * sizeof(uint16_t)]; // north edge
                 int xdest = i;
                 int ydest = ptHeightMap->iSize - 1;
@@ -1387,30 +1390,108 @@ pl__base_edge_key(uint8_t uLevel, uint32_t uLeft, uint32_t uRight)
     return k;
 }
 
+static uint32_t
+pl__terrain_repair_tjunctions(plTerrainHeightMap* ptHeightMap)
+{
+    plTerrainMeshScratch* ptScratch = &gptTerrainCtx->tMeshScratch;
+
+    const uint32_t uSize = (uint32_t)ptHeightMap->iSize;
+    const uint32_t uStamp = ptHeightMap->uFrameStamp;
+
+    uint32_t uLeafCount = (uint32_t)pl_sb_size(ptScratch->sbtLeaves);
+
+    // Mark vertices referenced by the original leaf triangles.
+    for(uint32_t i = 0; i < uLeafCount; i++)
+    {
+        const plTrianglePrimitive t = ptScratch->sbtLeaves[i];
+
+        ptHeightMap->atElements[t.uApex].uFrameStamp  = uStamp;
+        ptHeightMap->atElements[t.uLeft].uFrameStamp  = uStamp;
+        ptHeightMap->atElements[t.uRight].uFrameStamp = uStamp;
+    }
+
+    uint32_t uSplitCount = 0;
+    uint32_t i = 0;
+
+    // Process directly inside the leaf array.
+    // Newly created triangles are appended and processed too.
+    while(i < uLeafCount)
+    {
+        const plTrianglePrimitive t = ptScratch->sbtLeaves[i];
+
+        const uint32_t auVertices[3] = {
+            t.uApex,
+            t.uLeft,
+            t.uRight
+        };
+
+        bool bSplit = false;
+
+        for(uint32_t e = 0; e < 3; e++)
+        {
+            const uint32_t a = auVertices[e];
+            const uint32_t b = auVertices[(e + 1) % 3];
+            const uint32_t c = auVertices[(e + 2) % 3];
+
+            const plTerrainMapElement* pA = &ptHeightMap->atElements[a];
+            const plTerrainMapElement* pB = &ptHeightMap->atElements[b];
+
+            const int iSumX = (int)pA->iX + (int)pB->iX;
+            const int iSumZ = (int)pA->iZ + (int)pB->iZ;
+
+            if((iSumX & 1) || (iSumZ & 1))
+                continue;
+
+            const uint32_t uMidX = (uint32_t)(iSumX / 2);
+            const uint32_t uMidZ = (uint32_t)(iSumZ / 2);
+            const uint32_t uMid = uMidX + uMidZ * uSize;
+
+            if(uMid == a || uMid == b)
+                continue;
+
+            // Only split if the midpoint existed in the original mesh.
+            if(ptHeightMap->atElements[uMid].uFrameStamp != uStamp)
+                continue;
+
+            // Replace current triangle with first child.
+            ptScratch->sbtLeaves[i] = (plTrianglePrimitive){
+                .uLevel = t.uLevel,
+                .uApex  = a,
+                .uLeft  = uMid,
+                .uRight = c
+            };
+
+            // Append second child.
+            pl_sb_push(ptScratch->sbtLeaves, ((plTrianglePrimitive){
+                .uLevel = t.uLevel,
+                .uApex  = uMid,
+                .uLeft  = b,
+                .uRight = c
+            }));
+
+            uLeafCount++;
+            uSplitCount++;
+            bSplit = true;
+            break;
+        }
+
+        // Recheck the replacement triangle before advancing.
+        if(!bSplit)
+            i++;
+    }
+
+    return uSplitCount;
+}
+
+
 static void
 pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX, int iStartIndexY, int iLogSize, int iLevel)
 {
-    float fProgress = (float)ptHeightMap->uCurrentHeightmap / (float)ptHeightMap->uHeightmapCount;
-    float fLocalProgress = (float)ptHeightMap->uCurrentMeshChunk / (float)ptHeightMap->uChunkCount;
-    fProgress += (fLocalProgress / (float)ptHeightMap->uHeightmapCount);
-    #ifdef _WIN32
-        system("cls");
-    #else
-        system("clear");
-    #endif
-    printf("Total: %0.3f%% \t Current Tile: %0.3f%% \n", fProgress * 100.0f, fLocalProgress * 100.0f);
-
-    const char spinner[] = "|/-\\";
-    int barWidth = 40;
-    int pos = (int)(fProgress * barWidth);
-
-    printf("[%.*s%*s] %3d%% %c\r",
-        //    pos, "****************************************",
-           pos, "########################################",
-           barWidth - pos, "",
-           (int)(fProgress * 100.0f),
-           spinner[(int)(fProgress * 10000) % 4]);
-
+    if(ptHeightMap->uCurrentMeshChunk % 10 == 0)
+    {
+        printf("\rProcessing terrain: %u / %u", ptHeightMap->uCurrentMeshChunk, ptHeightMap->uChunkCount);
+        fflush(stdout);
+    }
 
     ptHeightMap->uCurrentMeshChunk++;
     // printf("%u of %u\n", ptHeightMap->uCurrentMeshChunk++, ptHeightMap->uChunkCount);
@@ -1497,8 +1578,8 @@ pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX
         // If we split this triangle, its mate across the base must also be split to avoid T-junctions.
         // Mark the base-edge as “required split” at this level. When mate is encountered it will split too.
         // (If the mate never exists because boundary, this is harmless.)
-        // if(!pl_hm_has_key(&tRequiredSplit, uBaseHash))
-        //     pl_hm_insert(&tRequiredSplit, uBaseHash, 1);
+        if(!pl_hm_has_key(&tRequiredSplit, uBaseHash))
+            pl_hm_insert(&tRequiredSplit, uBaseHash, 1);
 
         // split into 2 children
         plTerrainMapElement* ptR = &(ptHeightMap->atElements[t.uRight]);
@@ -1528,7 +1609,17 @@ pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX
     }
 
     pl_hm_free(&tRequiredSplit);
-    pl_sb_free(gptTerrainCtx->tMeshScratch.sbtWork);
+
+    uint32_t uFixed = pl__terrain_repair_tjunctions(ptHeightMap);
+
+    // Advance stamp for unique vertex gathering.
+    ptHeightMap->uFrameStamp++;
+    if(ptHeightMap->uFrameStamp == 0)
+        ptHeightMap->uFrameStamp++;
+
+    // printf("Fixed %u terrain T-junctions\n", uFixed);
+
+    pl_sb_reset(gptTerrainCtx->tMeshScratch.sbtWork);
 
     // ------------------------------------------------
     // Unique vertex gathering
@@ -1670,12 +1761,12 @@ pl__get_normal(plTerrainHeightMap* ptHeightMap, plTerrainMapElement* ptElement)
         eD = &ptHeightMap->atElements[ptElement->iX  + ptHeightMap->iSize*jD];
 
     if(ptElement->iZ == ptHeightMap->iSize - 1)
-        eU = &ptHeightMap->atHaloElements[2 * (ptHeightMap->iSize - 1) + hx];
+        eU = &ptHeightMap->atHaloElements[2 * (ptHeightMap->iSize) + hx];
     else
         eU = &ptHeightMap->atElements[ptElement->iX  + ptHeightMap->iSize*jU];
 
     // east
-    eR = ptElement->iX == ptHeightMap->iSize - 1 ? &ptHeightMap->atHaloElements[1 * (ptHeightMap->iSize - 1) + hz] : &ptHeightMap->atElements[iR + ptHeightMap->iSize*ptElement->iZ];
+    eR = ptElement->iX == ptHeightMap->iSize - 1 ? &ptHeightMap->atHaloElements[1 * (ptHeightMap->iSize) + hz] : &ptHeightMap->atElements[iR + ptHeightMap->iSize*ptElement->iZ];
 
     plVec3 pL = pl__get_cartesian(ptHeightMap, eL);
     plVec3 pR = pl__get_cartesian(ptHeightMap, eR);

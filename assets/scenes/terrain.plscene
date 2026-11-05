@@ -64,7 +64,7 @@
                 "name": "Damaged Helmet"
             }, 
             "transform": {                
-                "translation": [ 8000, 268, 14897 ], 
+                "translation": [ 5200, 525, 14897 ], 
                 "rotation": [ 0.707106829, 0, 0, 0.707106829 ], 
                 "scale": [ 1, 1, 1 ]
             }, 
@@ -112,7 +112,7 @@
                 "name": "Probe 1"
             }, 
             "transform": {                
-                "translation": [ 8000, 275, 14897 ], 
+                "translation": [ 5200, 535, 14897 ], 
                 "rotation": [ 0, 0, 0, 1 ], 
                 "scale": [ 1, 1, 1 ]
             }, 
@@ -147,7 +147,7 @@
             }, 
             "camera": {                
                 "projection": "perspective", 
-                "position": [ 8000, 268, 14900 ], 
+                "position": [ 5200, 525, 14900 ], 
                 "near": 0.100000001, 
                 "far": 100000, 
                 "pitch": -0.195000052, 
