@@ -20,6 +20,8 @@ Index of this file:
 #undef pl_vsnprintf
 #include "pl_memory.h"
 
+#define PL_FREELIST_NODES_PER_CHUNK 64
+
 //-----------------------------------------------------------------------------
 // [SECTION] global data
 //-----------------------------------------------------------------------------
@@ -44,35 +46,76 @@ Index of this file:
 #include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
+// [SECTION] internal api
+//-----------------------------------------------------------------------------
+
+#define PL_FREELIST_NODES_PER_CHUNK 64
+
+static plFreeListNode*
+pl__freelist_acquire_node(plFreeList* ptFreeList)
+{
+    // Grow the node pool when no free descriptors remain
+    if(pl_sb_size(ptFreeList->_sbuFreeNodeHoleSlot) == 0)
+    {
+        const uint64_t uChunkIndex = pl_sb_size(ptFreeList->_sbptNodeChunks);
+        const uint64_t uBaseIndex = uChunkIndex * PL_FREELIST_NODES_PER_CHUNK;
+
+        // Assuming 32-bit node indices / stretchy-buffer sizes
+        if(uBaseIndex + PL_FREELIST_NODES_PER_CHUNK > UINT32_MAX)
+            return NULL;
+
+        // Allocate a new, permanent chunk
+        plFreeListNode* ptChunk = PL_ALLOC(sizeof(plFreeListNode) * PL_FREELIST_NODES_PER_CHUNK);
+        memset(ptChunk, 0, sizeof(plFreeListNode) * PL_FREELIST_NODES_PER_CHUNK);
+
+        // Store the pointer, not the nodes themselves.
+        // This array can safely be reallocated.
+        pl_sb_push(ptFreeList->_sbptNodeChunks, ptChunk);
+
+        // Register all new descriptors as available
+        const uint32_t uOldCount = pl_sb_size(ptFreeList->_sbuFreeNodeHoleSlot);
+
+        pl_sb_resize(ptFreeList->_sbuFreeNodeHoleSlot,uOldCount + PL_FREELIST_NODES_PER_CHUNK);
+
+        for(uint32_t i = 0; i < PL_FREELIST_NODES_PER_CHUNK; i++)
+        {
+            const uint32_t uIndex = (uint32_t)uBaseIndex + i;
+            ptChunk[i]._uIndex = uIndex;
+            ptFreeList->_sbuFreeNodeHoleSlot[uOldCount + i] = uIndex;
+        }
+    }
+
+    // Acquire an available descriptor
+    const uint32_t uIndex = (uint32_t)pl_sb_pop(ptFreeList->_sbuFreeNodeHoleSlot);
+    const uint32_t uChunk = uIndex / PL_FREELIST_NODES_PER_CHUNK;
+    const uint32_t uLocal = uIndex % PL_FREELIST_NODES_PER_CHUNK;
+    return &ptFreeList->_sbptNodeChunks[uChunk][uLocal];
+}
+
+//-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 void
 pl_freelist_create(uint64_t uSize, uint64_t uMinSize, plFreeList* ptFreelistOut)
 {
+    memset(ptFreelistOut, 0, sizeof(plFreeList));
     ptFreelistOut->uSize = uSize;
     ptFreelistOut->_uMinNodeSize = uMinSize;
 
     ptFreelistOut->_tFreeList._ptPrev = NULL;
     ptFreelistOut->_tFreeList._ptNext = NULL;
     ptFreelistOut->_tFreeList.uSize  = 0;
+    ptFreelistOut->uUsedSpace  = 0;
 
-    uint64_t uMaxNodeCount = uSize / ptFreelistOut->_uMinNodeSize;
-    ptFreelistOut->_atNodeHoles = PL_ALLOC(uMaxNodeCount * sizeof(plFreeListNode));
-    memset(ptFreelistOut->_atNodeHoles, 0, uMaxNodeCount * sizeof(plFreeListNode));
+    plFreeListNode* ptNewBlock = pl__freelist_acquire_node(ptFreelistOut);
+    PL_ASSERT(ptNewBlock);
 
-    pl_sb_resize(ptFreelistOut->_sbuFreeNodeHoleSlot, (uint32_t)uMaxNodeCount);
-    for(uint64_t i = 0; i < uMaxNodeCount; i++)
-    {
-        ptFreelistOut->_sbuFreeNodeHoleSlot[i] = i;
-        ptFreelistOut->_atNodeHoles[i]._uIndex = i;
-    }
-
-    plFreeListNode* ptNewBlock = &ptFreelistOut->_atNodeHoles[pl_sb_pop(ptFreelistOut->_sbuFreeNodeHoleSlot)];
     ptNewBlock->uSize = uSize;
+    ptNewBlock->uOffset = 0;
 
     // add node
-    ptNewBlock->_ptNext = ptFreelistOut->_tFreeList._ptNext;
+    ptNewBlock->_ptNext = NULL;
     ptNewBlock->_ptPrev = &ptFreelistOut->_tFreeList;
     ptFreelistOut->_tFreeList._ptNext = ptNewBlock;
 }
@@ -80,23 +123,26 @@ pl_freelist_create(uint64_t uSize, uint64_t uMinSize, plFreeList* ptFreelistOut)
 void
 pl_freelist_cleanup(plFreeList* ptFreeList)
 {
+    // Free every allocated node chunk
+    for(uint32_t i = 0; i < pl_sb_size(ptFreeList->_sbptNodeChunks); i++)
+    {
+        PL_FREE(ptFreeList->_sbptNodeChunks[i]);
+    }
+
+    // Free the chunk pointer array
+    pl_sb_free(ptFreeList->_sbptNodeChunks);
+
+    // Free the descriptor index stack
     pl_sb_free(ptFreeList->_sbuFreeNodeHoleSlot);
-    ptFreeList->_sbuFreeNodeHoleSlot = NULL;
-    PL_FREE(ptFreeList->_atNodeHoles);
-    ptFreeList->_atNodeHoles = NULL;
-    ptFreeList->uSize = 0;
-    ptFreeList->uUsedSpace = 0;
-    ptFreeList->_uMinNodeSize = 0;
-    ptFreeList->_tFreeList._ptNext = NULL;
-    ptFreeList->_tFreeList._ptPrev = NULL;
-    ptFreeList->_tFreeList.uOffset = 0;
-    ptFreeList->_tFreeList.uSize = 0;
-    ptFreeList->_tFreeList._uIndex = 0;
+
+    memset(ptFreeList, 0, sizeof(plFreeList));
 }
 
 plFreeListNode*
 pl_freelist_get_node(plFreeList* ptFreeList, uint64_t uSize)
 {
+    uSize = uSize > ptFreeList->_uMinNodeSize ? uSize : ptFreeList->_uMinNodeSize;
+
     plFreeListNode* ptBlock = NULL;
 
     // find best block
@@ -110,27 +156,37 @@ pl_freelist_get_node(plFreeList* ptFreeList, uint64_t uSize)
             ptBlock = ptCurrentBlock;
             szSmallestDiff = ptCurrentBlock->uSize - uSize;
         }
+
+        if(szSmallestDiff == 0)
+            break;
+
         ptCurrentBlock = ptCurrentBlock->_ptNext;
     }
 
     if (ptBlock != NULL) 
     {
         // split block if big enough
-        if( (ptBlock->uSize - uSize) >= ptFreeList->_uMinNodeSize)
+        if(ptBlock->uSize - uSize >= ptFreeList->_uMinNodeSize)
         {
-            plFreeListNode* ptNewBlock = &ptFreeList->_atNodeHoles[pl_sb_pop(ptFreeList->_sbuFreeNodeHoleSlot)];
-            ptNewBlock->uSize = ptBlock->uSize - uSize;
-            ptBlock->uSize = uSize;
-            ptNewBlock->uOffset = ptBlock->uOffset + ptBlock->uSize;
+            plFreeListNode* ptNewBlock = pl__freelist_acquire_node(ptFreeList);
 
-            // add node
-            if(ptBlock->_ptNext)
+            if(ptNewBlock)
             {
-                ptBlock->_ptNext->_ptPrev = ptNewBlock;
+                ptNewBlock->uSize = ptBlock->uSize - uSize;
+                ptBlock->uSize = uSize;
+                ptNewBlock->uOffset = ptBlock->uOffset + ptBlock->uSize;
+                ptNewBlock->_bAllocated = false;
+
+                // add node
+                if(ptBlock->_ptNext)
+                {
+                    ptBlock->_ptNext->_ptPrev = ptNewBlock;
+                }
+
+                ptNewBlock->_ptNext = ptBlock->_ptNext;
+                ptNewBlock->_ptPrev = ptBlock;
+                ptBlock->_ptNext = ptNewBlock;
             }
-            ptNewBlock->_ptNext = ptBlock->_ptNext;
-            ptNewBlock->_ptPrev = ptBlock;
-            ptBlock->_ptNext = ptNewBlock;
         }
         ptFreeList->uUsedSpace += ptBlock->uSize;
 
@@ -143,6 +199,8 @@ pl_freelist_get_node(plFreeList* ptFreeList, uint64_t uSize)
         ptBlock->_ptNext = NULL;
         ptBlock->_ptPrev = NULL;
     }
+    if(ptBlock)
+        ptBlock->_bAllocated = true;
     return ptBlock;
 }
 
@@ -150,7 +208,8 @@ void
 pl_freelist_return_node(plFreeList* ptFreeList, plFreeListNode* ptNode)
 {
     ptFreeList->uUsedSpace -= ptNode->uSize;
-
+    PL_ASSERT(ptNode->_bAllocated);
+    ptNode->_bAllocated = false;
 
     // If free list is empty, add as first node
     if (ptFreeList->_tFreeList._ptNext == NULL)
@@ -174,7 +233,8 @@ pl_freelist_return_node(plFreeList* ptFreeList, plFreeListNode* ptNode)
     ptNode->_ptPrev = insert_after;
     ptNode->_ptNext = it;
     insert_after->_ptNext = ptNode;
-    if (it) it->_ptPrev = ptNode;
+    if (it)
+        it->_ptPrev = ptNode;
 
     // 2) Coalesce with previous if adjacent
     if (ptNode->_ptPrev != &ptFreeList->_tFreeList)
@@ -188,7 +248,8 @@ pl_freelist_return_node(plFreeList* ptFreeList, plFreeListNode* ptNode)
             pl_sb_push(ptFreeList->_sbuFreeNodeHoleSlot, ptNode->_uIndex);
 
             // Remove ptNode from the list
-            if (ptNode->_ptNext) ptNode->_ptNext->_ptPrev = prev;
+            if (ptNode->_ptNext)
+                ptNode->_ptNext->_ptPrev = prev;
             prev->_ptNext = ptNode->_ptNext;
 
             // Clean up metadata
@@ -202,8 +263,7 @@ pl_freelist_return_node(plFreeList* ptFreeList, plFreeListNode* ptNode)
     }
 
     // 3) Coalesce forward as long as next is adjacent
-    while (ptNode->_ptNext &&
-           (ptNode->uOffset + ptNode->uSize) == ptNode->_ptNext->uOffset)
+    while (ptNode->_ptNext && (ptNode->uOffset + ptNode->uSize) == ptNode->_ptNext->uOffset)
     {
         plFreeListNode* next = ptNode->_ptNext;
         plFreeListNode* nn   = next->_ptNext;
@@ -213,13 +273,13 @@ pl_freelist_return_node(plFreeList* ptFreeList, plFreeListNode* ptNode)
 
         // unlink next
         ptNode->_ptNext = nn;
-        if (nn) nn->_ptPrev = ptNode;
+        if (nn)
+            nn->_ptPrev = ptNode;
 
         next->_ptPrev = next->_ptNext = NULL;
         next->uOffset = 0;
         next->uSize   = 0;
     }
-
 }
 
 //-----------------------------------------------------------------------------

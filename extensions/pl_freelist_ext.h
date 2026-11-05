@@ -34,7 +34,8 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 #include "pl.inc"
-#include <stdint.h> // uint*_t
+#include <stdint.h>  // uint*_t
+#include <stdbool.h> // bool
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -78,6 +79,7 @@ typedef struct _plFreeListNode
     uint64_t        _uIndex;
     plFreeListNode* _ptNext;
     plFreeListNode* _ptPrev;
+    bool            _bAllocated;
 } plFreeListNode;
 
 typedef struct _plFreeList
@@ -86,10 +88,10 @@ typedef struct _plFreeList
     uint64_t uSize;
 
     // [INTERNAL]
-    uint64_t        _uMinNodeSize;
-    uint64_t*       _sbuFreeNodeHoleSlot;
-    plFreeListNode* _atNodeHoles;
-    plFreeListNode  _tFreeList;
+    uint64_t         _uMinNodeSize;
+    uint64_t*        _sbuFreeNodeHoleSlot;
+    plFreeListNode** _sbptNodeChunks;
+    plFreeListNode   _tFreeList;
 } plFreeList;
 
 #ifdef __cplusplus
