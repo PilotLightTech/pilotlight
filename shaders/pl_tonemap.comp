@@ -171,6 +171,10 @@ main()
     sRGB.b = pl_saturate(sRGB.b);
 
     vec4 tFinalColor = vec4(sRGB, tLinearColor.a);
+
+    float noise = fract(52.9829189 * fract(dot(tCenter.xy, vec2(0.06711056, 0.00583715))));
+    tFinalColor.rgb += (noise - 0.5) / 255.0;
+
     imageStore(inputImage, tCenter, tFinalColor);
     
 }
