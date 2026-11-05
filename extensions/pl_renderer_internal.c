@@ -2161,7 +2161,6 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
-
 //-----------------------------------------------------------------------------
 // [SECTION] misc.
 //-----------------------------------------------------------------------------
@@ -5652,7 +5651,7 @@ pl__renderer_scene_update_bindgroups(plScene* ptScene)
                     .szBufferRange = 4096
                 },
                 {
-                    .tBuffer       = ptScene->atInstanceBuffer[i],
+                    .tBuffer       = ptScene->tInstanceBuffer,
                     .uSlot         = 1,
                     .szBufferRange = sizeof(plShadowInstanceBufferData) * ptScene->uShadowInstanceCapacity
                 }   
@@ -7310,7 +7309,8 @@ pl__renderer_scene_create_buffers(plScene* ptScene)
     gptStarter->create_buffer(&tMaterialDataBufferDesc, NULL, &ptScene->tMaterialDataBuffer);
 
     gptStarter->get_staging_buffer(4096, &ptScene->tGPUProbeDataBuffers, "probe buffer");
-
+    gptStarter->get_staging_buffer(sizeof(plShadowInstanceBufferData) * ptScene->uShadowInstanceCapacity, &ptScene->tInstanceBuffer, "instance");
+    
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
         gptStarter->get_staging_buffer(sizeof(plGpuSceneData), &ptScene->atSceneBuffer[i], "scene buffer");
@@ -7323,7 +7323,7 @@ pl__renderer_scene_create_buffers(plScene* ptScene)
         gptStarter->get_staging_buffer(sizeof(plGpuSpotLight) * PL_MAX_LIGHTS, &ptScene->atSpotLightBuffer[i], "spot light");
         gptStarter->get_staging_buffer(sizeof(plGpuDirectionLight) * PL_MAX_LIGHTS, &ptScene->atDirectionLightBuffer[i], "direction light");
         gptStarter->get_staging_buffer(sizeof(plMat4) * ptScene->uTransformCapacity, &ptScene->atTransformBuffer[i], "transform");
-        gptStarter->get_staging_buffer(sizeof(plShadowInstanceBufferData) * ptScene->uShadowInstanceCapacity, &ptScene->atInstanceBuffer[i], "instance");
+        
     }
 
     // pre-create working buffers for environment filtering, later we should defer this
@@ -7893,7 +7893,7 @@ pl__renderer_view_update_bindgroups(plView* ptView)
                     .szBufferRange = 4096
                 },
                 {
-                    .tBuffer       = ptScene->atInstanceBuffer[i],
+                    .tBuffer       = ptScene->tInstanceBuffer,
                     .uSlot         = 1,
                     .szBufferRange = sizeof(plShadowInstanceBufferData) * ptScene->uShadowInstanceCapacity
                 } 
@@ -7908,7 +7908,7 @@ pl__renderer_view_update_bindgroups(plView* ptView)
                     .szBufferRange = 4096
                 },
                 {
-                    .tBuffer       = ptScene->atInstanceBuffer[i],
+                    .tBuffer       = ptScene->tInstanceBuffer,
                     .uSlot         = 1,
                     .szBufferRange = sizeof(plShadowInstanceBufferData) * ptScene->uShadowInstanceCapacity
                 } 
@@ -8076,7 +8076,7 @@ pl__renderer_probe_update_bindgroups(plScene* ptScene, plEnvironmentProbeData* p
                 .szBufferRange = 4096
             },
             {
-                .tBuffer       = ptScene->atInstanceBuffer[0],
+                .tBuffer       = ptScene->tInstanceBuffer,
                 .uSlot         = 1,
                 .szBufferRange = sizeof(plShadowInstanceBufferData) * ptScene->uShadowInstanceCapacity
             }
@@ -8092,7 +8092,7 @@ pl__renderer_probe_update_bindgroups(plScene* ptScene, plEnvironmentProbeData* p
                 .szBufferRange = 4096
             },
             {
-                .tBuffer       = ptScene->atInstanceBuffer[0],
+                .tBuffer       = ptScene->tInstanceBuffer,
                 .uSlot         = 1,
                 .szBufferRange = sizeof(plShadowInstanceBufferData) * ptScene->uShadowInstanceCapacity
             }
@@ -8508,7 +8508,9 @@ pl__renderer_remove_instance(plScene* ptScene, plEntity tBaseEntity, plEntity tI
                 }
 
                 gptFreeList->return_node(&ptScene->tTransformFreelist, ptDrawableResources->ptTransformNode);
+                gptFreeList->return_node(&ptScene->tInstanceFreelist, ptDrawableResources->ptInstanceNode);
                 ptDrawableResources->ptTransformNode = gptFreeList->get_node(&ptScene->tTransformFreelist, ptDrawable->uInstanceCount);
+                ptDrawableResources->ptInstanceNode = gptFreeList->get_node(&ptScene->tInstanceFreelist, ptDrawable->uInstanceCount * 6);
             }
         }
     }
@@ -8569,6 +8571,9 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
                 if(ptExistingObject->tFlags != ptObject->tFlags)
                     continue;
 
+                if(ptDrawable->uInstanceCount >= PL_MAX_INSTANCES_PER_DRAWABLE)
+                    continue;
+
                 tFirstEntity = ptDrawableResources->tEntity;
                 bAddInstance = true;
                 break;
@@ -8618,8 +8623,12 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
                         pl_sb_push(ptDrawableResources->sbtEntities, atObjects[i]);
                         ptDrawable->uInstanceCount++;
                         gptFreeList->return_node(&ptScene->tTransformFreelist, ptDrawableResources->ptTransformNode);
+                        gptFreeList->return_node(&ptScene->tInstanceFreelist, ptDrawableResources->ptInstanceNode);
                         ptDrawableResources->ptTransformNode = gptFreeList->get_node(&ptScene->tTransformFreelist, ptDrawable->uInstanceCount);
+                        ptDrawableResources->ptInstanceNode = gptFreeList->get_node(&ptScene->tInstanceFreelist, ptDrawable->uInstanceCount * 6);
                         ptDrawable->uTransformIndex = (uint32_t)ptDrawableResources->ptTransformNode->uOffset;
+                        ptDrawable->uInstanceIndex = (uint32_t)ptDrawableResources->ptInstanceNode->uOffset;
+                        ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_INSTANCE_BUFFER_DIRTY;
                     }
                 }
             }
@@ -8660,7 +8669,10 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
                 ptDrawableResources->tEntity = atObjects[i];
                 ptDrawableResources->uSkinIndex = UINT32_MAX;
                 ptDrawableResources->ptTransformNode = gptFreeList->get_node(&ptScene->tTransformFreelist, ptDrawable->uInstanceCount);
+                ptDrawableResources->ptInstanceNode = gptFreeList->get_node(&ptScene->tInstanceFreelist, ptDrawable->uInstanceCount * 6);
                 ptDrawable->uTransformIndex = (uint32_t)ptDrawableResources->ptTransformNode->uOffset;
+                ptDrawable->uInstanceIndex = (uint32_t)ptDrawableResources->ptInstanceNode->uOffset;
+                ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_INSTANCE_BUFFER_DIRTY;
 
                 pl_hm_insert(&ptScene->tDrawableHashmap, uDrawHash, uDrawableIndex);
 
@@ -8739,6 +8751,83 @@ pl__renderer_add_lights_to_scene(plScene* ptScene, uint32_t uCount, const plEnti
         }
     }
     
+}
+
+static void
+pl__renderer_update_instance_buffer(plScene* ptScene)
+{
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "create shaders");
+
+    plDevice* ptDevice  = gptData->ptDevice;
+    plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
+    
+    // update transform & instance buffers since we are now using indices
+    plBuffer* ptInstanceBuffer = gptGfx->get_buffer(ptDevice, ptScene->tInstanceBuffer);
+
+    const uint32_t uObjectCount = pl_sb_size(ptScene->sbuActiveDrawables);
+
+    if(ptSettings->tShadows.tFlags & PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT)
+    {
+        for(uint32_t i = 0; i < uObjectCount; i++)
+        {
+
+            plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbuActiveDrawables[i]];
+            plDrawableResources* ptDrawableResources = &ptScene->sbtDrawableResources[ptScene->sbuActiveDrawables[i]];
+
+            plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->tEntity);
+
+            // if using instancing, set index into instance buffer and
+            // this includes setting the viewport instance data for multiviewport
+            // shadow technique
+            // ptDrawable->uInstanceIndex = uInstanceOffset;
+
+            for(int32_t iViewport = 0; iViewport < 6; iViewport++)
+            {
+                for(uint32_t uInstance = 0; uInstance < ptDrawable->uInstanceCount; uInstance++)
+                {
+                    uint32_t uTransformIndex = ptScene->sbtDrawables[ptScene->sbuActiveDrawables[i]].uTransformIndex + uInstance;
+
+                    plShadowInstanceBufferData tShadowInstanceData = {
+                        .uTransformIndex = uTransformIndex,
+                        .iViewportIndex  = iViewport
+                    };
+                    
+                    memcpy(&ptInstanceBuffer->tMemoryAllocation.pHostMapped[(ptDrawable->uInstanceIndex + uInstance + ptDrawable->uInstanceCount * iViewport)  * sizeof(tShadowInstanceData)], &tShadowInstanceData, sizeof(tShadowInstanceData));
+                }
+            }
+        }
+    }
+    else
+    {
+        for(uint32_t i = 0; i < uObjectCount; i++)
+        {
+
+            plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbuActiveDrawables[i]];
+            plDrawableResources* ptDrawableResources = &ptScene->sbtDrawableResources[ptScene->sbuActiveDrawables[i]];
+
+            plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->tEntity);
+
+            // if using instancing, set index into instance buffer and
+            // this includes setting the viewport instance data for multiviewport
+            // shadow technique
+            for(int32_t iViewport = 0; iViewport < 6; iViewport++)
+            {
+                for(uint32_t uInstance = 0; uInstance < ptDrawable->uInstanceCount; uInstance++)
+                {
+                    uint32_t uTransformIndex = ptScene->sbtDrawables[ptScene->sbuActiveDrawables[i]].uTransformIndex + uInstance;
+
+                    plShadowInstanceBufferData tShadowInstanceData = {
+                        .uTransformIndex = uTransformIndex,
+                        .iViewportIndex  = 0
+                    };
+                    
+                    memcpy(&ptInstanceBuffer->tMemoryAllocation.pHostMapped[(ptDrawable->uInstanceIndex + uInstance + ptDrawable->uInstanceCount * iViewport) * sizeof(tShadowInstanceData)], &tShadowInstanceData, sizeof(tShadowInstanceData));
+                }
+            }
+        }
+    }
+
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static void

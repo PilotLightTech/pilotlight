@@ -84,6 +84,7 @@ Index of this file:
 // [SECTION] defines
 //-----------------------------------------------------------------------------
 
+#define PL_MAX_INSTANCES_PER_DRAWABLE 256
 #define PL_MAX_LIGHTS 100
 #define PL_DRAWABLE_OBJECT_KEY UINT32_MAX
 
@@ -193,7 +194,8 @@ enum _plSceneInternalFlags
     PL_SCENE_INTERNAL_FLAG_ACTIVE                = 1 << 0,
     PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED = 1 << 1,
     PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED        = 1 << 2,
-    PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY    = 1 << 3
+    PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY    = 1 << 3,
+    PL_SCENE_INTERNAL_FLAG_INSTANCE_BUFFER_DIRTY = 1 << 4,
 };
 
 enum _plRenderBucket
@@ -271,6 +273,7 @@ typedef struct _plDrawable
 typedef struct _plDrawableResources
 {
     plFreeListNode* ptTransformNode;
+    plFreeListNode* ptInstanceNode;
     plFreeListNode* ptIndexBufferNode;
     plFreeListNode* ptVertexBufferNode;
     plFreeListNode* ptDataBufferNode;
@@ -435,6 +438,7 @@ typedef struct _plScene
     plComponentLibrary*  ptComponentLibrary;
     plView**             sbptViews; // child views
     plShaderLibrary*     ptShaderLibrary;
+    bool                 bMultiViewport;
 
     // bind group layouts
     plBindGroupLayoutHandle tViewBGLayout;
@@ -543,7 +547,7 @@ typedef struct _plScene
     plBufferHandle atSpotLightBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atDirectionLightBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atTransformBuffer[PL_MAX_FRAMES_IN_FLIGHT];
-    plBufferHandle atInstanceBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle tInstanceBuffer;
     plBufferHandle atDynamicSkinBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atPointLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
@@ -562,6 +566,8 @@ typedef struct _plScene
     plFreeList tSkinBufferFreeList;
     plFreeList tMaterialFreeList;
     plFreeList tShadowCameraFreeList;
+    plFreeList tTransformFreelist;
+    plFreeList tInstanceFreelist;
 
     // material helpers & hashmaps (material component <-> GPU material)
     plMaterial*      sbtMaterials;
@@ -615,7 +621,6 @@ typedef struct _plScene
     // transform index & instancing management
     uint32_t  uTransformCapacity;
     uint32_t  uShadowInstanceCapacity;
-    plFreeList tTransformFreelist;
 
     // terrain
     plEntity   tTerrain;
@@ -799,6 +804,7 @@ static void     pl__renderer_scene_update_sky_luts_bindgroups(plScene*);
 static void     pl__renderer_scene_load_skybox_from_panorama (plScene*, const char* path, int res);
 static uint32_t pl__renderer_get_or_create_material_slot     (plScene*, plAssetHandle);
 static void     pl__renderer_load_shaders                    (plScene*);
+static void     pl__renderer_update_instance_buffer          (plScene*);
 
 // view helpers
 static void pl__renderer_view_create_textures           (plView*);
