@@ -1467,7 +1467,8 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
-    float fShadowLambda = 0.6f;
+    // More resolution for nearby receivers (the last cascade still reaches fShadowFarZ).
+    const float fShadowLambda = 0.95f;
     uint32_t uShadowResolution = (uint32_t)ptScene->sbtShadowViewRects[0].iHeight;
     int iX = ptScene->sbtShadowViewRects[0].iX;
     int iY = ptScene->sbtShadowViewRects[0].iY;
@@ -1482,29 +1483,24 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
     const float g = 1.0f / tanf(ptSceneCamera->fYFov / 2.0f);
     const float s = ptSceneCamera->fAspectRatio;
 
-    // common calculations
-    const float fFarClip = ptSceneCamera->fFarZ;
-    const float fNearClip = ptSceneCamera->fNearZ;
-    const float fClipRange = fFarClip - fNearClip;
+    // This distance limits RECEIVERS. Off-camera casters are covered separately below.
+    const float fShadowFarZ = pl_max(ptSceneCamera->fNearZ + 0.01f, pl_min(ptSceneCamera->fFarZ, ptSettings->tShadows.fMaxShadowRange));
 
-    const float fMinZ = fNearClip;
-    const float fMaxZ = fNearClip + fClipRange;
-
-    const float fRange = fMaxZ - fMinZ;
-    const float fRatio = fMaxZ / fMinZ;
-
-    // TODO: we shouldn't have to check all rects, optimize this
-
-    float fShadowFarZ = pl_min(ptSceneCamera->fFarZ, ptSettings->tShadows.fMaxShadowRange);
+    // Conservative broad-phase bounds for all four directional-light cascades.
+    // This replaces the camera-centered sphere later used to cull drawables.
+    plSphere tSunCasterCullSphere = {0};
 
     // const uint32_t uAtlasRectCount = pl_sb_size(ptScene->sbtShadowRects);
     // for(uint32_t uRectIndex = 0; uRectIndex < uAtlasRectCount; uRectIndex++)
     {
 
-
-
         plMat4 atCamViewProjs[4] = {0};
         float fLastSplitDist = ptSceneCamera->fNearZ;
+        const plMat4 tCameraInversion = pl_mat4_invert(&ptSceneCamera->tViewMat);
+        const uint32_t uDrawableCount = pl_sb_size(ptScene->sbuActiveDrawables);
+
+        plVec3 tCullMinLS = { FLT_MAX, FLT_MAX, FLT_MAX };
+        plVec3 tCullMaxLS = {-FLT_MAX,-FLT_MAX,-FLT_MAX };
         const plVec3 tDirection = pl_norm_vec3(ptScene->tSceneData.tDirection);
 
         float afCascadeSplits[4] = {
@@ -1524,14 +1520,21 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
             for(uint32_t i = 1; i <= uCascadeCount; ++i)
             {
                 float p = (float)i / (float)uCascadeCount;
-
-                float logSplit =
-                    ptSceneCamera->fNearZ * powf(fShadowFarZ / ptSceneCamera->fNearZ, p);
-
-                float linSplit =
-                    ptSceneCamera->fNearZ + (fShadowFarZ - ptSceneCamera->fNearZ) * p;
-
+                float logSplit = ptSceneCamera->fNearZ * powf(fShadowFarZ / ptSceneCamera->fNearZ, p);
+                float linSplit = ptSceneCamera->fNearZ + (fShadowFarZ - ptSceneCamera->fNearZ) * p;
                 float di = fShadowLambda * logSplit + (1.0f - fShadowLambda) * linSplit;
+
+                // Four-cascade terrain preset: preserve close-up resolution even
+                // when the last cascade reaches many kilometers. Distances are
+                // world units (meters in the terrain setup). For other counts,
+                // retain the practical split scheme above.
+                if(uCascadeCount == 4)
+                {
+                    const float afPreferred[4] = {50.0f, 250.0f, 1500.0f, fShadowFarZ};
+                    const float afMaxFraction[4] = {0.25f, 0.50f, 0.80f, 1.0f};
+                    di = pl_min(afPreferred[i - 1], ptSceneCamera->fNearZ + (fShadowFarZ - ptSceneCamera->fNearZ) * afMaxFraction[i - 1]);
+                    di = pl_max(di, ptSceneCamera->fNearZ);
+                }
 
                 afCascadeSplits[i - 1] = (di - ptSceneCamera->fNearZ)/(ptSceneCamera->fFarZ - ptSceneCamera->fNearZ);
                 ptViewData->afCascadeSplits.d[i - 1] = afCascadeSplits[i - 1];
@@ -1612,7 +1615,6 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
 
             // convert to world space
             plVec3 atWorldSpaceCorners[8] = {0};
-            const plMat4 tCameraInversion = pl_mat4_invert(&ptSceneCamera->tViewMat);
             for(uint32_t i = 0; i < 8; i++)
             {
                 plVec4 tInvCorner = pl_mul_mat4_vec4(&tCameraInversion, (plVec4){ .xyz = atCameraCorners2[i], .w = 1.0f });
@@ -1662,23 +1664,110 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
             const float fCenterY = fUnitPerTexel * roundf(tFrustumCenterLS.y / fUnitPerTexel);
             const float fCenterZ = 0.5f * (fZMin + fZMax);
 
-            // optional z padding for off-frustum casters
-            const float fDepthPadding = 500.0f; // TODO: make option
-            // const float fNearZ = fZMin - fDepthPadding;
-            // const float fFarZ  = fZMax + fDepthPadding;
+            //-------------------------------------------------------------------------
+            // Find off-camera shadow casters by LIGHT-SPACE X/Y overlap, not by
+            // the camera's viewing distance. Each terrain file root has an AABB.
+            // Also include ordinary shadow-casting drawable world AABBs.
+            // tDirection is assumed to be the direction the light travels (+Z),
+            // so relevant casters extend toward SMALLER light-space Z.
+            //-------------------------------------------------------------------------
+            float fCasterMinZ = fZMin;
+            const float fMinX = fCenterX - fRadius;
+            const float fMaxX = fCenterX + fRadius;
+            const float fMinY = fCenterY - fRadius;
+            const float fMaxY = fCenterY + fRadius;
 
-            const float fReceiverMinZ = fZMin - fCenterZ;
-            const float fReceiverMaxZ = fZMax - fCenterZ;
+            const uint32_t uTerrainFileCount = ptScene->ptTerrain ? pl_sb_size(ptScene->ptTerrain->sbtChunkFiles) : 0;
 
-            const float fNearZ = fReceiverMinZ - fDepthPadding;
-            const float fFarZ  = fReceiverMaxZ + fDepthPadding;
+            for(uint32_t i = 0; i < uTerrainFileCount + uDrawableCount; i++)
+            {
+                plVec3 tMinBound = {0};
+                plVec3 tMaxBound = {0};
+
+                if(i < uTerrainFileCount)
+                {
+                    plTerrainChunkFile* ptFile = &ptScene->ptTerrain->sbtChunkFiles[i].tFile;
+                    if(ptFile->uChunkCount == 0 || !ptFile->atChunks)
+                        continue;
+                    // Conservative: one AABB for the whole file. The chunk tree
+                    // may be used later for tighter bounds if needed.
+                    tMinBound = ptFile->atChunks[0].tMinBound;
+                    tMaxBound = ptFile->atChunks[0].tMaxBound;
+                }
+                else
+                {
+                    const uint32_t uDrawableIndex = ptScene->sbuActiveDrawables[i - uTerrainFileCount];
+                    const plDrawable* ptDrawable = &ptScene->sbtDrawables[uDrawableIndex];
+                    if(!(ptDrawable->tFlags & PL_DRAWABLE_FLAG_CASTS_SHADOW))
+                        continue;
+
+                    const plDrawableResources* ptResources = &ptScene->sbtDrawableResources[uDrawableIndex];
+                    plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptResources->tEntity);
+                    if(!ptObject || !(ptObject->tFlags & PL_OBJECT_FLAGS_RENDERABLE))
+                        continue;
+
+                    // Requires a conservative world-space AABB, including all
+                    // instances for instanced drawables.
+                    tMinBound = ptObject->tAABB.tMin;
+                    tMaxBound = ptObject->tAABB.tMax;
+
+                    uint32_t uInstances = pl_sb_size(ptResources->sbtEntities);
+                    for(uint32_t j = 0; j < uInstances; j++)
+                    {
+                        
+                        plEntity tInstancedEntity = ptResources->sbtEntities[j];
+                        plObjectComponent* ptInstancedObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tInstancedEntity);
+
+                        if(ptInstancedObject->tAABB.tMin.x < tMinBound.x) tMinBound.x = ptInstancedObject->tAABB.tMin.x;
+                        if(ptInstancedObject->tAABB.tMin.y < tMinBound.y) tMinBound.y = ptInstancedObject->tAABB.tMin.y;
+                        if(ptInstancedObject->tAABB.tMin.z < tMinBound.z) tMinBound.z = ptInstancedObject->tAABB.tMin.z;
+                        if(ptInstancedObject->tAABB.tMax.x > tMaxBound.x) tMaxBound.x = ptInstancedObject->tAABB.tMax.x;
+                        if(ptInstancedObject->tAABB.tMax.y > tMaxBound.y) tMaxBound.y = ptInstancedObject->tAABB.tMax.y;
+                        if(ptInstancedObject->tAABB.tMax.z > tMaxBound.z) tMaxBound.z = ptInstancedObject->tAABB.tMax.z;
+
+                    }
+                }
+
+                const plVec3 tBoxCenter = pl_mul_vec3_scalarf(pl_add_vec3(tMinBound, tMaxBound), 0.5f);
+                const plVec3 tBoxExtent = pl_mul_vec3_scalarf(pl_sub_vec3(tMaxBound, tMinBound), 0.5f);
+                const plVec4 tBoxCenterLS4 = pl_mul_mat4_vec4(&tStableLightView, (plVec4){ .xyz = tBoxCenter, .w = 1.0f });
+                const plVec3 tBoxCenterLS = tBoxCenterLS4.xyz;
+
+                // Project the AABB half-extents onto the light-space axes.
+                const float fExtentX = fabsf(tLightRight.x) * tBoxExtent.x + fabsf(tLightRight.y) * tBoxExtent.y + fabsf(tLightRight.z) * tBoxExtent.z;
+                const float fExtentY = fabsf(tLightUp.x) * tBoxExtent.x + fabsf(tLightUp.y) * tBoxExtent.y + fabsf(tLightUp.z) * tBoxExtent.z;
+                const float fExtentZ = fabsf(tLightForward.x) * tBoxExtent.x + fabsf(tLightForward.y) * tBoxExtent.y + fabsf(tLightForward.z) * tBoxExtent.z;
+
+                // No X/Y intersection => cannot cast into this cascade.
+                if(tBoxCenterLS.x + fExtentX < fMinX ||
+                   tBoxCenterLS.x - fExtentX > fMaxX ||
+                   tBoxCenterLS.y + fExtentY < fMinY ||
+                   tBoxCenterLS.y - fExtentY > fMaxY)
+                    continue;
+
+                // A caster wholly downstream of the receiver slice is irrelevant.
+                if(tBoxCenterLS.z - fExtentZ > fZMax)
+                    continue;
+
+                fCasterMinZ = pl_min(fCasterMinZ, tBoxCenterLS.z - fExtentZ);
+            }
+
+            // Keep the receiver's far side and extend only toward casters.
+            // Small safety pad replaces the fixed 500-unit blanket padding.
+            const float fDepthPadding = 10.0f;
+            const float fNearZ = pl_min(fZMin, fCasterMinZ) - fCenterZ - fDepthPadding;
+            const float fFarZ  = fZMax - fCenterZ + fDepthPadding;
+
+            // Union of all cascade volumes for subsequent drawable broad-phase.
+            tCullMinLS.x = pl_min(tCullMinLS.x, fMinX);
+            tCullMinLS.y = pl_min(tCullMinLS.y, fMinY);
+            tCullMinLS.z = pl_min(tCullMinLS.z, fCenterZ + fNearZ);
+            tCullMaxLS.x = pl_max(tCullMaxLS.x, fMaxX);
+            tCullMaxLS.y = pl_max(tCullMaxLS.y, fMaxY);
+            tCullMaxLS.z = pl_max(tCullMaxLS.z, fCenterZ + fFarZ);
 
             // reconstruct snapped world-space center from stable light space
-            plVec3 tSnappedCenterLS = {
-                fCenterX,
-                fCenterY,
-                fCenterZ
-            };
+            plVec3 tSnappedCenterLS = { fCenterX, fCenterY, fCenterZ};
 
             plVec4 tSnappedCenterWS4 = pl_mul_mat4_vec4(&tStableLightViewInv, (plVec4){ .xyz = tSnappedCenterLS, .w = 1.0f });
             plVec3 tSnappedCenterWS = tSnappedCenterWS4.xyz;
@@ -1694,21 +1783,22 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
             tShadowCamera.fHeight = fDim;
             tShadowCamera.fNearZ  = fNearZ;
             tShadowCamera.fFarZ   = fFarZ;
-            tShadowCamera.fAspectRatio   = 1.0f;
+            tShadowCamera.fAspectRatio = 1.0f;
 
+            // IMPORTANT: set the actual camera orientation before update(),
+            // so the view matrix and the forward/right/up vectors used by
+            // pl__render_chunk_shadow() agree. Using a double target also
+            // avoids loss of the direction at large world coordinates.
+            const plVec3d tEye = pl__to_double_vec(tSnappedCenterWS);
+            const plVec3d tTarget = {
+                tEye.x + 100.0 * (double)tLightForward.x,
+                tEye.y + 100.0 * (double)tLightForward.y,
+                tEye.z + 100.0 * (double)tLightForward.z
+            };
+            gptCamera->look_at(&tShadowCamera, tEye, tTarget, tLightUp);
             gptCamera->update(&tShadowCamera);
 
-            // direct stable view matrix construction (no look_at)
-            tShadowCamera.tViewMat = tStableLightView;
-            tShadowCamera.tViewMat.col[3].x = -pl_dot_vec3(tLightRight,   tSnappedCenterWS);
-            tShadowCamera.tViewMat.col[3].y = -pl_dot_vec3(tLightUp,      tSnappedCenterWS);
-            tShadowCamera.tViewMat.col[3].z = -pl_dot_vec3(tLightForward, tSnappedCenterWS);
-
-            // if update() overwrites tViewMat in your camera system, move the
-            // tViewMat assignment to after update() and then rebuild viewProj here.
-
-            atCamViewProjs[uCascade] = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
-            tShadowCamera.tViewProjMat = atCamViewProjs[uCascade];
+            atCamViewProjs[uCascade] = tShadowCamera.tViewProjMat;
             ptViewData->viewProjMat[uCascade] = atCamViewProjs[uCascade];
             fLastSplitDist = fSplitDist;
 
@@ -1754,19 +1844,25 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
                     1, &tDynamicBinding
                 );
 
-
                 for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
                     pl__render_chunk_shadow(ptScene, ptScene->ptTerrain, &tShadowCamera, ptCommandBuffer, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, 0, (float)uShadowResolution, (float)uShadowResolution);
             }
         }
+
+        // Enclose the union of cascade light-space AABBs in one conservative
+        // sphere. This includes upstream casters the camera-centered sphere
+        // previously discarded. The broad-phase job can stay unchanged.
+        const plVec3 tCullCenterLS = pl_mul_vec3_scalarf(pl_add_vec3(tCullMinLS, tCullMaxLS), 0.5f);
+        const plVec3 tCullExtentLS = pl_mul_vec3_scalarf(pl_sub_vec3(tCullMaxLS, tCullMinLS), 0.5f);
+        const plVec4 tCullCenterWS4 = pl_mul_mat4_vec4(&tStableLightViewInv, (plVec4){ .xyz = tCullCenterLS, .w = 1.0f });
+        tSunCasterCullSphere.tCenter = tCullCenterWS4.xyz;
+        tSunCasterCullSphere.fRadius = pl_length_vec3(tCullExtentLS) + 1.0f;
     }
 
     plBuffer* ptViewBuffer = gptGfx->get_buffer(ptDevice, tViewBuffer);
     memcpy(ptViewBuffer->tMemoryAllocation.pHostMapped, ptViewData, sizeof(plGpuViewData));
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbuActiveDrawables);
-
-    const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
 
     {
 
@@ -1775,10 +1871,7 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
         pl_sb_reset(ptScene->sbtVisibleDrawables1);
         plCullData tCullData = {
             .ptScene      = ptScene,
-            .tSphere = {
-                .fRadius = ptSceneCamera->fFarZ - ptSceneCamera->fNearZ,
-                .tCenter = pl_add_vec3(pl_mul_vec3_scalarf(ptSceneCamera->tForwardVec, 0.6f * (ptSceneCamera->fFarZ - ptSceneCamera->fNearZ)), ptSceneCamera->tPositionF),
-            }
+            .tSphere = tSunCasterCullSphere
         };
 
         plJobDesc tJobDesc = {
@@ -1943,14 +2036,14 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
                     {
                         .fX = (float)(iX + 2 * uShadowResolution),
                         .fY = (float)iY,
-                        .fWidth  = uCascadeCount > 1 ? (float)uShadowResolution : 0.0f,
+                        .fWidth  = uCascadeCount > 2 ? (float)uShadowResolution : 0.0f,
                         .fHeight = (float)uShadowResolution,
                         .fMaxDepth = 1.0f
                     },
                     {
                         .fX = (float)(iX + 3 * uShadowResolution),
                         .fY = (float)iY,
-                        .fWidth  = uCascadeCount > 1 ? (float)uShadowResolution : 0.0f,
+                        .fWidth  = uCascadeCount > 3 ? (float)uShadowResolution : 0.0f,
                         .fHeight = (float)uShadowResolution,
                         .fMaxDepth = 1.0f
                     },
@@ -2034,7 +2127,7 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
                             tDynamicBinding.uByteOffset
                         },
                         .uInstanceOffset = ptDrawable->uInstanceIndex,
-                        .uInstanceCount = uCascadeCount * ptDrawable->uInstanceCount
+                        .uInstanceCount = ptDrawable->uInstanceCount
                     });
                 };
 
