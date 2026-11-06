@@ -440,6 +440,17 @@ PL_BEGIN_STRUCT(plGpuDynAOData)
     int iLevels;
 PL_END_STRUCT(plGpuDynAOData)
 
+PL_BEGIN_STRUCT(plGpuDynSSGI)
+    mat4 tProjection;
+    mat4 tProjectionInv;
+    mat4 tView;
+    vec4 tParameters;
+    uint uWidth;
+    uint uHeight;
+    uint uRayCount;
+    uint uStepCount;
+PL_END_STRUCT(plGpuDynSSGI)
+
 PL_BEGIN_STRUCT(plGpuDynBloomData)
     float blurRadius;
     float bloomStrength;

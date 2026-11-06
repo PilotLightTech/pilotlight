@@ -396,6 +396,7 @@ typedef struct _plView
     plTextureHandle  atUVMaskTexture0;             // outlining
     plTextureHandle  atUVMaskTexture1;             // outlining
     plTextureHandle  tPickTexture;                 // picking
+    plTextureHandle  tSSGITexture;                 // diffuse screen-space GI
     plTextureHandle* sbtBloomDownChain;            // bloom textures
     plTextureHandle* sbtBloomUpChain;              // bloom textures
     plTextureHandle  atAODepth[3];                 // full, half, quarter resolution

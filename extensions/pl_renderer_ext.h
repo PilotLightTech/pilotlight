@@ -288,6 +288,17 @@ typedef struct _plRendererBloomOptions
     uint32_t             uChainLength; // default: 5
 } plRendererBloomOptions;
 
+// Optional diffuse screen-space global illumination.
+typedef struct _plRendererSSGIOptions
+{
+    bool     bEnabled;
+    float    fStrength;    // default 1.0
+    float    fRadius;      // world units, default 2.0
+    float    fThickness;   // world units, default 0.15
+    uint32_t uRayCount;    // 1..32, default 8
+    uint32_t uStepCount;   // 1..64, default 16
+} plRendererSSGIOptions;
+
 typedef struct _plRendererFogOptions
 {
     plRendererFogFlags tFlags;
@@ -328,6 +339,7 @@ typedef struct _plRenderSettings
     plRendererShadowOptions   tShadows;
     plRendererFogOptions      tFog;
     plRendererBloomOptions    tBloom;
+    plRendererSSGIOptions     tSSGI;
     plRendererTonemapOptions  tTonemap;
     plRendererSkyOptions      tSky;
     plRendererAOOptions       tAO;

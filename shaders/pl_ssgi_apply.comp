@@ -1,0 +1,37 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+#include "pl_ssgi.inc"
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if(!inside(pixel)) return;
+    float depth = depthAt(pixel);
+    vec4 material = texelFetch(sampler2D(materialTexture, pointSampler), pixel, 0);
+    if(depth <= 0.0 || !surfaceAt(pixel))
+        return;
+    vec3 position = positionAt(pixel, depth);
+    vec3 n = normalAt(pixel);
+    vec3 indirect = vec3(0);
+    float weights = 0.0;
+    for(int y = -2; y <= 2; y++)
+    for(int x = -2; x <= 2; x++)
+    {
+        ivec2 p = pixel + ivec2(x,y);
+        if(!inside(p))
+            continue;
+        float d = depthAt(p);
+        vec4 sampleLight = texelFetch(sampler2D(sourceTexture, pointSampler), p, 0);
+        if(d <= 0.0 || sampleLight.a <= 0.0)
+            continue;
+        vec3 offset = positionAt(p, d) - position;
+        float weight = exp(-float(x*x+y*y) / 4.0) * pow(max(dot(n, normalAt(p)), 0.0), 32.0) * exp(-abs(dot(offset, n)) / max(info.tData.tParameters.y * 0.25, 0.001));
+        indirect += sampleLight.rgb * weight;
+        weights += weight;
+    }
+    vec3 albedo = texelFetch(sampler2D(albedoTexture, pointSampler), pixel, 0).rgb;
+    vec3 diffuse = albedo * (1.0 - clamp(material.g, 0.0, 1.0)) * clamp(material.r, 0.0, 1.0);
+    vec4 color = imageLoad(target, pixel);
+    color.rgb += indirect / max(weights, 0.00001) * diffuse * info.tData.tParameters.z;
+    imageStore(target, pixel, color);
+}

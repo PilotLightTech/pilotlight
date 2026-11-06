@@ -1778,6 +1778,22 @@ pl_asset_tools_show_assets(bool* bValue)
                         gptUI->apply_layout();
                     }
 
+                    if(gptUI->collapsing_header("Screen Space GI", 0))
+                    {
+                        gptUI->stash_layout();
+                        gptUI->checkbox("SSGI Enabled", &ptSettings->tSSGI.bEnabled);
+                        gptUI->input_float("SSGI Strength", &ptSettings->tSSGI.fStrength, "%g", 0);
+                        gptUI->input_float("SSGI Radius", &ptSettings->tSSGI.fRadius, "%g", 0);
+                        gptUI->input_float("SSGI Thickness", &ptSettings->tSSGI.fThickness, "%g", 0);
+                        int iRays = (int)ptSettings->tSSGI.uRayCount;
+                        int iSteps = (int)ptSettings->tSSGI.uStepCount;
+                        gptUI->input_int("SSGI Rays", &iRays, 0);
+                        gptUI->input_int("SSGI Steps", &iSteps, 0);
+                        ptSettings->tSSGI.uRayCount = (uint32_t)pl_clampi(1, iRays, 32);
+                        ptSettings->tSSGI.uStepCount = (uint32_t)pl_clampi(1, iSteps, 64);
+                        gptUI->apply_layout();
+                    }
+
                     if(gptUI->collapsing_header("Ambient Occlusion", 0))
                     {
                         gptUI->stash_layout();

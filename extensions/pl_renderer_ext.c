@@ -281,6 +281,8 @@ pl_renderer_destroy_view(plView* ptView)
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tDepthTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture0);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture1);
+    if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tSSGITexture))
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tSSGITexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFinalTexture);
     if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tFXAAInputTexture))
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFXAAInputTexture);
@@ -2209,7 +2211,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
                 .eLoadOp        = PL_LOAD_OP_CLEAR,
                 .eStoreOp       = PL_STORE_OP_STORE,
                 .eUsage         = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 0.0f}
             },
             {
                 .tTexture       = ptView->tNormalTexture,
@@ -2327,10 +2329,11 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     };
     pl__render_view_gbuffer_fill_pass(ptScene, ptSceneCmdBuffer, &tGbufferFillPassInfo0);
     
-    // Finish depth/normal geometry once for both screen-space effects.
+    // Finish depth/normal geometry once for the screen-space effects.
     const bool bAO = ptView->tViewData.iAOEnabled != 0;
     const bool bContactShadows = ptScene->tSceneData.tContactShadow.x > 0.0f && ptScene->tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE && ptView->tTargetSize.x > 0 && ptView->tTargetSize.y > 0;
-    if(bAO || bContactShadows)
+    const bool bSSGI = pl__renderer_ssgi_enabled(ptView);
+    if(bAO || bContactShadows || bSSGI)
     {
         pl__render_view_forward_depth_normal_pass(ptView, ptSceneCmdBuffer, &tArea);
         gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_COMPUTE | PL_PIPELINE_STAGE_BLIT, PL_BARRIER_SCOPE_ALL);
@@ -2403,7 +2406,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     else
         pl__render_view_deferred_lighting_debug_pass(ptView, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx]);
 
-    gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_FRAGMENT | PL_PIPELINE_STAGE_VERTEX, PL_PIPELINE_STAGE_VERTEX, PL_BARRIER_SCOPE_ALL);
+    gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_FRAGMENT | PL_PIPELINE_STAGE_VERTEX, PL_PIPELINE_STAGE_VERTEX | PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL);
     gptGfx->end_render_pass(ptSceneCmdBuffer);
 
     // forward pass
@@ -2439,7 +2442,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         }
     };
 
-    gptGfx->consumer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_FRAGMENT | PL_PIPELINE_STAGE_VERTEX, PL_PIPELINE_STAGE_VERTEX | PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
+    gptGfx->consumer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_FRAGMENT | PL_PIPELINE_STAGE_VERTEX | PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_VERTEX | PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
     gptGfx->begin_render_pass(ptSceneCmdBuffer, &tForwardRenderInfo, NULL);
     gptGfx->set_depth_bias(ptSceneCmdBuffer, 0.0f, 0.0f, 0.0f);
     
@@ -2471,7 +2474,8 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         .tBucket = PL_RENDER_BUCKET_OUTLINE,
         .tShader = ptScene->tOutlineShader,
         .ptArea = &tArea,
-        .uGlobalIndex = 0
+        .uGlobalIndex = 0,
+        .iAlphaFilter = bSSGI ? 1 : 0
     };
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo3);
 
@@ -2479,7 +2483,8 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         .tBucket = PL_RENDER_BUCKET_OUTLINE_DOUBLE_SIDED,
         .tShader = ptScene->tOutlineNoCullShader,
         .ptArea = &tArea,
-        .uGlobalIndex = 0
+        .uGlobalIndex = 0,
+        .iAlphaFilter = bSSGI ? 1 : 0
     };
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo2);
 
@@ -2487,7 +2492,8 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         .tBucket = PL_RENDER_BUCKET_FOLIAGE_OUTLINE,
         .tShader = ptScene->tOutlineNoCullShader,
         .ptArea = &tArea,
-        .uGlobalIndex = 0
+        .uGlobalIndex = 0,
+        .iAlphaFilter = bSSGI ? 1 : 0
     };
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo22);
 
@@ -2507,6 +2513,35 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     };
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo0);
 
+    plForwardPassInfo tForwardPassInfo7 = {
+        .tBucket = PL_RENDER_BUCKET_FOLIAGE,
+        .tShader = ptScene->tFoliageShader,
+        .ptArea = &tArea,
+        .uGlobalIndex = 0
+    };
+    pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo7);
+
+    // Capture all opaque HDR lighting before adding GI; transparency must not
+    // contaminate the radiance source or receive GI through an underlying surface.
+    if(bSSGI)
+    {
+        gptGfx->pop_debug_group(ptSceneCmdBuffer);
+        gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL);
+        gptGfx->end_render_pass(ptSceneCmdBuffer);
+        pl__render_view_ssgi_pass(ptView, ptSceneCmdBuffer);
+        gptGfx->consumer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_VERTEX | PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
+        gptGfx->begin_render_pass(ptSceneCmdBuffer, &tForwardRenderInfo, NULL);
+        gptGfx->set_depth_bias(ptSceneCmdBuffer, 0.0f, 0.0f, 0.0f);
+        gptGfx->push_debug_group(ptSceneCmdBuffer, "Transparent Lighting", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
+        // Selected blended objects share outline buckets with opaque objects.
+        tForwardPassInfo3.iAlphaFilter = 2;
+        tForwardPassInfo2.iAlphaFilter = 2;
+        tForwardPassInfo22.iAlphaFilter = 2;
+        pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo3);
+        pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo2);
+        pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo22);
+    }
+
     plForwardPassInfo tForwardPassInfo4 = {
         .tBucket = PL_RENDER_BUCKET_FORWARD_TRANSPARENT,
         .tShader = ptScene->bWireframe ? ptScene->tForwardWireframeTransparent : ptScene->tForwardTransparent,
@@ -2523,19 +2558,14 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     };
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo6);
 
-    plForwardPassInfo tForwardPassInfo7 = {
-        .tBucket = PL_RENDER_BUCKET_FOLIAGE,
-        .tShader = ptScene->tFoliageShader,
-        .ptArea = &tArea,
-        .uGlobalIndex = 0
-    };
-    pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo7);
-    
     gptGfx->pop_debug_group(ptSceneCmdBuffer);
 
     // end main render pass
     gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_FRAGMENT | PL_PIPELINE_STAGE_VERTEX, PL_PIPELINE_STAGE_VERTEX | PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL);
     gptGfx->end_render_pass(ptSceneCmdBuffer);
+
+    if(!bSSGI)
+        pl__render_view_ssgi_pass(ptView, ptSceneCmdBuffer);
 
     // blit for transmission
     //-----------------------------------------------------------------------------
@@ -3565,6 +3595,18 @@ pl__renderer_deserialize_settings(const char* pcName, void* pSettings)
             ptSettings->tAO.fRadius   = gptJson->float_member(ptJsonAO, "radius", 0.5f);
             ptSettings->tAO.fStrength = gptJson->float_member(ptJsonAO, "strength", 1.0f);
             ptSettings->tAO.fBias     = gptJson->float_member(ptJsonAO, "bias", 0.05f);
+        }
+
+        ptSettings->tSSGI = (plRendererSSGIOptions){false, 1.0f, 2.0f, 0.15f, 8, 12};
+        plJsonObject* ptJsonSSGI = gptJson->member(ptRoot, "ssgi");
+        if(ptJsonSSGI)
+        {
+            ptSettings->tSSGI.bEnabled = gptJson->bool_member(ptJsonSSGI, "enabled", false);
+            ptSettings->tSSGI.fStrength = gptJson->float_member(ptJsonSSGI, "strength", 1.0f);
+            ptSettings->tSSGI.fRadius = gptJson->float_member(ptJsonSSGI, "radius", 2.0f);
+            ptSettings->tSSGI.fThickness = gptJson->float_member(ptJsonSSGI, "thickness", 0.15f);
+            ptSettings->tSSGI.uRayCount = gptJson->uint32_member(ptJsonSSGI, "ray_count", 8);
+            ptSettings->tSSGI.uStepCount = gptJson->uint32_member(ptJsonSSGI, "step_count", 16);
         }
 
         plJsonObject* ptJsonBloom = gptJson->member(ptRoot, "bloom");

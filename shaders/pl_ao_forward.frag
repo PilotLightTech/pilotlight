@@ -39,7 +39,18 @@ void main()
         discard;
     NormalInfo normal = pl_get_normal_info(tObjectInfo.tData.iMaterialIndex);
     outNormal = Encode(normal.n);
-    // Forward shading owns these pixels; prevent deferred lighting of proxy geometry.
-    outAlbedo = vec4(0.0);
-    outMaterial = vec4(0.0);
+    MaterialInfo info;
+    info.baseColor = base.rgb;
+    info.f0_dielectric = vec3(0.04);
+    info = getMetallicRoughnessInfo(info, material.fMetallicFactor, material.fRoughnessFactor, tObjectInfo.tData.iMaterialIndex);
+    float ao = 1.0;
+    if(bool(material.iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
+    {
+        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_OCCLUSION])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_OCCLUSION, tObjectInfo.tData.iMaterialIndex)).r;
+        ao = 1.0 + material.fOcclusionStrength * (ao - 1.0);
+    }
+    // Albedo alpha marks valid opaque SSGI data. ORM alpha stays zero so
+    // deferred lighting skips these pixels; forward shading still owns them.
+    outAlbedo = vec4(base.rgb, 1.0);
+    outMaterial = vec4(ao, clamp(info.metallic, 0.0, 1.0), clamp(info.perceptualRoughness, 0.0, 1.0), 0.0);
 }

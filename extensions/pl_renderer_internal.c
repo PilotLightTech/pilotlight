@@ -3684,6 +3684,7 @@ typedef struct _plForwardPassInfo
     uint32_t uGlobalIndex;
     plDrawArea* ptArea;
     bool bProbe;
+    int iAlphaFilter; // 0: all, 1: opaque/masked, 2: blended (outlined buckets can contain both)
 } plForwardPassInfo;
 
 static void
@@ -3699,6 +3700,17 @@ pl__render_view_forward_pass(plScene* ptScene, plCommandBuffer* ptCommandBuffer,
     for(uint32_t i = 0; i < uVisibleForwardDoubleSidedDrawCount; i++)
     {
         plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->asbuRenderBuckets[ptInfo->tBucket][i]];
+        if(ptInfo->iAlphaFilter != 0)
+        {
+            plDrawableResources* ptResources = &ptScene->sbtDrawableResources[ptScene->asbuRenderBuckets[ptInfo->tBucket][i]];
+            plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptResources->tEntity);
+            plMesh* ptMesh = gptAsset->get_data(ptObject->tMesh);
+            plAssetHandle tMaterial = ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[ptResources->uSubmeshIndex - ptObject->uFirstSubmesh] : ptMesh->atSubmeshes[ptResources->uSubmeshIndex].tMaterial;
+            const plMaterial* ptMaterial = gptAsset->get_data(tMaterial);
+            const bool bBlend = ptMaterial->eAlphaMode == PL_MATERIAL_ALPHA_MODE_BLEND;
+            if((ptInfo->iAlphaFilter == 1 && bBlend) || (ptInfo->iAlphaFilter == 2 && !bBlend))
+                continue;
+        }
         plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynForwardData));
         plGpuDynForwardData* ptDynamicData = (plGpuDynForwardData*)tDynamicBinding.pcData;
         ptDynamicData->iDataOffset = ptDrawable->uDataOffset;
@@ -4600,6 +4612,110 @@ pl__render_view_ao_pass(plView* ptView, plCommandBuffer* ptCmd)
         gptGfx->end_compute_pass(ptCmd);
     }
     gptGfx->pop_debug_group(ptCmd);
+}
+
+static bool
+pl__renderer_ssgi_enabled(plView* ptView)
+{
+    plScene* ptScene = ptView->ptParentScene;
+    const plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
+    return ptSettings->tSSGI.bEnabled && ptSettings->tSSGI.fStrength > 0.0f && ptSettings->tSSGI.fRadius > 0.0f && ptScene->tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE && ptView->tTargetSize.x > 0 && ptView->tTargetSize.y > 0;
+}
+
+// Trace into a separate texture, then filter and add to HDR before outlines.
+static void
+pl__render_view_ssgi_pass(plView* ptView, plCommandBuffer* ptCmd)
+{
+    plDevice* ptDevice = gptData->ptDevice;
+    plScene* ptScene = ptView->ptParentScene;
+    plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
+    const plRendererSSGIOptions* ptOptions = &ptSettings->tSSGI;
+    if(!pl__renderer_ssgi_enabled(ptView))
+    {
+        if(gptGfx->is_texture_valid(ptDevice, ptView->tSSGITexture))
+        {
+            gptGfx->queue_texture_for_deletion(ptDevice, ptView->tSSGITexture);
+            ptView->tSSGITexture = (plTextureHandle){0};
+        }
+        return;
+    }
+    if(!gptGfx->is_texture_valid(ptDevice, ptView->tSSGITexture))
+    {
+        plTextureDesc tDesc = {
+            .tDimensions = gptGfx->get_texture(ptDevice, ptView->tRawOutputTexture)->tDesc.tDimensions,
+            .eFormat     = PL_FORMAT_R16G16B16A16_FLOAT,
+            .uLayers     = 1, .uMips = 1, .eType = PL_TEXTURE_TYPE_2D,
+            .eUsage      = PL_TEXTURE_USAGE_STORAGE | PL_TEXTURE_USAGE_SAMPLED,
+            .pcDebugName = "SSGI indirect"
+        };
+        gptStarter->create_texture(&tDesc, NULL, 0, &ptView->tSSGITexture);
+    }
+    plDynamicBinding tDynamic = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynSSGI));
+    plGpuDynSSGI* ptData = (plGpuDynSSGI*)tDynamic.pcData;
+    *ptData = (plGpuDynSSGI){
+        .tProjection = ptView->tViewData.tCameraProjection[0],
+        .tProjectionInv = ptView->tViewData.tCameraProjectionInv[0],
+        .tView = ptView->tViewData.tCameraView[0],
+        .tParameters = {
+            fminf(fmaxf(ptOptions->fRadius, 0.01f), 1000.0f),
+            fminf(fmaxf(ptOptions->fThickness, 0.001f), 10.0f),
+            fminf(ptOptions->fStrength, 10.0f), 0.0f
+        },
+        .uWidth     = (uint32_t)ptView->tTargetSize.x,
+        .uHeight    = (uint32_t)ptView->tTargetSize.y,
+        .uRayCount  = ptOptions->uRayCount ? pl_min(ptOptions->uRayCount, 32u) : 8,
+        .uStepCount = ptOptions->uStepCount ? pl_min(ptOptions->uStepCount, 64u) : 16
+    };
+    for(uint32_t uPass = 0; uPass < 2; uPass++)
+    {
+        const char* pcShader = uPass == 0 ? "ssgi_trace" : "ssgi_apply";
+        plTextureHandle atTextures[] = {
+            uPass == 0 ? ptView->tSSGITexture : ptView->tRawOutputTexture,
+            uPass == 0 ? ptView->tRawOutputTexture : ptView->tSSGITexture,
+            ptView->tDepthTexture,
+            ptView->tNormalTexture,
+            ptView->tAlbedoTexture,
+            ptView->tAOMetalRoughnessTexture
+        };
+        plBindGroupDesc tBGDesc = {
+            .ptPool = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+            .tLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "ssgi"),
+            .pcDebugName = pcShader
+        };
+        plBindGroupHandle tBG = gptGfx->create_bind_group(ptDevice, &tBGDesc);
+        plBindGroupUpdateData tUpdate = {
+            .atSamplerBindings = {{.uSlot = 6, .tSampler = gptData->tSamplerLinearClamp}}
+        };
+        plPassResources tResources = {0};
+        for(uint32_t i = 0; i < 6; i++)
+        {
+            tUpdate.atTextureBindings[i] = (plBindGroupUpdateTextureData){
+                .tTexture = atTextures[i], .uSlot = i,
+                .eType = i == 0 ? PL_TEXTURE_BINDING_TYPE_STORAGE : PL_TEXTURE_BINDING_TYPE_SAMPLED
+            };
+            tResources.atTextures[i] = (plPassTextureResource){
+                .tHandle = atTextures[i], .eStages = PL_SHADER_STAGE_COMPUTE,
+                .eAccess = i == 0 ? PL_PASS_RESOURCE_ACCESS_READ_WRITE : PL_PASS_RESOURCE_ACCESS_READ,
+                .eUsage = i == 0 ? PL_TEXTURE_USAGE_STORAGE : PL_TEXTURE_USAGE_SAMPLED
+            };
+        }
+        gptGfx->update_bind_group(ptDevice, tBG, &tUpdate);
+        gptGfx->queue_bind_group_for_deletion(ptDevice, tBG);
+        gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
+        gptGfx->begin_compute_pass(ptCmd, &tResources);
+        gptGfx->push_debug_group(ptCmd, pcShader, (plVec4){0.2f, 0.6f, 0.3f, 1.0f});
+        plComputeShaderHandle tShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, pcShader, NULL);
+        gptGfx->bind_compute_shader(ptCmd, tShader);
+        gptGfx->bind_compute_bind_groups(ptCmd, tShader, 0, 1, &tBG, 1, &tDynamic);
+        plDispatch tDispatch = {
+            .uGroupCountX = (ptData->uWidth + 7) / 8, .uGroupCountY = (ptData->uHeight + 7) / 8,
+            .uGroupCountZ = 1, .uThreadPerGroupX = 8, .uThreadPerGroupY = 8, .uThreadPerGroupZ = 1
+        };
+        gptGfx->dispatch(ptCmd, 1, &tDispatch);
+        gptGfx->producer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
+        gptGfx->pop_debug_group(ptCmd);
+        gptGfx->end_compute_pass(ptCmd);
+    }
 }
 
 static void
@@ -6174,6 +6290,19 @@ pl__renderer_scene_create_bindgroup_layouts(plScene* ptScene)
 
     {
         plBindGroupLayoutDesc tDesc = {
+            .pcDebugName       = "ssgi",
+            .atSamplerBindings = {{.uSlot = 6, .eStages = PL_SHADER_STAGE_COMPUTE}}
+        };
+        for(uint32_t i = 0; i < 6; i++)
+        {
+            tDesc.atTextureBindings[i] = (plTextureBinding){.uSlot = i, .eType = i == 0 ? PL_TEXTURE_BINDING_TYPE_STORAGE : PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_COMPUTE};
+            }
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "ssgi", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
             .pcDebugName = "bloom downsample",
             .atTextureBindings = {
                 {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
@@ -6380,6 +6509,22 @@ pl__renderer_scene_create_compute_shaders(plScene* ptScene)
             }
         };
         gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "jumpfloodalgo", &tDesc);
+    }
+
+    {
+        const char* apcNames[] = {"ssgi_trace", "ssgi_apply"};
+        const char* apcFiles[] = {"pl_ssgi_trace.comp", "pl_ssgi_apply.comp"};
+        for(uint32_t i = 0; i < 2; i++)
+        {
+            plComputeShaderDesc tDesc = {
+                .pcDebugName = apcNames[i],
+                .tShader = gptShader->load_glsl(apcFiles[i], "main", NULL, NULL),
+                .atBindGroupLayouts = {
+                    gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "ssgi"))->tDesc
+                }
+            };
+            gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, apcNames[i], &tDesc);
+        }
     }
 
     {
@@ -7836,6 +7981,11 @@ pl__renderer_view_create_textures(plView* ptView)
 {
 
     plDevice* ptDevice = gptData->ptDevice;
+    if(gptGfx->is_texture_valid(ptDevice, ptView->tSSGITexture))
+    {
+        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tSSGITexture);
+        ptView->tSSGITexture = (plTextureHandle){0};
+    }
     plVec3 tNewDimensions = {ptView->tTargetSize.x + 300.0f, ptView->tTargetSize.y + 300.0f, 1};
 
     if(gptGfx->is_texture_valid(ptDevice, ptView->tRawOutputTexture))
@@ -7908,7 +8058,7 @@ pl__renderer_view_create_textures(plView* ptView)
         .uLayers       = 1,
         .uMips         = 1,
         .eType         = PL_TEXTURE_TYPE_2D,
-        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName   = "albedo texture"
     };
 
@@ -7948,8 +8098,8 @@ pl__renderer_view_create_textures(plView* ptView)
         .uLayers       = 1,
         .uMips         = 1,
         .eType         = PL_TEXTURE_TYPE_2D,
-        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .pcDebugName   = "emissive texture"
+        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName   = "ORM / probe selection"
     };
 
     gptStarter->create_texture(&tRawOutputTextureDesc, NULL, 0, &ptView->tRawOutputTexture);
