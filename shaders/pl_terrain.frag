@@ -56,6 +56,7 @@ vec4 terrain_sample_triplanar(
            z * blend.z;
 }
 
+#include "pl_decals.glsl"
 #define PL_INCLUDE_MATERIAL_FUNCTIONS
 #include "pl_material_info.glsl"
 
@@ -149,6 +150,7 @@ void main()
         outAOMetalnessRoughness += AoMetalnessRoughness * weights[i];
     }
 
+    outAlbedo.rgb = pl_apply_decals(outAlbedo.rgb, tShaderIn.tWorldPosition, tShaderIn.tWorldNormal);
     normal = normalize(normal);
     outNormal = Encode(normal);
     outAOMetalnessRoughness.r = clamp(outAOMetalnessRoughness.r, 0.0, 1.0);

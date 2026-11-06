@@ -40,6 +40,7 @@ Index of this file:
 // [SECTION] defines
 //-----------------------------------------------------------------------------
 
+#define PL_MAX_DECALS 64
 #define PL_MAX_LIGHTS 100
 #define PL_CLUSTER_X 16
 #define PL_CLUSTER_Y 9
@@ -248,6 +249,15 @@ PL_END_STRUCT(plGpuDynForwardData)
 // [SECTION] scene
 //-----------------------------------------------------------------------------
 
+PL_BEGIN_STRUCT(plGpuDecal)
+    mat4 tWorldToDecal;
+    vec4 tNormalOpacity; // projector outward normal and opacity
+    int iMaterialIndex;
+    int iSortOrder;
+    float fNormalCutoff;
+    float fEdgeFade;
+PL_END_STRUCT(plGpuDecal)
+
 PL_BEGIN_STRUCT(plGpuSceneData)
 
     vec3 tDirection; // sun direction
@@ -323,6 +333,12 @@ PL_BEGIN_STRUCT(plGpuSceneData)
 
     // Contact shadows: length, thickness, bias (world units), step count.
     vec4 tContactShadow;
+
+    int iDecalCount;
+    int _iDecalPadding0;
+    int _iDecalPadding1;
+    int _iDecalPadding2;
+    plGpuDecal atDecals[PL_MAX_DECALS];
 
     // mat4 tCameraProjectionInv; // camera
     // mat4 tInvViewMatNoTranslation; // camera

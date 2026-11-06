@@ -22,6 +22,115 @@ Index of this file:
 // [SECTION] implementation
 //-----------------------------------------------------------------------------
 
+static plEcsTypeKey
+pl_renderer_get_type_key_decal(void)
+{
+    return gptData->tDecalComponentType;
+}
+
+static void
+pl__ecs_decal_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
+{
+    plDecalComponent* ptDecal = pComponent;
+    if(gptAsset->is_valid(ptDecal->tMaterial))
+        gptJson->add_string_member(ptJson, "material", gptAsset->get_path(ptDecal->tMaterial));
+    gptJson->add_float_member(ptJson, "opacity", ptDecal->fOpacity);
+    gptJson->add_float_member(ptJson, "normal_cutoff", ptDecal->fNormalCutoff);
+    gptJson->add_float_member(ptJson, "edge_fade", ptDecal->fEdgeFade);
+    gptJson->add_int_member(ptJson, "sort_order", ptDecal->iSortOrder);
+    gptJson->add_bool_member(ptJson, "enabled", ptDecal->bEnabled);
+}
+
+static bool
+pl__ecs_decal_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
+{
+    plDecalComponent* ptDecal = pComponent;
+    char acMaterial[PL_MAX_PATH_LENGTH] = {0};
+    gptJson->string_member(ptJson, "material", acMaterial, PL_MAX_PATH_LENGTH);
+    ptDecal->tMaterial = (plAssetHandle){UINT32_MAX, UINT32_MAX};
+    if(acMaterial[0])
+        ptDecal->tMaterial = gptAsset->load(acMaterial);
+    ptDecal->fOpacity = gptJson->float_member(ptJson, "opacity", 1.0f);
+    ptDecal->fNormalCutoff = gptJson->float_member(ptJson, "normal_cutoff", 0.1f);
+    ptDecal->fEdgeFade = gptJson->float_member(ptJson, "edge_fade", 0.0f);
+    ptDecal->iSortOrder = gptJson->int_member(ptJson, "sort_order", 0);
+    ptDecal->bEnabled = gptJson->bool_member(ptJson, "enabled", true);
+    return true;
+}
+
+static plDecalComponent*
+pl__renderer_get_decal(plScene* ptScene, plEntity tEntity)
+{
+    if(!gptEcs->is_entity_valid(ptScene->ptComponentLibrary, tEntity))
+        return NULL;
+    plDecalComponent* ptDecal = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tDecalComponentType, tEntity);
+    if(!ptDecal || !ptDecal->bEnabled || !(ptDecal->fOpacity > 0.0f) || !gptAsset->is_valid(ptDecal->tMaterial) || gptAsset->get_type_key(ptDecal->tMaterial) != gptMaterial->get_asset_type_key())
+        return NULL;
+    return ptDecal;
+}
+
+static void
+pl__renderer_prepare_decal_materials(plScene* ptScene)
+{
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtDecals); i++)
+    {
+        plDecalComponent* ptDecal = pl__renderer_get_decal(ptScene, ptScene->sbtDecals[i]);
+        if(ptDecal && !pl_hm_has_key(&ptScene->tMaterialHashmap, ptDecal->tMaterial.uData))
+        {
+            pl__renderer_get_or_create_material_slot(ptScene, ptDecal->tMaterial);
+            pl_renderer_update_scene_asset(ptScene, ptDecal->tMaterial);
+        }
+    }
+}
+
+static void
+pl__renderer_prepare_decals(plScene* ptScene)
+{
+    ptScene->tSceneData.iDecalCount = 0;
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtDecals); i++)
+    {
+        plEntity tEntity = ptScene->sbtDecals[i];
+        plDecalComponent* ptDecal = pl__renderer_get_decal(ptScene, tEntity);
+        if(!ptDecal || !pl_hm_has_key(&ptScene->tMaterialHashmap, ptDecal->tMaterial.uData))
+            continue; // New materials become available after next begin_frame upload.
+        plTransformComponent* ptTransform = gptEcs->get_component(ptScene->ptComponentLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
+        if(!ptTransform)
+            continue;
+        const plMat4* ptWorld = &ptTransform->tWorld;
+        float fDet = pl_dot_vec3(ptWorld->col[0].xyz, pl_cross_vec3(ptWorld->col[1].xyz, ptWorld->col[2].xyz));
+        if(!isfinite(fDet) || fabsf(fDet) < 1e-8f)
+            continue; // A collapsed projection box has no inverse.
+        plGpuDecal tGpu = {0};
+        tGpu.tWorldToDecal = pl_mat4_invert(ptWorld);
+        // Inverse transpose handles nonuniform scale and parent-induced shear.
+        plVec3 tNormal = pl_norm_vec3((plVec3){tGpu.tWorldToDecal.col[0].z, tGpu.tWorldToDecal.col[1].z, tGpu.tWorldToDecal.col[2].z});
+        tGpu.tNormalOpacity = (plVec4){tNormal.x, tNormal.y, tNormal.z, pl_clampf(0.0f, ptDecal->fOpacity, 1.0f)};
+        tGpu.iMaterialIndex = (int)pl_hm_lookup(&ptScene->tMaterialHashmap, ptDecal->tMaterial.uData);
+        tGpu.iSortOrder = ptDecal->iSortOrder;
+        tGpu.fNormalCutoff = pl_clampf(-1.0f, ptDecal->fNormalCutoff, 1.0f);
+        tGpu.fEdgeFade = pl_clampf(0.0f, ptDecal->fEdgeFade, 1.0f);
+
+        // Stable insertion order for ties. Keep the highest priority decals on overflow.
+        int iCount = ptScene->tSceneData.iDecalCount;
+        if(iCount == PL_MAX_DECALS)
+        {
+            if(tGpu.iSortOrder <= ptScene->tSceneData.atDecals[0].iSortOrder)
+                continue;
+            memmove(ptScene->tSceneData.atDecals, ptScene->tSceneData.atDecals + 1, (PL_MAX_DECALS - 1) * sizeof(plGpuDecal));
+            iCount--;
+        }
+        int iSlot = iCount;
+        while(iSlot > 0 && ptScene->tSceneData.atDecals[iSlot - 1].iSortOrder > tGpu.iSortOrder)
+        {
+            ptScene->tSceneData.atDecals[iSlot] = ptScene->tSceneData.atDecals[iSlot - 1];
+            iSlot--;
+        }
+        ptScene->tSceneData.atDecals[iSlot] = tGpu;
+        ptScene->tSceneData.iDecalCount = iCount + 1;
+    }
+}
+
+
 plEcsTypeKey
 pl_renderer_get_type_key_object(void)
 {
@@ -416,6 +525,13 @@ pl_renderer_load_component_library(plScene* ptScene, plComponentLibrary* ptLibra
     uint32_t uObjectCount = gptEcs->get_components(ptLibrary, gptData->tObjectComponentType, NULL, &ptObjectEntities);
     pl__renderer_add_drawable_objects_to_scene(ptScene, uObjectCount, ptObjectEntities);
 
+    const plEntity* ptDecalEntities = NULL;
+    uint32_t uDecalCount = gptEcs->get_components(ptLibrary, gptData->tDecalComponentType, NULL, &ptDecalEntities);
+    for(uint32_t i = 0; i < uDecalCount; i++)
+    {
+        pl_sb_push(ptScene->sbtDecals, ptDecalEntities[i]);
+    }
+
     const plEntity* ptTerrainEntities = NULL;
     uint32_t uTerrainCount = gptEcs->get_components(ptLibrary, gptData->tTerrainComponentType, NULL, &ptTerrainEntities);
     if(uTerrainCount > 0)
@@ -699,6 +815,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
 
     gptBvh->cleanup(&ptScene->tBvh);
     pl_sb_free(ptScene->sbtDirtyMaterials);
+    pl_sb_free(ptScene->sbtDecals);
     pl_sb_free(ptScene->sbtVisibleDrawables0);
     pl_sb_free(ptScene->sbtVisibleDrawables1);
     pl_sb_free(ptScene->sbtProbeDataPacks);
@@ -895,6 +1012,18 @@ pl_renderer_editor_get_hovered_entity(plView* ptView, plEntity* ptEntityOut)
 bool
 pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEcsTypeKey tType)
 {
+    if(tType == gptData->tDecalComponentType)
+    {
+        for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtDecals); i++)
+        {
+            if(ptScene->sbtDecals[i].uData == tEntity.uData)
+            {
+                pl_sb_del(ptScene->sbtDecals, i);
+                return true;
+            }
+        }
+        return false;
+    }
     bool bFound = false;
 
     if(tType == gptData->tObjectComponentType)
@@ -1109,6 +1238,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     ptScene->tInternalFlags = PL_SCENE_INTERNAL_FLAG_ACTIVE;
+    pl__renderer_prepare_decals(ptScene);
 
     uint32_t uDrawableCount = pl_sb_size(ptScene->sbuActiveDrawables);
     for(uint32_t i = 0; i < uDrawableCount; i++)
@@ -3059,6 +3189,13 @@ pl_renderer_begin_frame(void)
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
 
+    // Discover decal materials before the existing material/texture upload pass.
+    for(uint32_t i = 0; i < pl_sb_size(gptData->sbptScenes); i++)
+    {
+        if(gptData->sbptScenes[i]->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE)
+            pl__renderer_prepare_decal_materials(gptData->sbptScenes[i]);
+    }
+
     bool bFullFlushNeeded = false;
 
     for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
@@ -4169,7 +4306,19 @@ pl__ecs_terrain_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary,
 void
 pl_renderer_register_ecs_components(void)
 {
-
+    const plComponentDesc tDesc = {
+        .pcName = "decal",
+        .szSize = sizeof(plDecalComponent),
+        .serialize = pl__ecs_decal_serialize,
+        .deserialize = pl__ecs_decal_deserialize,
+    };
+    static const plDecalComponent tDefault = {
+        .tMaterial = {UINT32_MAX, UINT32_MAX},
+        .fOpacity = 1.0f,
+        .fNormalCutoff = 0.1f,
+        .bEnabled = true,
+    };
+    gptData->tDecalComponentType = gptEcs->register_type(tDesc, &tDefault);
     const plComponentDesc tObjectDesc = {
         .pcName = "object",
         .szSize = sizeof(plObjectComponent),
@@ -4343,7 +4492,14 @@ pl_renderer_add_component_to_scene(plScene* ptScene, plEntity tEntity, plEcsType
     if(!gptEcs->has_component(ptScene->ptComponentLibrary, tType, tEntity))
         return;
 
-    if(tType == gptData->tObjectComponentType)
+    if(tType == gptData->tDecalComponentType)
+    {
+        for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtDecals); i++)
+            if(ptScene->sbtDecals[i].uData == tEntity.uData)
+                return;
+        pl_sb_push(ptScene->sbtDecals, tEntity);
+    }
+    else if(tType == gptData->tObjectComponentType)
         pl__renderer_add_drawable_objects_to_scene(ptScene, 1, &tEntity);
     else if(tType == gptData->tLightComponentType)
         pl__renderer_add_lights_to_scene(ptScene, 1, &tEntity);
@@ -4354,6 +4510,7 @@ pl_renderer_add_component_to_scene(plScene* ptScene, plEntity tEntity, plEcsType
 void
 pl_renderer_add_entity_to_scene(plScene* ptScene, plEntity tEntity)
 {
+    pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tDecalComponentType);
     pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tObjectComponentType);
     pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tLightComponentType);
     pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tEnvironmentProbeComponentType);
@@ -4363,6 +4520,8 @@ bool
 pl_renderer_remove_entity_from_scene(plScene* ptScene, plEntity tObject)
 {
     bool bFound = false;
+    if(pl_renderer_remove_component_from_scene(ptScene, tObject, gptData->tDecalComponentType))
+        bFound = true;
 
     // check if object
     if(pl_renderer_remove_component_from_scene(ptScene, tObject, gptData->tObjectComponentType))
@@ -4387,6 +4546,7 @@ void
 pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     plRendererI tApi0 = {0};
+    tApi0.get_ecs_type_key_decal         = pl_renderer_get_type_key_decal;
     tApi0.initialize                     = pl_renderer_initialize;
     tApi0.cleanup                        = pl_renderer_cleanup;
     tApi0.create_scene                   = pl_renderer_create_scene;

@@ -55,6 +55,7 @@ layout(location = 0) in plShaderOut {
 } tShaderIn;
 
 #include "pl_math.glsl"
+#include "pl_decals.glsl"
 #define PL_INCLUDE_MATERIAL_FUNCTIONS
 #include "pl_material_info.glsl"
 
@@ -68,6 +69,7 @@ void main()
     
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
     vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.aiTextureUVSet[PL_TEXTURE_BASE_COLOR], tObjectInfo.tData.iMaterialIndex);
+    tBaseColor.rgb = pl_apply_decals(tBaseColor.rgb, tShaderIn.tWorldPosition, tShaderIn.tWorldNormal);
 
     if(material.eAlphaMode == PL_SHADER_ALPHA_MODE_OPAQUE)
     {

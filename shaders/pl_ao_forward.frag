@@ -26,6 +26,7 @@ layout(location = 1) out vec4 outAlbedo;
 layout(location = 2) out vec2 outNormal;
 layout(location = 3) out vec4 outMaterial;
 
+#include "pl_decals.glsl"
 #define PL_INCLUDE_MATERIAL_FUNCTIONS
 #include "pl_material_info.glsl"
 void main()
@@ -35,6 +36,7 @@ void main()
        bool(material.iMaterialFlags & (PL_MATERIAL_SHADER_FLAG_TRANSMISSION | PL_MATERIAL_SHADER_FLAG_VOLUME | PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION)))
         discard;
     vec4 base = getBaseColor(material.tBaseColorFactor, material.aiTextureUVSet[PL_TEXTURE_BASE_COLOR], tObjectInfo.tData.iMaterialIndex);
+    base.rgb = pl_apply_decals(base.rgb, tShaderIn.tWorldPosition, tShaderIn.tWorldNormal);
     if((iFoliage != 0 || material.eAlphaMode == PL_SHADER_ALPHA_MODE_MASK) && base.a < material.fAlphaCutoff)
         discard;
     NormalInfo normal = pl_get_normal_info(tObjectInfo.tData.iMaterialIndex);

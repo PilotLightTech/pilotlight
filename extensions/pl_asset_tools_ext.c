@@ -474,6 +474,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                 plEnvironmentComponent*       ptEnvironment       = gptEcs->get_component(ptLibrary, tEnvironmentComponentType, *ptSelectedEntity);
                 plRendererComponent*          ptRenderer          = gptEcs->get_component(ptLibrary, tRendererComponentType, *ptSelectedEntity);
                 plTerrainComponent*           ptTerrain           = gptEcs->get_component(ptLibrary, tTerrainComponentType, *ptSelectedEntity);
+                plDecalComponent*             ptDecal             = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_decal(), *ptSelectedEntity);
 
 
 
@@ -508,6 +509,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                     ptEnvironment       = NULL;
                     ptRenderer          = NULL;
                     ptTerrain           = NULL;
+                    ptDecal             = NULL;
                 }
 
                 gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
@@ -578,6 +580,27 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                     {
                         gptEcs->remove_component(ptLibrary, tRendererComponentType, *ptSelectedEntity);
                         ptRenderer = NULL;
+                    }
+                }
+
+                if(ptDecal)
+                {
+                    if(gptUI->collapsing_header("Decal", 0))
+                    {
+                        gptUI->stash_layout();
+                        gptUI->checkbox("Enabled", &ptDecal->bEnabled);
+                        gptUI->slider_float("Opacity", &ptDecal->fOpacity, 0.0f, 1.0f, 0);
+                        gptUI->slider_float("Normal Cutoff", &ptDecal->fNormalCutoff, -1.0f, 1.0f, 0);
+                        gptUI->slider_float("Edge Fade", &ptDecal->fEdgeFade, 0.0f, 1.0f, 0);
+                        gptUI->input_int("Sort Order", &ptDecal->iSortOrder, 0);
+                        if(gptAsset->is_valid(ptDecal->tMaterial))
+                            gptUI->text("Material: %s", gptAsset->get_path(ptDecal->tMaterial));
+                        gptUI->apply_layout();
+                    }
+                    if(gptUI->button(PL_ICON_FA_TRASH_CAN "##decal"))
+                    {
+                        gptEcs->remove_component(ptLibrary, gptRenderer->get_ecs_type_key_decal(), *ptSelectedEntity);
+                        ptDecal = NULL;
                     }
                 }
 

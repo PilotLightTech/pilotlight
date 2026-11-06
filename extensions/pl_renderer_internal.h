@@ -495,6 +495,9 @@ typedef struct _plScene
     plVec4*   sbtVertexDataBuffer;
     plVec4*   sbtSkinVertexDataBuffer;
 
+    // projected decals, in scene insertion order
+    plEntity* sbtDecals;
+
     // hashmaps
     plHashMap64 tMaterialHashmap;
     plHashMap64 tTextureIndexHashmap;     // texture handle <-> index
@@ -746,6 +749,7 @@ typedef struct _plRendererData
     plEcsTypeKey tEnvironmentProbeComponentType;
     plEcsTypeKey tObjectComponentType;
     plEcsTypeKey tTerrainComponentType;
+    plEcsTypeKey tDecalComponentType;
     plEcsTypeKey tEnvironmentComponentType;
     plEcsTypeKey tRendererComponentType;
 

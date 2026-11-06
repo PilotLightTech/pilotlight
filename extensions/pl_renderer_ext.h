@@ -67,6 +67,7 @@ typedef struct _plObjectComponent           plObjectComponent;           // rend
 typedef struct _plLightComponent            plLightComponent;            // light component
 typedef struct _plEnvironmentProbeComponent plEnvironmentProbeComponent; // environment probe
 typedef struct _plTerrainComponent          plTerrainComponent;          // terrain component
+typedef struct _plDecalComponent            plDecalComponent;            // projected base-color decal
 typedef struct _plEnvironmentComponent      plEnvironmentComponent;      // environment component (just holds a plRenderEnvironment asset)
 typedef struct _plRendererComponent         plRendererComponent;         // renderer component (just holds a plRenderSettings asset)
 
@@ -173,6 +174,7 @@ typedef struct _plRendererI
     void          (*reload_scene_shaders) (plScene*);
     plDrawList3D* (*get_gizmo_drawlist)   (plView*);
     void          (*rebuild_scene_bvh)    (plScene*);
+    plEcsTypeKey   (*get_ecs_type_key_decal)(void);
 } plRendererI;
 
 //-----------------------------------------------------------------------------
@@ -475,6 +477,19 @@ typedef struct _plObjectComponent
     plEntity       tTransform;
     plAssetHandle* atMaterialOverrides;
 } plObjectComponent;
+
+// Attach a transform on the same entity. Its world matrix maps the unit box
+// [-0.5, 0.5] to the projection volume. Local XY supplies UVs; projection is -Z.
+// Decals blend material base color/texture alpha without changing receiver alpha.
+typedef struct _plDecalComponent
+{
+    plAssetHandle tMaterial;
+    float         fOpacity;       // [0, 1], default 1
+    float         fNormalCutoff;  // cosine against projector +Z, default 0.1
+    float         fEdgeFade;      // fraction of box half extent, [0, 1]
+    int           iSortOrder;     // higher values blend last
+    bool          bEnabled;
+} plDecalComponent;
 
 typedef struct _plTerrainComponent
 {
