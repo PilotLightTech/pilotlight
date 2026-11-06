@@ -3250,7 +3250,79 @@ pl_renderer_get_view_color_bind_group(plView* ptView, plVec2* ptMaxUVOut)
 static bool
 pl__renderer_serialize_environment(const char* pcName, const void* pEnvironment, plAssetEncoding eEncoding)
 {
-    return false;
+    if(eEncoding == PL_ASSET_ENCODING_BINARY)
+        return false;
+
+    const plRenderEnvironment* ptEnvironment = pEnvironment;
+    const char* pcMode = NULL;
+    switch(ptEnvironment->eMode)
+    {
+        case PL_RENDERER_SKY_MODE_NONE:      pcMode = "none"; break;
+        case PL_RENDERER_SKY_MODE_SKYBOX:    pcMode = "skybox"; break;
+        case PL_RENDERER_SKY_MODE_REALISTIC: pcMode = "realistic"; break;
+        default: return false;
+    }
+
+    plJsonObject* ptRoot = gptJson->new_root_object("root");
+    gptJson->add_string_member(ptRoot, "format", "plenvironment");
+    gptJson->add_uint32_member(ptRoot, "version", 1);
+
+    plJsonObject* ptSun = gptJson->add_member(ptRoot, "sun");
+    gptJson->add_float_array(ptSun, "color", ptEnvironment->tSunColor.d, 3);
+    gptJson->add_float_array(ptSun, "direction", ptEnvironment->tSunDirection.d, 3);
+    gptJson->add_float_member(ptSun, "intensity", ptEnvironment->fSunIntensity);
+    gptJson->add_bool_member(ptSun, "cast_shadows", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_SHADOWS);
+    gptJson->add_bool_member(ptSun, "contact_shadows", !(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS));
+    gptJson->add_bool_member(ptSun, "show_visualizer", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER);
+    gptJson->add_bool_member(ptSun, "debug_cascades", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES);
+
+    plJsonObject* ptSky = gptJson->add_member(ptRoot, "sky");
+    gptJson->add_string_member(ptSky, "mode", pcMode);
+    if(ptEnvironment->eMode == PL_RENDERER_SKY_MODE_SKYBOX)
+    {
+        plJsonObject* ptSkybox = gptJson->add_member(ptSky, "skybox");
+        const char* pcTexture = gptAsset->get_path(ptEnvironment->tSkyboxTexture);
+        gptJson->add_string_member(ptSkybox, "texture", pcTexture ? pcTexture : "");
+        gptJson->add_uint32_member(ptSkybox, "resolution", ptEnvironment->uSkyboxResolution);
+    }
+    else if(ptEnvironment->eMode == PL_RENDERER_SKY_MODE_REALISTIC)
+    {
+        plJsonObject* ptRealistic = gptJson->add_member(ptSky, "realistic");
+        gptJson->add_float_member(ptRealistic, "atmosphere_scale", ptEnvironment->fAtmosphereConversion);
+        gptJson->add_float_member(ptRealistic, "sun_radius", ptEnvironment->fSunRadius);
+        gptJson->add_float_member(ptRealistic, "planet_radius", ptEnvironment->fPlanetRadius);
+        gptJson->add_float_member(ptRealistic, "atmosphere_height", ptEnvironment->fAtmosphereHeight);
+        gptJson->add_float_member(ptRealistic, "mie_scattering", ptEnvironment->fScatteringMieGround);
+        gptJson->add_float_member(ptRealistic, "mie_extinction", ptEnvironment->fExtinctionMieGround);
+        gptJson->add_float_member(ptRealistic, "mie_exponent", ptEnvironment->fMieScatteringExponent);
+        gptJson->add_float_array(ptRealistic, "rayleigh_scattering", ptEnvironment->tScatteringRayleighGround.d, 3);
+        gptJson->add_float_array(ptRealistic, "rayleigh_extinction", ptEnvironment->tExtinctionRayleighGround.d, 3);
+        gptJson->add_float_array(ptRealistic, "ozone_extinction", ptEnvironment->tOzoneExtinction.d, 3);
+        gptJson->add_bool_member(ptRealistic, "multiscatter", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_MULTISCATTER);
+
+        plJsonObject* ptAerial = gptJson->add_member(ptRealistic, "aerial_perspective");
+        gptJson->add_bool_member(ptAerial, "enabled", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE);
+        gptJson->add_float_member(ptAerial, "max_distance", ptEnvironment->fMaxAerialDistance);
+        gptJson->add_float_member(ptAerial, "depth_exponent", ptEnvironment->fAerialDepthExponent);
+        gptJson->add_uint32_member(ptAerial, "samples_per_slice", ptEnvironment->uAerialSamplesPerSlice);
+    }
+
+    uint32_t uBufferSize = 0;
+    gptJson->write(ptRoot, NULL, &uBufferSize);
+    char* pcBuffer = PL_ALLOC(uBufferSize);
+    gptJson->write(ptRoot, pcBuffer, &uBufferSize);
+
+    gptVfs->register_file(pcName, false);
+    plVfsFileHandle tFileHandle = gptVfs->open_file(pcName, PL_VFS_FILE_MODE_WRITE);
+    bool bResult = false;
+    if(gptVfs->is_file_valid(tFileHandle))
+    {
+        bResult = gptVfs->write_file(tFileHandle, pcBuffer, uBufferSize) == uBufferSize;
+        gptVfs->close_file(tFileHandle);
+    }
+    PL_FREE(pcBuffer);
+    gptJson->unload(&ptRoot);
+    return bResult;
 }
 
 static bool
@@ -3288,6 +3360,11 @@ pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
         plJsonObject* ptJsonSun = gptJson->member(ptRoot, "sun");
         if(ptJsonSun)
         {
+            ptEnvironment->eFlags &= ~(PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER | PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES);
+            if(gptJson->bool_member(ptJsonSun, "show_visualizer", false))
+                ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER;
+            if(gptJson->bool_member(ptJsonSun, "debug_cascades", false))
+                ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES;
             gptJson->float_array_member(ptJsonSun, "color", ptEnvironment->tSunColor.d, NULL);
             gptJson->float_array_member(ptJsonSun, "direction", ptEnvironment->tSunDirection.d, NULL);
             ptEnvironment->fSunIntensity = gptJson->float_member(ptJsonSun, "intensity", 1.0f);
@@ -3309,6 +3386,7 @@ pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
             gptJson->string_member(ptJsonSky, "mode", acTempBuffer, 256);
             if     (acTempBuffer[0] == 's') ptEnvironment->eMode = PL_RENDERER_SKY_MODE_SKYBOX;
             else if(acTempBuffer[0] == 'r') ptEnvironment->eMode = PL_RENDERER_SKY_MODE_REALISTIC;
+            else if(acTempBuffer[0] == 'n') ptEnvironment->eMode = PL_RENDERER_SKY_MODE_NONE;
 
             if(ptEnvironment->eMode == PL_RENDERER_SKY_MODE_SKYBOX)
             {
