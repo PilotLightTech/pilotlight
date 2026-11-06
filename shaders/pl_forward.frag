@@ -41,6 +41,7 @@ layout(location = 0) in plShaderOut {
 #include "pl_math.glsl"
 #include "pl_lighting.glsl"
 #include "pl_fog.glsl"
+#include "pl_contact_shadows.glsl"
 
 #define PL_INCLUDE_MATERIAL_FUNCTIONS
 #include "pl_material_info.glsl"
@@ -442,6 +443,17 @@ void main()
 
     uint cascadeIndex = tGpuScene.tData.iCascadeCount - 1;
     const bool bShadows = bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_SHADOWS) && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS);
+    // Only surfaces represented in the opaque depth snapshot receive contact shadows.
+    const bool bContactShadows = bShadows && tGpuScene.tData.tContactShadow.x > 0.0 &&
+        material.eAlphaMode != PL_SHADER_ALPHA_MODE_BLEND &&
+        !bool(material.iMaterialFlags & (PL_MATERIAL_SHADER_FLAG_TRANSMISSION | PL_MATERIAL_SHADER_FLAG_VOLUME | PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION)) &&
+        !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE);
+    vec3 contactViewPosition = vec3(0.0);
+    if(bContactShadows)
+    {
+        contactViewPosition = (tViewInfo.tData.tCameraView[tObjectInfo.tData.uGlobalIndex] * vec4(tShaderIn.tWorldPosition, 1.0)).xyz;
+    }
+
     const bool bPunctual = bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PUNCTUAL);
     if(bPunctual)
     {
@@ -541,6 +553,11 @@ void main()
                 }
                 
             }
+            if(bContactShadows && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SUN_CONTACT_SHADOWS) && tGpuScene.tData.iCastShadow > 0 && shadow > 0.0)
+            {
+                shadow *= pl_contact_shadow(contactViewPosition, n, pointToLight, tGpuScene.tData.tContactShadow.x);
+            }
+
             // BSTF
             vec3 l = normalize(pointToLight);   // Direction from surface point to light
             vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
@@ -689,6 +706,11 @@ void main()
                 }
             }
 
+            if(bContactShadows && tLightData.iContactShadow != 0 && tLightData.iCastShadow > 0 && shadow > 0.0)
+            {
+                shadow *= pl_contact_shadow(contactViewPosition, n, pointToLight, length(pointToLight));
+            }
+
             // BSTF
             vec3 l = normalize(pointToLight);   // Direction from surface point to light
             vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
@@ -826,6 +848,11 @@ void main()
                     }
                 }
             }
+            if(bContactShadows && tLightData.iContactShadow != 0 && tLightData.iCastShadow > 0 && shadow > 0.0)
+            {
+                shadow *= pl_contact_shadow(contactViewPosition, n, pointToLight, length(pointToLight));
+            }
+
             // BSTF
             vec3 l = normalize(pointToLight);   // Direction from surface point to light
             vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
@@ -974,6 +1001,11 @@ void main()
                     shadow = textureProj(shadowCoord, vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset), tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx);
                 }   
             }
+            if(bContactShadows && tLightData.iContactShadow != 0 && tLightData.iCastShadow > 0 && shadow > 0.0)
+            {
+                shadow *= pl_contact_shadow(contactViewPosition, n, pointToLight, tGpuScene.tData.tContactShadow.x);
+            }
+
             // BSTF
             vec3 l = normalize(pointToLight);   // Direction from surface point to light
             vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector

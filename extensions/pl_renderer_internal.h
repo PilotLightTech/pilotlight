@@ -384,23 +384,24 @@ typedef struct _plView
     plVec2 tTargetSize;
 
     // textures
-    plTextureHandle  tAlbedoTexture;           // g-buffer
-    plTextureHandle  tNormalTexture;           // g-buffer
-    plTextureHandle  tAOMetalRoughnessTexture; // g-buffer
-    plTextureHandle  tRawOutputTexture;        // g-buffer
-    plTextureHandle  tDepthTexture;            // g-buffer
-    plTextureHandle  tTransmissionTexture;     // transmission texture
-    plTextureHandle  tFXAAInputTexture;        // stable input for neighborhood sampling
-    plTextureHandle  tFinalTexture;            // output texture
-    plTextureHandle  atUVMaskTexture0;         // outlining
-    plTextureHandle  atUVMaskTexture1;         // outlining
-    plTextureHandle  tPickTexture;             // picking
-    plTextureHandle* sbtBloomDownChain;        // bloom textures
-    plTextureHandle* sbtBloomUpChain;          // bloom textures
-    plTextureHandle  atAODepth[3];             // full, half, quarter resolution
-    plTextureHandle  atAO[3];                  // visibility, view depth, encoded normal
+    plTextureHandle  tAlbedoTexture;               // g-buffer
+    plTextureHandle  tNormalTexture;               // g-buffer
+    plTextureHandle  tAOMetalRoughnessTexture;     // g-buffer
+    plTextureHandle  tRawOutputTexture;            // g-buffer
+    plTextureHandle  tContactShadowDepthTexture;   // immutable depth snapshot
+    plTextureHandle  tDepthTexture;                // g-buffer
+    plTextureHandle  tTransmissionTexture;         // transmission texture
+    plTextureHandle  tFXAAInputTexture;            // stable input for neighborhood sampling
+    plTextureHandle  tFinalTexture;                // output texture
+    plTextureHandle  atUVMaskTexture0;             // outlining
+    plTextureHandle  atUVMaskTexture1;             // outlining
+    plTextureHandle  tPickTexture;                 // picking
+    plTextureHandle* sbtBloomDownChain;            // bloom textures
+    plTextureHandle* sbtBloomUpChain;              // bloom textures
+    plTextureHandle  atAODepth[3];                 // full, half, quarter resolution
+    plTextureHandle  atAO[3];                      // visibility, view depth, encoded normal
     plVec2           tAOSize;
-    plTextureHandle  tAOResult;               // filtered visibility shared by lighting paths
+    plTextureHandle  tAOResult;                    // filtered visibility shared by lighting paths
 
     // GPU buffers
     plBufferHandle atPickBuffer[PL_MAX_FRAMES_IN_FLIGHT];

@@ -38,6 +38,7 @@ const int iMaterialFlags = 0;
 #include "pl_lighting.glsl"
 #include "pl_material_info.glsl"
 #include "pl_fog.glsl"
+#include "pl_contact_shadows.glsl"
 
 void main() 
 {
@@ -141,6 +142,11 @@ void main()
             }
         }
         
+        if(bShadows && tLightData.iContactShadow != 0 && tLightData.iCastShadow > 0 && shadow > 0.0 && depth > 0.0)
+        {
+            shadow *= pl_contact_shadow(tViewPosition.xyz, n, pointToLight, tGpuScene.tData.tContactShadow.x);
+        }
+
         // BSTF
         vec3 l = normalize(pointToLight);   // Direction from surface point to light
         vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector

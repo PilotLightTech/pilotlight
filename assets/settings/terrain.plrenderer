@@ -21,6 +21,11 @@
         "cascade_count": 4,
         "resolution": 2048,
         "pcf": true,
+        "contact_shadows": false,
+        "contact_length": 0.3,
+        "contact_thickness": 0.05,
+        "contact_bias": 0.01,
+        "contact_steps": 16,
         "multiviewport": true,
         "constant_bias": -1.25,
         "slope_bias": -10.75

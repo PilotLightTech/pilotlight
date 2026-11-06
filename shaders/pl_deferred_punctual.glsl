@@ -1,6 +1,8 @@
 #ifndef PL_DEFERRED_PUNCTUAL_GLSL
 #define PL_DEFERRED_PUNCTUAL_GLSL
 
+#include "pl_contact_shadows.glsl"
+
 // Shared BRDF and shadow sampling for volume and clustered passes.
 
 vec3
@@ -45,6 +47,12 @@ pl_deferred_point(int lightIndex, vec3 worldPosition, vec3 n, vec3 v, MaterialIn
             }
         }
 
+
+        if(bShadows && tLightData.iContactShadow != 0 && tLightData.iCastShadow > 0 && shadow > 0.0)
+        {
+            vec3 viewPosition = (tViewInfo.tData.tCameraView[tObjectInfo.tData.uGlobalIndex] * tWorldPosition).xyz;
+            shadow *= pl_contact_shadow(viewPosition, n, pointToLight, length(pointToLight));
+        }
 
         // BSTF
         vec3 l = normalize(pointToLight);   // Direction from surface point to light
@@ -114,6 +122,12 @@ pl_deferred_spot(int lightIndex, vec3 worldPosition, vec3 n, vec3 v, MaterialInf
                     shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
                 }
             }
+        }
+
+        if(bShadows && tLightData.iContactShadow != 0 && tLightData.iCastShadow > 0 && shadow > 0.0)
+        {
+            vec3 viewPosition = (tViewInfo.tData.tCameraView[tObjectInfo.tData.uGlobalIndex] * tWorldPosition).xyz;
+            shadow *= pl_contact_shadow(viewPosition, n, pointToLight, length(pointToLight));
         }
 
         // BSTF

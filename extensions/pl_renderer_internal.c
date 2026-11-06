@@ -4459,9 +4459,9 @@ pl__renderer_ao_enabled(plView* ptView)
         ptView->tTargetSize.x > 0 && ptView->tTargetSize.y > 0;
 }
 
-// Extend the existing depth/normal buffer with opaque forward surfaces before AO.
+// Extend the existing depth/normal buffer with opaque forward surfaces before screen-space effects.
 static void
-pl__render_view_ao_forward_pass(plView* ptView, plCommandBuffer* ptCmd, plDrawArea* ptArea)
+pl__render_view_forward_depth_normal_pass(plView* ptView, plCommandBuffer* ptCmd, plDrawArea* ptArea)
 {
     plScene* ptScene = ptView->ptParentScene;
     const plRenderBucket atBuckets[] = {
@@ -4469,7 +4469,7 @@ pl__render_view_ao_forward_pass(plView* ptView, plCommandBuffer* ptCmd, plDrawAr
         PL_RENDER_BUCKET_OUTLINE, PL_RENDER_BUCKET_OUTLINE_DOUBLE_SIDED,
         PL_RENDER_BUCKET_FOLIAGE, PL_RENDER_BUCKET_FOLIAGE_OUTLINE
     };
-    gptGfx->push_debug_group(ptCmd, "Forward AO Depth/Normals", (plVec4){0.2f, 0.3f, 0.4f, 1.0f});
+    gptGfx->push_debug_group(ptCmd, "Forward Depth/Normals", (plVec4){0.2f, 0.3f, 0.4f, 1.0f});
     for(uint32_t i = 0; i < 6; i++)
     {
         if(pl_sb_size(ptScene->asbuRenderBuckets[atBuckets[i]]) == 0)
@@ -4477,9 +4477,9 @@ pl__render_view_ao_forward_pass(plView* ptView, plCommandBuffer* ptCmd, plDrawAr
         const int iFoliage = i >= 4;
         plGraphicsState tState = {
             .bDepthWriteEnabled = true,
-            .eDepthMode = PL_COMPARE_MODE_GREATER_OR_EQUAL,
-            .eCullMode = (i == 0 || i == 2) ? PL_CULL_MODE_CULL_BACK : PL_CULL_MODE_NONE,
-            .bWireframe = iFoliage ? false : ptScene->bWireframe
+            .eDepthMode         = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+            .eCullMode          = (i == 0 || i == 2) ? PL_CULL_MODE_CULL_BACK : PL_CULL_MODE_NONE,
+            .bWireframe         = iFoliage ? false : ptScene->bWireframe
         };
         plShaderVariantDesc tVariant = {
             .ptAttachmentInfo = &gptData->tDeferredLightingRenderPassLayout,
@@ -7845,6 +7845,8 @@ pl__renderer_view_create_textures(plView* ptView)
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tNormalTexture);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tAOMetalRoughnessTexture);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tAOResult);
+        pl__renderer_return_bindless_texture_index(ptView->ptParentScene, ptView->tContactShadowDepthTexture);
+        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tContactShadowDepthTexture);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tDepthTexture);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture0);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture1);
@@ -7965,6 +7967,10 @@ pl__renderer_view_create_textures(plView* ptView)
     };
     gptStarter->create_texture(&tAOResultDesc, NULL, 0, &ptView->tAOResult);
     gptStarter->create_texture(&tDepthTextureDesc, NULL, 0, &ptView->tDepthTexture);
+    plTextureDesc tContactDepthDesc = tDepthTextureDesc;
+    tContactDepthDesc.pcDebugName = "contact shadow depth";
+    gptStarter->create_texture(&tContactDepthDesc, NULL, 0, &ptView->tContactShadowDepthTexture);
+    ptView->tViewData.iContactShadowDepthIndex = (int)pl__renderer_get_bindless_texture_index(ptView->ptParentScene, ptView->tContactShadowDepthTexture);
     gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture0);
     gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture1);
     gptStarter->create_texture(&tRawOutputTextureDesc, NULL, 0, &ptView->tFinalTexture);

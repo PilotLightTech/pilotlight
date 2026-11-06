@@ -96,7 +96,7 @@ Renderer:
     * Point lights + cubemap shadows
     * Spot lights + shadows
     * Soft shadows (PCF)
-    * Deferred (light volumes) + forward rendering
+    * Deferred (clustered + light volumes) + forward rendering (clustered)
     * Reversed Z-buffer
     * Vertex skinning (compute shaders)
     * Panorama to cubemap calculations (compute shaders)
@@ -112,6 +112,10 @@ Renderer:
     * bloom
     * linear & exponential fog
     * physically based realistic sky & atmosphere rendering
+    * FXAA
+    * Screen Space Ambient Occlusion (SSAO, HBAO, MSAO)
+    * Screen Space Contact Shadows
+    * Screen Space Global Illumination (SSGI)
 
 Wishlist:
     * Morph target animation (with sparse accessor)
@@ -131,20 +135,17 @@ Wishlist:
     * GPU-based particles (emit from point, mesh, animated mesh)
     * Soft particles
     * Hair particle systems (grass/vegetation)
-    * FXAA
     * TAA (Temporal Antialiasing)
     * Supersampling
     * Physics: soft body, ragdoll
     * 3D Audio
     * Input: controller (rawinput, xinput), touch
     * Controller feedback (vibration, LED)
-    * Screen Space Ambient Occlusion (SSAO, HBAO, MSAO)
     * Stochastic Screen Space Reflections
     * Color Grading
     * Sharpen filter
     * Eye adaption
     * Impostor system
-    * Tiled forward (Forward+) rendering (+2.5D culling)
     * Occlusion culling with gpu queries
     * Tiled decals
     * GPU Frame Profiler
@@ -161,7 +162,6 @@ Wishlist:
     * Springs, Colliders
     * Variable Rate Shading
     * Real time ray tracing: ambient occlusion, shadows, reflections (DXR and Vulkan raytracing)
-    * Screen Space Contact Shadows
     * Stochastic alphatest transparency
     * Surfel GI
     * HDR display output
@@ -171,5 +171,4 @@ Wishlist:
     * Animation retargeting
     * Video decoding: H264
     * 3D path finding
-    * Screen Space Global Illumination (SSGI)
     * Texture streaming

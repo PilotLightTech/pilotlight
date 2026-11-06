@@ -941,6 +941,12 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         gptUI->separator_text("Shadows");
 
                         gptUI->checkbox_flags("Cast Shadow", &ptLightComp->tFlags, PL_LIGHT_FLAG_CAST_SHADOW);
+                        bool bContactShadows = !(ptLightComp->tFlags & PL_LIGHT_FLAG_NO_CONTACT_SHADOWS);
+                        if(gptUI->checkbox("Contact Shadows", &bContactShadows))
+                        {
+                            if(bContactShadows) ptLightComp->tFlags &= ~PL_LIGHT_FLAG_NO_CONTACT_SHADOWS;
+                            else ptLightComp->tFlags |= PL_LIGHT_FLAG_NO_CONTACT_SHADOWS;
+                        }
 
                         if(ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW)
                         {
@@ -1676,6 +1682,16 @@ pl_asset_tools_show_assets(bool* bValue)
                         gptUI->stash_layout();
                         gptUI->checkbox_flags("MultiViewport Shadows", &ptSettings->tShadows.tFlags, PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT);
                         gptUI->checkbox_flags("PCF Shadows", &ptSettings->tShadows.tFlags, PL_RENDERER_SHADOW_FLAGS_PCF);
+                        gptUI->checkbox_flags("Contact Shadows", &ptSettings->tShadows.tFlags, PL_RENDERER_SHADOW_FLAGS_CONTACT);
+                        if(ptSettings->tShadows.tFlags & PL_RENDERER_SHADOW_FLAGS_CONTACT)
+                        {
+                            gptUI->input_float("Contact Length", &ptSettings->tShadows.fContactShadowLength, "%g", 0);
+                            gptUI->input_float("Contact Thickness", &ptSettings->tShadows.fContactShadowThickness, "%g", 0);
+                            gptUI->input_float("Contact Bias", &ptSettings->tShadows.fContactShadowBias, "%g", 0);
+                            int iContactSteps = (int)ptSettings->tShadows.uContactShadowSteps;
+                            gptUI->input_int("Contact Steps", &iContactSteps, 0);
+                            ptSettings->tShadows.uContactShadowSteps = (uint32_t)pl_clampi(1, iContactSteps, 64);
+                        }
                         gptUI->input_float("Depth Bias", &ptSettings->tShadows.fConstantDepthBias, "%g", 0);
                         gptUI->input_float("Slope Depth Bias", &ptSettings->tShadows.fSlopeDepthBias, "%g", 0);
                         gptUI->input_float("Max Shadow Range", &ptSettings->tShadows.fMaxShadowRange, "%g", 0);
@@ -1859,6 +1875,12 @@ pl_asset_tools_show_assets(bool* bValue)
                         }
 
                         gptUI->checkbox_flags("Shadow Mapping", &ptEnvironment->eFlags, PL_RENDERER_SKY_FLAGS_SHADOWS);
+                        bool bSunContactShadows = !(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS);
+                        if(gptUI->checkbox("Sun Contact Shadows", &bSunContactShadows))
+                        {
+                            if(bSunContactShadows) ptEnvironment->eFlags &= ~PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS;
+                            else ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS;
+                        }
 
                         if(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_SHADOWS)
                         {

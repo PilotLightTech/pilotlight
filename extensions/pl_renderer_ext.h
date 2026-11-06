@@ -265,6 +265,10 @@ typedef struct _plRendererShadowOptions
     float                 fSlopeDepthBias;
     uint32_t              uShadowCascadeCount;
     uint32_t              uShadowResolution;
+    float                 fContactShadowLength;    // world units; 0 disables tracing
+    float                 fContactShadowThickness; // view-space depth tolerance, world units
+    float                 fContactShadowBias;      // surface offset, world units
+    uint32_t              uContactShadowSteps;     // clamped to [1, 64]
 } plRendererShadowOptions;
 
 typedef struct _plRendererTonemapOptions
@@ -373,9 +377,10 @@ enum _plRendererSkyFlags
     PL_RENDERER_SKY_FLAGS_NONE = 0,
 
     // general options
-    PL_RENDERER_SKY_FLAGS_SHADOWS         = 1 << 1,
-    PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER = 1 << 3,
-    PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES  = 1 << 4,
+    PL_RENDERER_SKY_FLAGS_SHADOWS            = 1 << 1,
+    PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER    = 1 << 3,
+    PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES     = 1 << 4,
+    PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS = 1 << 7, // sun opt-out
 
     // realistic options
     PL_RENDERER_SKY_FLAGS_MULTISCATTER       = 1 << 5,
@@ -387,6 +392,7 @@ enum _plRendererShadowFlags
     PL_RENDERER_SHADOW_FLAGS_NONE           = 0,
     PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT = 1 << 0,
     PL_RENDERER_SHADOW_FLAGS_PCF            = 1 << 1,
+    PL_RENDERER_SHADOW_FLAGS_CONTACT        = 1 << 2,
 };
 
 enum _plTerrainFlags
@@ -399,9 +405,10 @@ enum _plTerrainFlags
 
 enum _plLightFlags
 {
-    PL_LIGHT_FLAG_NONE        = 0,
-    PL_LIGHT_FLAG_CAST_SHADOW = 1 << 0,
-    PL_LIGHT_FLAG_VISUALIZER  = 1 << 2,
+    PL_LIGHT_FLAG_NONE               = 0,
+    PL_LIGHT_FLAG_CAST_SHADOW        = 1 << 0,
+    PL_LIGHT_FLAG_VISUALIZER         = 1 << 2,
+    PL_LIGHT_FLAG_NO_CONTACT_SHADOWS = 1 << 3, // opt out; global setting remains the master switch
 };
 
 enum _plEnvironmentProbeFlags

@@ -276,6 +276,8 @@ pl_renderer_destroy_view(plView* ptView)
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tNormalTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAOMetalRoughnessTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tRawOutputTexture);
+    pl__renderer_return_bindless_texture_index(ptView->ptParentScene, ptView->tContactShadowDepthTexture);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tContactShadowDepthTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tDepthTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture0);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture1);
@@ -1242,12 +1244,13 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         plLightComponent* ptLight = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtPointLights[i].tEntity);
 
         const plGpuPointLight tLight = {
-            .fIntensity   = ptLight->fIntensity,
-            .fRange       = ptLight->fRange,
-            .tPosition    = ptLight->tPosition,
-            .tColor       = ptLight->tColor,
-            .iShadowIndex = (int)pl_sb_size(ptScene->sbtPointLightShadowData),
-            .iCastShadow  = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW
+            .fIntensity       = ptLight->fIntensity,
+            .fRange           = ptLight->fRange,
+            .tPosition        = ptLight->tPosition,
+            .tColor           = ptLight->tColor,
+            .iShadowIndex     = (int)pl_sb_size(ptScene->sbtPointLightShadowData),
+            .iContactShadow   = !(ptLight->tFlags & PL_LIGHT_FLAG_NO_CONTACT_SHADOWS),
+            .iCastShadow      = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW
         };
         pl_sb_push(ptScene->sbtPointLightData, tLight);
 
@@ -1270,6 +1273,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
             .tDirection    = ptLight->tDirection,
             .tColor        = ptLight->tColor,
             .iShadowIndex  = (int)pl_sb_size(ptScene->sbtSpotLightShadowData),
+            .iContactShadow = !(ptLight->tFlags & PL_LIGHT_FLAG_NO_CONTACT_SHADOWS),
             .iCastShadow   = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW,
             .fInnerConeCos = cosf(ptLight->fInnerConeAngle),
             .fOuterConeCos = cosf(ptLight->fOuterConeAngle),
@@ -1303,11 +1307,12 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         if(ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW)
         {
             const plGpuDirectionLight tLight = {
-                .fIntensity    = ptLight->fIntensity,
-                .tDirection    = ptLight->tDirection,
-                .tColor        = ptLight->tColor,
-                .iShadowIndex  = (int)uDOffset++,
-                .iCastShadow   = 1,
+                .fIntensity       = ptLight->fIntensity,
+                .tDirection       = ptLight->tDirection,
+                .tColor           = ptLight->tColor,
+                .iShadowIndex     = (int)uDOffset++,
+                .iContactShadow   = !(ptLight->tFlags & PL_LIGHT_FLAG_NO_CONTACT_SHADOWS),
+                .iCastShadow      = 1,
             };
             pl_sb_push(ptScene->sbtDirectionLightData, tLight);
 
@@ -1324,11 +1329,12 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         else
         {
             const plGpuDirectionLight tLight = {
-                .fIntensity    = ptLight->fIntensity,
-                .tDirection    = ptLight->tDirection,
-                .tColor        = ptLight->tColor,
-                .iShadowIndex  = 0,
-                .iCastShadow   = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW
+                .fIntensity       = ptLight->fIntensity,
+                .tDirection       = ptLight->tDirection,
+                .tColor           = ptLight->tColor,
+                .iShadowIndex     = 0,
+                .iContactShadow   = !(ptLight->tFlags & PL_LIGHT_FLAG_NO_CONTACT_SHADOWS),
+                .iCastShadow      = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW
             };
             pl_sb_push(ptScene->sbtDirectionLightData, tLight);
         }
@@ -1450,6 +1456,16 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     if(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS) ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_PUNCTUAL;
     if(ptSettings->tShadows.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF)                ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_PCF_SHADOWS;
         
+    ptScene->tSceneData.iSceneFlags &= ~PL_SCENE_FLAG_SUN_CONTACT_SHADOWS;
+    if(!(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS))
+        ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_SUN_CONTACT_SHADOWS;
+
+    ptScene->tSceneData.tContactShadow = (plVec4){
+        .x = (ptSettings->tShadows.tFlags & PL_RENDERER_SHADOW_FLAGS_CONTACT) && (ptScene->tSceneData.iSceneFlags & PL_SCENE_FLAG_SHADOWS) ? pl_max(0.0f, ptSettings->tShadows.fContactShadowLength) : 0.0f,
+        .y = pl_max(0.00001f, ptSettings->tShadows.fContactShadowThickness),
+        .z = pl_max(0.0f, ptSettings->tShadows.fContactShadowBias),
+        .w = (float)pl_clampu(1u, ptSettings->tShadows.uContactShadowSteps, 64u)
+    };
 
     // atmosphere options
 
@@ -2295,10 +2311,10 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
     plGbufferFillPassInfo tGbufferFillPassInfo1 = {
         .uGlobalIndex = 0,
-        .tBG2 = ptView->atDeferredBG1[uFrameIdx],
-        .ptArea = &tArea,
-        .tBucket = PL_RENDER_BUCKET_DEFERRED,
-        .tShader = ptScene->bWireframe ? ptScene->tGBufferFillWireframeShader : ptScene->tGBufferFillShader
+        .tBG2         = ptView->atDeferredBG1[uFrameIdx],
+        .ptArea       = &tArea,
+        .tBucket      = PL_RENDER_BUCKET_DEFERRED,
+        .tShader      = ptScene->bWireframe ? ptScene->tGBufferFillWireframeShader : ptScene->tGBufferFillShader
     };
     pl__render_view_gbuffer_fill_pass(ptScene, ptSceneCmdBuffer, &tGbufferFillPassInfo1);
 
@@ -2311,23 +2327,38 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     };
     pl__render_view_gbuffer_fill_pass(ptScene, ptSceneCmdBuffer, &tGbufferFillPassInfo0);
     
-    // AO needs neighboring depth samples, so end the G-buffer render pass before
-    // compute and resume with LOAD operations to preserve geometry and emissive.
+    // Finish depth/normal geometry once for both screen-space effects.
     const bool bAO = ptView->tViewData.iAOEnabled != 0;
-    if(bAO)
+    const bool bContactShadows = ptScene->tSceneData.tContactShadow.x > 0.0f && ptScene->tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE && ptView->tTargetSize.x > 0 && ptView->tTargetSize.y > 0;
+    if(bAO || bContactShadows)
     {
-        pl__render_view_ao_forward_pass(ptView, ptSceneCmdBuffer, &tArea);
-        gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_FRAGMENT, PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_TEXTURES);
+        pl__render_view_forward_depth_normal_pass(ptView, ptSceneCmdBuffer, &tArea);
+        gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_COMPUTE | PL_PIPELINE_STAGE_BLIT, PL_BARRIER_SCOPE_ALL);
         gptGfx->end_render_pass(ptSceneCmdBuffer);
-        pl__render_view_ao_pass(ptView, ptSceneCmdBuffer);
+        if(bContactShadows)
+        {
+            // Lighting reads an immutable copy; the live depth remains a render attachment.
+            gptGfx->begin_compute_pass(ptSceneCmdBuffer, NULL);
+            const plImageCopy tDepthCopy = {
+                .uSourceExtentX         = (uint32_t)ptView->tTargetSize.x,
+                .uSourceExtentY         = (uint32_t)ptView->tTargetSize.y,
+                .uSourceExtentZ         = 1,
+                .uSourceLayerCount      = 1,
+                .uDestinationLayerCount = 1
+            };
+            gptGfx->copy_texture(ptSceneCmdBuffer, ptView->tDepthTexture, ptView->tContactShadowDepthTexture, 1, &tDepthCopy);
+            gptGfx->end_compute_pass(ptSceneCmdBuffer);
+        }
+        if(bAO)
+            pl__render_view_ao_pass(ptView, ptSceneCmdBuffer);
         for(uint32_t i = 0; i < 4; i++)
             tMainRenderInfo.atColorAttachments[i].eLoadOp = PL_LOAD_OP_LOAD;
         tMainRenderInfo.tDepthAttachment.eLoadOp = PL_LOAD_OP_LOAD;
         tMainRenderInfo.tStencilAttachment.eLoadOp = PL_LOAD_OP_LOAD;
-        gptGfx->consumer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_TEXTURES);
+        gptGfx->consumer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_COMPUTE | PL_PIPELINE_STAGE_BLIT, PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
         gptGfx->begin_render_pass(ptSceneCmdBuffer, &tMainRenderInfo, NULL);
     }
-    else if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->atAO[0]))
+    if(!bAO && gptGfx->is_texture_valid(gptData->ptDevice, ptView->atAO[0]))
         pl__renderer_release_ao(ptView);
 
     // deferred lighting
@@ -3226,6 +3257,7 @@ static bool
 pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
 {
     plRenderEnvironment* ptEnvironment = pEnvironment;
+    ptEnvironment->eFlags &= ~PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS;
 
     if(!gptVfs->does_file_exist(pcName))
         return false;
@@ -3259,6 +3291,8 @@ pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
             gptJson->float_array_member(ptJsonSun, "color", ptEnvironment->tSunColor.d, NULL);
             gptJson->float_array_member(ptJsonSun, "direction", ptEnvironment->tSunDirection.d, NULL);
             ptEnvironment->fSunIntensity = gptJson->float_member(ptJsonSun, "intensity", 1.0f);
+            if(!gptJson->bool_member(ptJsonSun, "contact_shadows", true))
+                ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS;
             if(gptJson->bool_member(ptJsonSun, "cast_shadows", false))
             {
                 ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_SHADOWS;
@@ -3419,7 +3453,14 @@ pl__renderer_deserialize_settings(const char* pcName, void* pSettings)
             ptSettings->tShadows.fSlopeDepthBias = gptJson->float_member(ptJsonShadows, "slope_bias", -10.75f);
             ptSettings->tShadows.uShadowResolution = gptJson->uint32_member(ptJsonShadows, "resolution", 2048);
             ptSettings->tShadows.uShadowCascadeCount = gptJson->uint32_member(ptJsonShadows, "cascade_count", 4);
-
+            ptSettings->tShadows.fContactShadowLength = gptJson->float_member(ptJsonShadows, "contact_length", 0.3f);
+            ptSettings->tShadows.fContactShadowThickness = gptJson->float_member(ptJsonShadows, "contact_thickness", 0.05f);
+            ptSettings->tShadows.fContactShadowBias = gptJson->float_member(ptJsonShadows, "contact_bias", 0.01f);
+            ptSettings->tShadows.uContactShadowSteps = gptJson->uint32_member(ptJsonShadows, "contact_steps", 16);
+            if(gptJson->bool_member(ptJsonShadows, "contact_shadows", false))
+                ptSettings->tShadows.tFlags |= PL_RENDERER_SHADOW_FLAGS_CONTACT;
+            else
+                ptSettings->tShadows.tFlags &= ~PL_RENDERER_SHADOW_FLAGS_CONTACT;
 
             if(gptJson->bool_member(ptJsonShadows, "pcf", true))
                 ptSettings->tShadows.tFlags |= PL_RENDERER_SHADOW_FLAGS_PCF;
@@ -3782,6 +3823,7 @@ pl__ecs_light_serialize(void* pComponent, const plComponentLibrary* ptLibrary, p
     gptJson->add_float_member(ptJson, "intensity", ptComponent->fIntensity);
     gptJson->add_float_member(ptJson, "range", ptComponent->fRange);
     gptJson->add_bool_member(ptJson, "casts_shadow", ptComponent->tFlags & PL_LIGHT_FLAG_CAST_SHADOW);
+    gptJson->add_bool_member(ptJson, "contact_shadows", !(ptComponent->tFlags & PL_LIGHT_FLAG_NO_CONTACT_SHADOWS));
     gptJson->add_bool_member(ptJson, "visualizer", ptComponent->tFlags & PL_LIGHT_FLAG_VISUALIZER);
     gptJson->add_float_array(ptJson, "color", ptComponent->tColor.d, 3);
 }
@@ -3819,6 +3861,10 @@ pl__ecs_light_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, p
     gptJson->float_array_member(ptJson, "color", ptComponent->tColor.d, NULL);
     gptJson->float_array_member(ptJson, "position", ptComponent->tPosition.d, NULL);
 
+    if(gptJson->bool_member(ptJson, "contact_shadows", true))
+        ptComponent->tFlags &= ~PL_LIGHT_FLAG_NO_CONTACT_SHADOWS;
+    else
+        ptComponent->tFlags |= PL_LIGHT_FLAG_NO_CONTACT_SHADOWS;
     if(gptJson->bool_member(ptJson, "casts_shadow", true)) ptComponent->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
     if(gptJson->bool_member(ptJson, "visualizer", true))   ptComponent->tFlags |= PL_LIGHT_FLAG_VISUALIZER;
 

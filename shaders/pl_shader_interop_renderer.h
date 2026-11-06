@@ -76,13 +76,14 @@ PL_BEGIN_ENUM(plMaterialShaderFlags)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plSceneFlags)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_HEIGHT_FOG,      1 << 0)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_LINEAR_FOG,      1 << 1)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_USE_IBL,         1 << 2)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_SHADOWS,         1 << 3)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_USE_NORMAL_MAPS, 1 << 4)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_PCF_SHADOWS,     1 << 5)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_PUNCTUAL,        1 << 6)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_HEIGHT_FOG,          1 << 0)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_LINEAR_FOG,          1 << 1)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_USE_IBL,             1 << 2)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_SHADOWS,             1 << 3)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_USE_NORMAL_MAPS,     1 << 4)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_PCF_SHADOWS,         1 << 5)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_PUNCTUAL,            1 << 6)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_SUN_CONTACT_SHADOWS, 1 << 7)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plObjectShaderFlags)
@@ -314,6 +315,9 @@ PL_BEGIN_STRUCT(plGpuSceneData)
     // w = sun intensity
     vec4 tAerialInfo;
 
+    // Contact shadows: length, thickness, bias (world units), step count.
+    vec4 tContactShadow;
+
     // mat4 tCameraProjectionInv; // camera
     // mat4 tInvViewMatNoTranslation; // camera
     // mat4 tShadowViewProj; // shadow camera
@@ -342,7 +346,7 @@ PL_BEGIN_STRUCT(plGpuViewData)
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     float fAspectRatio;
-    float _fUnused0;
+    int iContactShadowDepthIndex;
     float _fUnused1;
     float _fUnused2;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
@@ -589,7 +593,7 @@ PL_BEGIN_STRUCT(plGpuPointLight)
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     int iShadowIndex;
-    int _unused0;
+    int iContactShadow;
     int _unused1;
     int iCastShadow;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
@@ -614,7 +618,7 @@ PL_BEGIN_STRUCT(plGpuSpotLight)
     int iShadowIndex;
     int iCastShadow;
     float fOuterConeCos;
-    int _unused0;
+    int iContactShadow;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
@@ -623,7 +627,7 @@ PL_END_STRUCT(plGpuSpotLight)
 PL_BEGIN_STRUCT(plGpuDirectionLight)
 
     int iShadowIndex;
-    int _unused0;
+    int iContactShadow;
     int iCastShadow;
     float fIntensity;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
