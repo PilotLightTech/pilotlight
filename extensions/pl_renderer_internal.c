@@ -5009,6 +5009,98 @@ pl__render_view_tonemap_pass(plView* ptView)
 }
 
 static void
+pl__render_view_fxaa_pass(plView* ptView)
+{
+    if(ptView->tTargetSize.x <= 0 || ptView->tTargetSize.y <= 0)
+        return;
+    plDevice* ptDevice = gptData->ptDevice;
+    plScene* ptScene = ptView->ptParentScene;
+    if(!gptGfx->is_texture_valid(ptDevice, ptView->tFXAAInputTexture))
+    {
+        const plTextureDesc tDesc = {
+            .tDimensions = gptGfx->get_texture(ptDevice, ptView->tFinalTexture)->tDesc.tDimensions,
+            .eFormat     = PL_FORMAT_R16G16B16A16_FLOAT,
+            .uLayers     = 1,
+            .uMips       = 1,
+            .eType       = PL_TEXTURE_TYPE_2D,
+            .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
+            .pcDebugName = "FXAA input"
+        };
+        gptStarter->create_texture(&tDesc, NULL, 0, &ptView->tFXAAInputTexture);
+    }
+
+    const plBindGroupDesc tBGDesc = {
+        .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+        .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "bloom_downsample"),
+        .pcDebugName = "FXAA"
+    };
+    plBindGroupHandle tBG = gptGfx->create_bind_group(ptDevice, &tBGDesc);
+    const plBindGroupUpdateData tBGData = {
+        .atTextureBindings = {
+            {.tTexture = ptView->tFinalTexture, .uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE},
+            {.tTexture = ptView->tFXAAInputTexture, .uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+        },
+        .atSamplerBindings = {{.uSlot = 2, .tSampler = gptData->tSamplerLinearClamp}}
+    };
+    gptGfx->update_bind_group(ptDevice, tBG, &tBGData);
+    gptGfx->queue_bind_group_for_deletion(ptDevice, tBG);
+
+    plCommandBuffer* ptCmd = gptGfx->request_command_buffer(gptStarter->get_current_command_pool(), "FXAA");
+    gptGfx->begin_command_recording(ptCmd);
+    gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
+    gptGfx->begin_compute_pass(ptCmd, NULL);
+    const plImageCopy tCopy = {
+        .uSourceExtentX         = (uint32_t)ptView->tTargetSize.x,
+        .uSourceExtentY         = (uint32_t)ptView->tTargetSize.y,
+        .uSourceExtentZ         = 1,
+        .uSourceLayerCount      = 1,
+        .uDestinationLayerCount = 1
+    };
+    // Never filter in place: neighboring invocations need the original image.
+    gptGfx->copy_texture(ptCmd, ptView->tFinalTexture, ptView->tFXAAInputTexture, 1, &tCopy);
+    gptGfx->end_compute_pass(ptCmd);
+    gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
+
+    const plPassResources tResources = {
+        .atTextures = {
+            {.tHandle = ptView->tFinalTexture, .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_TEXTURE_USAGE_STORAGE},
+            {.tHandle = ptView->tFXAAInputTexture, .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED}
+        }
+    };
+    gptGfx->begin_compute_pass(ptCmd, &tResources);
+    gptGfx->push_debug_group(ptCmd, "FXAA Compute", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
+    plDynamicBinding tDynamic = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynFXAA));
+    plGpuDynFXAA* ptData = (plGpuDynFXAA*)tDynamic.pcData;
+    *ptData = (plGpuDynFXAA){.iWidth = (int)ptView->tTargetSize.x, .iHeight = (int)ptView->tTargetSize.y};
+    plComputeShaderHandle tShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "fxaa", NULL);
+    gptGfx->bind_compute_shader(ptCmd, tShader);
+    gptGfx->bind_compute_bind_groups(ptCmd, tShader, 0, 1, &tBG, 1, &tDynamic);
+    const plDispatch tDispatch = {
+        .uGroupCountX = ((uint32_t)ptData->iWidth + 7) / 8,
+        .uGroupCountY = ((uint32_t)ptData->iHeight + 7) / 8,
+        .uGroupCountZ = 1,
+        .uThreadPerGroupX = 8, .uThreadPerGroupY = 8, .uThreadPerGroupZ = 1
+    };
+    gptGfx->dispatch(ptCmd, 1, &tDispatch);
+    gptGfx->producer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
+    gptGfx->pop_debug_group(ptCmd);
+    gptGfx->end_compute_pass(ptCmd);
+    gptGfx->end_command_recording(ptCmd);
+
+    const plSubmitInfo tSubmit = {
+        .uWaitSemaphoreCount     = 1,
+        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+        .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+    };
+    ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
+    gptGfx->submit_command_buffer(ptCmd, &tSubmit);
+    gptGfx->return_command_buffer(ptCmd);
+}
+
+static void
 pl__renderer_probe_update_all(plScene* ptScene)
 {
 
@@ -6472,6 +6564,17 @@ pl__renderer_scene_create_compute_shaders(plScene* ptScene)
         gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "tonemap", &tDesc);
     }
 
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "fxaa",
+            .tShader = gptShader->load_glsl("pl_fxaa.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "bloom_downsample"))->tDesc
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "fxaa", &tDesc);
+    }
+
     gptShader->set_options(&tOriginalOptions);
 }
 
@@ -7746,6 +7849,9 @@ pl__renderer_view_create_textures(plView* ptView)
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture0);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture1);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tFinalTexture);
+        if(gptGfx->is_texture_valid(ptDevice, ptView->tFXAAInputTexture))
+            gptGfx->queue_texture_for_deletion(ptDevice, ptView->tFXAAInputTexture);
+        ptView->tFXAAInputTexture = (plTextureHandle){0};
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tPickTexture);
 
         if(gptGfx->is_texture_valid(ptDevice, ptView->tTransmissionTexture))

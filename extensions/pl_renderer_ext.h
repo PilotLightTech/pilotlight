@@ -327,6 +327,7 @@ typedef struct _plRenderSettings
     plRendererTonemapOptions  tTonemap;
     plRendererSkyOptions      tSky;
     plRendererAOOptions       tAO;
+    bool                      bFXAAEnabled; // post-tonemap antialiasing; default: false
 } plRenderSettings;
 
 //-----------------------------------------------------------------------------

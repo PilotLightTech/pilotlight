@@ -390,6 +390,7 @@ typedef struct _plView
     plTextureHandle  tRawOutputTexture;        // g-buffer
     plTextureHandle  tDepthTexture;            // g-buffer
     plTextureHandle  tTransmissionTexture;     // transmission texture
+    plTextureHandle  tFXAAInputTexture;        // stable input for neighborhood sampling
     plTextureHandle  tFinalTexture;            // output texture
     plTextureHandle  atUVMaskTexture0;         // outlining
     plTextureHandle  atUVMaskTexture1;         // outlining

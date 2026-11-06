@@ -26,6 +26,10 @@
         "slope_bias": -10.75
     },
 
+    "fxaa": {
+        "enabled": false
+    },
+
     "ambient_occlusion": {
         "mode": "none",
         "radius": 0.5,

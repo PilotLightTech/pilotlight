@@ -280,6 +280,8 @@ pl_renderer_destroy_view(plView* ptView)
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture0);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture1);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFinalTexture);
+    if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tFXAAInputTexture))
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFXAAInputTexture);
     if(ptView->ptParentScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tTransmissionTexture);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tFinalTextureHandle);
@@ -2624,6 +2626,8 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         pl__render_view_aerial_pass(ptView);
 
     pl__render_view_tonemap_pass(ptView);
+    if(ptSettings->bFXAAEnabled)
+        pl__render_view_fxaa_pass(ptView);
 
     // add debug stuff after post processing so things like bloom & color don't get
     // affected
@@ -3427,6 +3431,9 @@ pl__renderer_deserialize_settings(const char* pcName, void* pSettings)
             else
                 ptSettings->tShadows.tFlags &= ~PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT;
         }
+
+        plJsonObject* ptJsonFXAA = gptJson->member(ptRoot, "fxaa");
+        ptSettings->bFXAAEnabled = ptJsonFXAA && gptJson->bool_member(ptJsonFXAA, "enabled", false);
 
         plJsonObject* ptJsonAO = gptJson->member(ptRoot, "ambient_occlusion");
         if(ptJsonAO)

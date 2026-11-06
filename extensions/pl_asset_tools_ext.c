@@ -1731,6 +1731,7 @@ pl_asset_tools_show_assets(bool* bValue)
                     if(gptUI->collapsing_header("Post Process", 0))
                     {
                         gptUI->stash_layout();
+                        gptUI->checkbox("FXAA", &ptSettings->bFXAAEnabled);
                         static const char* apcTonemapText[] = {
                             "None",
                             "Simple",

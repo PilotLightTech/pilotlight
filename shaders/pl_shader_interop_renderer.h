@@ -416,6 +416,13 @@ PL_END_STRUCT(plGpuDynGrid)
 // [SECTION] post processing
 //-----------------------------------------------------------------------------
 
+PL_BEGIN_STRUCT(plGpuDynFXAA)
+    int iWidth;
+    int iHeight;
+    uint _auUnused0;
+    uint _auUnused1;
+PL_END_STRUCT(plGpuDynFXAA)
+
 PL_BEGIN_STRUCT(plGpuDynAOData)
     mat4 tProjection;
     mat4 tProjectionInv;
