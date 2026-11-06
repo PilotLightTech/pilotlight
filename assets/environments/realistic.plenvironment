@@ -26,6 +26,18 @@
 
             "multiscatter": true,
 
+            "clouds": {
+                "enabled": true,
+                "coverage": 0.55,
+                "base_height": 1.5,
+                "thickness": 2.5,
+                "extinction": 12.0,
+                "scale": 0.65,
+                "wind": [0.01, 0.003],
+                "steps": 64,
+                "resolution_divisor": 2
+            },
+
             "aerial_perspective": {
                 "enabled": true,
                 "max_distance": 10.0,

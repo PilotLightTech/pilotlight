@@ -450,6 +450,7 @@ typedef struct _plView
     plBindGroupHandle atSkyLutBG2[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle atSkyBG2[PL_MAX_FRAMES_IN_FLIGHT];
     plTextureHandle   atSkyAerialLut[PL_MAX_FRAMES_IN_FLIGHT];
+    plTextureHandle   tCloudLowResTexture;
     plBindGroupHandle atSkyAerialLutBG2[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle atSkyAerialBG2[PL_MAX_FRAMES_IN_FLIGHT];
 } plView;
@@ -551,6 +552,13 @@ typedef struct _plScene
     plComputeShaderHandle tSkyViewLutShader;
     plComputeShaderHandle tSkyAerialLutShader;
     plComputeShaderHandle tSkyAerialShader;
+    plComputeShaderHandle tCloudShader;
+    plComputeShaderHandle tCloudLowResShader;
+    plComputeShaderHandle tCloudCompositeShader;
+    plComputeShaderHandle tCloudShadowShader;
+    plTextureHandle       atCloudShadowTexture[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupHandle     atCloudShadowBG[PL_MAX_FRAMES_IN_FLIGHT];
+    uint32_t              auCloudShadowIndex[PL_MAX_FRAMES_IN_FLIGHT];
     bool                  abSunTransmissionLutDirty[PL_MAX_FRAMES_IN_FLIGHT];
     plTextureHandle       atSunTransmissionLut[PL_MAX_FRAMES_IN_FLIGHT];
     plTextureHandle       atSunMultiscatterLut[PL_MAX_FRAMES_IN_FLIGHT];
@@ -771,6 +779,12 @@ typedef struct _plCSMInfo
     plGpuDirectionLightShadow* sbtDLightShadowData;
     plBindGroupHandle          tBindGroup;
 } plCSMInfo;
+
+typedef struct _plCloudShadowGrid
+{
+    plVec3 tCenter;
+    plVec4 atAxes[3];
+} plCloudShadowGrid;
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data

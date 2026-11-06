@@ -1,0 +1,37 @@
+#version 450
+#extension GL_EXT_nonuniform_qualifier : enable
+#include "pl_bg_scene.inc"
+#include "pl_cloud_density.glsl"
+
+// 32 deep-opacity slices packed vertically; one invocation integrates a column.
+layout(set = 1, binding = 0, r32f) uniform image2D tShadowAtlas;
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(tShadowAtlas);
+    int resolution = size.x;
+    int slices = size.y / resolution;
+    if(any(greaterThanEqual(pixel, ivec2(resolution))))
+        return;
+    vec2 uv = (vec2(pixel) + 0.5) / float(resolution) * 2.0 - 1.0;
+    vec3 direction = tGpuScene.tData.tCloudShadowForward.xyz;
+    vec3 origin = tGpuScene.tData.tCloudShadowCenter.xyz + uv.x * tGpuScene.tData.tCloudShadowRight.xyz * tGpuScene.tData.tCloudShadowRight.w + uv.y * tGpuScene.tData.tCloudShadowUp.xyz * tGpuScene.tData.tCloudShadowUp.w - direction * tGpuScene.tData.tCloudShadowForward.w;
+    origin.y += tGpuScene.tData.planetRadius;
+    float sliceLength = 2.0 * tGpuScene.tData.tCloudShadowForward.w / float(slices);
+    float opticalDepth = 0.0;
+    for(int z = 0; z < slices; z++)
+    {
+        // Four quadrature samples per slice. Store the cumulative optical depth
+        // at the far boundary, allowing height-dependent lookup below/inside clouds.
+        for(int j = 0; j < 4; j++)
+        {
+            float distance = (float(z) + (float(j) + 0.5) / 4.0) * sliceLength;
+            if(opticalDepth < 16.0)
+            {
+                opticalDepth += cloudDensity(origin + direction * distance, true) * tGpuScene.tData.tCloudLayer.w * sliceLength * 0.25;
+            }
+        }
+        imageStore(tShadowAtlas, ivec2(pixel.x, pixel.y + z * resolution), vec4(min(opticalDepth, 16.0)));
+    }
+}

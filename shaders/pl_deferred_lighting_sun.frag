@@ -38,6 +38,7 @@ const int iMaterialFlags = 0;
 #include "pl_lighting.glsl"
 #include "pl_material_info.glsl"
 #include "pl_fog.glsl"
+#include "pl_cloud_shadows.glsl"
 #include "pl_contact_shadows.glsl"
 
 void main() 
@@ -210,6 +211,10 @@ void main()
         {
 
             vec3 intensity = tGpuScene.tData.fIntensity * tGpuScene.tData.tColor;
+            if(bShadows && tGpuScene.tData.iCastShadow > 0)
+            {
+                intensity *= cloudSunTransmission(tWorldPosition.xyz);
+            }
             // vec3 intensity = vec3(0);
 
             vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(materialInfo.baseColor);

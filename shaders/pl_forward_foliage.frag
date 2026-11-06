@@ -41,6 +41,7 @@ layout(location = 0) in plShaderOut {
 #include "pl_math.glsl"
 #include "pl_lighting.glsl"
 #include "pl_fog.glsl"
+#include "pl_cloud_shadows.glsl"
 #include "pl_contact_shadows.glsl"
 
 #define PL_INCLUDE_MATERIAL_FUNCTIONS
@@ -324,6 +325,10 @@ void main()
             {
                 
                 vec3 intensity = tGpuScene.tData.fIntensity * tGpuScene.tData.tColor;
+                if(bShadows && tGpuScene.tData.iCastShadow > 0)
+                {
+                    intensity *= cloudSunTransmission(tShaderIn.tWorldPosition);
+                }
 
 
                 vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);

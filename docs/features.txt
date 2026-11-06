@@ -116,6 +116,7 @@ Renderer:
     * Screen Space Ambient Occlusion (SSAO, HBAO, MSAO)
     * Screen Space Contact Shadows
     * Screen Space Global Illumination (SSGI)
+    * Volumetric clouds
 
 Wishlist:
     * Morph target animation (with sparse accessor)

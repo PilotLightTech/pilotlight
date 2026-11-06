@@ -242,6 +242,15 @@ typedef struct _plRenderEnvironment
     float    fAerialDepthExponent; // samples per slice
     uint32_t uAerialSamplesPerSlice; // samples per slice
 
+    // Clouds: distances in atmosphere units; wind in atmosphere units/second.
+    float    fCloudCoverage;
+    float    fCloudBaseHeight;
+    float    fCloudThickness;
+    float    fCloudExtinction; // inverse atmosphere units
+    float    fCloudScale; // noise frequency per atmosphere unit
+    plVec2   tCloudWind;
+    uint32_t uCloudSteps; // 16..128
+    uint32_t uCloudResolutionDivisor; // 1 = full, 2 = half (default); probes use full
 } plRenderEnvironment;
 
 typedef struct _plRendererSkyOptions
@@ -397,6 +406,7 @@ enum _plRendererSkyFlags
     // realistic options
     PL_RENDERER_SKY_FLAGS_MULTISCATTER       = 1 << 5,
     PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE = 1 << 6,
+    PL_RENDERER_SKY_FLAGS_CLOUDS             = 1 << 8,
 };
 
 enum _plRendererShadowFlags

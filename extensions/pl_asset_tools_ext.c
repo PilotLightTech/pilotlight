@@ -1921,6 +1921,20 @@ pl_asset_tools_show_assets(bool* bValue)
                         gptUI->input_float("Mie Absorption", &ptEnvironment->fExtinctionMieGround, "%0.6f", 0);
                         gptUI->input_float("Mie Scatter Asymmetry", &ptEnvironment->fMieScatteringExponent, "%0.6f", 0);
 
+                        gptUI->checkbox_flags("Feature: Volumetric Clouds", &ptEnvironment->eFlags, PL_RENDERER_SKY_FLAGS_CLOUDS);
+                        if(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_CLOUDS)
+                        {
+                            gptUI->separator_text("Clouds (atmosphere units)");
+                            gptUI->input_float("Cloud coverage", &ptEnvironment->fCloudCoverage, "%g", 0);
+                            gptUI->input_float("Cloud base_height", &ptEnvironment->fCloudBaseHeight, "%g", 0);
+                            gptUI->input_float("Cloud thickness", &ptEnvironment->fCloudThickness, "%g", 0);
+                            gptUI->input_float("Cloud extinction", &ptEnvironment->fCloudExtinction, "%g", 0);
+                            gptUI->input_float("Cloud scale", &ptEnvironment->fCloudScale, "%g", 0);
+                            gptUI->input_float2("Cloud Wind", ptEnvironment->tCloudWind.d, "%g", 0);
+                            gptUI->input_uint("Cloud Steps (16-128)", &ptEnvironment->uCloudSteps, 0);
+                            gptUI->input_uint("Cloud Resolution Divisor (1-2)", &ptEnvironment->uCloudResolutionDivisor, 0);
+                        }
+
                         if(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE)
                         {
                             gptUI->separator_text("Aerial Perspective");

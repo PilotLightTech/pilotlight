@@ -41,6 +41,7 @@ layout(location = 0) in plShaderOut {
 #include "pl_math.glsl"
 #include "pl_lighting.glsl"
 #include "pl_fog.glsl"
+#include "pl_cloud_transport.glsl"
 #include "pl_contact_shadows.glsl"
 
 #define PL_INCLUDE_MATERIAL_FUNCTIONS
@@ -304,6 +305,13 @@ void main()
     mat4 u_ProjectionMatrix = tViewInfo.tData.tCameraProjection[tObjectInfo.tData.uGlobalIndex];
     mat4 u_ModelMatrix = tShaderIn.tModel;
 
+    // Only passes drawn after the background cloud composite need transport.
+    // Probe captures composite clouds after all geometry instead.
+    bool bSurfaceClouds = !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE) && (material.eAlphaMode == PL_SHADER_ALPHA_MODE_BLEND || bool(material.iMaterialFlags & (PL_MATERIAL_SHADER_FLAG_TRANSMISSION | PL_MATERIAL_SHADER_FLAG_VOLUME | PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION)));
+    vec4 surfaceCloud = vec4(0.0, 0.0, 0.0, 1.0);
+    if(bSurfaceClouds)
+        surfaceCloud = cloudSurfaceTransport(tShaderIn.tWorldPosition, tObjectInfo.tData.uGlobalIndex);
+
     if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
     {
         if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
@@ -326,7 +334,7 @@ void main()
         bool bDispersion = bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DISPERSION);
         f_specular_transmission = getIBLVolumeRefraction(bDispersion, n, v, materialInfo.perceptualRoughness,
             tBaseColor.rgb, tShaderIn.tWorldPosition, u_ModelMatrix, u_ViewMatrix, u_ProjectionMatrix,
-            materialInfo.ior, materialInfo.thickness, materialInfo.attenuationColor, materialInfo.attenuationDistance, materialInfo.dispersion);
+            materialInfo.ior, materialInfo.thickness, materialInfo.attenuationColor, materialInfo.attenuationDistance, materialInfo.dispersion, surfaceCloud);
     }
 
 
@@ -574,6 +582,10 @@ void main()
             {
                 
                 vec3 intensity = tGpuScene.tData.fIntensity * tGpuScene.tData.tColor;
+                if(bShadows && tGpuScene.tData.iCastShadow > 0)
+                {
+                    intensity *= cloudSunTransmission(tShaderIn.tWorldPosition);
+                }
 
 
                 vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
@@ -1160,4 +1172,9 @@ void main()
                 break;
         }
     }
+
+    // Keep alpha unchanged: blending over the cloudy background gives
+    // L + T * (alpha * surface + (1 - alpha) * backgroundBehindSurface).
+    if(bSurfaceClouds)
+        outColor.rgb = surfaceCloud.rgb + surfaceCloud.a * outColor.rgb;
 }

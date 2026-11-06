@@ -314,6 +314,12 @@ PL_BEGIN_STRUCT(plGpuSceneData)
     // z = world-to-atmosphere scale
     // w = sun intensity
     vec4 tAerialInfo;
+    vec4 tCloudLayer; // coverage (zero disables), base height, thickness, extinction
+    vec4 tCloudNoise; // frequency, wind X/Z, view step count
+    vec4 tCloudShadowCenter; // atmosphere-space center; bindless index (-1 = invalid)
+    vec4 tCloudShadowRight; // light-space basis and half extent
+    vec4 tCloudShadowUp;
+    vec4 tCloudShadowForward;
 
     // Contact shadows: length, thickness, bias (world units), step count.
     vec4 tContactShadow;

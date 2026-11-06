@@ -226,7 +226,7 @@ getTransmissionSample(vec2 fragCoord, float roughness, float ior)
 
 vec3
 getIBLVolumeRefraction(bool bDispersion, vec3 n, vec3 v, float perceptualRoughness, vec3 baseColor, vec3 position, mat4 modelMatrix,
-    mat4 viewMatrix, mat4 projMatrix, float ior, float thickness, vec3 attenuationColor, float attenuationDistance, float dispersion)
+    mat4 viewMatrix, mat4 projMatrix, float ior, float thickness, vec3 attenuationColor, float attenuationDistance, float dispersion, vec4 foregroundCloud)
 {
     vec3 transmittedLight;
     float transmissionRayLength;
@@ -281,6 +281,12 @@ getIBLVolumeRefraction(bool bDispersion, vec3 n, vec3 v, float perceptualRoughne
         transmittedLight = getTransmissionSample(refractionCoords, perceptualRoughness, ior);
 
     }
+    // The snapshot already contains camera-side clouds. Recover the light
+    // behind them before tinting it; the forward pass applies foreground once.
+    // This uses the surface ray for the refracted footprint (screen-space
+    // approximation). Bound the inverse when dense clouds hide the background.
+    if(foregroundCloud.a < 1.0)
+        transmittedLight = max(transmittedLight - foregroundCloud.rgb, vec3(0.0)) / max(foregroundCloud.a, 0.005);
     vec3 attenuatedColor = applyVolumeAttenuation(transmittedLight, transmissionRayLength, attenuationColor, attenuationDistance);
 
     return attenuatedColor * baseColor;

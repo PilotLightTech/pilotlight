@@ -54,7 +54,7 @@ void main()
     ivec2 tOutputSize = imageSize(tColorImage);
     ivec2 tPixel = ivec2(gl_GlobalInvocationID.xy);
 
-    if(any(greaterThanEqual(tPixel, tOutputSize)))
+    if(any(greaterThanEqual(tPixel, min(tOutputSize, ivec2(tViewInfo.tData.tViewportSize.xy)))))
         return;
 
     vec2 tTargetUV = (vec2(tPixel) + vec2(0.5)) / tOutputSize;
@@ -71,7 +71,8 @@ void main()
 
     if(hasGeometry)
     {
-        vec3 ndcSpace = vec3(tTargetUV, depth);
+        // Texture UVs include the allocation padding; projection UVs do not.
+        vec3 ndcSpace = vec3(tAerialLutUV, depth);
 
         vec3 clipSpace = ndcSpace;
         clipSpace.xy = clipSpace.xy * 2.0 - 1.0;

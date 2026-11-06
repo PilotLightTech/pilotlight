@@ -23,6 +23,7 @@ Index of this file:
 #include "pl_sky.inc"
 #include "pl_bg_scene.inc"
 #include "pl_bg_view.inc"
+#include "pl_cloud_shadows.glsl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -57,17 +58,19 @@ float
 textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
 {
 
+    if(abs(shadowCoord.w) < 1e-7)
+        return 1.0;
     // Perspective divide
     vec3 proj = shadowCoord.xyz / shadowCoord.w;
 
     // Early out: outside light frustum → lit
-    if (proj.z < 0.0 || proj.z > 1.0)
+    if (proj.z < 0.0 || proj.z > 1.0 || any(lessThan(proj.xy, vec2(0.0))) || any(greaterThan(proj.xy, vec2(tGpuScene.tData.fFactor))))
         return 1.0;
 
     // Apply atlas offset in UV space
     vec2 uv = proj.xy + offset;
 
-    float dist =texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), uv).r;
+    float dist =textureLod(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), uv, 0.0).r;
     return (dist <= proj.z) ? 1.0 : 0.0;
 }
 
@@ -224,40 +227,47 @@ void main()
 
             vec3 worldSamplePosition = tViewInfo.tData.tCameraPos.xyz + viewDirection * sampleDistance / tGpuScene.tData.fAtmosphereConversion;
 
-            uint cascadeIndex = tGpuScene.tData.iCascadeCount - 1;
-
-            // Depth compare for shadowing
-            mat4 abiasMat = biasMat;
-            abiasMat[0][0] *= tGpuScene.tData.fFactor;
-            abiasMat[1][1] *= tGpuScene.tData.fFactor;
-            abiasMat[3][0] *= tGpuScene.tData.fFactor;
-            abiasMat[3][1] *= tGpuScene.tData.fFactor;
-            float shadow = 0.0;
-
-            // float viewDepth = (length(worldSamplePosition - tViewInfo.tData.tCameraPos.xyz) - tViewInfo.tData.fCameraNearZ) / tViewInfo.tData.fCameraRange;
-            // float viewDepth = (sampleDistance / tGpuScene.tData.fAtmosphereConversion - tViewInfo.tData.fCameraNearZ) / tViewInfo.tData.fCameraRange;
-            vec4 viewPosition = tViewInfo.tData.tCameraView[tObjectInfo.uCameraIndex] * vec4(worldSamplePosition, 1.0);
-
-            // Pilot Light uses +Z as camera forward.
-            float viewDepthWorld = (viewPosition.z - tViewInfo.tData.fCameraNearZ) / tViewInfo.tData.fCameraRange;
-            for(int j = 0; j < tGpuScene.tData.iCascadeCount - 1; j++)
+            float shadow = 1.0;
+            if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS) && tGpuScene.tData.iCastShadow > 0 && tGpuScene.tData.iCascadeCount > 0)
             {
-                if(viewDepthWorld <= tViewInfo.tData.afCascadeSplits[j])
+                uint cascadeIndex = tGpuScene.tData.iCascadeCount - 1;
+
+                // Depth compare for shadowing
+                mat4 abiasMat = biasMat;
+                abiasMat[0][0] *= tGpuScene.tData.fFactor;
+                abiasMat[1][1] *= tGpuScene.tData.fFactor;
+                abiasMat[3][0] *= tGpuScene.tData.fFactor;
+                abiasMat[3][1] *= tGpuScene.tData.fFactor;
+
+                // float viewDepth = (length(worldSamplePosition - tViewInfo.tData.tCameraPos.xyz) - tViewInfo.tData.fCameraNearZ) / tViewInfo.tData.fCameraRange;
+                // float viewDepth = (sampleDistance / tGpuScene.tData.fAtmosphereConversion - tViewInfo.tData.fCameraNearZ) / tViewInfo.tData.fCameraRange;
+                vec4 viewPosition = tViewInfo.tData.tCameraView[tObjectInfo.uCameraIndex] * vec4(worldSamplePosition, 1.0);
+
+                // Pilot Light uses +Z as camera forward.
+                float viewDepthWorld = (viewPosition.z - tViewInfo.tData.fCameraNearZ) / tViewInfo.tData.fCameraRange;
+                for(int j = 0; j < tGpuScene.tData.iCascadeCount - 1; j++)
                 {
-                    cascadeIndex = j;
-                    break;
+                    if(viewDepthWorld <= tViewInfo.tData.afCascadeSplits[j])
+                    {
+                        cascadeIndex = j;
+                        break;
+                    }
                 }
+                vec4 tWorldPos2 = vec4(worldSamplePosition, 1.0);
+                vec4 shadowCoord = (abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex]) * tWorldPos2;
+                shadow = textureProj(shadowCoord, vec2(tGpuScene.tData.fXOffset, tGpuScene.tData.fYOffset) + vec2(cascadeIndex * tGpuScene.tData.fFactor, 0), tGpuScene.tData.iShadowMapTexIdx);
+
+
+                // vec4 shadowCoord = biasMat * tViewInfo.tData.tShadowViewProj * vec4(worldSamplePosition, 1.0);
+
+                // float shadow = textureProj(shadowCoord);
+
             }
-            vec4 tWorldPos2 = vec4(worldSamplePosition, 1.0);
-            vec4 shadowCoord = (abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex]) * tWorldPos2;
-            shadow = textureProj(shadowCoord, vec2(tGpuScene.tData.fXOffset, tGpuScene.tData.fYOffset) + vec2(cascadeIndex * tGpuScene.tData.fFactor, 0), tGpuScene.tData.iShadowMapTexIdx);
 
-
-            // vec4 shadowCoord = biasMat * tViewInfo.tData.tShadowViewProj * vec4(worldSamplePosition, 1.0);
-
-            // float shadow = textureProj(shadowCoord);
-
-            vec3 directSource = shadow * planetVisibility * transmittanceToSun * phaseTimesScattering;
+            // Cloud visibility modulates only single-scattered sunlight; ambient
+            // multiple scattering still fills the shadowed shafts.
+            float cloudVisibility = bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS) ? cloudSunTransmission(worldSamplePosition) : 1.0;
+            vec3 directSource = shadow * cloudVisibility * planetVisibility * transmittanceToSun * phaseTimesScattering;
 
             vec3 totalScattering = coefficients.tScatterRayleigh + coefficients.tScatterMie;
 
@@ -268,7 +278,7 @@ void main()
                 multipleSource = vec3(0);
             }
 
-            vec3 sunRadiance = vec3(tGpuScene.tData.tAerialInfo.w);
+            vec3 sunRadiance = max(tGpuScene.tData.tColor, vec3(0.0)) * max(tGpuScene.tData.tAerialInfo.w, 0.0);
 
             vec3 source = sunRadiance * (directSource + multipleSource);
 
@@ -279,8 +289,7 @@ void main()
             accumulatedTransmittance *= exp(-coefficients.tExtinction * segmentLength);
         }
 
-        float scalarTransmittance = dot(accumulatedTransmittance, vec3(1.0 / tGpuScene.tData.tAerialInfo.w));
-        // float scalarTransmittance = dot(accumulatedTransmittance, vec3(1.0 / 3.0));
+        float scalarTransmittance = dot(accumulatedTransmittance, vec3(1.0 / 3.0));
         imageStore(aerialPerspectiveLut, ivec3(froxelXY, slice), vec4(accumulatedLuminance, scalarTransmittance));
     }
 }

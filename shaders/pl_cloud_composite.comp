@@ -1,0 +1,45 @@
+#version 450
+#extension GL_EXT_nonuniform_qualifier : enable
+#include "pl_bg_scene.inc"
+#include "pl_bg_view.inc"
+layout(set = 2, binding = 0, rgba16f) uniform image2D tColorImage;
+layout(set = 2, binding = 1) uniform texture2D tDepthImage;
+layout(set = 2, binding = 2) uniform texture2D tCloudImage;
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 viewport = ivec2(tViewInfo.tData.tViewportSize.xy);
+    if(any(greaterThanEqual(pixel, min(viewport, imageSize(tColorImage)))))
+        return;
+    ivec2 lowSize = (viewport + 1) / 2;
+    float depth = texelFetch(sampler2D(tDepthImage, tSamplerNearestClamp), pixel, 0).r;
+    // Low-res samples represent full-res pixel (2*p+1), not the padded allocation.
+    vec2 coordinate = (vec2(pixel) - 1.0) * 0.5;
+    ivec2 base = ivec2(floor(coordinate));
+    vec2 fraction = fract(coordinate);
+    vec4 cloud = vec4(0.0);
+    float totalWeight = 0.0;
+    for(int y = 0; y < 2; y++)
+    {
+        for(int x = 0; x < 2; x++)
+        {
+            ivec2 p = clamp(base + ivec2(x, y), ivec2(0), lowSize - 1);
+            ivec2 source = min(p * 2 + 1, viewport - 1);
+            float sampleDepth = texelFetch(sampler2D(tDepthImage, tSamplerNearestClamp), source, 0).r;
+            // Reject sky/geometry crossings so clouds do not bleed across silhouettes.
+            if((depth > 0.0) != (sampleDepth > 0.0))
+                continue;
+            float difference = abs(sampleDepth - depth) / max(max(sampleDepth, depth), 1e-8);
+            float weight = (x == 0 ? 1.0 - fraction.x : fraction.x) * (y == 0 ? 1.0 - fraction.y : fraction.y) * exp(-difference * 80.0);
+            cloud += weight * texelFetch(sampler2D(tCloudImage, tSamplerNearestClamp), p, 0);
+            totalWeight += weight;
+        }
+    }
+    // Thin foreground geometry with no matching half-res sample stays unmodified.
+    if(totalWeight < 1e-5)
+        return;
+    cloud /= totalWeight;
+    vec4 color = imageLoad(tColorImage, pixel);
+    imageStore(tColorImage, pixel, vec4(cloud.rgb + color.rgb * clamp(cloud.a, 0.0, 1.0), color.a));
+}

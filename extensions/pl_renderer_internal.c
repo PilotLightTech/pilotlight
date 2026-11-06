@@ -19,6 +19,30 @@ Index of this file:
 // [SECTION] job system tasks
 //-----------------------------------------------------------------------------
 
+static inline plCloudShadowGrid
+pl_cloud_shadow_grid(plVec3 tDesiredCenter, plVec3 tHalfSize, const plVec3 atAxes[3], uint32_t uResolution, uint32_t uSlices)
+{
+    plCloudShadowGrid tGrid = {0};
+    for(uint32_t i = 0; i < 3; i++)
+    {
+        const plVec3 tAxis = atAxes[i];
+        const float fCount = (float)(i == 2 ? uSlices : uResolution);
+        const float fRequired = fabsf(tAxis.x) * tHalfSize.x + fabsf(tAxis.y) * tHalfSize.y + fabsf(tAxis.z) * tHalfSize.z;
+        // Stable size buckets prevent curvature adjustments from continuously
+        // changing texel pitch. Reserve half a cell for center rounding.
+        const float fExtent = exp2f(ceilf(log2f(fmaxf(fRequired, 0.001f) / (1.0f - 1.0f / fCount))));
+        const float fPitch = 2.0f * fExtent / fCount;
+        const float fProjected = tDesiredCenter.x * tAxis.x + tDesiredCenter.y * tAxis.y + tDesiredCenter.z * tAxis.z;
+        const float fSnapped = floorf(fProjected / fPitch + 0.5f) * fPitch;
+        tGrid.tCenter.x += tAxis.x * fSnapped;
+        tGrid.tCenter.y += tAxis.y * fSnapped;
+        tGrid.tCenter.z += tAxis.z * fSnapped;
+        tGrid.atAxes[i].xyz = tAxis;
+        tGrid.atAxes[i].w = fExtent;
+    }
+    return tGrid;
+}
+
 static inline plVec3d
 pl__to_double_vec(plVec3 tVec)
 {
@@ -4995,6 +5019,338 @@ pl__render_view_bloom_pass(plView* ptView)
 }
 
 static void
+pl__cloud_release_low_resolution(plView* ptView)
+{
+    if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tCloudLowResTexture))
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tCloudLowResTexture);
+    ptView->tCloudLowResTexture = (plTextureHandle){0};
+}
+
+static void
+pl__cloud_release_shadows(plScene* ptScene)
+{
+    ptScene->tSceneData.tCloudShadowCenter.w = -1.0f;
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        if(gptGfx->is_bind_group_valid(gptData->ptDevice, ptScene->atCloudShadowBG[i]))
+            gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptScene->atCloudShadowBG[i]);
+        if(gptGfx->is_texture_valid(gptData->ptDevice, ptScene->atCloudShadowTexture[i]))
+        {
+            pl__renderer_return_bindless_texture_index(ptScene, ptScene->atCloudShadowTexture[i]);
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->atCloudShadowTexture[i]);
+        }
+        ptScene->atCloudShadowBG[i] = (plBindGroupHandle){0};
+        ptScene->atCloudShadowTexture[i] = (plTextureHandle){0};
+        ptScene->auCloudShadowIndex[i] = UINT32_MAX;
+    }
+}
+
+static void
+pl__cloud_ensure_shadows(plScene* ptScene)
+{
+    const plTextureDesc tDesc = {
+        .tDimensions = {256, 256 * 32, 1}, .eFormat = PL_FORMAT_R32_FLOAT,
+        .uLayers = 1, .uMips = 1, .eType = PL_TEXTURE_TYPE_2D,
+        .eUsage = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_STORAGE,
+        .pcDebugName = "cloud deep shadow atlas"
+    };
+    const plBindGroupDesc tBGDesc = {
+        .tLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "simple_texture_lut"),
+        .ptPool = gptData->ptBindGroupPool, .pcDebugName = "cloud deep shadow output"
+    };
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        if(gptGfx->is_texture_valid(gptData->ptDevice, ptScene->atCloudShadowTexture[i]))
+            continue;
+        gptStarter->create_texture(&tDesc, NULL, 0, &ptScene->atCloudShadowTexture[i]);
+        ptScene->atCloudShadowBG[i] = gptGfx->create_bind_group(gptData->ptDevice, &tBGDesc);
+        const plBindGroupUpdateData tBindings = {
+            .atTextureBindings = {{.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tTexture = ptScene->atCloudShadowTexture[i]}}
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atCloudShadowBG[i], &tBindings);
+        ptScene->auCloudShadowIndex[i] = pl__renderer_get_bindless_texture_index(ptScene, ptScene->atCloudShadowTexture[i]);
+    }
+}
+
+static void
+pl__cloud_ensure_low_resolution(plView* ptView)
+{
+    if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tCloudLowResTexture))
+        return;
+    plTextureDesc tDesc = gptGfx->get_texture(gptData->ptDevice, ptView->tFinalTexture)->tDesc;
+    tDesc.tDimensions.x = ceilf(tDesc.tDimensions.x / 2.0f);
+    tDesc.tDimensions.y = ceilf(tDesc.tDimensions.y / 2.0f);
+    tDesc.eUsage = PL_TEXTURE_USAGE_STORAGE | PL_TEXTURE_USAGE_SAMPLED;
+    tDesc.pcDebugName = "half resolution cloud radiance and transmittance";
+    gptStarter->create_texture(&tDesc, NULL, 0, &ptView->tCloudLowResTexture);
+}
+
+static void
+pl__cloud_render_half_resolution(plView* ptView, plCommandBuffer* ptCmd)
+{
+    pl__cloud_ensure_low_resolution(ptView);
+    plScene* ptScene = ptView->ptParentScene;
+    const uint32_t uFrame = gptGfx->get_current_frame_index();
+    gptGfx->push_debug_group(ptCmd, "Half resolution clouds and depth-aware upsample", (plVec4){0.3f, 0.5f, 0.8f, 1});
+    for(uint32_t uPass = 0; uPass < 2; uPass++)
+    {
+        plTextureHandle tOutput = uPass == 0 ? ptView->tCloudLowResTexture : ptView->tRawOutputTexture;
+        plComputeShaderHandle tShader = uPass == 0 ? ptScene->tCloudLowResShader : ptScene->tCloudCompositeShader;
+        const plBindGroupDesc tDesc = {
+            .tLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts"),
+            .ptPool = gptData->aptTempGroupPools[uFrame], .pcDebugName = "cloud composite"
+        };
+        plBindGroupHandle tGroup = gptGfx->create_bind_group(gptData->ptDevice, &tDesc);
+        plBindGroupUpdateData tBindings = {
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tTexture = tOutput},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptView->tDepthTexture}
+            }
+        };
+        if(uPass == 1)
+            tBindings.atTextureBindings[2] = (plBindGroupUpdateTextureData){.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptView->tCloudLowResTexture};
+        gptGfx->update_bind_group(gptData->ptDevice, tGroup, &tBindings);
+        plPassResources tResources = {
+            .atTextures = {
+                {.tHandle = tOutput, .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = uPass == 0 ? PL_PASS_RESOURCE_ACCESS_WRITE : PL_PASS_RESOURCE_ACCESS_READ_WRITE, .eUsage = PL_TEXTURE_USAGE_STORAGE},
+                {.tHandle = ptView->tDepthTexture, .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED},
+                {.tHandle = uPass == 0 ? ptScene->atCloudShadowTexture[uFrame] : ptView->tCloudLowResTexture, .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED}
+            }
+        };
+        gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL);
+        gptGfx->begin_compute_pass(ptCmd, &tResources);
+        plDynamicBinding tDynamic = pl__allocate_dynamic_data(gptData->ptDevice, sizeof(uint32_t));
+        *(uint32_t*)tDynamic.pcData = 0;
+        plBindGroupHandle atGroups[] = {ptScene->atSceneBindGroups[uFrame], ptView->atViewBG[uFrame], tGroup};
+        gptGfx->bind_compute_shader(ptCmd, tShader);
+        gptGfx->bind_compute_bind_groups(ptCmd, tShader, 0, 3, atGroups, 1, &tDynamic);
+        uint32_t uDivisor = uPass == 0 ? 2 : 1;
+        uint32_t uWidth = ((uint32_t)ptView->tTargetSize.x + uDivisor - 1) / uDivisor;
+        uint32_t uHeight = ((uint32_t)ptView->tTargetSize.y + uDivisor - 1) / uDivisor;
+        const plDispatch tDispatch = {.uGroupCountX = (uWidth + 7) / 8, .uGroupCountY = (uHeight + 7) / 8, .uGroupCountZ = 1, .uThreadPerGroupX = 8, .uThreadPerGroupY = 8, .uThreadPerGroupZ = 1};
+        gptGfx->dispatch(ptCmd, 1, &tDispatch);
+        gptGfx->producer_barrier(ptCmd, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
+        gptGfx->end_compute_pass(ptCmd);
+        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tGroup);
+    }
+    gptGfx->pop_debug_group(ptCmd);
+}
+
+static void
+pl__cloud_shadow_prepare(plScene* ptScene, const plCamera* ptCamera)
+{
+    plGpuSceneData* ptData = &ptScene->tSceneData;
+    ptData->tCloudShadowCenter.w = -1.0f;
+    const plRenderEnvironment* ptEnvironment = gptAsset->get_data(ptScene->tEnvironment);
+    const bool bClouds = ptData->tCloudLayer.x > 0.0f && ptData->tCloudLayer.w > 0.0f;
+    // Include views that are not rendered this frame when retiring unused targets.
+    if(!bClouds || ptEnvironment->uCloudResolutionDivisor < 2)
+    {
+        for(uint32_t i = 0; i < pl_sb_size(ptScene->sbptViews); i++)
+            pl__cloud_release_low_resolution(ptScene->sbptViews[i]);
+    }
+    if(!bClouds || pl_length_vec3(ptData->tDirection) < 1e-6f)
+    {
+        pl__cloud_release_shadows(ptScene);
+        return;
+    }
+    pl__cloud_ensure_shadows(ptScene);
+
+    const float fScale = pl_maxf(ptData->fAtmosphereConversion, 1e-7f);
+    plVec3 tCenter = ptCamera ? pl_mul_vec3_scalarf(ptCamera->tPositionF, fScale) : (plVec3){0};
+    const float fRadius = ptData->planetRadius + ptData->tCloudLayer.y + 0.5f * ptData->tCloudLayer.z;
+    tCenter.y = sqrtf(pl_maxf(0.0f, fRadius * fRadius - tCenter.x * tCenter.x - tCenter.z * tCenter.z)) - ptData->planetRadius;
+    const float fRange = 40.0f;
+    const float fCurveMargin = (2.0f * fRange * (fabsf(tCenter.x) + fabsf(tCenter.z)) + 2.0f * fRange * fRange) / pl_maxf(fRadius, 1.0f);
+    const plVec3 tHalfSize = {fRange, 0.5f * ptData->tCloudLayer.z + fCurveMargin + 0.1f, fRange};
+    const plVec3 tForward = pl_norm_vec3(ptData->tDirection); // from sun toward scene
+    const plVec3 tReference = fabsf(tForward.y) > 0.99f ? (plVec3){1, 0, 0} : (plVec3){0, 1, 0};
+    const plVec3 tRight = pl_norm_vec3(pl_cross_vec3(tReference, tForward));
+    const plVec3 tUp = pl_cross_vec3(tForward, tRight);
+    const plVec3 atAxes[] = {tRight, tUp, tForward};
+    // Snap in light space, including deep-opacity slices. A one-cell move now
+    // reuses the same world sampling lattice instead of sliding it through noise.
+    const plCloudShadowGrid tGrid = pl_cloud_shadow_grid(tCenter, tHalfSize, atAxes, 256, 32);
+    ptData->tCloudShadowRight = tGrid.atAxes[0];
+    ptData->tCloudShadowUp = tGrid.atAxes[1];
+    ptData->tCloudShadowForward = tGrid.atAxes[2];
+    ptData->tCloudShadowCenter = (plVec4){.xyz = tGrid.tCenter, .w = (float)ptScene->auCloudShadowIndex[gptGfx->get_current_frame_index()]};
+}
+
+static void
+pl__cloud_shadow_render(plScene* ptScene)
+{
+    if(ptScene->tSceneData.tCloudShadowCenter.w < 0.0f) return;
+    const uint32_t uFrame = gptGfx->get_current_frame_index();
+    plCommandBuffer* ptCmd = gptGfx->request_command_buffer(gptStarter->get_current_command_pool(), "cloud deep shadows");
+    gptGfx->begin_command_recording(ptCmd);
+    const plPassResources tResources = {
+        .atTextures = {
+            {.tHandle = ptScene->atCloudShadowTexture[uFrame], .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_TEXTURE_USAGE_STORAGE}
+        }
+    };
+    gptGfx->begin_compute_pass(ptCmd, &tResources);
+    gptGfx->push_debug_group(ptCmd, "Cloud deep shadow cache", (plVec4){0.4f, 0.5f, 0.8f, 1});
+    plBindGroupHandle atGroups[] = {ptScene->atSceneBindGroups[uFrame], ptScene->atCloudShadowBG[uFrame]};
+    gptGfx->bind_compute_shader(ptCmd, ptScene->tCloudShadowShader);
+    gptGfx->bind_compute_bind_groups(ptCmd, ptScene->tCloudShadowShader, 0, 2, atGroups, 0, NULL);
+    const plDispatch tDispatch = {
+        .uGroupCountX     = 32,
+        .uGroupCountY     = 32,
+        .uGroupCountZ     = 1,
+        .uThreadPerGroupX = 8,
+        .uThreadPerGroupY = 8,
+        .uThreadPerGroupZ = 1
+    };
+    gptGfx->dispatch(ptCmd, 1, &tDispatch);
+    gptGfx->pop_debug_group(ptCmd);
+    gptGfx->producer_barrier(ptCmd, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_COMPUTE | PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
+    gptGfx->end_compute_pass(ptCmd);
+    gptGfx->end_command_recording(ptCmd);
+    const plSubmitInfo tSubmit = {
+        .uWaitSemaphoreCount     = 1, .atWaitSempahores = {gptStarter->get_current_timeline_semaphore()},
+        .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+        .uSignalSemaphoreCount   = 1, .atSignalSempahores = {gptStarter->get_current_timeline_semaphore()},
+        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+    };
+    gptGfx->submit_command_buffer(ptCmd, &tSubmit);
+    gptGfx->return_command_buffer(ptCmd);
+}
+
+
+static void
+pl__cloud_probe_composite(plScene* ptScene, plEnvironmentProbeData* ptProbe, plEnvironmentProbeDataPack* ptPack, uint32_t uFace, plCommandBuffer* ptCmd)
+{
+    if(ptScene->tSceneData.tCloudLayer.x <= 0.0f || ptScene->tSceneData.tCloudLayer.w <= 0.0f) return;
+    const uint32_t uFrame = gptGfx->get_current_frame_index();
+    const plBindGroupDesc tDesc = {
+        .tLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts"),
+        .ptPool = gptData->aptTempGroupPools[uFrame], .pcDebugName = "probe clouds"
+    };
+    plBindGroupHandle tGroup = gptGfx->create_bind_group(gptData->ptDevice, &tDesc);
+    const plBindGroupUpdateData tBindings = {
+        .atTextureBindings = {
+            {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tTexture = ptProbe->atRawOutputTextureViews[uFace]},
+            {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptPack->atDepthTextureViews[uFace]}
+        }
+    };
+    gptGfx->update_bind_group(gptData->ptDevice, tGroup, &tBindings);
+    const plPassResources tResources = {
+        .atTextures = {
+            {.tHandle = ptProbe->atRawOutputTextureViews[uFace], .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ_WRITE, .eUsage = PL_TEXTURE_USAGE_STORAGE},
+            {.tHandle = ptPack->atDepthTextureViews[uFace], .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED},
+            {.tHandle = ptScene->atCloudShadowTexture[uFrame], .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED}
+        }
+    };
+    gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL);
+    gptGfx->begin_compute_pass(ptCmd, &tResources);
+    plDynamicBinding tDynamic = pl__allocate_dynamic_data(gptData->ptDevice, sizeof(uint32_t));
+    *(uint32_t*)tDynamic.pcData = uFace;
+    plBindGroupHandle atGroups[] = {ptScene->atSceneBindGroups[uFrame], ptProbe->tViewBG, tGroup};
+    gptGfx->bind_compute_shader(ptCmd, ptScene->tCloudShader);
+    gptGfx->bind_compute_bind_groups(ptCmd, ptScene->tCloudShader, 0, 3, atGroups, 1, &tDynamic);
+    const plDispatch tDispatch = {
+        .uGroupCountX     = ((uint32_t)ptProbe->tTargetSize.x + 7) / 8,
+        .uGroupCountY     = ((uint32_t)ptProbe->tTargetSize.y + 7) / 8,
+        .uGroupCountZ     = 1,
+        .uThreadPerGroupX = 8,
+        .uThreadPerGroupY = 8,
+        .uThreadPerGroupZ = 1
+    };
+    gptGfx->dispatch(ptCmd, 1, &tDispatch);
+    gptGfx->producer_barrier(ptCmd, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
+    gptGfx->end_compute_pass(ptCmd);
+    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tGroup);
+}
+
+static void
+pl__render_view_cloud_pass(plView* ptView, plCommandBuffer* ptPostCmdBuffer)
+{
+    plRenderEnvironment* ptCloudEnvironment = gptAsset->get_data(ptView->ptParentScene->tEnvironment);
+    if(ptView->ptParentScene->tSceneData.tCloudLayer.x <= 0.0f ||
+       ptView->ptParentScene->tSceneData.tCloudLayer.w <= 0.0f ||
+       ptView->tTargetSize.x <= 0.0f || ptView->tTargetSize.y <= 0.0f)
+    {
+        pl__cloud_release_low_resolution(ptView);
+        return;
+    }
+    if(ptCloudEnvironment->uCloudResolutionDivisor >= 2)
+    {
+        pl__cloud_render_half_resolution(ptView, ptPostCmdBuffer);
+        return;
+    }
+    pl__cloud_release_low_resolution(ptView);
+    plDevice*      ptDevice  = gptData->ptDevice;
+    plScene*       ptScene   = ptView->ptParentScene;
+
+    const plPassResources tResources = {
+        .atTextures = {
+            {
+                .tHandle = ptView->tRawOutputTexture,
+                .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                .eAccess = PL_PASS_RESOURCE_ACCESS_READ_WRITE,
+                .eUsage = PL_TEXTURE_USAGE_STORAGE
+            },
+            {
+                .tHandle = ptView->tDepthTexture,
+                .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
+                .eUsage = PL_TEXTURE_USAGE_SAMPLED
+            },
+            {
+                .tHandle = ptScene->atCloudShadowTexture[gptGfx->get_current_frame_index()],
+                .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
+                .eUsage = PL_TEXTURE_USAGE_SAMPLED
+            }
+        }
+    };
+
+    gptGfx->consumer_barrier(ptPostCmdBuffer, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
+    gptGfx->begin_compute_pass(ptPostCmdBuffer, &tResources);
+    gptGfx->push_debug_group(ptPostCmdBuffer, "Volumetric Clouds", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
+
+    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(uint32_t));
+    uint32_t* ptDynamicData = (uint32_t*)tDynamicBinding.pcData;
+    *ptDynamicData = 0; // camera index
+
+    const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
+
+    // The aerial bind group targets the post-outline texture. Clouds now write
+    // opaque HDR before transparency, so bind the raw output explicitly.
+    const plBindGroupDesc tBGDesc = {
+        .tLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts"),
+        .ptPool = gptData->aptTempGroupPools[uFrameIdx], .pcDebugName = "opaque HDR clouds"
+    };
+    plBindGroupHandle tCloudBG = gptGfx->create_bind_group(ptDevice, &tBGDesc);
+    const plBindGroupUpdateData tBindings = {
+        .atTextureBindings = {
+            {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tTexture = ptView->tRawOutputTexture},
+            {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptView->tDepthTexture}
+        }
+    };
+    gptGfx->update_bind_group(ptDevice, tCloudBG, &tBindings);
+    gptGfx->queue_bind_group_for_deletion(ptDevice, tCloudBG);
+    gptGfx->bind_compute_shader(ptPostCmdBuffer, ptScene->tCloudShader);
+    plBindGroupHandle atPostBGs[] = {ptScene->atSceneBindGroups[uFrameIdx], ptView->atViewBG[uFrameIdx], tCloudBG };
+    gptGfx->bind_compute_bind_groups(ptPostCmdBuffer, ptScene->tCloudShader, 0, PL_ARRAYSIZE(atPostBGs), atPostBGs, 1, &tDynamicBinding);
+
+    plDispatch tCloudDispatch = {
+        .uGroupCountX     = (uint32_t)(ceilf(ptView->tTargetSize.x / 8.0f)),
+        .uGroupCountY     = (uint32_t)(ceilf(ptView->tTargetSize.y / 8.0f)),
+        .uGroupCountZ     = 1,
+        .uThreadPerGroupX = 8,
+        .uThreadPerGroupY = 8,
+        .uThreadPerGroupZ = 1
+    };
+    gptGfx->dispatch(ptPostCmdBuffer, 1, &tCloudDispatch);
+
+    gptGfx->producer_barrier(ptPostCmdBuffer, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
+    gptGfx->pop_debug_group(ptPostCmdBuffer);
+    gptGfx->end_compute_pass(ptPostCmdBuffer);
+}
+
+static void
 pl__render_view_aerial_pass(plView* ptView)
 {
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
@@ -5854,6 +6210,8 @@ pl__renderer_probe_update_all(plScene* ptScene)
             pl__render_view_forward_pass(ptScene, ptCmdBuffer, ptProbe->tViewBG, &tForwardPassInfo7);
 
             gptGfx->end_render_pass(ptCmdBuffer);
+            if((ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY) && ptEnvironment->eMode == PL_RENDERER_SKY_MODE_REALISTIC)
+                pl__cloud_probe_composite(ptScene, ptProbe, ptPack, uFace, ptCmdBuffer);
 
             gptGfx->end_command_recording(ptCmdBuffer);
 
@@ -5914,7 +6272,6 @@ pl__renderer_scene_create_bindgroups(plScene* ptScene)
             .ptPool      = gptData->ptBindGroupPool
         };
         ptScene->atSunTransmissionBG1[i] = gptGfx->create_bind_group(gptData->ptDevice, &tTransmissionBG1Desc);
-
         const plBindGroupDesc tMultiscatterBG1Desc = {
             .tLayout     = tSunMultiscatterBindGroupLayout1,
             .pcDebugName = "tSunMultiscatterBG1",
@@ -6589,6 +6946,17 @@ pl__renderer_scene_create_compute_shaders(plScene* ptScene)
 
     {
         plComputeShaderDesc tDesc = {
+            .pcDebugName = "cloud_shadow",
+            .tShader = gptShader->load_glsl("pl_cloud_shadow.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "simple_texture_lut"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "cloud_shadow", &tDesc);
+    }
+    {
+        plComputeShaderDesc tDesc = {
             .pcDebugName = "sky_transmission_lut",
             .tShader = gptShader->load_glsl("pl_sky_transmission_lut.comp", "main", NULL, NULL),
             .atBindGroupLayouts = {
@@ -6637,6 +7005,44 @@ pl__renderer_scene_create_compute_shaders(plScene* ptScene)
         gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "sky_aerial_lut", &tDesc);
     }
 
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "cloud_lowres",
+            .tShader = gptShader->load_glsl("pl_cloud_lowres.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "cloud_lowres", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "cloud_composite",
+            .tShader = gptShader->load_glsl("pl_cloud_composite.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "cloud_composite", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "clouds",
+            .tShader = gptShader->load_glsl("pl_clouds.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "clouds", &tDesc);
+    }
     {
         plComputeShaderDesc tDesc = {
             .pcDebugName = "sky_aerial",
@@ -7006,7 +7412,8 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                     .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                     .eColorOp        = PL_BLEND_OP_ADD,
-                    .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    // Source-over alpha: keep an opaque scene opaque beneath transparency.
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
                     .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                     .eAlphaOp        = PL_BLEND_OP_ADD,
                     .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
@@ -7057,7 +7464,8 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                     .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                     .eColorOp        = PL_BLEND_OP_ADD,
-                    .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    // Source-over alpha: keep an opaque scene opaque beneath transparency.
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
                     .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                     .eAlphaOp        = PL_BLEND_OP_ADD,
                     .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
@@ -7098,7 +7506,8 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                     .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                     .eColorOp        = PL_BLEND_OP_ADD,
-                    .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    // Source-over alpha: keep an opaque scene opaque beneath transparency.
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
                     .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                     .eAlphaOp        = PL_BLEND_OP_ADD,
                     .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
@@ -7723,6 +8132,8 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 static void
 pl__renderer_scene_create_textures(plScene* ptScene)
 {
+    ptScene->tSceneData.tCloudShadowCenter.w = -1.0f;
+
     // shadow atlas
     const plTextureDesc tShadowDepthTextureDesc = {
         .tDimensions   = {(float)ptScene->uShadowAtlasResolution, (float)ptScene->uShadowAtlasResolution, 1},
@@ -8001,6 +8412,7 @@ pl__renderer_view_create_textures(plView* ptView)
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture0);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture1);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tFinalTexture);
+        pl__cloud_release_low_resolution(ptView);
         if(gptGfx->is_texture_valid(ptDevice, ptView->tFXAAInputTexture))
             gptGfx->queue_texture_for_deletion(ptDevice, ptView->tFXAAInputTexture);
         ptView->tFXAAInputTexture = (plTextureHandle){0};
@@ -8501,7 +8913,7 @@ pl__renderer_probe_create_textures(plScene* ptScene, plEnvironmentProbeData* ptP
         .uLayers       = 6,
         .uMips         = 0,
         .eType         = PL_TEXTURE_TYPE_CUBE,
-        .eUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .eUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
         .pcDebugName   = "offscreen final cube"
     };
     gptStarter->create_texture(&tRawOutputTextureCubeDesc, NULL, 0, &ptProbeData->tRawOutputTexture);
@@ -9431,6 +9843,10 @@ pl__renderer_load_shaders(plScene* ptScene)
     ptScene->tSkyViewLutShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "sky_lut", NULL);
     ptScene->tSkyAerialLutShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "sky_aerial_lut", NULL);
     ptScene->tSkyAerialShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "sky_aerial", NULL);
+    ptScene->tCloudShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "clouds", NULL);
+    ptScene->tCloudLowResShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cloud_lowres", NULL);
+    ptScene->tCloudCompositeShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cloud_composite", NULL);
+    ptScene->tCloudShadowShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cloud_shadow", NULL);
 
 
     plGraphicsState tAlphaShadowState = {
@@ -10115,6 +10531,8 @@ pl__renderer_update_sky_probe(plScene* ptScene)
             }
 
             gptGfx->end_render_pass(ptCmdBuffer);
+            if(ptEnvironment->eMode == PL_RENDERER_SKY_MODE_REALISTIC)
+                pl__cloud_probe_composite(ptScene, &ptScene->tDefaultProbeData, ptPack, uFace, ptCmdBuffer);
 
             gptGfx->end_command_recording(ptCmdBuffer);
 

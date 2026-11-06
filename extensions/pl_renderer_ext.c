@@ -284,6 +284,7 @@ pl_renderer_destroy_view(plView* ptView)
     if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tSSGITexture))
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tSSGITexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFinalTexture);
+    pl__cloud_release_low_resolution(ptView);
     if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tFXAAInputTexture))
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFXAAInputTexture);
     if(ptView->ptParentScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
@@ -601,6 +602,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
         }
     }
 
+    pl__cloud_release_shadows(ptScene);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tBrdfLutTexture);
     for(uint32_t j = 0; j < pl_sb_size(ptScene->sbtProbeDataPacks); j++)
     {
@@ -1477,6 +1479,18 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     ptScene->tSceneData.tAerialInfo.y = ptEnvironment->fAerialDepthExponent;
     ptScene->tSceneData.tAerialInfo.z = (float)ptEnvironment->uAerialSamplesPerSlice;
     ptScene->tSceneData.tAerialInfo.w = ptEnvironment->fSunIntensity;
+    ptScene->tSceneData.tCloudLayer = (plVec4)
+    {
+        (ptEnvironment->eMode == PL_RENDERER_SKY_MODE_REALISTIC && (ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_CLOUDS)) ? pl_clampf(0.0f, ptEnvironment->fCloudCoverage, 1.0f) : 0.0f,
+        pl_maxf(0.01f, ptEnvironment->fCloudBaseHeight),
+        pl_maxf(0.01f, ptEnvironment->fCloudThickness),
+        pl_maxf(0.0f, ptEnvironment->fCloudExtinction)
+    };
+    ptScene->tSceneData.tCloudNoise = (plVec4){
+        pl_maxf(0.01f, ptEnvironment->fCloudScale),
+        ptEnvironment->tCloudWind.x, ptEnvironment->tCloudWind.y,
+        (float)pl_clampu(16, ptEnvironment->uCloudSteps, 128)
+    };
     ptScene->tSceneData.fIntensity = ptEnvironment->fSunIntensity;
     ptScene->tSceneData.mieScatteringExponent = ptEnvironment->fMieScatteringExponent;
     ptScene->tSceneData.extinctionMieGround = ptEnvironment->fExtinctionMieGround;
@@ -1514,9 +1528,10 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     ptScene->tSceneData.fXOffset         = (float)iX / (float)ptScene->uSunShadowAtlasResolution;
     ptScene->tSceneData.fYOffset         = (float)iY / (float)ptScene->uSunShadowAtlasResolution;
 
-
+    pl__cloud_shadow_prepare(ptScene, uCameraCount > 0 ? atCameras[0] : NULL);
     plBuffer* ptSceneBuffer = gptGfx->get_buffer(ptDevice, ptScene->atSceneBuffer[uFrameIdx]);
     memcpy(ptSceneBuffer->tMemoryAllocation.pHostMapped, &ptScene->tSceneData, sizeof(plGpuSceneData));
+    pl__cloud_shadow_render(ptScene);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~perform skinning~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1955,6 +1970,12 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
                     .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
                     .eStages = PL_PIPELINE_STAGE_COMPUTE,
                     .tHandle = ptView->atSkyAerialLut[uFrameIdx]
+                },
+                {
+                    .eUsage  = PL_TEXTURE_USAGE_SAMPLED,
+                    .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
+                    .eStages = PL_PIPELINE_STAGE_COMPUTE,
+                    .tHandle = ptScene->atCloudShadowTexture[uFrameIdx]
                 }
             }
         };
@@ -1967,8 +1988,8 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
         *ptDynamicData = 0; // camera index
 
         plDispatch tDispatch2 = {
-            .uGroupCountX = (uint32_t)roundf(ptSettings->tSky.tAerialLutResolution.x / 8.0f),
-            .uGroupCountY = (uint32_t)roundf(ptSettings->tSky.tAerialLutResolution.y / 8.0f),
+            .uGroupCountX = (uint32_t)ceilf(ptSettings->tSky.tAerialLutResolution.x / 8.0f),
+            .uGroupCountY = (uint32_t)ceilf(ptSettings->tSky.tAerialLutResolution.y / 8.0f),
             .uGroupCountZ = 1,
             .uThreadPerGroupX = 8,
             .uThreadPerGroupY = 8,
@@ -2470,12 +2491,15 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         gptGfx->draw(ptSceneCmdBuffer, 1, &tDraw);
     }
 
+    const bool bClouds = ptScene->tSceneData.tCloudLayer.x > 0.0f && ptScene->tSceneData.tCloudLayer.w > 0.0f && ptView->tTargetSize.x > 0.0f && ptView->tTargetSize.y > 0.0f;
+    const bool bOpaqueComposite = bSSGI || bClouds;
+
     plForwardPassInfo tForwardPassInfo3 = {
         .tBucket = PL_RENDER_BUCKET_OUTLINE,
         .tShader = ptScene->tOutlineShader,
         .ptArea = &tArea,
         .uGlobalIndex = 0,
-        .iAlphaFilter = bSSGI ? 1 : 0
+        .iAlphaFilter = bOpaqueComposite ? 1 : 0
     };
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo3);
 
@@ -2484,7 +2508,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         .tShader = ptScene->tOutlineNoCullShader,
         .ptArea = &tArea,
         .uGlobalIndex = 0,
-        .iAlphaFilter = bSSGI ? 1 : 0
+        .iAlphaFilter = bOpaqueComposite ? 1 : 0
     };
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo2);
 
@@ -2493,7 +2517,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         .tShader = ptScene->tOutlineNoCullShader,
         .ptArea = &tArea,
         .uGlobalIndex = 0,
-        .iAlphaFilter = bSSGI ? 1 : 0
+        .iAlphaFilter = bOpaqueComposite ? 1 : 0
     };
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo22);
 
@@ -2521,14 +2545,17 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     };
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo7);
 
-    // Capture all opaque HDR lighting before adding GI; transparency must not
-    // contaminate the radiance source or receive GI through an underlying surface.
-    if(bSSGI)
+    // Finish opaque lighting before GI and clouds. Water and other transparency
+    // blend over this result; the later transmission snapshot includes clouds.
+    if(bOpaqueComposite)
     {
         gptGfx->pop_debug_group(ptSceneCmdBuffer);
         gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL);
         gptGfx->end_render_pass(ptSceneCmdBuffer);
-        pl__render_view_ssgi_pass(ptView, ptSceneCmdBuffer);
+        if(bSSGI)
+            pl__render_view_ssgi_pass(ptView, ptSceneCmdBuffer);
+        if(bClouds)
+            pl__render_view_cloud_pass(ptView, ptSceneCmdBuffer);
         gptGfx->consumer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_VERTEX | PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
         gptGfx->begin_render_pass(ptSceneCmdBuffer, &tForwardRenderInfo, NULL);
         gptGfx->set_depth_bias(ptSceneCmdBuffer, 0.0f, 0.0f, 0.0f);
@@ -3330,6 +3357,17 @@ pl__renderer_serialize_environment(const char* pcName, const void* pEnvironment,
         gptJson->add_float_array(ptRealistic, "ozone_extinction", ptEnvironment->tOzoneExtinction.d, 3);
         gptJson->add_bool_member(ptRealistic, "multiscatter", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_MULTISCATTER);
 
+        plJsonObject* ptClouds = gptJson->add_member(ptRealistic, "clouds");
+        gptJson->add_bool_member(ptClouds, "enabled", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_CLOUDS);
+        gptJson->add_float_member(ptClouds, "coverage", ptEnvironment->fCloudCoverage);
+        gptJson->add_float_member(ptClouds, "base_height", ptEnvironment->fCloudBaseHeight);
+        gptJson->add_float_member(ptClouds, "thickness", ptEnvironment->fCloudThickness);
+        gptJson->add_float_member(ptClouds, "extinction", ptEnvironment->fCloudExtinction);
+        gptJson->add_float_member(ptClouds, "scale", ptEnvironment->fCloudScale);
+        gptJson->add_float_array(ptClouds, "wind", ptEnvironment->tCloudWind.d, 2);
+        gptJson->add_uint32_member(ptClouds, "steps", ptEnvironment->uCloudSteps);
+        gptJson->add_uint32_member(ptClouds, "resolution_divisor", ptEnvironment->uCloudResolutionDivisor);
+
         plJsonObject* ptAerial = gptJson->add_member(ptRealistic, "aerial_perspective");
         gptJson->add_bool_member(ptAerial, "enabled", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE);
         gptJson->add_float_member(ptAerial, "max_distance", ptEnvironment->fMaxAerialDistance);
@@ -3359,7 +3397,17 @@ static bool
 pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
 {
     plRenderEnvironment* ptEnvironment = pEnvironment;
-    ptEnvironment->eFlags &= ~PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS;
+    ptEnvironment->eFlags &= ~(PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS | PL_RENDERER_SKY_FLAGS_CLOUDS);
+    // Defaults for environments authored before clouds were available.
+    ptEnvironment->fCloudCoverage = 0.55f;
+    ptEnvironment->fCloudBaseHeight = 1.5f;
+    ptEnvironment->fCloudThickness = 2.5f;
+    ptEnvironment->fCloudExtinction = 12.0f;
+    ptEnvironment->fCloudScale = 0.65f;
+    ptEnvironment->tCloudWind = (plVec2){0.01f, 0.003f};
+    ptEnvironment->uCloudSteps = 64;
+    ptEnvironment->uCloudResolutionDivisor = 2;
+
 
     if(!gptVfs->does_file_exist(pcName))
         return false;
@@ -3455,6 +3503,23 @@ pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
                         ptEnvironment->eFlags &= ~PL_RENDERER_SKY_FLAGS_MULTISCATTER;
                     }
                     
+                    plJsonObject* ptJsonClouds = gptJson->member(ptJsonRealistic, "clouds");
+                    if(ptJsonClouds)
+                    {
+                        if(gptJson->bool_member(ptJsonClouds, "enabled", false))
+                            ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_CLOUDS;
+                        else
+                            ptEnvironment->eFlags &= ~PL_RENDERER_SKY_FLAGS_CLOUDS;
+                        ptEnvironment->fCloudCoverage = gptJson->float_member(ptJsonClouds, "coverage", 0.55f);
+                        ptEnvironment->fCloudBaseHeight = gptJson->float_member(ptJsonClouds, "base_height", 1.5f);
+                        ptEnvironment->fCloudThickness = gptJson->float_member(ptJsonClouds, "thickness", 2.5f);
+                        ptEnvironment->fCloudExtinction = gptJson->float_member(ptJsonClouds, "extinction", 12.0f);
+                        ptEnvironment->fCloudScale = gptJson->float_member(ptJsonClouds, "scale", 0.65f);
+                        gptJson->float_array_member(ptJsonClouds, "wind", ptEnvironment->tCloudWind.d, NULL);
+                        ptEnvironment->uCloudSteps = gptJson->uint32_member(ptJsonClouds, "steps", 64);
+                        ptEnvironment->uCloudResolutionDivisor = gptJson->uint32_member(ptJsonClouds, "resolution_divisor", 2);
+                    }
+
                     plJsonObject* ptJsonAerial = gptJson->member(ptJsonRealistic, "aerial_perspective");
                     if(ptJsonAerial)
                     {
