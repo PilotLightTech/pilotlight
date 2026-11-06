@@ -5,7 +5,7 @@
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_shader_interop.h"
+#include "pl_shader_interop_renderer.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -42,6 +42,11 @@ PL_END_STRUCT(plGpuTerrainElevationZone)
 
 PL_BEGIN_STRUCT(plGpuDynTerrainData)
 
+    uint uProbeSelection;
+    uint _uProbeSelectionPadding0;
+    uint _uProbeSelectionPadding1;
+    uint _uProbeSelectionPadding2;
+
     int iLevel;
     int tFlags;
     int iZoneCount;
@@ -49,7 +54,7 @@ PL_BEGIN_STRUCT(plGpuDynTerrainData)
 
     vec4 tUVInfo;
 
-    int  iProbeCount;
+    int  _iUnusedProbeCount;
     int  iPointLightCount;
     int  iSpotLightCount;
     int  iDirectionLightCount;

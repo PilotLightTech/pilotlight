@@ -23,6 +23,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl_bg_scene.inc"
+#include "pl_probe_debug.glsl"
 #include "pl_bg_view.inc"
 
 //-----------------------------------------------------------------------------
@@ -50,13 +51,14 @@ layout(location = 2) out vec2 outNormal;
 layout(location = 3) out vec4 outAOMetalnessRoughness;
 
 // output
-layout(location = 0) in struct plShaderIn {
+layout(location = 0) in plShaderOut {
     vec3 tWorldPosition;
     vec4 tViewPosition;
     vec2 tUV[2];
     vec4 tColor;
     vec3 tWorldNormal;
     mat3 tTBN;
+    flat uint uProbeSelection;
 } tShaderIn;
 
 #include "pl_math.glsl"
@@ -107,12 +109,13 @@ void main()
         ao = (1.0 + material.fOcclusionStrength * (ao - 1.0)); 
     }
 
+
     // fill g-buffer
     outAlbedo = tBaseColor;
     NormalInfo tNormalInfo = pl_get_normal_info(tObjectInfo.tData.iMaterialIndex);
     outNormal = vec2(0);
     outFinal = vec4(0);
-    outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
+    outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, float(tShaderIn.uProbeSelection & ~PL_PROBE_SELECTION_FALLBACK_FLAG));
     
 
     // In case of missing data for a debug view, render a checkerboard.
@@ -186,4 +189,6 @@ void main()
             outAlbedo.rgb = (tNormalInfo.ntex + 1.0) / 2.0;
         }
     }
+    if(tShaderDebugMode == PL_SHADER_DEBUG_PROBE_SELECTION)
+        outAlbedo = vec4(pl_probe_debug_color(tShaderIn.uProbeSelection), 1.0);
 }

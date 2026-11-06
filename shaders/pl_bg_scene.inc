@@ -20,7 +20,7 @@ layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
 
 layout(std140, set = 0, binding = 2) readonly buffer _tTransformBuffer
 {
-	mat4 atTransform[];
+	plGpuTransform atTransform[];
 } tTransformBuffer;
 
 layout(set = 0, binding = 3) readonly buffer plMaterialInfo
@@ -36,5 +36,10 @@ layout(set = 0, binding = 7)  uniform sampler tSamplerNearestRepeat;
 
 layout(set = 0, binding = 8)  uniform texture2D at2DTextures[PL_MAX_BINDLESS_TEXTURES];
 layout(set = 0, binding = PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT)  uniform textureCube atCubeTextures[PL_MAX_BINDLESS_TEXTURES];
+
+layout(std430, set = 0, binding = PL_PROBE_SELECTION_TABLE_SLOT) readonly buffer _tProbeSelections
+{
+    plGpuProbeSelection atData[];
+} tProbeSelections;
 
 #endif // BG_SCENE_INC

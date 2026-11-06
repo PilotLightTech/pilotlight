@@ -4,6 +4,7 @@
 #include "pl_math.glsl"
 #include "pl_shader_interop_terrain.h"
 #include "pl_bg_scene.inc"
+#include "pl_probe_debug.glsl"
 #include "pl_bg_view.inc"
 
 //-----------------------------------------------------------------------------
@@ -237,4 +238,7 @@ void main()
     //         outAlbedo.rgb = (tNormalInfo.ntex + 1.0) / 2.0;
     //     }
     // }
+    outAOMetalnessRoughness.a = float(tObjectInfo.tData.uProbeSelection & ~PL_PROBE_SELECTION_FALLBACK_FLAG);
+    if(tShaderDebugMode == PL_SHADER_DEBUG_PROBE_SELECTION)
+        outAlbedo = vec4(pl_probe_debug_color(tObjectInfo.tData.uProbeSelection), 1.0);
 }

@@ -75,7 +75,7 @@ void main()
     // gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + gl_InstanceIndex] * pos;
     // gl_ViewportIndex = gl_InstanceIndex;
 
-    gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + uViewportIndex] * tTransformBuffer.atTransform[uTransformIndex] * inPosition;
+    gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + uViewportIndex] * tTransformBuffer.atTransform[uTransformIndex].tTransform * inPosition;
     gl_ViewportIndex = uViewportIndex;
 
     // if(tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + uViewportIndex][3][3] == 1.0) // orthographic

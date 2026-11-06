@@ -3523,7 +3523,6 @@ pl__render_view_deferred_lighting_pass(plScene* ptScene, plCommandBuffer* ptComm
         plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
         ptLightingDynamicData->uGlobalIndex = 0;
         ptLightingDynamicData->iLightIndex = -1;
-        ptLightingDynamicData->iProbeCount = pl_sb_size(ptScene->sbtProbeData);
 
         pl_add_to_draw_stream(ptStream, (plDrawStreamData)
         {
@@ -3683,7 +3682,6 @@ pl__render_view_forward_pass(plScene* ptScene, plCommandBuffer* ptCommandBuffer,
         ptDynamicData->iPointLightCount = pl_sb_size(ptScene->sbtPointLights);
         ptDynamicData->iSpotLightCount = pl_sb_size(ptScene->sbtSpotLights);
         ptDynamicData->iDirectionLightCount = pl_sb_size(ptScene->sbtDirectionLights);
-        ptDynamicData->iProbeCount = pl_sb_size(ptScene->sbtProbeData);
         ptDynamicData->iObjectShaderFlags = PL_OBJECT_SHADER_FLAG_SHADOWS;
         if(ptInfo->bProbe)
             ptDynamicData->iObjectShaderFlags |= PL_OBJECT_SHADER_FLAG_PROBE;
@@ -3787,7 +3785,6 @@ pl__render_view_transmission_pass(plView* ptView, plCommandBuffer* ptCommandBuff
         ptDynamicData->iPointLightCount = pl_sb_size(ptScene->sbtPointLights);
         ptDynamicData->iSpotLightCount = pl_sb_size(ptScene->sbtSpotLights);
         ptDynamicData->iDirectionLightCount = pl_sb_size(ptScene->sbtDirectionLights);
-        ptDynamicData->iProbeCount = pl_sb_size(ptScene->sbtProbeData);
 
         pl_add_to_draw_stream(ptStream, (plDrawStreamData)
         {
@@ -4918,6 +4915,8 @@ pl__renderer_probe_update_all(plScene* ptScene)
         memcpy(ptProbeDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtGPUProbeData, sizeof(plGpuProbe) * pl_sb_size(ptScene->sbtGPUProbeData));
     }
 
+    pl__renderer_update_object_probes(ptScene);
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~common data~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plVec3 atPitchYawRoll[6] = {
@@ -5158,7 +5157,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
                         .eLoadOp        = PL_LOAD_OP_CLEAR,
                         .eStoreOp       = PL_STORE_OP_STORE,
                         .eUsage         = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-                        .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
+                        .tClearColor    = {0.0f, 0.0f, 0.0f, 0.0f}
                     }
                 },
                 .tDepthAttachment = {
@@ -5631,8 +5630,9 @@ pl__renderer_scene_update_bindgroups(plScene* ptScene)
             .atBufferBindings = {
                 { .uSlot = 0, .tBuffer = ptScene->atSceneBuffer[i], .szBufferRange = sizeof(plGpuSceneData) },
                 { .uSlot = 1, .tBuffer = ptScene->tStorageBuffer, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tStorageBuffer)->tDesc.szByteSize },
-                { .uSlot = 2, .tBuffer = ptScene->atTransformBuffer[i], .szBufferRange = sizeof(plMat4) * ptScene->uTransformCapacity },
+                { .uSlot = 2, .tBuffer = ptScene->atTransformBuffer[i], .szBufferRange = sizeof(plGpuTransform) * ptScene->uTransformCapacity },
                 { .uSlot = 3, .tBuffer = ptScene->tMaterialDataBuffer, .szBufferRange = ptScene->tInit.szMaterialBufferSize },
+                { .uSlot = PL_PROBE_SELECTION_TABLE_SLOT, .tBuffer = ptScene->atProbeSelectionBuffers[i], .szBufferRange = sizeof(plGpuProbeSelection) * (PL_MAX_PROBE_SELECTION_INDEX + 1) },
             },
             .atSamplerBindings = {
                 { .uSlot = 4, .tSampler = gptData->tSamplerLinearClamp },
@@ -5816,6 +5816,7 @@ pl__renderer_scene_create_bindgroup_layouts(plScene* ptScene)
                 {.uSlot = 1, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
                 {.uSlot = 2, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
                 {.uSlot = 3, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = PL_PROBE_SELECTION_TABLE_SLOT, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
             },
             .atSamplerBindings= {
                 {.uSlot = 4, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE},
@@ -7322,7 +7323,8 @@ pl__renderer_scene_create_buffers(plScene* ptScene)
         gptStarter->get_staging_buffer(sizeof(plGpuPointLight) * PL_MAX_LIGHTS, &ptScene->atPointLightBuffer[i], "point light");
         gptStarter->get_staging_buffer(sizeof(plGpuSpotLight) * PL_MAX_LIGHTS, &ptScene->atSpotLightBuffer[i], "spot light");
         gptStarter->get_staging_buffer(sizeof(plGpuDirectionLight) * PL_MAX_LIGHTS, &ptScene->atDirectionLightBuffer[i], "direction light");
-        gptStarter->get_staging_buffer(sizeof(plMat4) * ptScene->uTransformCapacity, &ptScene->atTransformBuffer[i], "transform");
+        gptStarter->get_staging_buffer(sizeof(plGpuProbeSelection) * (PL_MAX_PROBE_SELECTION_INDEX + 1), &ptScene->atProbeSelectionBuffers[i], "probe selections");
+        gptStarter->get_staging_buffer(sizeof(plGpuTransform) * ptScene->uTransformCapacity, &ptScene->atTransformBuffer[i], "transform");
         
     }
 
@@ -9610,5 +9612,154 @@ pl__renderer_update_sky_probe(plScene* ptScene)
         }
         
         pl__renderer_probe_create_environment_map(ptScene, &ptScene->tDefaultProbeData, 512);
+    }
+}
+
+static void
+pl_probe_selection_table_reset(plProbeSelectionTable* ptTable, bool bSkyAvailable)
+{
+    memset(ptTable->atEntries, 0, sizeof(ptTable->atEntries));
+    ptTable->tLookup = (plHashMapStatic64){
+        .auKeys        = ptTable->auKeys,
+        .auValueBucket = ptTable->auValues,
+        .uBucketCount  = PL_PROBE_SELECTION_HASH_SIZE
+    };
+    pl_hms_clear(&ptTable->tLookup);
+    ptTable->uCount = 3;
+    ptTable->uOverflowRequests = 0;
+    ptTable->uInvalidRequests = 0;
+    ptTable->atEntries[2].iCount = bSkyAvailable ? 1 : 0;
+}
+
+static uint32_t
+pl_probe_selection_table_intern(plProbeSelectionTable* ptTable, plGpuProbeSelection tSelection)
+{
+    // Check before packing (including unused fields): truncation would alias
+    // distinct selections. Invalid keys use the same safe fallback as overflow.
+    if((uint32_t)tSelection.iProbe0 > UINT16_MAX ||
+       (uint32_t)tSelection.iProbe1 > UINT16_MAX ||
+       (uint32_t)tSelection.iProbe2 > UINT16_MAX ||
+       (uint32_t)tSelection.iCount > 3u)
+    {
+        ptTable->uInvalidRequests++;
+        return 2;
+    }
+
+    if(tSelection.iCount == 0)
+        return 1;
+
+    if(memcmp(&tSelection, &ptTable->atEntries[2], sizeof(tSelection)) == 0)
+        return 2;
+
+    // Exact key, not a hash: ordering and count are preserved. The upper 14
+    // bits remain zero, so this cannot equal PL_DS_HASH_INVALID (UINT64_MAX).
+    const uint64_t uKey = (uint64_t)tSelection.iProbe0 |
+        ((uint64_t)tSelection.iProbe1 << 16) |
+        ((uint64_t)tSelection.iProbe2 << 32) |
+        ((uint64_t)tSelection.iCount << 48);
+    const uint64_t uExisting = pl_hms_get(&ptTable->tLookup, uKey);
+    if(uExisting != PL_DS_HASH_INVALID)
+        return (uint32_t)uExisting;
+    
+    // Never evict an entry: earlier draws may already reference it.
+    if(ptTable->uCount > PL_MAX_PROBE_SELECTION_INDEX)
+    {
+        ptTable->uOverflowRequests++;
+        return 2;
+    }
+
+    uint32_t uIndex = ptTable->uCount++;
+    if(ptTable->uCount - 3 > ptTable->uPeakEntries)
+        ptTable->uPeakEntries = ptTable->uCount - 3;
+    ptTable->atEntries[uIndex] = tSelection;
+    pl_hms_set(&ptTable->tLookup, uKey, uIndex);
+    return uIndex;
+}
+
+// Select at the object's world-space bounds center, with stable ties by probe
+// index. The first probe is also the object's specular probe.
+static plGpuProbeSelection
+pl__renderer_select_probes(const plGpuProbe* ptProbes, uint32_t uProbeCount, plVec3 tPosition)
+{
+    int aiIndices[3] = {0};
+    float afDistances[3] = {FLT_MAX, FLT_MAX, FLT_MAX};
+    int iCount = 0;
+    for(uint32_t i = 1; i < uProbeCount; i++)
+    {
+        plVec3 tDelta = pl_sub_vec3(ptProbes[i].tPosition, tPosition);
+        float fDistanceSqr = pl_dot_vec3(tDelta, tDelta);
+        if(fDistanceSqr > ptProbes[i].fRangeSqr)
+            continue;
+
+        for(int j = 0; j < 3; j++)
+        {
+            if(fDistanceSqr >= afDistances[j])
+                continue;
+            for(int k = 2; k > j; k--)
+            {
+                afDistances[k] = afDistances[k - 1];
+                aiIndices[k] = aiIndices[k - 1];
+            }
+            afDistances[j] = fDistanceSqr;
+            aiIndices[j] = (int)i;
+            if(iCount < 3)
+                iCount++;
+            break;
+        }
+    }
+
+    // Probe zero is the global sky fallback, when one is available.
+    if(iCount == 0 && uProbeCount > 0)
+        iCount = 1;
+    return (plGpuProbeSelection){aiIndices[0], aiIndices[1], aiIndices[2], iCount};
+}
+
+static uint32_t
+pl__renderer_intern_probe_selection(plScene* ptScene, plGpuProbeSelection tSelection)
+{
+    uint32_t uOldCount = ptScene->tProbeSelections.uCount;
+    uint32_t uIndex = pl_probe_selection_table_intern(&ptScene->tProbeSelections, tSelection);
+    if(ptScene->tProbeSelections.uCount != uOldCount)
+    {
+        plBuffer* ptBuffer = gptGfx->get_buffer(gptData->ptDevice, ptScene->atProbeSelectionBuffers[gptGfx->get_current_frame_index()]);
+        ((plGpuProbeSelection*)ptBuffer->tMemoryAllocation.pHostMapped)[uIndex] = tSelection;
+    }
+    else if(uIndex == 2 && memcmp(&tSelection, &ptScene->tProbeSelections.atEntries[2], sizeof(tSelection)) != 0)
+    {
+        if(!ptScene->bProbeSelectionOverflowReported)
+        {
+            ptScene->bProbeSelectionOverflowReported = true;
+            PL_LOG_WARN_API(gptLog, gptData->uLogChannel, "Probe selection table full or packed-key bounds exceeded; using sky fallback (warning once per scene)");
+        }
+        return uIndex | PL_PROBE_SELECTION_FALLBACK_FLAG;
+    }
+    return uIndex;
+}
+
+static void
+pl__renderer_update_object_probes(plScene* ptScene)
+{
+    const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
+    plBuffer* ptBuffer = gptGfx->get_buffer(gptData->ptDevice, ptScene->atTransformBuffer[uFrameIdx]);
+    plGpuTransform* ptTransforms = (plGpuTransform*)ptBuffer->tMemoryAllocation.pHostMapped;
+    const uint32_t uProbeCount = pl_sb_size(ptScene->sbtGPUProbeData);
+    pl_probe_selection_table_reset(&ptScene->tProbeSelections, uProbeCount > 0);
+    plBuffer* ptSelections = gptGfx->get_buffer(gptData->ptDevice, ptScene->atProbeSelectionBuffers[uFrameIdx]);
+    memcpy(ptSelections->tMemoryAllocation.pHostMapped, ptScene->tProbeSelections.atEntries, 3 * sizeof(plGpuProbeSelection));
+    
+    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbuActiveDrawables);
+    for(uint32_t i = 0; i < uDrawableCount; i++)
+    {
+        uint32_t uDrawableIndex = ptScene->sbuActiveDrawables[i];
+        plDrawable* ptDrawable = &ptScene->sbtDrawables[uDrawableIndex];
+        plDrawableResources* ptResources = &ptScene->sbtDrawableResources[uDrawableIndex];
+        const uint32_t uEntityCount = pl_sb_size(ptResources->sbtEntities);
+        for(uint32_t j = 0; j <= uEntityCount; j++)
+        {
+            plEntity tEntity = j == 0 ? ptResources->tEntity : ptResources->sbtEntities[j - 1];
+            plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tEntity);
+            plVec3 tCenter = pl_mul_vec3_scalarf(pl_add_vec3(ptObject->tAABB.tMin, ptObject->tAABB.tMax), 0.5f);
+            ptTransforms[ptDrawable->uTransformIndex + j].uProbeSelection = pl__renderer_intern_probe_selection(ptScene, pl__renderer_select_probes(ptScene->sbtGPUProbeData, uProbeCount, tCenter));
+        }
     }
 }

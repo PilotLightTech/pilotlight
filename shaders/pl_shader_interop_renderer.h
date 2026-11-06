@@ -137,6 +137,7 @@ PL_BEGIN_ENUM(plShaderDebugMode)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_VOLUME_THICKNESS, 23)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_DIFFUSE_TRANSMISSION_STRENGTH, 24)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_DIFFUSE_TRANSMISSION_COLOR, 25)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_PROBE_SELECTION, 26)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plShaderTextureSlot)
@@ -189,6 +190,27 @@ PL_END_ENUM
 // [SECTION] common
 //-----------------------------------------------------------------------------
 
+#define PL_MAX_PROBE_SELECTION_INDEX 2048
+// Diagnostic flag in CPU/vertex data only; strip before table reads or ORM writes.
+#define PL_PROBE_SELECTION_FALLBACK_FLAG 0x80000000u
+#define PL_PROBE_SELECTION_TABLE_SLOT (PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT + PL_MAX_BINDLESS_TEXTURES)
+
+// Sorted nearest first. Unused indices are zero; iCount is authoritative.
+PL_BEGIN_STRUCT(plGpuProbeSelection)
+    int iProbe0;
+    int iProbe1;
+    int iProbe2;
+    int iCount;
+PL_END_STRUCT(plGpuProbeSelection)
+
+PL_BEGIN_STRUCT(plGpuTransform)
+    mat4 tTransform;
+    uint uProbeSelection;
+    uint _uProbeSelectionPadding0;
+    uint _uProbeSelectionPadding1;
+    uint _uProbeSelectionPadding2;
+PL_END_STRUCT(plGpuTransform)
+
 PL_BEGIN_STRUCT(plGpuDynData)
     int  iDataOffset;
     int  iVertexOffset;
@@ -202,7 +224,7 @@ PL_BEGIN_STRUCT(plGpuDynForwardData)
     int  iMaterialIndex;
     uint uGlobalIndex;
 
-    int  iProbeCount;
+    int  _iUnusedProbeCount;
     int  iPointLightCount;
     int  iSpotLightCount;
     int  iDirectionLightCount;
@@ -655,7 +677,7 @@ PL_BEGIN_STRUCT(plGpuDynDeferredLighting)
     
     uint uGlobalIndex;
     int  iLightIndex;
-    int iProbeCount;
+    int _iUnusedProbeCount;
     int iObjectShaderFlags;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynDeferredLighting)

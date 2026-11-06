@@ -45,17 +45,19 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 // [SECTION] input & output
 //-----------------------------------------------------------------------------
 
+
 // input
 layout(location = 0) in vec3 inPos;
 
 // output
-layout(location = 0) out struct plShaderOut {
+layout(location = 0) out plShaderOut {
     vec3 tWorldPosition;
     vec4 tViewPosition;
     vec2 tUV[2];
     vec4 tColor;
     vec3 tWorldNormal;
     mat3 tTBN;
+    flat uint uProbeSelection;
 } tShaderIn;
 
 //-----------------------------------------------------------------------------
@@ -65,11 +67,12 @@ layout(location = 0) out struct plShaderOut {
 void main() 
 {
 
+    tShaderIn.uProbeSelection = tTransformBuffer.atTransform[gl_InstanceIndex].uProbeSelection;
     const int iDataStride = 4;
 
     vec4 inPosition  = vec4(inPos, 1.0);
 
-    const mat4 tTransform = tTransformBuffer.atTransform[gl_InstanceIndex];
+    const mat4 tTransform = tTransformBuffer.atTransform[gl_InstanceIndex].tTransform;
     
     // offset = offset into current mesh + offset into global buffer
     const uint iVertexDataOffset = iDataStride * (gl_VertexIndex - tObjectInfo.tData.iVertexOffset) + tObjectInfo.tData.iDataOffset;

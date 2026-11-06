@@ -3,6 +3,7 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #include "pl_bg_scene.inc"
+#include "pl_probe_debug.glsl"
 #include "pl_bg_view.inc"
 #include "pl_brdf.glsl"
 #include "pl_math.glsl"
@@ -30,7 +31,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 layout(location = 0) out vec4 outColor;
 
 // output
-layout(location = 0) in struct plShaderIn {
+layout(location = 0) in plShaderOut {
     vec3 tWorldPosition;
     vec3 tViewPosition;
     vec2 tUV[2];
@@ -38,6 +39,8 @@ layout(location = 0) in struct plShaderIn {
     vec3 tWorldNormal;
     mat3 tTBN;
     mat4 tModel; 
+    flat uvec4 tSelectedProbes;
+    flat uint uProbeSelection;
 } tShaderIn;
 
 #include "pl_math.glsl"
@@ -347,4 +350,6 @@ void main()
             outColor.rgb = pl_linear_to_srgb(vec3(materialInfo.diffuseTransmissionColorFactor));
         }
     }
+    if(tShaderDebugMode == PL_SHADER_DEBUG_PROBE_SELECTION)
+        outColor = vec4(pl_probe_debug_color(tShaderIn.uProbeSelection), 1.0);
 }

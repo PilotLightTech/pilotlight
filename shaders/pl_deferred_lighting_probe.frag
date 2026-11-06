@@ -12,6 +12,7 @@
 // [SECTION] bind group 2
 //-----------------------------------------------------------------------------
 
+
 layout(input_attachment_index = 1, set = 2, binding = 0)  uniform subpassInput tAlbedoSampler;
 layout(input_attachment_index = 2, set = 2, binding = 1)  uniform subpassInput tNormalTexture;
 layout(input_attachment_index = 3, set = 2, binding = 2)  uniform subpassInput tAOMetalRoughnessTexture;
@@ -43,6 +44,13 @@ void main()
 {
     outColor = vec4(0);
     vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
+    uint uSelection = uint(clamp(AORoughnessMetalnessData.a, 0.0, float(PL_MAX_PROBE_SELECTION_INDEX)));
+    if(uSelection == 0u)
+        return;
+    plGpuProbeSelection probes = tProbeSelections.atData[uSelection];
+    uvec4 tSelectedProbes = uvec4(probes.iProbe0, probes.iProbe1, probes.iProbe2, probes.iCount);
+    if(tSelectedProbes.w == 0u)
+        return;
     float depth = subpassLoad(tDepthSampler).r;
     vec2 tEncodedN = subpassLoad(tNormalTexture).xy;
     vec4 tBaseColor = subpassLoad(tAlbedoSampler);
@@ -90,69 +98,9 @@ void main()
     // Calculate lighting contribution from image based lighting source (IBL)
     {
 
-        int aiActiveProbes[3] = int[3](-1, -1, -1);
-        float distances[3] = float[3](1e30, 1e30, 1e30);
-
-        int K = 0;
-
-        // Probe 0 is the global sky probe
-        for(int i = 1; i < tObjectInfo.tData.iProbeCount; i++)
-        {
-            vec3 delta = tProbeData.atData[i].tPosition - tWorldPosition.xyz;
-            float distSqr = dot(delta, delta);
-
-            if(distSqr > tProbeData.atData[i].fRangeSqr)
-                continue;
-
-            // Find an empty slot, otherwise the furthest selected probe
-            int slot = -1;
-
-            for(int j = 0; j < 3; j++)
-            {
-                if(aiActiveProbes[j] == -1)
-                {
-                    slot = j;
-                    break;
-                }
-            }
-
-            if(slot == -1)
-            {
-                slot = 0;
-                for(int j = 1; j < 3; j++)
-                {
-                    if(distances[j] > distances[slot])
-                        slot = j;
-                }
-            }
-
-            // Replace if closer
-            if(aiActiveProbes[slot] == -1 || distSqr < distances[slot])
-            {
-                if(aiActiveProbes[slot] == -1)
-                    K++;
-
-                aiActiveProbes[slot] = i;
-                distances[slot] = distSqr;
-            }
-        }
-
-        // Global sky fallback
-        if(K == 0)
-        {
-            aiActiveProbes[0] = 0;
-            distances[0] = 0.0;
-            K = 1;
-        }
-
-        // Find closest selected probe
-        int iClosestIndex = 0;
-
-        for(int j = 1; j < K; j++)
-        {
-            if(distances[j] < distances[iClosestIndex])
-                iClosestIndex = j;
-        }
+        // The CPU supplies up to three probes, sorted nearest first.
+        int aiActiveProbes[3] = int[3](int(tSelectedProbes.x), int(tSelectedProbes.y), int(tSelectedProbes.z));
+        int K = int(tSelectedProbes.w);
         vec3 R = reflect(-v, n);
 
         float weights[3];
@@ -161,7 +109,7 @@ void main()
         weights[2] = 0.0;
         float summing = computeProbeWeights(tWorldPosition.xyz, R, 2.0, K, aiActiveProbes, weights);
 
-        int iClosestProbeIndex = aiActiveProbes[iClosestIndex];
+        int iClosestProbeIndex = aiActiveProbes[0];
 
         vec3 f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, tProbeData.atData[iClosestProbeIndex].iMips, tWorldPosition.xyz, iClosestProbeIndex);
         // vec3 f_specular_dielectric = f_specular_metal;

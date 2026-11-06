@@ -713,7 +713,11 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         plDynamicBinding tDynamicBinding =  pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynTerrainData));
         
         plGpuDynTerrainData tDynamic = {0};
-        tDynamic.iLevel      = (int)ptChunk->uLevel;
+        tDynamic.uProbeSelection = pl__renderer_intern_probe_selection(ptScene,
+            pl__renderer_select_probes(ptScene->sbtGPUProbeData, pl_sb_size(ptScene->sbtGPUProbeData),
+            pl_mul_vec3_scalarf(pl_add_vec3(ptChunk->tMinBound, ptChunk->tMaxBound), 0.5f)));
+
+        tDynamic.iLevel = (int)ptChunk->uLevel;
         tDynamic.tDebugColor = (plVec4){1.0f, 1.0f, 1.0f, 1.0f};
         if(ptTerrainComp->tFlags & PL_TERRAIN_FLAGS_SHOW_LEVELS)
         {
@@ -732,7 +736,6 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         tDynamic.iPointLightCount = pl_sb_size(ptScene->sbtPointLights);
         tDynamic.iSpotLightCount = pl_sb_size(ptScene->sbtSpotLights);
         tDynamic.iDirectionLightCount = pl_sb_size(ptScene->sbtDirectionLights);
-        tDynamic.iProbeCount = pl_sb_size(ptScene->sbtProbeData);
         tDynamic.uGlobalIndex = uGlobalIndex;
         tDynamic.fSlopeStart = ptTerrainComp->fSlopeStart;
         tDynamic.fSlopeEnd = ptTerrainComp->fSlopeEnd;

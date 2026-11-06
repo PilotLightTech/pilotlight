@@ -88,6 +88,10 @@ Index of this file:
 #define PL_MAX_LIGHTS 100
 #define PL_DRAWABLE_OBJECT_KEY UINT32_MAX
 
+// A prime bucket count distributes the packed 16-bit fields under pl_hms_get's
+// modulo indexing. More buckets than entries guarantees lookup termination.
+#define PL_PROBE_SELECTION_HASH_SIZE 4093
+
 //-----------------------------------------------------------------------------
 // [SECTION] global APIs
 //-----------------------------------------------------------------------------
@@ -220,6 +224,20 @@ enum _plRenderBucket
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+// ORM alpha is binary16: every integer from 0 through 2048 is exact.
+// 0 = background, 1 = geometry without probes, 2 = overflow/sky fallback.
+typedef struct _plProbeSelectionTable
+{
+    plGpuProbeSelection atEntries[PL_MAX_PROBE_SELECTION_INDEX + 1];
+    plHashMapStatic64   tLookup;
+    uint64_t            auKeys[PL_PROBE_SELECTION_HASH_SIZE];
+    uint64_t            auValues[PL_PROBE_SELECTION_HASH_SIZE];
+    uint32_t            uCount;
+    uint32_t            uPeakEntries;
+    uint32_t            uOverflowRequests;
+    uint32_t            uInvalidRequests;
+} plProbeSelectionTable;
+
 typedef struct _plDrawableKey
 {
     uint64_t uEntity;
@@ -229,7 +247,7 @@ typedef struct _plDrawableKey
 
 typedef struct _plRendererLight
 {
-    plEntity tEntity;
+    plEntity        tEntity;
     plFreeListNode* ptShadowBufferOffset;
 } plRendererLight;
 
@@ -559,6 +577,10 @@ typedef struct _plScene
     plBufferHandle tStorageBuffer;
     plBufferHandle tMaterialDataBuffer;
 
+    plBufferHandle        atProbeSelectionBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+    plProbeSelectionTable tProbeSelections;
+    bool                  bProbeSelectionOverflowReported;
+
     // freelists
     plFreeList tIndexBufferFreeList;
     plFreeList tVertexBufferFreeList;
@@ -841,5 +863,12 @@ plBindGroupHandle pl_renderer_get_view_color_bind_group  (plView* ptView, plVec2
 void              pl_renderer_editor_reload_scene_shaders(plScene*);
 void              pl_renderer_editor_rebuild_scene_bvh   (plScene*);
 void              pl_renderer_update_scene_asset         (plScene*, plAssetHandle);
+
+// probe selection
+static void                pl_probe_selection_table_reset     (plProbeSelectionTable*, bool bSkyAvailable);
+static uint32_t            pl_probe_selection_table_intern    (plProbeSelectionTable*, plGpuProbeSelection);
+static uint32_t            pl__renderer_intern_probe_selection(plScene*, plGpuProbeSelection);
+static plGpuProbeSelection pl__renderer_select_probes         (const plGpuProbe*, uint32_t uProbeCount, plVec3 tPosition);
+static void                pl__renderer_update_object_probes  (plScene*);
 
 #endif // PL_RENDERER_INTERNAL_H

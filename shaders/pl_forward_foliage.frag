@@ -20,10 +20,11 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 // [SECTION] input & output
 //-----------------------------------------------------------------------------
 
+
 layout(location = 0) out vec4 outColor;
 
 // output
-layout(location = 0) in struct plShaderIn {
+layout(location = 0) in plShaderOut {
     vec3 tWorldPosition;
     vec3 tViewPosition;
     vec2 tUV[2];
@@ -31,6 +32,8 @@ layout(location = 0) in struct plShaderIn {
     vec3 tWorldNormal;
     mat3 tTBN;
     mat4 tModel; 
+    flat uvec4 tSelectedProbes;
+    flat uint uProbeSelection;
 } tShaderIn;
 
 #include "pl_math.glsl"
@@ -117,72 +120,12 @@ void main()
     vec3 f_metal_brdf_ibl = vec3(0.0);
 
     // Calculate lighting contribution from image based lighting source (IBL)
-    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_USE_IBL) && tObjectInfo.tData.iProbeCount > 0)
+    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_USE_IBL) && tShaderIn.tSelectedProbes.w > 0u)
     {
 
-        int aiActiveProbes[3] = int[3](-1, -1, -1);
-        float distances[3] = float[3](1e30, 1e30, 1e30);
-
-        int K = 0;
-
-        // Probe 0 is the global sky probe
-        for(int i = 1; i < tObjectInfo.tData.iProbeCount; i++)
-        {
-            vec3 delta = tProbeData.atData[i].tPosition - tShaderIn.tWorldPosition.xyz;
-            float distSqr = dot(delta, delta);
-
-            if(distSqr > tProbeData.atData[i].fRangeSqr)
-                continue;
-
-            // Find an empty slot, otherwise the furthest selected probe
-            int slot = -1;
-
-            for(int j = 0; j < 3; j++)
-            {
-                if(aiActiveProbes[j] == -1)
-                {
-                    slot = j;
-                    break;
-                }
-            }
-
-            if(slot == -1)
-            {
-                slot = 0;
-                for(int j = 1; j < 3; j++)
-                {
-                    if(distances[j] > distances[slot])
-                        slot = j;
-                }
-            }
-
-            // Replace if closer
-            if(aiActiveProbes[slot] == -1 || distSqr < distances[slot])
-            {
-                if(aiActiveProbes[slot] == -1)
-                    K++;
-
-                aiActiveProbes[slot] = i;
-                distances[slot] = distSqr;
-            }
-        }
-
-        // Global sky fallback
-        if(K == 0)
-        {
-            aiActiveProbes[0] = 0;
-            distances[0] = 0.0;
-            K = 1;
-        }
-
-        // Find closest selected probe
-        int iClosestIndex = 0;
-
-        for(int j = 1; j < K; j++)
-        {
-            if(distances[j] < distances[iClosestIndex])
-                iClosestIndex = j;
-        }
+        // The CPU supplies up to three probes, sorted nearest first.
+        int aiActiveProbes[3] = int[3](int(tShaderIn.tSelectedProbes.x), int(tShaderIn.tSelectedProbes.y), int(tShaderIn.tSelectedProbes.z));
+        int K = int(tShaderIn.tSelectedProbes.w);
         vec3 R = reflect(-v, n);
 
         float weights[3];
@@ -190,7 +133,7 @@ void main()
         weights[1] = 0.0;
         weights[2] = 0.0;
         float summing = computeProbeWeights(tShaderIn.tWorldPosition.xyz, R, 2.0, K, aiActiveProbes, weights);
-        int iClosestProbeIndex = aiActiveProbes[iClosestIndex];
+        int iClosestProbeIndex = aiActiveProbes[0];
 
         int iMips2 = tProbeData.atData[iClosestProbeIndex].iMips;
         if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))

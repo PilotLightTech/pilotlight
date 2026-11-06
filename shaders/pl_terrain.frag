@@ -161,4 +161,5 @@ void main()
     {
         outAlbedo = tShaderIn.tColor;
     }
+    outAOMetalnessRoughness.a = float(tObjectInfo.tData.uProbeSelection & ~PL_PROBE_SELECTION_FALLBACK_FLAG);
 }

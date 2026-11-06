@@ -654,6 +654,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
         gptStarter->return_staging_buffer(&ptScene->atSpotLightBuffer[i]);
         gptStarter->return_staging_buffer(&ptScene->atDynamicSkinBuffer[i]);
         gptStarter->return_staging_buffer(&ptScene->atTransformBuffer[i]);
+        gptStarter->return_staging_buffer(&ptScene->atProbeSelectionBuffers[i]);
         gptStarter->return_staging_buffer(&ptScene->atPointLightShadowDataBuffer[i]);
         gptStarter->return_staging_buffer(&ptScene->atSpotLightShadowDataBuffer[i]);
         gptStarter->return_staging_buffer(&ptScene->atShadowCameraBuffers[i]);
@@ -1400,16 +1401,20 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
         // copy transform into proper location in CPU side buffer
         plTransformComponent* ptTransform = gptEcs->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
-        memcpy(&ptTransformBuffer->tMemoryAllocation.pHostMapped[ptDrawable->uTransformIndex * sizeof(plMat4)], &ptTransform->tWorld, sizeof(plMat4));
+        ((plGpuTransform*)ptTransformBuffer->tMemoryAllocation.pHostMapped)[ptDrawable->uTransformIndex].tTransform = ptTransform->tWorld;
 
         uint32_t uInstancedEntities = pl_sb_size(ptDrawableResources->sbtEntities);
         for(uint32_t uInstanceIndex = 0; uInstanceIndex < uInstancedEntities; uInstanceIndex++)
         {
             plObjectComponent* ptInstanceObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->sbtEntities[uInstanceIndex]);
             plTransformComponent* ptInstanceTransform = gptEcs->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptInstanceObject->tTransform);
-            memcpy(&ptTransformBuffer->tMemoryAllocation.pHostMapped[(ptDrawable->uTransformIndex + 1 + uInstanceIndex) * sizeof(plMat4)], &ptInstanceTransform->tWorld, sizeof(plMat4));
+            ((plGpuTransform*)ptTransformBuffer->tMemoryAllocation.pHostMapped)[ptDrawable->uTransformIndex + 1 + uInstanceIndex].tTransform = ptInstanceTransform->tWorld;
         }
     }
+
+    // Frame zero refreshes selections after rebuilding the probe array below.
+    if(uFrameIdx != 0)
+        pl__renderer_update_object_probes(ptScene);
 
     pl__renderer_pack_view_shadow_atlas(ptScene);
 
@@ -2784,6 +2789,7 @@ pl_renderer_begin_frame(void)
             "Volume Thickness",
             "Diffuse Transmission Strength",
             "Diffuse Transmission Color",
+            "Probe Selection",
         };
 
         if(pl_sb_size(gptData->sbptScenes) > 0 && gptUI->begin_window("Renderer", &gptData->bShowTools, 0))
@@ -2844,6 +2850,20 @@ pl_renderer_begin_frame(void)
                             } 
                         }
                         gptUI->end_combo();
+                    }
+
+                    gptUI->separator_text("Probe Selection Table");
+                    const plProbeSelectionTable* ptTable = &ptScene->tProbeSelections;
+                    gptUI->labeled_text("Local entries (latest frame)", "%u / %u", ptTable->uCount >= 3 ? ptTable->uCount - 3 : 0, PL_MAX_PROBE_SELECTION_INDEX - 2);
+                    gptUI->labeled_text("Peak local entries (scene lifetime)", "%u", ptTable->uPeakEntries);
+                    gptUI->labeled_text("Overflow requests (latest frame)", "%u", ptTable->uOverflowRequests);
+                    gptUI->labeled_text("Invalid requests (latest frame)", "%u", ptTable->uInvalidRequests);
+                    if(ptTable->uOverflowRequests || ptTable->uInvalidRequests)
+                        gptUI->labeled_text("WARNING", "Some selections fell back; inspect magenta in Probe Selection mode.");
+                    if(ptScene->tShaderDebugMode == PL_SHADER_DEBUG_PROBE_SELECTION)
+                    {
+                        gptUI->labeled_text("Colors", "Nearest local probe; gray = sky; black = no probes");
+                        gptUI->labeled_text("Magenta", "Capacity overflow or invalid selection");
                     }
 
                     gptUI->separator_text("Tools");

@@ -18,11 +18,12 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 // [SECTION] input & output
 //-----------------------------------------------------------------------------
 
+
 // input
 layout(location = 0) in vec3 inPos;
 
 // output
-layout(location = 0) out struct plShaderOut {
+layout(location = 0) out plShaderOut {
     vec3 tWorldPosition;
     vec3 tViewPosition;
     vec2 tUV[2];
@@ -30,6 +31,8 @@ layout(location = 0) out struct plShaderOut {
     vec3 tWorldNormal;
     mat3 tTBN;
     mat4 tModel; 
+    flat uvec4 tSelectedProbes;
+    flat uint uProbeSelection;
 } tShaderIn;
 
 //-----------------------------------------------------------------------------
@@ -39,10 +42,13 @@ layout(location = 0) out struct plShaderOut {
 void main()
 {
 
+    tShaderIn.uProbeSelection = tTransformBuffer.atTransform[gl_InstanceIndex].uProbeSelection;
+    plGpuProbeSelection probes = tProbeSelections.atData[tShaderIn.uProbeSelection & ~PL_PROBE_SELECTION_FALLBACK_FLAG];
+    tShaderIn.tSelectedProbes = uvec4(probes.iProbe0, probes.iProbe1, probes.iProbe2, probes.iCount);
     const int iDataStride = 4;
 
     vec4 inPosition  = vec4(inPos, 1.0);
-    const mat4 tTransform = tTransformBuffer.atTransform[gl_InstanceIndex];
+    const mat4 tTransform = tTransformBuffer.atTransform[gl_InstanceIndex].tTransform;
     
     // offset = offset into current mesh + offset into global buffer
     const uint iVertexDataOffset = iDataStride * (gl_VertexIndex - tObjectInfo.tData.iVertexOffset) + tObjectInfo.tData.iDataOffset;
