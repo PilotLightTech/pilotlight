@@ -1,0 +1,37 @@
+#version 450
+#extension GL_GOOGLE_include_directive : enable
+#include "pl_ao.inc"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(set = 0, binding = 0, r32f) uniform writeonly image2D target;
+layout(set = 0, binding = 1) uniform texture2D source;
+layout(set = 0, binding = 5) uniform sampler pointSampler;
+
+void main()
+{
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    if(!aoInside(p, imageSize(target)))
+        return;
+    float depth = 0.0;
+    if(tAO.tData.iLevel == 0)
+    {
+        depth = texelFetch(sampler2D(source, pointSampler), p, 0).r;
+    }
+    else
+    {
+        // Reversed Z: retain the nearest surface, ignoring the cleared background.
+        ivec2 size = textureSize(sampler2D(source, pointSampler), 0);
+        for(int y = 0; y < 2; y++)
+        {
+            for(int x = 0; x < 2; x++)
+            {
+                ivec2 q = p * 2 + ivec2(x, y);
+                if(aoInside(q, size))
+                {
+                    depth = max(depth, texelFetch(sampler2D(source, pointSampler), q, 0).r);
+                }
+            }
+        }
+    }
+    imageStore(target, p, vec4(depth));
+}

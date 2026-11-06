@@ -57,4 +57,6 @@ layout(std430, set = PL_VIEW_SET_LOCATION, binding = 8) readonly buffer plCluste
     uint auData[];
 } tClusterData;
 
+layout(set = PL_VIEW_SET_LOCATION, binding = 9) uniform texture2D tScreenAO;
+
 #endif // BG_VIEW_INC

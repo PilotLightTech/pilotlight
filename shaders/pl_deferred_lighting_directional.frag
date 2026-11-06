@@ -41,6 +41,9 @@ const int iMaterialFlags = 0;
 
 void main() 
 {
+    if(subpassLoad(tAOMetalRoughnessTexture).a == 0.0)
+        discard;
+
     vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
     float depth = subpassLoad(tDepthSampler).r;
     vec2 tEncodedN = subpassLoad(tNormalTexture).xy;

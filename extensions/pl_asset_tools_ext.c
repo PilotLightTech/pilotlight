@@ -1761,6 +1761,19 @@ pl_asset_tools_show_assets(bool* bValue)
                         gptUI->apply_layout();
                     }
 
+                    if(gptUI->collapsing_header("Ambient Occlusion", 0))
+                    {
+                        gptUI->stash_layout();
+                        gptUI->radio_button("AO Off", &ptSettings->tAO.tMode, PL_RENDERER_AO_NONE);
+                        gptUI->radio_button("SSAO", &ptSettings->tAO.tMode, PL_RENDERER_AO_SSAO);
+                        gptUI->radio_button("HBAO", &ptSettings->tAO.tMode, PL_RENDERER_AO_HBAO);
+                        gptUI->radio_button("MSAO", &ptSettings->tAO.tMode, PL_RENDERER_AO_MSAO);
+                        gptUI->slider_float("AO Radius", &ptSettings->tAO.fRadius, 0.01f, 10.0f, 0);
+                        gptUI->slider_float("AO Strength", &ptSettings->tAO.fStrength, 0.0f, 4.0f, 0);
+                        gptUI->slider_float("AO Bias", &ptSettings->tAO.fBias, 0.0f, 0.5f, 0);
+                        gptUI->apply_layout();
+                    }
+
                     if(gptUI->collapsing_header("Bloom", 0))
                     {
                         gptUI->stash_layout();

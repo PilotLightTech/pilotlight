@@ -271,6 +271,8 @@ pl_renderer_destroy_view(plView* ptView)
         }
     }
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAlbedoTexture);
+    pl__renderer_release_ao(ptView);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAOResult);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tNormalTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAOMetalRoughnessTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tRawOutputTexture);
@@ -1695,6 +1697,7 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
     // update view data
     //-----------------------------------------------------------------------------
 
+    ptView->tViewData.iAOEnabled = pl__renderer_ao_enabled(ptView);
     ptView->tViewData.iClusterEnabled = ptCamera->fNearZ > 0.0f && ptCamera->fFarZ > ptCamera->fNearZ;
     ptView->tViewData.iClusterPointCount = (int)pl_sb_size(ptScene->sbtPointLightData);
     ptView->tViewData.iClusterSpotCount = (int)pl_sb_size(ptScene->sbtSpotLightData);
@@ -2305,9 +2308,26 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         .tShader = ptScene->bWireframe ? ptScene->tGBufferFillNoCullWireframeShader : ptScene->tGBufferFillNoCullShader
     };
     pl__render_view_gbuffer_fill_pass(ptScene, ptSceneCmdBuffer, &tGbufferFillPassInfo0);
-
-
     
+    // AO needs neighboring depth samples, so end the G-buffer render pass before
+    // compute and resume with LOAD operations to preserve geometry and emissive.
+    const bool bAO = ptView->tViewData.iAOEnabled != 0;
+    if(bAO)
+    {
+        pl__render_view_ao_forward_pass(ptView, ptSceneCmdBuffer, &tArea);
+        gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_FRAGMENT, PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_TEXTURES);
+        gptGfx->end_render_pass(ptSceneCmdBuffer);
+        pl__render_view_ao_pass(ptView, ptSceneCmdBuffer);
+        for(uint32_t i = 0; i < 4; i++)
+            tMainRenderInfo.atColorAttachments[i].eLoadOp = PL_LOAD_OP_LOAD;
+        tMainRenderInfo.tDepthAttachment.eLoadOp = PL_LOAD_OP_LOAD;
+        tMainRenderInfo.tStencilAttachment.eLoadOp = PL_LOAD_OP_LOAD;
+        gptGfx->consumer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_TEXTURES);
+        gptGfx->begin_render_pass(ptSceneCmdBuffer, &tMainRenderInfo, NULL);
+    }
+    else if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->atAO[0]))
+        pl__renderer_release_ao(ptView);
+
     // deferred lighting
     //-----------------------------------------------------------------------------
 
@@ -3326,6 +3346,7 @@ static bool
 pl__renderer_deserialize_settings(const char* pcName, void* pSettings)
 {
     plRenderSettings* ptSettings = pSettings;
+    ptSettings->tAO = (plRendererAOOptions){.fRadius = 0.5f, .fStrength = 1.0f, .fBias = 0.05f};
 
     if(!gptVfs->does_file_exist(pcName))
         return false;
@@ -3405,6 +3426,19 @@ pl__renderer_deserialize_settings(const char* pcName, void* pSettings)
                 ptSettings->tShadows.tFlags |= PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT;
             else
                 ptSettings->tShadows.tFlags &= ~PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT;
+        }
+
+        plJsonObject* ptJsonAO = gptJson->member(ptRoot, "ambient_occlusion");
+        if(ptJsonAO)
+        {
+            char acMode[32] = {0};
+            gptJson->string_member(ptJsonAO, "mode", acMode, 32);
+            if(strcmp(acMode, "ssao") == 0)      ptSettings->tAO.tMode = PL_RENDERER_AO_SSAO;
+            else if(strcmp(acMode, "hbao") == 0) ptSettings->tAO.tMode = PL_RENDERER_AO_HBAO;
+            else if(strcmp(acMode, "msao") == 0) ptSettings->tAO.tMode = PL_RENDERER_AO_MSAO;
+            ptSettings->tAO.fRadius   = gptJson->float_member(ptJsonAO, "radius", 0.5f);
+            ptSettings->tAO.fStrength = gptJson->float_member(ptJsonAO, "strength", 1.0f);
+            ptSettings->tAO.fBias     = gptJson->float_member(ptJsonAO, "bias", 0.05f);
         }
 
         plJsonObject* ptJsonBloom = gptJson->member(ptRoot, "bloom");

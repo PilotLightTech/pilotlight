@@ -83,6 +83,7 @@ typedef int plRendererFogMode;       // -> enum _plRendererFogMode       // Enum
 typedef int plRenderSceneFlags;      // -> enum _plRendererShadowFlags   // Flag: scene flags (PL_RENDERER_SHADOW_FLAGS_XXXX)
 typedef int plRendererSkyFlags;      // -> enum _plRendererSkyFlags      // Flag: sky rendering flags (PL_RENDERER_SKY_FLAGS_XXXX)
 typedef int plRendererSkyMode;       // -> enum _plRendererSkyMode       // Enum: sky rendering mode (PL_RENDERER_SKY_MODE_XXXX)
+typedef int plRendererAOMode;        // -> enum _plRendererAOMode        // Enum: ao rendering mode (PL_RENDERER_AO_XXXX)
 
 // external 
 typedef struct _plDevice           plDevice;           // pl_graphics_ext.h
@@ -301,6 +302,22 @@ typedef struct _plRendererFogOptions
     
 } plRendererFogOptions;
 
+enum _plRendererAOMode // Screen-space AO affects deferred and forward opaque ambient lighting.
+{
+    PL_RENDERER_AO_NONE = 0,
+    PL_RENDERER_AO_SSAO,
+    PL_RENDERER_AO_HBAO,
+    PL_RENDERER_AO_MSAO
+};
+
+typedef struct _plRendererAOOptions
+{
+    plRendererAOMode tMode;     // default: none
+    float            fRadius;   // world units; default: 0.5 (MSAO also uses 2x and 4x)
+    float            fStrength; // default: 1.0; zero disables the pass
+    float            fBias;     // normal-angle bias, 0..0.5; default: 0.05
+} plRendererAOOptions;
+
 typedef struct _plRenderSettings
 {
     plRendererLightingOptions tLighting;
@@ -309,6 +326,7 @@ typedef struct _plRenderSettings
     plRendererBloomOptions    tBloom;
     plRendererTonemapOptions  tTonemap;
     plRendererSkyOptions      tSky;
+    plRendererAOOptions       tAO;
 } plRenderSettings;
 
 //-----------------------------------------------------------------------------

@@ -26,6 +26,13 @@
         "slope_bias": -10.75
     },
 
+    "ambient_occlusion": {
+        "mode": "none",
+        "radius": 0.5,
+        "strength": 1.0,
+        "bias": 0.05
+    },
+
     "bloom": {
         "enabled": false,
         "strength": 0.05,

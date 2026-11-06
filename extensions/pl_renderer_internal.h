@@ -396,6 +396,10 @@ typedef struct _plView
     plTextureHandle  tPickTexture;             // picking
     plTextureHandle* sbtBloomDownChain;        // bloom textures
     plTextureHandle* sbtBloomUpChain;          // bloom textures
+    plTextureHandle  atAODepth[3];             // full, half, quarter resolution
+    plTextureHandle  atAO[3];                  // visibility, view depth, encoded normal
+    plVec2           tAOSize;
+    plTextureHandle  tAOResult;               // filtered visibility shared by lighting paths
 
     // GPU buffers
     plBufferHandle atPickBuffer[PL_MAX_FRAMES_IN_FLIGHT];

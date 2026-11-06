@@ -331,7 +331,7 @@ PL_BEGIN_STRUCT(plGpuViewData)
     int iClusterEnabled;
     int iClusterPointCount;
     int iClusterSpotCount;
-    int _iClusterPadding;
+    int iAOEnabled;
 
     vec4 afCascadeSplits;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
@@ -415,6 +415,19 @@ PL_END_STRUCT(plGpuDynGrid)
 //-----------------------------------------------------------------------------
 // [SECTION] post processing
 //-----------------------------------------------------------------------------
+
+PL_BEGIN_STRUCT(plGpuDynAOData)
+    mat4 tProjection;
+    mat4 tProjectionInv;
+    mat4 tView;
+    vec2 tViewportSize;
+    int iLevel;
+    int iMode;
+    float fRadius;
+    float fStrength;
+    float fBias;
+    int iLevels;
+PL_END_STRUCT(plGpuDynAOData)
 
 PL_BEGIN_STRUCT(plGpuDynBloomData)
     float blurRadius;

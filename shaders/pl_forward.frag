@@ -4,6 +4,7 @@
 
 #include "pl_bg_scene.inc"
 #include "pl_bg_view.inc"
+#include "pl_screen_ao.glsl"
 #include "pl_cluster_lighting.glsl"
 #include "pl_brdf.glsl"
 #include "pl_math.glsl"
@@ -422,6 +423,14 @@ void main()
     {
         ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_OCCLUSION])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_OCCLUSION, tObjectInfo.tData.iMaterialIndex)).r;
         color = color * (1.0 + material.fOcclusionStrength * (ao - 1.0)); 
+    }
+
+    // Screen AO affects ambient light only, before punctual/emissive contributions.
+    if(material.eAlphaMode != PL_SHADER_ALPHA_MODE_BLEND &&
+        !bool(material.iMaterialFlags & (PL_MATERIAL_SHADER_FLAG_TRANSMISSION | PL_MATERIAL_SHADER_FLAG_VOLUME | PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION)) &&
+        !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
+    {
+        color *= pl_screen_ao();
     }
 
     // punctual stuff

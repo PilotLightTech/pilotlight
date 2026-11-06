@@ -1,0 +1,106 @@
+#version 450
+#extension GL_GOOGLE_include_directive : enable
+#include "pl_ao.inc"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(set = 0, binding = 0, rgba32f) uniform writeonly image2D target;
+layout(set = 0, binding = 1) uniform texture2D depthTexture;
+layout(set = 0, binding = 2) uniform texture2D normalTexture;
+layout(set = 0, binding = 5) uniform sampler pointSampler;
+
+bool
+samplePosition(vec2 uv, out vec3 position)
+{
+    ivec2 size = textureSize(sampler2D(depthTexture, pointSampler), 0);
+    ivec2 q = ivec2(floor(uv * vec2(size)));
+    if(!aoInside(q, size))
+        return false;
+    float d = texelFetch(sampler2D(depthTexture, pointSampler), q, 0).r;
+    if(d <= 0.0)
+        return false;
+    position = aoPosition((vec2(q) + 0.5) / vec2(size), d);
+    return true;
+}
+
+void main()
+{
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(target);
+    if(!aoInside(p, size))
+        return;
+    vec2 uv = (vec2(p) + 0.5) / vec2(size);
+    vec3 position;
+    if(!samplePosition(uv, position))
+    {
+        imageStore(target, p, vec4(1.0, 0.0, 0.5, 0.5));
+        return;
+    }
+
+    // G-buffer allocations are padded; sample only the active viewport.
+    ivec2 normalPixel = min(ivec2(uv * tAO.tData.tViewportSize), ivec2(tAO.tData.tViewportSize) - 1);
+    vec2 encodedNormal = texelFetch(sampler2D(normalTexture, pointSampler), normalPixel, 0).xy;
+    vec3 n = normalize(mat3(tAO.tData.tView) * Decode(encodedNormal));
+    float radius = tAO.tData.fRadius * float(1 << tAO.tData.iLevel);
+    float radius2 = radius * radius;
+    float bias = tAO.tData.fBias;
+    float rotation = fract(sin(dot(vec2(p), vec2(12.9898, 78.233))) * 43758.5453) * 6.2831853;
+    float occlusion = 0.0;
+
+    if(tAO.tData.iMode == 1)
+    {
+        // Stratified hemisphere kernel in view space, oriented by the surface normal.
+        vec3 tangent = normalize(cross(abs(n.z) < 0.99 ? vec3(0, 0, 1) : vec3(0, 1, 0), n));
+        vec3 bitangent = cross(n, tangent);
+        for(int i = 0; i < 24; i++)
+        {
+            float u = (float(i) + 0.5) / 24.0;
+            float angle = float(i) * 2.39996323 + rotation;
+            vec3 direction = tangent * (cos(angle) * sqrt(1.0 - u * u)) + bitangent * (sin(angle) * sqrt(1.0 - u * u)) + n * u;
+            vec3 testPoint = position + direction * radius * mix(0.1, 1.0, u * u);
+            vec4 clip = tAO.tData.tProjection * vec4(testPoint, 1.0);
+            if(clip.w <= 0.0)
+                continue;
+            vec3 samplePoint;
+            if(!samplePosition(clip.xy / clip.w * 0.5 + 0.5, samplePoint))
+                continue;
+            vec3 delta = samplePoint - position;
+            float distance2 = dot(delta, delta);
+
+            // Pilot Light view space looks down +Z. A smaller Z blocks the test point.
+            if(samplePoint.z < testPoint.z - bias * radius && dot(n, delta) > bias * radius)
+                occlusion += max(0.0, 1.0 - distance2 / radius2);
+        }
+        occlusion /= 24.0;
+    }
+    else
+    {
+        // Horizon search: only increases in the normal-relative horizon contribute.
+        // MSAO runs this estimator at three resolutions with increasing world radii.
+        vec4 clip = tAO.tData.tProjection * vec4(position, 1.0);
+        vec2 radiusUV = abs(vec2(tAO.tData.tProjection[0][0], tAO.tData.tProjection[1][1])) * radius / max(abs(clip.w), 0.0001) * 0.5;
+        for(int direction = 0; direction < 8; direction++)
+        {
+            float angle = rotation + float(direction) * 0.785398163;
+            vec2 ray = vec2(cos(angle), sin(angle)) * radiusUV;
+            float horizon = bias;
+            for(int step = 1; step <= 6; step++)
+            {
+                vec3 samplePoint;
+                if(!samplePosition(uv + ray * (float(step) / 6.0), samplePoint))
+                    continue;
+                vec3 delta = samplePoint - position;
+                float distance2 = dot(delta, delta);
+                if(distance2 < 0.0000001 || distance2 >= radius2)
+                    continue;
+                float elevation = dot(n, delta) * inversesqrt(distance2);
+                if(elevation > horizon)
+                {
+                    occlusion += (elevation - horizon) * (1.0 - distance2 / radius2);
+                    horizon = elevation;
+                }
+            }
+        }
+        occlusion /= 8.0 * (1.0 - bias);
+    }
+    imageStore(target, p, vec4(clamp(1.0 - occlusion, 0.0, 1.0), position.z, encodedNormal));
+}

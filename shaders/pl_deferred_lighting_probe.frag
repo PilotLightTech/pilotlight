@@ -5,6 +5,7 @@
 #include "pl_shader_interop_renderer.h"
 #include "pl_bg_scene.inc"
 #include "pl_bg_view.inc"
+#include "pl_screen_ao.glsl"
 #include "pl_math.glsl"
 #include "pl_brdf.glsl"
 
@@ -133,7 +134,7 @@ void main()
         }
     }
 
-    const float ao = AORoughnessMetalnessData.r;
+    const float ao = AORoughnessMetalnessData.r * pl_screen_ao();
     if(ao != 1.0)
     {
         float u_OcclusionStrength = 1.0;
