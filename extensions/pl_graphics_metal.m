@@ -301,12 +301,11 @@ pl_graphics_copy_buffer_to_texture( plCommandBuffer* ptCmdBuffer, plBufferHandle
         const NSUInteger uCopyHeight = ptRegion->uImageHeight ? ptRegion->uImageHeight : 1;
         const NSUInteger uCopyDepth = ptRegion->uImageDepth ? ptRegion->uImageDepth : 1;
 
-        const NSUInteger uBufferRowLength = ptRegion->uBufferRowLength ? ptRegion->uBufferRowLength * uFormatStride : uCopyWidth * uFormatStride;
-        const NSUInteger uBufferImageHeight = ptRegion->uBufferImageHeight ? ptRegion->uBufferImageHeight * uFormatStride : uCopyHeight * uFormatStride;
+        const NSUInteger uBufferRowLength = ptRegion->uBufferRowLength ? ptRegion->uBufferRowLength : uCopyWidth;
+        const NSUInteger uBufferImageHeight = ptRegion->uBufferImageHeight ? ptRegion->uBufferImageHeight : uCopyHeight;
 
-        const NSUInteger uBytesPerRow = uBufferRowLength;
-
-        // Distance between depth slices within one source image.
+        // row length is in pixels; image height is in rows
+        const NSUInteger uBytesPerRow = uBufferRowLength * uFormatStride;
         const NSUInteger uBytesPerImage = uBytesPerRow * uBufferImageHeight;
 
         const MTLOrigin tDestinationOrigin = {
@@ -2160,6 +2159,11 @@ pl_graphics_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResourc
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     ptDevice->tComputeEncoder = [ptCmdBuffer->tCmdBuffer4 computeCommandEncoder];
     gptGraphics->bComputeEncoderActive = true;
+    while(pl_sb_size(ptDevice->sbtBarrierStack) > 0)
+    {
+        plStackedBarrier tBarrier = pl_sb_pop(ptDevice->sbtBarrierStack);
+        pl__graphics_consumer_barrier(ptCmdBuffer, tBarrier.tSrcStages, tBarrier.tDstStages, tBarrier.tScope);
+    }
 }
 
 void

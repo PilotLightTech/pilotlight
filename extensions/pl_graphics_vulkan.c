@@ -648,7 +648,7 @@ pl_graphics_copy_texture(plCommandBuffer* ptCmdBuffer, plTextureHandle tSrcHandl
     VkImageCopy* atCopyRegions = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkImageCopy) * uRegionCount);
     memset(atCopyRegions, 0, sizeof(VkImageCopy) * uRegionCount);
 
-    VkImageSubresourceRange* atSubResourceRanges = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkImageSubresourceRange) * uRegionCount);
+    VkImageSubresourceRange* atSubResourceRanges = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkImageSubresourceRange) * uRegionCount * 2);
     memset(atSubResourceRanges, 0, sizeof(VkImageSubresourceRange) * uRegionCount * 2);
 
     // setup copy regions
@@ -666,15 +666,21 @@ pl_graphics_copy_texture(plCommandBuffer* ptCmdBuffer, plTextureHandle tSrcHandl
 
         atSubResourceRanges[i].aspectMask = ptColdSrcTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         atSubResourceRanges[i].baseMipLevel = ptRegions[i].uSourceMipLevel;
-        atSubResourceRanges[i].levelCount = ptRegions[i].uSourceLayerCount;
+        atSubResourceRanges[i].levelCount = 1;
         atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uSourceBaseArrayLayer;
         atSubResourceRanges[i].layerCount = ptRegions[i].uSourceLayerCount;
 
         atSubResourceRanges[i + uRegionCount].aspectMask = ptColdDstTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         atSubResourceRanges[i + uRegionCount].baseMipLevel = ptRegions[i].uDestinationMipLevel;
-        atSubResourceRanges[i + uRegionCount].levelCount = ptRegions[i].uDestinationLayerCount;
+        atSubResourceRanges[i + uRegionCount].levelCount = 1;
         atSubResourceRanges[i + uRegionCount].baseArrayLayer = ptRegions[i].uDestinationBaseArrayLayer;
         atSubResourceRanges[i + uRegionCount].layerCount = ptRegions[i].uDestinationLayerCount;
+
+        // Packed depth/stencil layouts transition both aspects together.
+        if(pl__format_has_stencil(pl__vulkan_format(ptColdSrcTexture->tDesc.eFormat)))
+            atSubResourceRanges[i].aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        if(pl__format_has_stencil(pl__vulkan_format(ptColdDstTexture->tDesc.eFormat)))
+            atSubResourceRanges[i + uRegionCount].aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
 
 
         if(uCurrentSrcBaseArrayLevel != atSubResourceRanges[i].baseArrayLayer || uCurrentSrcMipLevel != atSubResourceRanges[i].baseMipLevel)
@@ -4279,7 +4285,7 @@ pl_graphics_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResourc
                         .subresourceRange    = tRange
                     };
 
-                    VkPipelineStageFlagBits tSrcStageFlags = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+                    VkPipelineStageFlagBits tSrcStageFlags = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
                     VkPipelineStageFlagBits tDstStageFlags = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
 
                     if(ptResource->eAccess & PL_PASS_RESOURCE_ACCESS_READ)
@@ -4357,7 +4363,7 @@ pl_graphics_end_compute_pass(plCommandBuffer* ptCmdBuffer)
 
                     VkImageMemoryBarrier tBarrier = {
                         .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                        .oldLayout           = 0,
+                        .oldLayout           = VK_IMAGE_LAYOUT_GENERAL,
                         .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -4368,7 +4374,7 @@ pl_graphics_end_compute_pass(plCommandBuffer* ptCmdBuffer)
                     };
 
                     VkPipelineStageFlagBits tSrcStageFlags = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
-                    VkPipelineStageFlagBits tDstStageFlags = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+                    VkPipelineStageFlagBits tDstStageFlags = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 
                     if(ptResource->eAccess & PL_PASS_RESOURCE_ACCESS_READ)
                     {
@@ -4411,6 +4417,11 @@ pl_graphics_end_compute_pass(plCommandBuffer* ptCmdBuffer)
         }
     pl_sb_reset(ptDevice->sbtPassTextureStack);
     gptGraphics->bComputeEncoderActive = false;
+    while(pl_sb_size(ptDevice->sbtBarrierStack) > 0)
+    {
+        plStackedBarrier tBarrier = pl_sb_pop(ptDevice->sbtBarrierStack);
+        pl_graphics_intra_pass_barrier(ptCmdBuffer, tBarrier.tSrcStages, tBarrier.tDstStages, tBarrier.tScope, NULL);
+    }
 }
 
 void
@@ -4593,7 +4604,7 @@ pl_graphics_intra_pass_barrier(plCommandBuffer* ptCmdBuffer, plPipelineStageFlag
         }
     }
 
-    if(tSrcStages & PL_PIPELINE_STAGE_FRAGMENT)
+    if(tDstStages & PL_PIPELINE_STAGE_FRAGMENT)
     {
         tMemoryBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
         tMemoryBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
