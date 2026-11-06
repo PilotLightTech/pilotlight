@@ -1700,14 +1700,10 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     ptWindow->tOuterRectClipped = ptWindow->tOuterRect;
     ptWindow->tInnerRect = ptWindow->tOuterRect;
 
-    // remove padding for inner clip rect
-    ptWindow->tInnerClipRect = pl_rect_expand_vec2(&ptWindow->tInnerRect, (plVec2){-gptCtx->tStyle.fWindowHorizontalPadding, 0.0f});
-
     if(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
     {
         const plRect* ptParentRect = gptDraw->get_clip_rect(ptParentWindow->ptDrawlist);
         ptWindow->tOuterRectClipped = pl_rect_clip_full(&ptWindow->tOuterRectClipped, ptParentRect);
-        ptWindow->tInnerClipRect = pl_rect_clip_full(&ptWindow->tInnerClipRect, ptParentRect);
     }
 
     ptWindow->tScrollMax = pl_sub_vec2(ptWindow->tContentSize, (plVec2){ptWindow->tSize.x, ptWindow->tSize.y - fTitleBarHeight});
@@ -2145,6 +2141,14 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
         if(gptCtx->uActiveId >= uResizeHash && gptCtx->uActiveId < uResizeHash + 7 && gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
             pl__set_active_id(gptCtx->uActiveId, ptWindow);
+    }
+
+    // Build the content clip after excluding the title bar and scrollbars.
+    ptWindow->tInnerClipRect = pl_rect_expand_vec2(&ptWindow->tInnerRect, (plVec2){-gptCtx->tStyle.fWindowHorizontalPadding, 0.0f});
+    if(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
+    {
+        const plRect* ptParentRect = gptDraw->get_clip_rect(ptParentWindow->ptDrawlist);
+        ptWindow->tInnerClipRect = pl_rect_clip_full(&ptWindow->tInnerClipRect, ptParentRect);
     }
 
     if(!ptWindow->bCollapsed)
