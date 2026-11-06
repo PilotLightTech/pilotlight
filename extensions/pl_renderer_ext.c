@@ -303,6 +303,7 @@ pl_renderer_destroy_view(plView* ptView)
         gptStarter->return_staging_buffer(&ptView->atDShadowCameraBuffers[i]);
         gptStarter->return_staging_buffer(&ptView->atDLightShadowDataBuffer[i]);
         gptStarter->return_staging_buffer(&ptView->atViewBuffers[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atClusterBuffers[i]);
         gptStarter->return_readback_buffer(&ptView->atPickBuffer[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->atPickBindGroup[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->atDeferredBG1[i]);
@@ -1694,6 +1695,9 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
     // update view data
     //-----------------------------------------------------------------------------
 
+    ptView->tViewData.iClusterEnabled = ptCamera->fNearZ > 0.0f && ptCamera->fFarZ > ptCamera->fNearZ;
+    ptView->tViewData.iClusterPointCount = (int)pl_sb_size(ptScene->sbtPointLightData);
+    ptView->tViewData.iClusterSpotCount = (int)pl_sb_size(ptScene->sbtSpotLightData);
     ptView->tViewData.tCameraPos.xyz = ptCamera->tPositionF;
     ptView->tViewData.fCameraRange = ptCamera->fFarZ - ptCamera->fNearZ;
     ptView->tViewData.fCameraNearZ = ptCamera->fNearZ;
@@ -2138,6 +2142,31 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
     plCommandBuffer* ptSceneCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "main scene");
     gptGfx->begin_command_recording(ptSceneCmdBuffer);
+
+    if(ptView->tViewData.iClusterEnabled)
+    {
+        plPassResources tClusterResources = {
+            .atBuffers = {{
+                .tHandle = ptView->atClusterBuffers[uFrameIdx],
+                .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
+                .eStages = PL_SHADER_STAGE_COMPUTE,
+                .eUsage = PL_BUFFER_USAGE_STORAGE
+            }}
+        };
+        plComputeShaderHandle tClusterShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cluster_lights", NULL);
+        gptGfx->begin_compute_pass(ptSceneCmdBuffer, &tClusterResources);
+        gptGfx->bind_compute_shader(ptSceneCmdBuffer, tClusterShader);
+        gptGfx->bind_compute_bind_groups(ptSceneCmdBuffer, tClusterShader, 0, 1, &ptView->atViewBG[uFrameIdx], 0, NULL);
+        plDispatch tClusterDispatch = {
+            .uGroupCountX = (PL_CLUSTER_X * PL_CLUSTER_Y * PL_CLUSTER_Z + 63) / 64,
+            .uGroupCountY = 1, .uGroupCountZ = 1,
+            .uThreadPerGroupX = 64, .uThreadPerGroupY = 1, .uThreadPerGroupZ = 1
+        };
+        gptGfx->dispatch(ptSceneCmdBuffer, 1, &tClusterDispatch);
+        gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
+        gptGfx->end_compute_pass(ptSceneCmdBuffer);
+        gptGfx->consumer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
+    }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~main render pass work~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

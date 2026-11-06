@@ -40,6 +40,14 @@ Index of this file:
 // [SECTION] defines
 //-----------------------------------------------------------------------------
 
+#define PL_MAX_LIGHTS 100
+#define PL_CLUSTER_X 16
+#define PL_CLUSTER_Y 9
+#define PL_CLUSTER_Z 24
+#define PL_CLUSTER_LIGHT_CAPACITY 64
+#define PL_CLUSTER_STRIDE (2 + 2 * PL_CLUSTER_LIGHT_CAPACITY)
+#define PL_CLUSTER_BUFFER_SIZE (PL_CLUSTER_X * PL_CLUSTER_Y * PL_CLUSTER_Z * PL_CLUSTER_STRIDE * 4)
+
 #define PL_MAX_BINDLESS_TEXTURES 4096
 #define PL_MAX_BINDLESS_TEXTURE_SLOT 8
 #define PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT PL_MAX_BINDLESS_TEXTURES + PL_MAX_BINDLESS_TEXTURE_SLOT
@@ -319,6 +327,11 @@ PL_END_STRUCT(plGpuSceneData)
 //-----------------------------------------------------------------------------
 
 PL_BEGIN_STRUCT(plGpuViewData)
+
+    int iClusterEnabled;
+    int iClusterPointCount;
+    int iClusterSpotCount;
+    int _iClusterPadding;
 
     vec4 afCascadeSplits;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~

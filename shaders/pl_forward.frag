@@ -4,6 +4,7 @@
 
 #include "pl_bg_scene.inc"
 #include "pl_bg_view.inc"
+#include "pl_cluster_lighting.glsl"
 #include "pl_brdf.glsl"
 #include "pl_math.glsl"
 
@@ -173,6 +174,10 @@ vec3 evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFi
 
 void main() 
 {
+    int iClusterBase = pl_cluster_base(tShaderIn.tWorldPosition, tObjectInfo.tData.uGlobalIndex);
+    int iPointCount = pl_cluster_count(iClusterBase, 0, tObjectInfo.tData.iPointLightCount);
+    int iSpotCount = pl_cluster_count(iClusterBase, 1, tObjectInfo.tData.iSpotLightCount);
+
 
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
     vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.aiTextureUVSet[PL_TEXTURE_BASE_COLOR], tObjectInfo.tData.iMaterialIndex);
@@ -634,10 +639,10 @@ void main()
         }
 
         // point lights
-        for(int i = 0; i < tObjectInfo.tData.iPointLightCount; i++)
+        for(int i = 0; i < iPointCount; i++)
         {
 
-            plGpuPointLight tLightData = tPointLightInfo.atData[i];
+            plGpuPointLight tLightData = tPointLightInfo.atData[pl_cluster_light(iClusterBase, 0, i)];
 
             float shadow = 1.0;
 
@@ -779,10 +784,10 @@ void main()
         }
 
         // spot lights
-        for(int i = 0; i < tObjectInfo.tData.iSpotLightCount; i++)
+        for(int i = 0; i < iSpotCount; i++)
         {
 
-            plGpuSpotLight tLightData = tSpotLightInfo.atData[i];
+            plGpuSpotLight tLightData = tSpotLightInfo.atData[pl_cluster_light(iClusterBase, 1, i)];
 
             float shadow = 1.0;
 

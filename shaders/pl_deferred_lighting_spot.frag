@@ -38,6 +38,7 @@ const int iMaterialFlags = 0;
 #include "pl_lighting.glsl"
 #include "pl_material_info.glsl"
 #include "pl_fog.glsl"
+#include "pl_deferred_punctual.glsl"
 
 void main() 
 {
@@ -100,67 +101,7 @@ void main()
     // punctual stuff
     // uint cascadeIndex = 4;
     const bool bShadows = bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_SHADOWS) && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS);
-    {
-        plGpuSpotLight tLightData = tSpotLightInfo.atData[tObjectInfo.tData.iLightIndex];
-        float shadow = 1.0;
-
-        vec3 pointToLight = tLightData.tPosition - tWorldPosition.xyz;
-        
-        if(bShadows && tLightData.iCastShadow > 0)
-        {
-            plGpuSpotLightShadow tShadowData = tSpotShadowData.atData[tLightData.iShadowIndex];
-            vec4 shadowCoord = tShadowData.viewProjMat * vec4(tWorldPosition.xyz, 1.0);
-            if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
-            {
-                shadowCoord.xyz /= shadowCoord.w;
-                shadow = 0.0;
-                shadowCoord.x = shadowCoord.x/2 + 0.5;
-                shadowCoord.y = shadowCoord.y/2 + 0.5;
-                shadowCoord.xy *= tShadowData.fFactor;
-
-                if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
-                {
-                    shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
-                }
-                else
-                {
-                    shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
-                }
-            }
-        }
-
-        // BSTF
-        vec3 l = normalize(pointToLight);   // Direction from surface point to light
-        vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
-        float NdotL = clampedDot(n, l);
-        float NdotV = clampedDot(n, v);
-
-        vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(clampedDot(v, h)));
-        vec3 metal_fresnel = pl_fresnel_schlick(materialInfo.baseColor, vec3(1.0), abs(clampedDot(v, h)));
-
-
-        if (NdotL > 0.0 && NdotV > 0.0)
-        {
-
-            vec3 intensity = getLightIntensity(tLightData, pointToLight);
-
-            vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(materialInfo.baseColor);
-            vec3 l_specular_dielectric = vec3(0.0);
-            vec3 l_specular_metal = vec3(0.0);
-            vec3 l_dielectric_brdf = vec3(0.0);
-            vec3 l_metal_brdf = vec3(0.0);
-
-            float NdotH = clampedDot(n, h);
-            l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
-            l_specular_dielectric = l_specular_metal;
-
-            l_metal_brdf = metal_fresnel * l_specular_metal;
-            l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
-    
-            vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
-            color += l_color;
-        }    
-    }
+    color += pl_deferred_spot(tObjectInfo.tData.iLightIndex, tWorldPosition.xyz, n, v, materialInfo, bShadows);
 
     // Layer blending
 

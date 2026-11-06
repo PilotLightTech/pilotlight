@@ -3370,80 +3370,106 @@ pl__render_view_deferred_lighting_pass(plScene* ptScene, plCommandBuffer* ptComm
 
     if(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS)
     {
-        gptGfx->reset_draw_stream(ptStream, uPointLightCount + uSpotLightCount);
-        for(uint32_t uLightIndex = 0; uLightIndex < uPointLightCount; uLightIndex++)
+        if(!ptInfo->bProbe)
         {
-            plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynDeferredLighting));
-            plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
-            ptLightingDynamicData->uGlobalIndex = ptInfo->uGlobalIndex;
-            ptLightingDynamicData->iLightIndex = (int)uLightIndex;
-            ptLightingDynamicData->iObjectShaderFlags = PL_OBJECT_SHADER_FLAG_SHADOWS;
-            if(ptInfo->bProbe)
-                ptLightingDynamicData->iObjectShaderFlags |= PL_OBJECT_SHADER_FLAG_PROBE;
-            
-            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+            if(uPointLightCount + uSpotLightCount > 0)
             {
-                .tShader = ptScene->tPointLightingShader,
-                .auDynamicBuffers = {
-                    tLightingDynamicData.uBufferHandle
-                },
-                .atVertexBuffers = {
-                    ptScene->tVertexBuffer,
-                },
-                .tIndexBuffer   = ptScene->tIndexBuffer,
-                .uIndexOffset   = ptScene->tUnitSphereDrawable.uIndexOffset,
-                .uTriangleCount = ptScene->tUnitSphereDrawable.uTriangleCount,
-                .uVertexOffset  = ptScene->tUnitSphereDrawable.uVertexOffset,
-                .atBindGroups = {
-                    ptScene->atSceneBindGroups[uFrameIdx],
-                    tViewBG,
-                    ptInfo->tBG2
-                },
-                .auDynamicBufferOffsets = {
-                    tLightingDynamicData.uByteOffset
-                },
-                .uInstanceOffset = 0,
-                .uInstanceCount  = 1
-            });
+                gptGfx->reset_draw_stream(ptStream, 1);
+                plDynamicBinding tBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynDeferredLighting));
+                plGpuDynDeferredLighting* ptData = (plGpuDynDeferredLighting*)tBinding.pcData;
+                *ptData = (plGpuDynDeferredLighting){
+                    .uGlobalIndex       = ptInfo->uGlobalIndex,
+                    .iObjectShaderFlags = PL_OBJECT_SHADER_FLAG_SHADOWS
+                };
+                pl_add_to_draw_stream(ptStream, (plDrawStreamData){
+                    .tShader = ptScene->tClusteredLightingShader,
+                    .auDynamicBuffers = {tBinding.uBufferHandle},
+                    .auDynamicBufferOffsets = {tBinding.uByteOffset},
+                    .atBindGroups = {ptScene->atSceneBindGroups[uFrameIdx], tViewBG, ptInfo->tBG2},
+                    .uTriangleCount = 1,
+                    .uInstanceCount = 1
+                });
+                gptGfx->draw_stream(ptCommandBuffer, 1, ptInfo->ptArea);
+            }
         }
-
-        for(uint32_t uLightIndex = 0; uLightIndex < uSpotLightCount; uLightIndex++)
+        else
         {
-
-            plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynDeferredLighting));
-            plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
-            ptLightingDynamicData->uGlobalIndex = ptInfo->uGlobalIndex;
-            ptLightingDynamicData->iLightIndex = (int)uLightIndex;
-            ptLightingDynamicData->iObjectShaderFlags = PL_OBJECT_SHADER_FLAG_SHADOWS;
-            if(ptInfo->bProbe)
-                ptLightingDynamicData->iObjectShaderFlags |= PL_OBJECT_SHADER_FLAG_PROBE;
-
-            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+            // Probe faces have no cluster lists; retain light-volume draws for captures.
+            gptGfx->reset_draw_stream(ptStream, uPointLightCount + uSpotLightCount);
+            for(uint32_t uLightIndex = 0; uLightIndex < uPointLightCount; uLightIndex++)
             {
-                .tShader = ptScene->tSpotLightingShader,
-                .auDynamicBuffers = {
-                    tLightingDynamicData.uBufferHandle
-                },
-                .atVertexBuffers = {
-                    ptScene->tVertexBuffer,
-                },
-                .tIndexBuffer   = ptScene->tIndexBuffer,
-                .uIndexOffset   = ptScene->tUnitSphereDrawable.uIndexOffset,
-                .uTriangleCount = ptScene->tUnitSphereDrawable.uTriangleCount,
-                .uVertexOffset  = ptScene->tUnitSphereDrawable.uVertexOffset,
-                .atBindGroups = {
-                    ptScene->atSceneBindGroups[uFrameIdx],
-                    tViewBG,
-                    ptInfo->tBG2
-                },
-                .auDynamicBufferOffsets = {
-                    tLightingDynamicData.uByteOffset
-                },
-                .uInstanceOffset = 0,
-                .uInstanceCount  = 1
-            });
+                plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynDeferredLighting));
+                plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
+                ptLightingDynamicData->uGlobalIndex = ptInfo->uGlobalIndex;
+                ptLightingDynamicData->iLightIndex = (int)uLightIndex;
+                ptLightingDynamicData->iObjectShaderFlags = PL_OBJECT_SHADER_FLAG_SHADOWS;
+                if(ptInfo->bProbe)
+                    ptLightingDynamicData->iObjectShaderFlags |= PL_OBJECT_SHADER_FLAG_PROBE;
+
+                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                {
+                    .tShader = ptScene->tPointLightingShader,
+                    .auDynamicBuffers = {
+                        tLightingDynamicData.uBufferHandle
+                    },
+                    .atVertexBuffers = {
+                        ptScene->tVertexBuffer,
+                    },
+                    .tIndexBuffer   = ptScene->tIndexBuffer,
+                    .uIndexOffset   = ptScene->tUnitSphereDrawable.uIndexOffset,
+                    .uTriangleCount = ptScene->tUnitSphereDrawable.uTriangleCount,
+                    .uVertexOffset  = ptScene->tUnitSphereDrawable.uVertexOffset,
+                    .atBindGroups = {
+                        ptScene->atSceneBindGroups[uFrameIdx],
+                        tViewBG,
+                        ptInfo->tBG2
+                    },
+                    .auDynamicBufferOffsets = {
+                        tLightingDynamicData.uByteOffset
+                    },
+                    .uInstanceOffset = 0,
+                    .uInstanceCount  = 1
+                });
+            }
+
+            for(uint32_t uLightIndex = 0; uLightIndex < uSpotLightCount; uLightIndex++)
+            {
+
+                plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynDeferredLighting));
+                plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
+                ptLightingDynamicData->uGlobalIndex = ptInfo->uGlobalIndex;
+                ptLightingDynamicData->iLightIndex = (int)uLightIndex;
+                ptLightingDynamicData->iObjectShaderFlags = PL_OBJECT_SHADER_FLAG_SHADOWS;
+                if(ptInfo->bProbe)
+                    ptLightingDynamicData->iObjectShaderFlags |= PL_OBJECT_SHADER_FLAG_PROBE;
+
+                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                {
+                    .tShader = ptScene->tSpotLightingShader,
+                    .auDynamicBuffers = {
+                        tLightingDynamicData.uBufferHandle
+                    },
+                    .atVertexBuffers = {
+                        ptScene->tVertexBuffer,
+                    },
+                    .tIndexBuffer   = ptScene->tIndexBuffer,
+                    .uIndexOffset   = ptScene->tUnitSphereDrawable.uIndexOffset,
+                    .uTriangleCount = ptScene->tUnitSphereDrawable.uTriangleCount,
+                    .uVertexOffset  = ptScene->tUnitSphereDrawable.uVertexOffset,
+                    .atBindGroups = {
+                        ptScene->atSceneBindGroups[uFrameIdx],
+                        tViewBG,
+                        ptInfo->tBG2
+                    },
+                    .auDynamicBufferOffsets = {
+                        tLightingDynamicData.uByteOffset
+                    },
+                    .uInstanceOffset = 0,
+                    .uInstanceCount  = 1
+                });
+            }
+            gptGfx->draw_stream(ptCommandBuffer, 1, ptInfo->ptArea);
         }
-        gptGfx->draw_stream(ptCommandBuffer, 1, ptInfo->ptArea);
 
         gptGfx->reset_draw_stream(ptStream, uDirectionLightCount);
         for(uint32_t uLightIndex = 0; uLightIndex < uDirectionLightCount; uLightIndex++)
@@ -5795,13 +5821,14 @@ pl__renderer_scene_create_bindgroup_layouts(plScene* ptScene)
             .pcDebugName = "view",
             .atBufferBindings = {
                 {.uSlot = 0, .eType = PL_BUFFER_BINDING_TYPE_UNIFORM, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE},
-                {.uSlot = 1, .eType = PL_BUFFER_BINDING_TYPE_UNIFORM, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
-                {.uSlot = 2, .eType = PL_BUFFER_BINDING_TYPE_UNIFORM, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 1, .eType = PL_BUFFER_BINDING_TYPE_UNIFORM, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 2, .eType = PL_BUFFER_BINDING_TYPE_UNIFORM, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE},
                 {.uSlot = 3, .eType = PL_BUFFER_BINDING_TYPE_UNIFORM, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
                 {.uSlot = 4, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
                 {.uSlot = 5, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
                 {.uSlot = 6, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
                 {.uSlot = 7, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+                {.uSlot = 8, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_COMPUTE},
             }
         };
         plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
@@ -6052,6 +6079,17 @@ pl__renderer_scene_create_compute_shaders(plScene* ptScene)
 
     };
     gptShader->set_options(&tNewDefaultShaderOptions);
+
+    {
+        plComputeShaderDesc tClusterDesc = {
+            .pcDebugName = "cluster_lights",
+            .tShader = gptShader->load_glsl("pl_cluster_lights.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "cluster_lights", &tClusterDesc);
+    }
 
     {
         int aiPlaceHolder[3] = {0};
@@ -6944,6 +6982,9 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
             .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting_directional", &tDesc);
+        tDesc.pcDebugName = "deferred_lighting_clustered";
+        tDesc.tFragmentShader = gptShader->load_glsl("pl_deferred_lighting_clustered.frag", "main", NULL, NULL);
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting_clustered", &tDesc);
     }
 
    {
@@ -7622,19 +7663,20 @@ pl__renderer_view_create_textures(plView* ptView)
 static void
 pl__renderer_view_create_buffers(plView* ptView)
 {
+    const plBufferDesc tClusterDesc = {
+        .eUsage = PL_BUFFER_USAGE_STORAGE,
+        .szByteSize = PL_CLUSTER_BUFFER_SIZE,
+        .pcDebugName = "cluster light lists"
+    };
+
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
         gptStarter->get_staging_buffer(4096, &ptView->atSunCameraBuffers[i], "sun shadow camera buffer");
         gptStarter->get_staging_buffer(4096, &ptView->atDShadowCameraBuffers[i], "directional shadow camera buffer");
         gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &ptView->atDLightShadowDataBuffer[i], "directional shadow buffer");
         gptStarter->get_staging_buffer(sizeof(plGpuViewData), &ptView->atViewBuffers[i], "view buffer");
-
-        const plBufferDesc tPickBufferDesc = {
-            .eUsage     = PL_BUFFER_USAGE_STORAGE,
-            .szByteSize = sizeof(uint32_t) * 2,
-            .pcDebugName = "Picking buffer"
-        };
         gptStarter->get_readback_buffer(sizeof(uint32_t) * 2, &ptView->atPickBuffer[i], "pick buffer");
+        gptStarter->create_buffer(&tClusterDesc, NULL, &ptView->atClusterBuffers[i]);
     }
 }
 
@@ -7948,7 +7990,8 @@ pl__renderer_view_update_bindgroups(plView* ptView)
                 { .uSlot = 4, .tBuffer = ptView->atDLightShadowDataBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptView->atDLightShadowDataBuffer[i])->tDesc.szByteSize},
                 { .uSlot = 5, .tBuffer = ptScene->atPointLightShadowDataBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightShadowDataBuffer[i])->tDesc.szByteSize},
                 { .uSlot = 6, .tBuffer = ptScene->atSpotLightShadowDataBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightShadowDataBuffer[i])->tDesc.szByteSize},
-                { .uSlot = 7, .tBuffer = ptScene->tGPUProbeDataBuffers, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tGPUProbeDataBuffers)->tDesc.szByteSize} 
+                { .uSlot = 7, .tBuffer = ptScene->tGPUProbeDataBuffers, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tGPUProbeDataBuffers)->tDesc.szByteSize},
+                { .uSlot = 8, .tBuffer = ptView->atClusterBuffers[i], .szBufferRange = PL_CLUSTER_BUFFER_SIZE },
             }
         };
 
@@ -8115,14 +8158,15 @@ pl__renderer_probe_update_bindgroups(plScene* ptScene, plEnvironmentProbeData* p
 
     const plBindGroupUpdateData tViewBGData = {
         .atBufferBindings  = {
-            { .uSlot = 0, .tBuffer = ptProbeData->tViewBuffer,            .szBufferRange = sizeof(plGpuViewData) },
-            { .uSlot = 1, .tBuffer = ptScene->atPointLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 2, .tBuffer = ptScene->atSpotLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 3, .tBuffer = ptScene->atDirectionLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atDirectionLightBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 0, .tBuffer = ptProbeData->tViewBuffer, .szBufferRange = sizeof(plGpuViewData) },
+            { .uSlot = 1, .tBuffer = ptScene->atPointLightBuffer[0], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 2, .tBuffer = ptScene->atSpotLightBuffer[0], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 3, .tBuffer = ptScene->atDirectionLightBuffer[0], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atDirectionLightBuffer[0])->tDesc.szByteSize},
             { .uSlot = 4, .tBuffer = ptProbeData->tDLightShadowDataBuffer, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptProbeData->tDLightShadowDataBuffer)->tDesc.szByteSize},
-            { .uSlot = 5, .tBuffer = ptScene->atPointLightShadowDataBuffer[0],  .szBufferRange =  gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightShadowDataBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 6, .tBuffer = ptScene->atSpotLightShadowDataBuffer[0],  .szBufferRange =  gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightShadowDataBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 7, .tBuffer = ptScene->tGPUProbeDataBuffers,    .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tGPUProbeDataBuffers)->tDesc.szByteSize}
+            { .uSlot = 5, .tBuffer = ptScene->atPointLightShadowDataBuffer[0], .szBufferRange =  gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightShadowDataBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 6, .tBuffer = ptScene->atSpotLightShadowDataBuffer[0], .szBufferRange =  gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightShadowDataBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 7, .tBuffer = ptScene->tGPUProbeDataBuffers, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tGPUProbeDataBuffers)->tDesc.szByteSize},
+            { .uSlot = 8, .tBuffer = ptScene->tGPUProbeDataBuffers, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tGPUProbeDataBuffers)->tDesc.szByteSize }, // Probes use the full-light fallback; bind a valid unused storage buffer.
         }
     };
     
@@ -8880,9 +8924,10 @@ pl__renderer_load_shaders(plScene* ptScene)
         ptScene->tDirectionalLightingShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting_directional", &tDeferredVariant);
     }
 
-    ptScene->tSpotLightingShader  = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting_spot", &tDeferredVariant);
-    ptScene->tPointLightingShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting_point", &tDeferredVariant);
-    ptScene->tProbeLightingShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting", &tDeferredVariant);
+    ptScene->tClusteredLightingShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting_clustered", &tDeferredVariant);
+    ptScene->tSpotLightingShader      = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting_spot", &tDeferredVariant);
+    ptScene->tPointLightingShader     = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting_point", &tDeferredVariant);
+    ptScene->tProbeLightingShader     = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting", &tDeferredVariant);
 
     plShaderVariantDesc tTerrainVariant = {
         .ptAttachmentInfo = &gptData->tRenderPassLayout,

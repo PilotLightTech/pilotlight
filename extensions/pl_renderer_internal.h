@@ -85,7 +85,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #define PL_MAX_INSTANCES_PER_DRAWABLE 256
-#define PL_MAX_LIGHTS 100
 #define PL_DRAWABLE_OBJECT_KEY UINT32_MAX
 
 // A prime bucket count distributes the packed 16-bit fields under pl_hms_get's
@@ -404,6 +403,7 @@ typedef struct _plView
     plBufferHandle atDShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atSunCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atDLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atClusterBuffers[PL_MAX_FRAMES_IN_FLIGHT];
 
     // picking system
     bool     auHoverResultProcessing[PL_MAX_FRAMES_IN_FLIGHT];
@@ -524,6 +524,7 @@ typedef struct _plScene
     plShaderHandle tOutlineNoCullShader;
     plShaderHandle tSunShader;
     plShaderHandle tDirectionalLightingShader;
+    plShaderHandle tClusteredLightingShader;
     plShaderHandle tSpotLightingShader;
     plShaderHandle tProbeLightingShader;
     plShaderHandle tPointLightingShader;
