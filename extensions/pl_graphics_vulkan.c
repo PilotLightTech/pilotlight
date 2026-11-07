@@ -818,26 +818,34 @@ pl_graphics_generate_mipmaps(plCommandBuffer* ptCmdBuffer, plTextureHandle tText
         VkFormatProperties eFormatProperties = {0};
         vkGetPhysicalDeviceFormatProperties(ptDevice->tPhysicalDevice, pl__vulkan_format(ptTexture->tDesc.eFormat), &eFormatProperties);
 
-        // transition texture to proper layout
+        // Preserve the uploaded/rendered base level. UNDEFINED would discard
+        // the image that all generated levels (and refraction) read from.
         const VkImageSubresourceRange tSubResourceRange = {
             .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
             .baseMipLevel   = 0,
-            .levelCount     = ptTexture->tDesc.uMips,
+            .levelCount     = 1,
             .baseArrayLayer = 0,
             .layerCount     = ptTexture->tDesc.uLayers
         };
 
         VkImageMemoryBarrier tBarrier0 = {
             .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+            .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // assumed for now
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .image               = ptDevice->sbtTexturesHot[tTexture.uIndex].tImage,
             .subresourceRange    = tSubResourceRange,
-            .srcAccessMask       = 0,
+            .srcAccessMask       = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
             .dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT
         };
+        vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier0);
+
+        // The remaining levels are overwritten by the blits.
+        tBarrier0.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        tBarrier0.srcAccessMask = 0;
+        tBarrier0.subresourceRange.baseMipLevel = 1;
+        tBarrier0.subresourceRange.levelCount = ptTexture->tDesc.uMips - 1;
         vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier0);
 
         // for(uint32_t uArrayIndex = 0; uArrayIndex < ptTexture->tDesc.uLayers; uArrayIndex++)
