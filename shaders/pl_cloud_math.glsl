@@ -1,6 +1,40 @@
 #ifndef PL_CLOUD_MATH_GLSL
 #define PL_CLOUD_MATH_GLSL
 
+// Scalar helpers shared with the CPU sampling regression test.
+float
+cloudSampleBoundary(float index, float count, float distance2)
+{
+    // Fractional counts introduce the final segment continuously.
+    float u = min(index / count, 1.0);
+    return distance2 * u * u;
+}
+
+float
+cloudSampleCount(float minimumCount, float distance2, float frequency, float maximumCount)
+{
+    return clamp(max(minimumCount, distance2 * frequency * 8.0), 16.0, maximumCount);
+}
+
+float
+cloudViewMaxSegmentLength(float frequency)
+{
+    // Two samples per cell of the finest main-shape FBM octave (4.11).
+    // This targets bulk-density banding, not all of the finer edge erosion.
+    return 1.0 / (2.0 * 4.11 * max(frequency, 0.01));
+}
+
+float
+cloudViewSampleCount(float minimumCount, float distance2, float frequency, float maximumCount)
+{
+    // For x(i) = L * (i/N)^2, every segment is at most 2L/N,
+    // including the partial final segment when N is fractional.
+    float requiredCount = 2.0 * distance2 / cloudViewMaxSegmentLength(frequency);
+    // Preserve the bounded march budget. At the cap the spacing target is
+    // best effort; still cover the entire interval rather than truncating it.
+    return clamp(max(minimumCount, requiredCount), 16.0, maximumCount);
+}
+
 // Kept independent of renderer bindings so the ray math can be regression tested.
 vec2
 cloudRayUV(vec2 pixelCenter, vec2 viewportSize)
@@ -25,21 +59,6 @@ cloudForwardHit(vec2 interval)
 {
     // A miss uses an inverted interval, whose positive first value is NOT a hit.
     return interval.x <= interval.y && interval.x > 0.0;
-}
-
-float
-cloudSampleBoundary(float index, float count, float distance2)
-{
-    // Count may be fractional. A new final segment starts with zero length,
-    // instead of moving every sample when an integer threshold is crossed.
-    float u = min(index / count, 1.0);
-    return distance2 * u * u;
-}
-
-float
-cloudSampleCount(float minimumCount, float distance2, float frequency, float maximumCount)
-{
-    return clamp(max(minimumCount, distance2 * frequency * 8.0), 16.0, maximumCount);
 }
 
 // Return both forward shell intervals, excluding the empty inner sphere.

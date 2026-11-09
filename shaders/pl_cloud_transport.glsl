@@ -74,9 +74,9 @@ cloudIntegrateTransport(vec3 worldOrigin, vec3 ray, float maxDistance, float sam
         float intervalLength = ranges[interval].y - ranges[interval].x;
         if(intervalLength <= 0.0)
             continue;
-        // The authored count is a quality floor. Long grazing rays need more
-        // samples than short vertical rays, particularly when inside the layer.
-        float steps = cloudSampleCount(tGpuScene.tData.tCloudNoise.w, intervalLength, tGpuScene.tData.tCloudNoise.x, 256.0);
+        // Keep quadratic march segments short enough for the main density
+        // octaves; the authored count remains a quality floor.
+        float steps = cloudViewSampleCount(tGpuScene.tData.tCloudNoise.w, intervalLength, tGpuScene.tData.tCloudNoise.x, 256.0);
         for(int i = 0; i < 256; i++)
         {
             if(float(i) >= steps || transmittance < 0.005)
