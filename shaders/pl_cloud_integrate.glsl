@@ -3,12 +3,18 @@
 #include "pl_bg_view.inc"
 #include "pl_cloud_transport.glsl"
 
-// Reuse the aerial composite layout. Slot 2 is not needed by this pass.
+// Full resolution reuses the aerial layout; half resolution also writes distance.
 layout(set = 2, binding = 0, rgba16f) uniform image2D tColorImage;
 layout(set = 2, binding = 1) uniform texture2D tDepthImage;
+#ifdef PL_CLOUD_LOW_RES
+layout(set = 2, binding = 2, r32f) uniform image2D tCloudDistance;
+#endif
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
     uint uCameraIndex;
+#ifdef PL_CLOUD_LOW_RES
+    float fTemporalPhase; // negative disables jitter
+#endif
 } tObjectInfo;
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
@@ -21,6 +27,7 @@ void main()
         return;
     ivec2 sourcePixel = min(pixel * 2 + 1, viewport - 1);
     imageStore(tColorImage, pixel, vec4(0.0, 0.0, 0.0, 1.0));
+    imageStore(tCloudDistance, pixel, vec4(0.0));
 #else
     if(any(greaterThanEqual(pixel, min(size, viewport))))
         return;
@@ -49,10 +56,19 @@ void main()
         vec3 world = (invView * vec4(viewH.xyz / viewH.w, 1.0)).xyz;
         maxDistance = min(maxDistance, max(dot(world - worldOrigin, ray) * scale, 0.0));
     }
-    vec4 transport = cloudIntegrateTransport(worldOrigin, ray, maxDistance);
 #ifdef PL_CLOUD_LOW_RES
+    float sampleOffset = 0.5;
+    if(depth == 0.0 && perspective && tObjectInfo.fTemporalPhase >= 0.0)
+    {
+        sampleOffset = 0.15 + 0.7 * fract(cloudHash(vec3(pixel, 0.0)) + tObjectInfo.fTemporalPhase);
+    }
+    float cloudDistance;
+    vec4 transport = cloudIntegrateTransport(worldOrigin, ray, maxDistance, sampleOffset, cloudDistance);
+    // Negative distances prohibit history at geometry, including moving silhouettes.
+    imageStore(tCloudDistance, pixel, vec4(depth > 0.0 ? -1.0 : cloudDistance));
     imageStore(tColorImage, pixel, transport);
 #else
+    vec4 transport = cloudIntegrateTransport(worldOrigin, ray, maxDistance);
     vec4 background = imageLoad(tColorImage, pixel);
     imageStore(tColorImage, pixel, vec4(transport.rgb + background.rgb * transport.a, background.a));
 #endif

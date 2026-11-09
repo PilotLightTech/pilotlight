@@ -460,9 +460,24 @@ typedef struct _plView
     plBindGroupHandle atSkyLutBG2[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle atSkyBG2[PL_MAX_FRAMES_IN_FLIGHT];
     plTextureHandle   atSkyAerialLut[PL_MAX_FRAMES_IN_FLIGHT];
-    plTextureHandle   tCloudLowResTexture;
     plBindGroupHandle atSkyAerialLutBG2[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle atSkyAerialBG2[PL_MAX_FRAMES_IN_FLIGHT];
+
+    // cloud rendering stuff
+    plTextureHandle     tCloudLowResTexture;
+    plTextureHandle     atCloudHistory[2];
+    plTextureHandle     atCloudDistance[2];
+    uint32_t            uCloudHistoryIndex;
+    bool                bCloudHistoryValid;
+    uint64_t            ulCloudHistoryFrame;
+    float               fCloudHistoryTime;
+    plVec2              tCloudHistorySize;
+    plMat4              tCloudHistoryViewProjection;
+    plMat4              tCloudHistoryProjection;
+    plVec3              tCloudHistoryCamera;
+    plVec3              tCloudHistoryForward;
+    plRenderEnvironment tCloudHistoryEnvironment;
+
 } plView;
 
 typedef struct _plScene
@@ -568,6 +583,7 @@ typedef struct _plScene
     plComputeShaderHandle tCloudShader;
     plComputeShaderHandle tCloudLowResShader;
     plComputeShaderHandle tCloudCompositeShader;
+    plComputeShaderHandle tCloudTemporalShader;
     plComputeShaderHandle tCloudShadowShader;
     plTextureHandle       atCloudShadowTexture[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle     atCloudShadowBG[PL_MAX_FRAMES_IN_FLIGHT];

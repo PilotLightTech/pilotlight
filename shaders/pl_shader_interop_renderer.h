@@ -326,6 +326,7 @@ PL_BEGIN_STRUCT(plGpuSceneData)
     vec4 tAerialInfo;
     vec4 tCloudLayer; // coverage (zero disables), base height, thickness, extinction
     vec4 tCloudNoise; // frequency, wind X/Z, view step count
+    vec4 tCloudProfile; // reserved, multiple scattering strength, reserved, reserved
     vec4 tCloudShadowCenter; // atmosphere-space center; bindless index (-1 = invalid)
     vec4 tCloudShadowRight; // light-space basis and half extent
     vec4 tCloudShadowUp;
@@ -827,5 +828,11 @@ PL_BEGIN_STRUCT(plGpuMaterial)
 
     // ~~~~~~~~~~~~~~~~144 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuMaterial)
+
+PL_BEGIN_STRUCT(plCloudTemporalData)
+    mat4 tPreviousViewProjection;
+    vec4 tPreviousCamera;
+    vec4 tParams; // history weight (zero invalidates), delta time, reserved, reserved
+PL_END_STRUCT(plCloudTemporalData)
 
 #endif // PL_SHADER_INTEROP_RENDERER_H

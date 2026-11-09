@@ -1,0 +1,98 @@
+#version 450
+#extension GL_EXT_nonuniform_qualifier : enable
+#include "pl_bg_scene.inc"
+#include "pl_bg_view.inc"
+#include "pl_cloud_temporal_math.glsl"
+layout(set = 2, binding = 0, rgba16f) uniform image2D tOutput;
+layout(set = 2, binding = 1) uniform texture2D tCurrent;
+layout(set = 2, binding = 2) uniform texture2D tDistance;
+layout(set = 2, binding = 3) uniform texture2D tHistory;
+layout(set = 2, binding = 4) uniform texture2D tPreviousDistance;
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
+{
+    plCloudTemporalData tData;
+} tTemporal;
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+void main()
+{
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 viewport = ivec2(tViewInfo.tData.tViewportSize.xy);
+    ivec2 lowSize = (viewport + 1) / 2;
+    if(any(greaterThanEqual(p, lowSize)))
+        return;
+
+    vec4 current = texelFetch(sampler2D(tCurrent, tSamplerNearestClamp), p, 0);
+    imageStore(tOutput, p, current);
+    float distance = texelFetch(sampler2D(tDistance, tSamplerNearestClamp), p, 0).r;
+    
+    // Never read uninitialized history, empty sky, or geometry-truncated rays.
+    if(tTemporal.tData.tParams.x <= 0.0 || distance <= 0.0 || current.a > 0.999)
+        return;
+
+    vec2 source = vec2(min(p * 2 + 1, viewport - 1)) + 0.5;
+    vec4 nearH = tViewInfo.tData.tCameraProjectionInv[0] * vec4(source / vec2(viewport) * 2.0 - 1.0, 1.0, 1.0);
+    vec3 ray = normalize(mat3(tViewInfo.tData.tCameraViewInv[0]) * (nearH.xyz / nearH.w));
+    float scale = max(tGpuScene.tData.fAtmosphereConversion, 1e-7);
+    vec3 world = tViewInfo.tData.tCameraPos.xyz + ray * (distance / scale);
+    
+    // Density uses p.xz - wind*time: follow that same material point backwards.
+    world.xz -= tGpuScene.tData.tCloudNoise.yz * tTemporal.tData.tParams.y / scale;
+    vec4 previousClip = tTemporal.tData.tPreviousViewProjection * vec4(world, 1.0);
+    if(previousClip.w <= 0.0)
+        return;
+    
+    vec2 previousUV = previousClip.xy / previousClip.w * 0.5 + 0.5;
+    if(any(lessThan(previousUV, vec2(0.0))) || any(greaterThanEqual(previousUV, vec2(1.0))))
+        return;
+    
+    // Match the half-res sample centers, including the last pixel of odd viewports.
+    vec2 previousPixel = vec2(cloudTemporalPixel(previousUV.x * float(viewport.x), viewport.x), cloudTemporalPixel(previousUV.y * float(viewport.y), viewport.y));
+    float expectedDistance = length(world - tTemporal.tData.tPreviousCamera.xyz) * scale;
+    ivec2 base = ivec2(floor(previousPixel));
+    vec2 fraction = fract(previousPixel);
+    vec4 history = vec4(0.0);
+    float weightSum = 0.0;
+    
+    // Validate each bilinear tap so sky history never interpolates across geometry.
+    for(int y = 0; y < 2; y++)
+    for(int x = 0; x < 2; x++)
+    {
+        ivec2 q = base + ivec2(x, y);
+        if(any(lessThan(q, ivec2(0))) || any(greaterThanEqual(q, lowSize)))
+            continue;
+        
+        float previousDistance = texelFetch(sampler2D(tPreviousDistance, tSamplerNearestClamp), q, 0).r;
+        if(!cloudTemporalDepthMatches(expectedDistance, previousDistance))
+            continue;
+        
+        float w = (x == 0 ? 1.0 - fraction.x : fraction.x) * (y == 0 ? 1.0 - fraction.y : fraction.y);
+        history += w * texelFetch(sampler2D(tHistory, tSamplerNearestClamp), q, 0);
+        weightSum += w;
+    }
+    if(weightSum < 0.5)
+        return;
+    
+    history /= weightSum;
+    vec4 lower = current, upper = current;
+    for(int y = -1; y <= 1; y++)
+    {
+        for(int x = -1; x <= 1; x++)
+        {
+            ivec2 q = clamp(p + ivec2(x, y), ivec2(0), lowSize - 1);
+            if(texelFetch(sampler2D(tDistance, tSamplerNearestClamp), q, 0).r < 0.0)
+                continue;
+
+            vec4 neighbor = texelFetch(sampler2D(tCurrent, tSamplerNearestClamp), q, 0);
+            lower = min(lower, neighbor);
+            upper = max(upper, neighbor);
+        }
+    }
+    history = clamp(history, lower, upper);
+    float motion = length(previousPixel - vec2(p));
+    float weight = tTemporal.tData.tParams.x * weightSum * exp(-0.1 * motion);
+    
+    // Reduce persistence when opacity changes, including newly revealed cloud edges.
+    weight *= max(0.0, 1.0 - 4.0 * abs(history.a - current.a));
+    imageStore(tOutput, p, mix(current, history, weight));
+}

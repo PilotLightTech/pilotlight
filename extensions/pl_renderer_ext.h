@@ -245,6 +245,8 @@ typedef struct _plRenderEnvironment
     uint32_t uAerialSamplesPerSlice; // samples per slice
 
     // Clouds: distances in atmosphere units; wind in atmosphere units/second.
+    float    fCloudMultiScatter; // 0..1 higher-order scattering strength
+    float    fCloudTemporalBlend; // 0 disables; up to 0.95 history weight (half resolution sky)
     float    fCloudCoverage;
     float    fCloudBaseHeight;
     float    fCloudThickness;

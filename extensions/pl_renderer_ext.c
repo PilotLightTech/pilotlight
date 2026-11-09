@@ -1616,11 +1616,8 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         pl_maxf(0.01f, ptEnvironment->fCloudThickness),
         pl_maxf(0.0f, ptEnvironment->fCloudExtinction)
     };
-    ptScene->tSceneData.tCloudNoise = (plVec4){
-        pl_maxf(0.01f, ptEnvironment->fCloudScale),
-        ptEnvironment->tCloudWind.x, ptEnvironment->tCloudWind.y,
-        (float)pl_clampu(16, ptEnvironment->uCloudSteps, 128)
-    };
+    ptScene->tSceneData.tCloudProfile = (plVec4){ 0.0f, pl_clampf(0.0f, ptEnvironment->fCloudMultiScatter, 1.0f), 0.0f, 0.0f};
+    ptScene->tSceneData.tCloudNoise = (plVec4){pl_maxf(0.01f, ptEnvironment->fCloudScale), ptEnvironment->tCloudWind.x, ptEnvironment->tCloudWind.y, (float)pl_clampu(16, ptEnvironment->uCloudSteps, 128)};
     ptScene->tSceneData.fIntensity = ptEnvironment->fSunIntensity;
     ptScene->tSceneData.mieScatteringExponent = ptEnvironment->fMieScatteringExponent;
     ptScene->tSceneData.extinctionMieGround = ptEnvironment->fExtinctionMieGround;
@@ -3502,6 +3499,8 @@ pl__renderer_serialize_environment(const char* pcName, const void* pEnvironment,
 
         plJsonObject* ptClouds = gptJson->add_member(ptRealistic, "clouds");
         gptJson->add_bool_member(ptClouds, "enabled", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_CLOUDS);
+        gptJson->add_float_member(ptClouds, "multiple_scattering", ptEnvironment->fCloudMultiScatter);
+        gptJson->add_float_member(ptClouds, "temporal_blend", ptEnvironment->fCloudTemporalBlend);
         gptJson->add_float_member(ptClouds, "coverage", ptEnvironment->fCloudCoverage);
         gptJson->add_float_member(ptClouds, "base_height", ptEnvironment->fCloudBaseHeight);
         gptJson->add_float_member(ptClouds, "thickness", ptEnvironment->fCloudThickness);
@@ -3542,6 +3541,8 @@ pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
     plRenderEnvironment* ptEnvironment = pEnvironment;
     ptEnvironment->eFlags &= ~(PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS | PL_RENDERER_SKY_FLAGS_CLOUDS);
     // Defaults for environments authored before clouds were available.
+    ptEnvironment->fCloudMultiScatter = 1.0f;
+    ptEnvironment->fCloudTemporalBlend = 0.9f;
     ptEnvironment->fCloudCoverage = 0.55f;
     ptEnvironment->fCloudBaseHeight = 1.5f;
     ptEnvironment->fCloudThickness = 2.5f;
@@ -3653,6 +3654,8 @@ pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
                             ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_CLOUDS;
                         else
                             ptEnvironment->eFlags &= ~PL_RENDERER_SKY_FLAGS_CLOUDS;
+                        ptEnvironment->fCloudMultiScatter = gptJson->float_member(ptJsonClouds, "multiple_scattering", 1.0f);
+                        ptEnvironment->fCloudTemporalBlend = gptJson->float_member(ptJsonClouds, "temporal_blend", 0.9f);
                         ptEnvironment->fCloudCoverage = gptJson->float_member(ptJsonClouds, "coverage", 0.55f);
                         ptEnvironment->fCloudBaseHeight = gptJson->float_member(ptJsonClouds, "base_height", 1.5f);
                         ptEnvironment->fCloudThickness = gptJson->float_member(ptJsonClouds, "thickness", 2.5f);

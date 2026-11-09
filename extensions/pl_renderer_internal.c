@@ -5024,6 +5024,17 @@ pl__cloud_release_low_resolution(plView* ptView)
     if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tCloudLowResTexture))
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tCloudLowResTexture);
     ptView->tCloudLowResTexture = (plTextureHandle){0};
+    for(uint32_t i = 0; i < 2; i++)
+    {
+        if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->atCloudHistory[i]))
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atCloudHistory[i]);
+        if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->atCloudDistance[i]))
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atCloudDistance[i]);
+        ptView->atCloudHistory[i] = (plTextureHandle){0};
+        ptView->atCloudDistance[i] = (plTextureHandle){0};
+    }
+    ptView->bCloudHistoryValid = false;
+    ptView->uCloudHistoryIndex = 0;
 }
 
 static void
@@ -5083,6 +5094,15 @@ pl__cloud_ensure_low_resolution(plView* ptView)
     tDesc.eUsage = PL_TEXTURE_USAGE_STORAGE | PL_TEXTURE_USAGE_SAMPLED;
     tDesc.pcDebugName = "half resolution cloud radiance and transmittance";
     gptStarter->create_texture(&tDesc, NULL, 0, &ptView->tCloudLowResTexture);
+    for(uint32_t i = 0; i < 2; i++)
+    {
+        tDesc.pcDebugName = "cloud temporal radiance and transmittance";
+        gptStarter->create_texture(&tDesc, NULL, 0, &ptView->atCloudHistory[i]);
+    }
+    tDesc.eFormat = PL_FORMAT_R32_FLOAT;
+    tDesc.pcDebugName = "cloud temporal representative distance";
+    for(uint32_t i = 0; i < 2; i++)
+        gptStarter->create_texture(&tDesc, NULL, 0, &ptView->atCloudDistance[i]);
 }
 
 static void
@@ -5091,13 +5111,31 @@ pl__cloud_render_half_resolution(plView* ptView, plCommandBuffer* ptCmd)
     pl__cloud_ensure_low_resolution(ptView);
     plScene* ptScene = ptView->ptParentScene;
     const uint32_t uFrame = gptGfx->get_current_frame_index();
-    gptGfx->push_debug_group(ptCmd, "Half resolution clouds and depth-aware upsample", (plVec4){0.3f, 0.5f, 0.8f, 1});
-    for(uint32_t uPass = 0; uPass < 2; uPass++)
+    const uint32_t uCurrent = ptView->uCloudHistoryIndex;
+    const uint32_t uPrevious = 1 - uCurrent;
+    const plRenderEnvironment* ptEnvironment = gptAsset->get_data(ptScene->tEnvironment);
+    const float fDelta = ptScene->tSceneData.g_time - ptView->fCloudHistoryTime;
+    const bool bTemporal = ptEnvironment->fCloudTemporalBlend > 0.0f && fabsf(ptView->tViewData.tCameraProjection[0].d[15]) < 0.5f;
+    const plVec3 tCamera = ptView->tViewData.tCameraPos.xyz;
+    const plVec3 tForward = pl_mul_mat4_vec4(&ptView->tViewData.tCameraViewInv[0], (plVec4){0, 0, 1, 0}).xyz;
+    const bool bHistory = bTemporal && ptView->bCloudHistoryValid && ptView->ulCloudHistoryFrame + 1 == gptIO->ulFrameCount && fDelta >= 0.0f && fDelta < 0.25f &&
+        ptView->tCloudHistorySize.x == ptView->tTargetSize.x && ptView->tCloudHistorySize.y == ptView->tTargetSize.y &&
+        memcmp(&ptView->tCloudHistoryEnvironment, ptEnvironment, sizeof(*ptEnvironment)) == 0 &&
+        memcmp(&ptView->tCloudHistoryProjection, &ptView->tViewData.tCameraProjection[0], sizeof(plMat4)) == 0 &&
+        pl_length_vec3(pl_sub_vec3(tCamera, ptView->tCloudHistoryCamera)) * ptScene->tSceneData.fAtmosphereConversion < 0.5f &&
+        pl_dot_vec3(tForward, ptView->tCloudHistoryForward) > 0.9f;
+
+    const float fHistoryWeight = bHistory ? pl_clampf(0.0f, ptEnvironment->fCloudTemporalBlend, 0.95f) : 0.0f;
+    const plTextureHandle tResolvedCloud = bTemporal ? ptView->atCloudHistory[uCurrent] : ptView->tCloudLowResTexture;
+    gptGfx->push_debug_group(ptCmd, "Half resolution clouds, temporal resolve and upsample", (plVec4){0.3f, 0.5f, 0.8f, 1});
+    for(uint32_t uPass = 0; uPass < 3; uPass++)
     {
-        plTextureHandle tOutput = uPass == 0 ? ptView->tCloudLowResTexture : ptView->tRawOutputTexture;
-        plComputeShaderHandle tShader = uPass == 0 ? ptScene->tCloudLowResShader : ptScene->tCloudCompositeShader;
+        if(uPass == 1 && !bTemporal)
+            continue;
+        plTextureHandle tOutput = uPass == 0 ? ptView->tCloudLowResTexture : uPass == 1 ? ptView->atCloudHistory[uCurrent] : ptView->tRawOutputTexture;
+        plComputeShaderHandle tShader = uPass == 0 ? ptScene->tCloudLowResShader : uPass == 1 ? ptScene->tCloudTemporalShader : ptScene->tCloudCompositeShader;
         const plBindGroupDesc tDesc = {
-            .tLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts"),
+            .tLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, uPass == 0 ? "cloud_lowres" : uPass == 1 ? "cloud_temporal" : "aerial_luts"),
             .ptPool = gptData->aptTempGroupPools[uFrame], .pcDebugName = "cloud composite"
         };
         plBindGroupHandle tGroup = gptGfx->create_bind_group(gptData->ptDevice, &tDesc);
@@ -5107,24 +5145,56 @@ pl__cloud_render_half_resolution(plView* ptView, plCommandBuffer* ptCmd)
                 {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptView->tDepthTexture}
             }
         };
-        if(uPass == 1)
-            tBindings.atTextureBindings[2] = (plBindGroupUpdateTextureData){.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptView->tCloudLowResTexture};
-        gptGfx->update_bind_group(gptData->ptDevice, tGroup, &tBindings);
+        if(uPass == 0)
+            tBindings.atTextureBindings[2] = (plBindGroupUpdateTextureData){.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tTexture = ptView->atCloudDistance[uCurrent]};
+
+        else if(uPass == 1)
+        {
+            tBindings.atTextureBindings[1] = (plBindGroupUpdateTextureData){.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptView->tCloudLowResTexture};
+            tBindings.atTextureBindings[2] = (plBindGroupUpdateTextureData){.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptView->atCloudDistance[uCurrent]};
+            tBindings.atTextureBindings[3] = (plBindGroupUpdateTextureData){.uSlot = 3, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptView->atCloudHistory[uPrevious]};
+            tBindings.atTextureBindings[4] = (plBindGroupUpdateTextureData){.uSlot = 4, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = ptView->atCloudDistance[uPrevious]};
+        }
+        else
+            tBindings.atTextureBindings[2] = (plBindGroupUpdateTextureData){.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tTexture = tResolvedCloud};
+        
+            gptGfx->update_bind_group(gptData->ptDevice, tGroup, &tBindings);
         plPassResources tResources = {
             .atTextures = {
-                {.tHandle = tOutput, .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = uPass == 0 ? PL_PASS_RESOURCE_ACCESS_WRITE : PL_PASS_RESOURCE_ACCESS_READ_WRITE, .eUsage = PL_TEXTURE_USAGE_STORAGE},
+                {.tHandle = tOutput, .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = uPass < 2 ? PL_PASS_RESOURCE_ACCESS_WRITE : PL_PASS_RESOURCE_ACCESS_READ_WRITE, .eUsage = PL_TEXTURE_USAGE_STORAGE},
                 {.tHandle = ptView->tDepthTexture, .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED},
-                {.tHandle = uPass == 0 ? ptScene->atCloudShadowTexture[uFrame] : ptView->tCloudLowResTexture, .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED}
+                {.tHandle = uPass == 0 ? ptScene->atCloudShadowTexture[uFrame] : tResolvedCloud, .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED}
             }
         };
+        if(uPass == 0)
+            tResources.atTextures[3] = (plPassTextureResource){.tHandle = ptView->atCloudDistance[uCurrent], .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_TEXTURE_USAGE_STORAGE};
+        else if(uPass == 1)
+        {
+            // All passes use the graphics queue. Barriers also order history reads
+            // against the preceding frame's writes, including frames in flight.
+            for(uint32_t i = 1; i < 5; i++)
+                tResources.atTextures[i] = (plPassTextureResource){.tHandle = tBindings.atTextureBindings[i].tTexture, .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED};
+        }
         gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL);
         gptGfx->begin_compute_pass(ptCmd, &tResources);
-        plDynamicBinding tDynamic = pl__allocate_dynamic_data(gptData->ptDevice, sizeof(uint32_t));
-        *(uint32_t*)tDynamic.pcData = 0;
+        plDynamicBinding tDynamic = pl__allocate_dynamic_data(gptData->ptDevice, uPass == 1 ? sizeof(plCloudTemporalData) : 16);
+        if(uPass == 1)
+        {
+            *(plCloudTemporalData*)tDynamic.pcData = (plCloudTemporalData){
+                .tPreviousViewProjection = ptView->tCloudHistoryViewProjection,
+                .tPreviousCamera = {.xyz = ptView->tCloudHistoryCamera},
+                .tParams = {fHistoryWeight, fDelta, 0, 0}
+            };
+        }
+        else
+        {
+            memset(tDynamic.pcData, 0, 16);
+            ((float*)tDynamic.pcData)[1] = fHistoryWeight > 0.0f ? fmodf((float)(gptIO->ulFrameCount % 1024) * 0.618033989f, 1.0f) : -1.0f;
+        }
         plBindGroupHandle atGroups[] = {ptScene->atSceneBindGroups[uFrame], ptView->atViewBG[uFrame], tGroup};
         gptGfx->bind_compute_shader(ptCmd, tShader);
         gptGfx->bind_compute_bind_groups(ptCmd, tShader, 0, 3, atGroups, 1, &tDynamic);
-        uint32_t uDivisor = uPass == 0 ? 2 : 1;
+        uint32_t uDivisor = uPass < 2 ? 2 : 1;
         uint32_t uWidth = ((uint32_t)ptView->tTargetSize.x + uDivisor - 1) / uDivisor;
         uint32_t uHeight = ((uint32_t)ptView->tTargetSize.y + uDivisor - 1) / uDivisor;
         const plDispatch tDispatch = {.uGroupCountX = (uWidth + 7) / 8, .uGroupCountY = (uHeight + 7) / 8, .uGroupCountZ = 1, .uThreadPerGroupX = 8, .uThreadPerGroupY = 8, .uThreadPerGroupZ = 1};
@@ -5133,6 +5203,19 @@ pl__cloud_render_half_resolution(plView* ptView, plCommandBuffer* ptCmd)
         gptGfx->end_compute_pass(ptCmd);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tGroup);
     }
+    ptView->uCloudHistoryIndex = uPrevious;
+    ptView->bCloudHistoryValid = bTemporal;
+    ptView->ulCloudHistoryFrame = gptIO->ulFrameCount;
+    ptView->fCloudHistoryTime = ptScene->tSceneData.g_time;
+    ptView->tCloudHistorySize = ptView->tTargetSize;
+    ptView->tCloudHistoryViewProjection = ptView->tViewData.tCameraViewProjection[0];
+    ptView->tCloudHistoryProjection = ptView->tViewData.tCameraProjection[0];
+    ptView->tCloudHistoryCamera = tCamera;
+    ptView->tCloudHistoryForward = tForward;
+    
+    // Copy padding too: the next frame's byte comparison must not depend on
+    // whether a C struct assignment happened to preserve those bytes.
+    memcpy(&ptView->tCloudHistoryEnvironment, ptEnvironment, sizeof(*ptEnvironment));
     gptGfx->pop_debug_group(ptCmd);
 }
 
@@ -6754,6 +6837,27 @@ pl__renderer_scene_create_bindgroup_layouts(plScene* ptScene)
 
     {
         plBindGroupLayoutDesc tDesc = {
+            .pcDebugName = "cloud_lowres",
+            .atTextureBindings = {
+                {.uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE}
+            }
+        };
+        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "cloud_lowres", tHandle);
+        tDesc.pcDebugName = "cloud_temporal";
+        tDesc.atTextureBindings[2].eType = PL_TEXTURE_BINDING_TYPE_SAMPLED;
+        tDesc.atTextureBindings[3] = tDesc.atTextureBindings[1];
+        tDesc.atTextureBindings[3].uSlot = 3;
+        tDesc.atTextureBindings[4] = tDesc.atTextureBindings[1];
+        tDesc.atTextureBindings[4].uSlot = 4;
+        tHandle = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDesc);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "cloud_temporal", tHandle);
+    }
+
+    {
+        plBindGroupLayoutDesc tDesc = {
             .pcDebugName = "gbuffer_fill_1",
             .atBufferBindings = {
                 {.uSlot = 0, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX}
@@ -7012,10 +7116,23 @@ pl__renderer_scene_create_compute_shaders(plScene* ptScene)
             .atBindGroupLayouts = {
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
-                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "aerial_luts"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "cloud_lowres"))->tDesc,
             }
         };
         gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "cloud_lowres", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
+            .pcDebugName = "cloud_temporal",
+            .tShader = gptShader->load_glsl("pl_cloud_temporal.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "cloud_temporal"))->tDesc,
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "cloud_temporal", &tDesc);
     }
 
     {
@@ -9846,6 +9963,7 @@ pl__renderer_load_shaders(plScene* ptScene)
     ptScene->tCloudShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "clouds", NULL);
     ptScene->tCloudLowResShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cloud_lowres", NULL);
     ptScene->tCloudCompositeShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cloud_composite", NULL);
+    ptScene->tCloudTemporalShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cloud_temporal", NULL);
     ptScene->tCloudShadowShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cloud_shadow", NULL);
 
 

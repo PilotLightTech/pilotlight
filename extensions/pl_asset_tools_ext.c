@@ -1948,6 +1948,8 @@ pl_asset_tools_show_assets(bool* bValue)
                         if(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_CLOUDS)
                         {
                             gptUI->separator_text("Clouds (atmosphere units)");
+                            gptUI->slider_float("Cloud multiple scattering", &ptEnvironment->fCloudMultiScatter, 0.0f, 1.0f, 0);
+                            gptUI->slider_float("Cloud temporal blend (half resolution sky)", &ptEnvironment->fCloudTemporalBlend, 0.0f, 0.95f, 0);
                             gptUI->input_float("Cloud coverage", &ptEnvironment->fCloudCoverage, "%g", 0);
                             gptUI->input_float("Cloud base_height", &ptEnvironment->fCloudBaseHeight, "%g", 0);
                             gptUI->input_float("Cloud thickness", &ptEnvironment->fCloudThickness, "%g", 0);

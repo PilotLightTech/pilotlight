@@ -7,7 +7,8 @@
 float
 cloudPhase(float mu, float g)
 {
-    return (1.0 - g * g) / (4.0 * PL_PI * pow(max(1.0 + g*g - 2.0*g*mu, 0.001), 1.5));
+    float d = max(1.0 + g*g - 2.0*g*mu, 0.001);
+    return (1.0 - g * g) * inversesqrt(d) / (4.0 * PL_PI * d);
 }
 
 float
@@ -33,8 +34,9 @@ cloudSunDepth(vec3 p, vec3 sun)
 // Radiance and transmittance from the camera to an endpoint. Distance is
 // in atmosphere units; shared by the background and transparent surface passes.
 vec4
-cloudIntegrateTransport(vec3 worldOrigin, vec3 ray, float maxDistance)
+cloudIntegrateTransport(vec3 worldOrigin, vec3 ray, float maxDistance, float sampleOffset, out float cloudDistance)
 {
+    cloudDistance = 0.0;
     if(tGpuScene.tData.tCloudLayer.x <= 0.0 || tGpuScene.tData.tCloudLayer.w <= 0.0 || maxDistance <= 0.0)
         return vec4(0.0, 0.0, 0.0, 1.0);
     float scale = max(tGpuScene.tData.fAtmosphereConversion, 1e-7);
@@ -54,7 +56,17 @@ cloudIntegrateTransport(vec3 worldOrigin, vec3 ray, float maxDistance)
     if(!cloudShellIntervals(origin, ray, innerRadius, innerRadius + tGpuScene.tData.tCloudLayer.z, maxDistance, ranges))
         return vec4(0.0, 0.0, 0.0, 1.0);
     vec3 sun = -tGpuScene.tData.tDirection * inversesqrt(max(dot(tGpuScene.tData.tDirection, tGpuScene.tData.tDirection), 1e-20));
-    float phase = mix(cloudPhase(dot(ray, sun), -0.2), cloudPhase(dot(ray, sun), 0.65), 0.85);
+    float mu = dot(ray, sun);
+    // Three effective scattering orders. Higher orders lose energy, use lower
+    // effective optical depth, and become less directional. All reuse one sun
+    // depth lookup: no additional light marches. This is an artistic closure,
+    // not an energy-conserving solution of the full scattering integral.
+    vec3 phase = vec3(
+        mix(cloudPhase(mu, -0.2), cloudPhase(mu, 0.65), 0.85),
+        mix(cloudPhase(mu, -0.1), cloudPhase(mu, 0.325), 0.85),
+        mix(cloudPhase(mu, -0.05), cloudPhase(mu, 0.1625), 0.85));
+    phase.yz *= tGpuScene.tData.tCloudProfile.y * vec2(0.5, 0.25);
+    vec3 sunlight = max(tGpuScene.tData.tColor, vec3(0.0)) * max(tGpuScene.tData.fIntensity, 0.0);
     vec3 radiance = vec3(0.0);
     float transmittance = 1.0;
     for(int interval = 0; interval < 2; interval++)
@@ -72,9 +84,8 @@ cloudIntegrateTransport(vec3 worldOrigin, vec3 ray, float maxDistance)
             float a = cloudSampleBoundary(float(i), steps, intervalLength);
             float b = cloudSampleBoundary(float(i + 1), steps, intervalLength);
             float ds = b - a;
-            // Deterministic midpoint quadrature: no screen-space stipple without TAA.
-            // Quadratic spacing resolves nearby density when flying through clouds.
-            float distance = ranges[interval].x + (a + b) * 0.5;
+            // Midpoints for non-temporal paths; stratified samples for temporal sky.
+            float distance = ranges[interval].x + mix(a, b, sampleOffset);
             vec3 p = origin + ray * distance;
             float density = cloudDensity(p, true);
             if(density <= 0.001)
@@ -87,18 +98,25 @@ cloudIntegrateTransport(vec3 worldOrigin, vec3 ray, float maxDistance)
             // Approximate atmospheric sun attenuation and low-order multiple
             // scattering. Neither approximation adds energy independent of the sun.
             vec3 sunTransmission = exp(-tGpuScene.tData.extinctionRayleighGround * 8.0 / max(sunElevation, 0.04));
-            vec3 sunlight = max(tGpuScene.tData.tColor, vec3(0.0)) * max(tGpuScene.tData.fIntensity, 0.0);
-            float direct = phase * exp(-sunDepth);
-            float multiple = 0.08 * exp(-0.35 * sunDepth) + 0.025 * exp(-0.1 * sunDepth);
+            float scattering = dot(phase, exp(-sunDepth * vec3(1.0, 0.5, 0.25)));
             float height = clamp((length(p) - innerRadius) / tGpuScene.tData.tCloudLayer.z, 0.0, 1.0);
             vec3 ambient = vec3(0.035, 0.055, 0.09) * mix(0.35, 1.0, height) * smoothstep(-0.15, 0.2, sunElevation);
-            vec3 source = sunlight * (daylight * sunTransmission * (direct + multiple) + ambient);
+            vec3 source = sunlight * (daylight * sunTransmission * scattering + ambient);
             float segmentT = exp(-density * tGpuScene.tData.tCloudLayer.w * ds);
+            cloudDistance += transmittance * (1.0 - segmentT) * distance;
             radiance += transmittance * (1.0 - segmentT) * source;
             transmittance *= segmentT;
         }
     }
+    cloudDistance /= max(1.0 - transmittance, 1e-6);
     return vec4(radiance, transmittance);
+}
+
+vec4
+cloudIntegrateTransport(vec3 worldOrigin, vec3 ray, float maxDistance)
+{
+    float unusedDistance;
+    return cloudIntegrateTransport(worldOrigin, ray, maxDistance, 0.5, unusedDistance);
 }
 
 vec4
