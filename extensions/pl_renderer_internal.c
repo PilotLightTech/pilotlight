@@ -3701,16 +3701,6 @@ pl__render_view_skybox_pass(plScene* ptScene, plCommandBuffer* ptCommandBuffer, 
     gptGfx->pop_debug_group(ptCommandBuffer);
 }
 
-typedef struct _plForwardPassInfo
-{
-    plRenderBucket    tBucket;
-    plShaderHandle    tShader;
-    uint32_t uGlobalIndex;
-    plDrawArea* ptArea;
-    bool bProbe;
-    int iAlphaFilter; // 0: all, 1: opaque/masked, 2: blended (outlined buckets can contain both)
-} plForwardPassInfo;
-
 static void
 pl__render_view_forward_pass(plScene* ptScene, plCommandBuffer* ptCommandBuffer, plBindGroupHandle tViewBG, plForwardPassInfo* ptInfo)
 {
@@ -4486,30 +4476,25 @@ pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
-static bool
-pl__renderer_ao_enabled(plView* ptView)
-{
-    const plRenderSettings* ptSettings = gptAsset->get_data(ptView->ptParentScene->tSettings);
-    return ptSettings->tAO.tMode >= PL_RENDERER_AO_SSAO && ptSettings->tAO.tMode <= PL_RENDERER_AO_MSAO &&
-        ptSettings->tAO.fStrength > 0.0f && ptSettings->tAO.fRadius > 0.0f &&
-        ptView->tTargetSize.x > 0 && ptView->tTargetSize.y > 0;
-}
-
 // Extend the existing depth/normal buffer with opaque forward surfaces before screen-space effects.
 static void
 pl__render_view_forward_depth_normal_pass(plView* ptView, plCommandBuffer* ptCmd, plDrawArea* ptArea)
 {
     plScene* ptScene = ptView->ptParentScene;
     const plRenderBucket atBuckets[] = {
-        PL_RENDER_BUCKET_FORWARD, PL_RENDER_BUCKET_FORWARD_DOUBLE_SIDED,
-        PL_RENDER_BUCKET_OUTLINE, PL_RENDER_BUCKET_OUTLINE_DOUBLE_SIDED,
-        PL_RENDER_BUCKET_FOLIAGE, PL_RENDER_BUCKET_FOLIAGE_OUTLINE
+        PL_RENDER_BUCKET_FORWARD,
+        PL_RENDER_BUCKET_FORWARD_DOUBLE_SIDED,
+        PL_RENDER_BUCKET_OUTLINE,
+        PL_RENDER_BUCKET_OUTLINE_DOUBLE_SIDED,
+        PL_RENDER_BUCKET_FOLIAGE,
+        PL_RENDER_BUCKET_FOLIAGE_OUTLINE
     };
     gptGfx->push_debug_group(ptCmd, "Forward Depth/Normals", (plVec4){0.2f, 0.3f, 0.4f, 1.0f});
     for(uint32_t i = 0; i < 6; i++)
     {
         if(pl_sb_size(ptScene->asbuRenderBuckets[atBuckets[i]]) == 0)
             continue;
+
         const int iFoliage = i >= 4;
         plGraphicsState tState = {
             .bDepthWriteEnabled = true,
@@ -4518,8 +4503,8 @@ pl__render_view_forward_depth_normal_pass(plView* ptView, plCommandBuffer* ptCmd
             .bWireframe         = iFoliage ? false : ptScene->bWireframe
         };
         plShaderVariantDesc tVariant = {
-            .ptAttachmentInfo = &gptData->tDeferredLightingRenderPassLayout,
-            .ptGraphicsState = &tState,
+            .ptAttachmentInfo   = &gptData->tDeferredLightingRenderPassLayout,
+            .ptGraphicsState    = &tState,
             .pFragmentConstants = &iFoliage
         };
         plForwardPassInfo tInfo = {
@@ -4554,22 +4539,31 @@ pl__render_view_ao_pass(plView* ptView, plCommandBuffer* ptCmd)
     plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
     const plRendererAOOptions* ptOptions = &ptSettings->tAO;
     const int iLevels = ptOptions->tMode == PL_RENDERER_AO_MSAO ? 3 : 1;
+
     if(ptView->tAOSize.x != ptView->tTargetSize.x || ptView->tAOSize.y != ptView->tTargetSize.y)
         pl__renderer_release_ao(ptView);
+
     ptView->tAOSize = ptView->tTargetSize;
     for(int i = 0; i < iLevels; i++)
     {
-        if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->atAO[i])) continue;
+        if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->atAO[i]))
+            continue;
         const uint32_t uScale = 1u << i;
         plTextureDesc tDesc = {
-            .tDimensions = {(float)(((uint32_t)ptView->tTargetSize.x + uScale - 1) / uScale),
-                            (float)(((uint32_t)ptView->tTargetSize.y + uScale - 1) / uScale), 1},
-            .eFormat = PL_FORMAT_R32_FLOAT,
-            .uLayers = 1, .uMips = 1, .eType = PL_TEXTURE_TYPE_2D,
-            .eUsage = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_STORAGE,
+            .tDimensions = {
+                (float)(((uint32_t)ptView->tTargetSize.x + uScale - 1) / uScale),
+                (float)(((uint32_t)ptView->tTargetSize.y + uScale - 1) / uScale),
+                1
+            },
+            .eFormat     = PL_FORMAT_R32_FLOAT,
+            .uLayers     = 1,
+            .uMips       = 1,
+            .eType       = PL_TEXTURE_TYPE_2D,
+            .eUsage      = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_STORAGE,
             .pcDebugName = "AO depth"
         };
         gptStarter->create_texture(&tDesc, NULL, 0, &ptView->atAODepth[i]);
+
         tDesc.eFormat = PL_FORMAT_R32G32B32A32_FLOAT;
         tDesc.pcDebugName = "AO visibility";
         gptStarter->create_texture(&tDesc, NULL, 0, &ptView->atAO[i]);
@@ -4605,31 +4599,37 @@ pl__render_view_ao_pass(plView* ptView, plCommandBuffer* ptCmd)
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tBG);
 
         plPassResources tResources = {
-            .atTextures = {{.tHandle = tTarget, .eStages = PL_SHADER_STAGE_COMPUTE,
-                .eAccess = PL_PASS_RESOURCE_ACCESS_READ_WRITE, .eUsage = PL_TEXTURE_USAGE_STORAGE}}
+            .atTextures = {
+                {.tHandle = tTarget, .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ_WRITE, .eUsage = PL_TEXTURE_USAGE_STORAGE}
+            }
         };
         gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL);
         gptGfx->begin_compute_pass(ptCmd, &tResources);
         plDynamicBinding tDynamic = pl__allocate_dynamic_data(gptData->ptDevice, sizeof(plGpuDynAOData));
         plGpuDynAOData* ptGPU = (plGpuDynAOData*)tDynamic.pcData;
         *ptGPU = (plGpuDynAOData){
-            .tProjection = ptView->tViewData.tCameraProjection[0],
+            .tProjection    = ptView->tViewData.tCameraProjection[0],
             .tProjectionInv = ptView->tViewData.tCameraProjectionInv[0],
-            .tView = ptView->tViewData.tCameraView[0],
-            .tViewportSize = ptView->tTargetSize,
-            .iLevel = iLevel, .iMode = ptOptions->tMode, .iLevels = iLevels,
-            .fRadius = pl_clampf(0.001f, ptOptions->fRadius, 1000.0f),
-            .fStrength = pl_clampf(0.0f, ptOptions->fStrength, 8.0f),
-            .fBias = pl_clampf(0.0f, ptOptions->fBias, 0.5f)
+            .tView          = ptView->tViewData.tCameraView[0],
+            .tViewportSize  = ptView->tTargetSize,
+            .iLevel         = iLevel,
+            .iMode          = ptOptions->tMode,
+            .iLevels        = iLevels,
+            .fRadius        = pl_clampf(0.001f, ptOptions->fRadius, 1000.0f),
+            .fStrength      = pl_clampf(0.0f, ptOptions->fStrength, 8.0f),
+            .fBias          = pl_clampf(0.0f, ptOptions->fBias, 0.5f)
         };
         plComputeShaderHandle tShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, pcShader, NULL);
         gptGfx->bind_compute_shader(ptCmd, tShader);
         gptGfx->bind_compute_bind_groups(ptCmd, tShader, 0, 1, &tBG, 1, &tDynamic);
         const uint32_t uScale = 1u << iLevel;
         plDispatch tDispatch = {
-            .uGroupCountX = (((uint32_t)ptView->tTargetSize.x + uScale - 1) / uScale + 7) / 8,
-            .uGroupCountY = (((uint32_t)ptView->tTargetSize.y + uScale - 1) / uScale + 7) / 8,
-            .uGroupCountZ = 1, .uThreadPerGroupX = 8, .uThreadPerGroupY = 8, .uThreadPerGroupZ = 1
+            .uGroupCountX     = (((uint32_t)ptView->tTargetSize.x + uScale - 1) / uScale + 7) / 8,
+            .uGroupCountY     = (((uint32_t)ptView->tTargetSize.y + uScale - 1) / uScale + 7) / 8,
+            .uGroupCountZ     = 1,
+            .uThreadPerGroupX = 8,
+            .uThreadPerGroupY = 8,
+            .uThreadPerGroupZ = 1
         };
         gptGfx->dispatch(ptCmd, 1, &tDispatch);
         gptGfx->producer_barrier(ptCmd, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_COMPUTE | PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_TEXTURES);

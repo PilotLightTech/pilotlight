@@ -223,6 +223,16 @@ enum _plRenderBucket
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plForwardPassInfo
+{
+    plRenderBucket    tBucket;
+    plShaderHandle    tShader;
+    uint32_t          uGlobalIndex;
+    plDrawArea*       ptArea;
+    bool              bProbe;
+    int               iAlphaFilter; // 0: all, 1: opaque/masked, 2: blended (outlined buckets can contain both)
+} plForwardPassInfo;
+
 // ORM alpha is binary16: every integer from 0 through 2048 is exact.
 // 0 = background, 1 = geometry without probes, 2 = overflow/sky fallback.
 typedef struct _plProbeSelectionTable

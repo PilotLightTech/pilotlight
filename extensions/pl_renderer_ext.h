@@ -161,6 +161,7 @@ typedef struct _plRendererI
     plEcsTypeKey (*get_ecs_type_key_terrain)          (void);
     plEcsTypeKey (*get_ecs_type_key_environment)      (void);
     plEcsTypeKey (*get_ecs_type_key_renderer)         (void);
+    plEcsTypeKey (*get_ecs_type_key_decal)            (void);
 
     // ecs system updates (run in the following order)
     void (*run_light_update_system)            (plComponentLibrary*);
@@ -174,7 +175,6 @@ typedef struct _plRendererI
     void          (*reload_scene_shaders) (plScene*);
     plDrawList3D* (*get_gizmo_drawlist)   (plView*);
     void          (*rebuild_scene_bvh)    (plScene*);
-    plEcsTypeKey   (*get_ecs_type_key_decal)(void);
 } plRendererI;
 
 //-----------------------------------------------------------------------------

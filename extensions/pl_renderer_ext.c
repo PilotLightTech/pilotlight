@@ -1862,7 +1862,7 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
     // update view data
     //-----------------------------------------------------------------------------
 
-    ptView->tViewData.iAOEnabled = pl__renderer_ao_enabled(ptView);
+    ptView->tViewData.iAOEnabled = ptSettings->tAO.tMode >= PL_RENDERER_AO_SSAO && ptSettings->tAO.tMode <= PL_RENDERER_AO_MSAO && ptSettings->tAO.fStrength > 0.0f && ptSettings->tAO.fRadius > 0.0f && ptView->tTargetSize.x > 0 && ptView->tTargetSize.y > 0;
     ptView->tViewData.iClusterEnabled = ptCamera->fNearZ > 0.0f && ptCamera->fFarZ > ptCamera->fNearZ;
     ptView->tViewData.iClusterPointCount = (int)pl_sb_size(ptScene->sbtPointLightData);
     ptView->tViewData.iClusterSpotCount = (int)pl_sb_size(ptScene->sbtSpotLightData);
@@ -2171,7 +2171,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
-    plScene* ptScene   = ptView->ptParentScene;
+    plScene*       ptScene   = ptView->ptParentScene;
     plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~culling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2217,8 +2217,8 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
         for(uint32_t i = 0; i < uDrawableCount; i++)
         {
-            uint32_t uDrawableIndex = ptScene->sbuActiveDrawables[i];
-            plDrawable* ptDrawable = &ptScene->sbtDrawables[uDrawableIndex];
+            uint32_t                     uDrawableIndex      = ptScene->sbuActiveDrawables[i];
+            plDrawable*                  ptDrawable          = &ptScene->sbtDrawables[uDrawableIndex];
             plDrawableResources*         ptDrawableResources = &ptScene->sbtDrawableResources[uDrawableIndex];
             plObjectComponent*           ptObject            = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->tEntity);
             plMesh*                      ptMainMesh          = gptAsset->get_data(ptObject->tMesh);
@@ -2320,21 +2320,26 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     if(ptView->tViewData.iClusterEnabled)
     {
         plPassResources tClusterResources = {
-            .atBuffers = {{
-                .tHandle = ptView->atClusterBuffers[uFrameIdx],
-                .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
-                .eStages = PL_SHADER_STAGE_COMPUTE,
-                .eUsage = PL_BUFFER_USAGE_STORAGE
-            }}
+            .atBuffers = {
+                {
+                    .tHandle = ptView->atClusterBuffers[uFrameIdx],
+                    .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
+                    .eStages = PL_SHADER_STAGE_COMPUTE,
+                    .eUsage  = PL_BUFFER_USAGE_STORAGE
+                }
+        }
         };
         plComputeShaderHandle tClusterShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cluster_lights", NULL);
         gptGfx->begin_compute_pass(ptSceneCmdBuffer, &tClusterResources);
         gptGfx->bind_compute_shader(ptSceneCmdBuffer, tClusterShader);
         gptGfx->bind_compute_bind_groups(ptSceneCmdBuffer, tClusterShader, 0, 1, &ptView->atViewBG[uFrameIdx], 0, NULL);
         plDispatch tClusterDispatch = {
-            .uGroupCountX = (PL_CLUSTER_X * PL_CLUSTER_Y * PL_CLUSTER_Z + 63) / 64,
-            .uGroupCountY = 1, .uGroupCountZ = 1,
-            .uThreadPerGroupX = 64, .uThreadPerGroupY = 1, .uThreadPerGroupZ = 1
+            .uGroupCountX     = (PL_CLUSTER_X * PL_CLUSTER_Y * PL_CLUSTER_Z + 63) / 64,
+            .uGroupCountY     = 1,
+            .uGroupCountZ     = 1,
+            .uThreadPerGroupX = 64,
+            .uThreadPerGroupY = 1,
+            .uThreadPerGroupZ = 1
         };
         gptGfx->dispatch(ptSceneCmdBuffer, 1, &tClusterDispatch);
         gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
@@ -2512,6 +2517,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         gptGfx->consumer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_COMPUTE | PL_PIPELINE_STAGE_BLIT, PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
         gptGfx->begin_render_pass(ptSceneCmdBuffer, &tMainRenderInfo, NULL);
     }
+
     if(!bAO && gptGfx->is_texture_valid(gptData->ptDevice, ptView->atAO[0]))
         pl__renderer_release_ao(ptView);
 

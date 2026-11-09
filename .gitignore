@@ -16,6 +16,7 @@ shaders-temp/
 assets/development
 assets/gltf-samples
 
+assets/environments/*
 !assets/environments/realistic.plenvironment
 !assets/environments/skybox.plenvironment
 
@@ -47,6 +48,10 @@ assets/animations/*
 
 assets/skeletons/*
 assets/skins/*
+
+assets/settings/*
+!assets/settings/default.plscene
+!assets/settings/terrain.plscene
 
 assets/textures/*
 !assets/textures/skybox.pltexture
