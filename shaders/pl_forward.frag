@@ -36,6 +36,7 @@ layout(location = 0) in plShaderOut {
     mat4 tModel; 
     flat uvec4 tSelectedProbes;
     flat uint uProbeSelection;
+    vec2 tWaterPosition; // undisplaced world XZ for wave normals
 } tShaderIn;
 
 #include "pl_math.glsl"
@@ -47,6 +48,8 @@ layout(location = 0) in plShaderOut {
 #include "pl_decals.glsl"
 #define PL_INCLUDE_MATERIAL_FUNCTIONS
 #include "pl_material_info.glsl"
+#define PL_WATER_FRAGMENT
+#include "pl_water.glsl"
 
 vec3
 getPunctualRadianceClearCoat(vec3 clearcoatNormal, vec3 v, vec3 l, vec3 h, float VdotH, vec3 f0, vec3 f90, float clearcoatRoughness)
@@ -202,7 +205,39 @@ void main()
     vec3 vraw = tViewInfo.tData.tCameraPos.xyz - tShaderIn.tWorldPosition.xyz;
     vec3 v = normalize(vraw);
 
+    bool bWater = bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_WATER);
+    vec3 waterReflection = vec3(0.0);
+    vec3 waterIllumination = vec3(0.0);
+    float waterFresnel = 0.0;
+    float waterReflectionOverride = 0.0;
+    float waterFoam = 0.0;
+    if(bWater)
+    {
+        n = pl_water_normal(tShaderIn.tWaterPosition, tGpuScene.tData.g_time,
+            material.fNormalMapStrength, material.tWater);
+        vec3 foamPattern = vec3(0.5, 0.5, 0.67);
+        if(v.y > 0.0 && (material.tWater.tShore.x > 0.0 || material.tWater.tCaps.x > 0.0))
+            foamPattern = pl_water_foam_pattern(tShaderIn.tWorldPosition, tGpuScene.tData.g_time, material.tWater);
+        if(!bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
+            waterFoam = pl_water_shore_foam(tShaderIn.tWorldPosition, material.tWater, foamPattern);
+        float whitecaps = pl_water_whitecaps(tShaderIn.tWorldPosition, tGpuScene.tData.g_time, material.tWater, foamPattern);
+        waterFoam = 1.0 - (1.0 - waterFoam) * (1.0 - whitecaps);
+        // Foam is a lit, rough surface layer, not an emissive white overlay.
+        tBaseColor.rgb = material.tWater.tFoamColorDebug.rgb; // Lit foam endpoint; coverage is applied once below.
+        n = normalize(mix(n, vec3(0.0, 1.0, 0.0), waterFoam * material.tWater.tAppearance.w));
+        if(v.y < 0.0)
+            n = -n;
+    }
+
     float NdotV = clampedDot(n, v);
+    if(bWater && material.tWater.tFoamColorDebug.w == 1.0) { outColor = vec4(vec3(waterFoam), 1.0); return; }
+    if(bWater && material.tWater.tFoamColorDebug.w == 2.0 && !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
+    {
+        float depth = texelFetch(sampler2D(at2DTextures[nonuniformEXT(tViewInfo.tData.iTransmissionDepthIndex)], tSamplerNearestClamp), ivec2(gl_FragCoord.xy), 0).r;
+        vec3 delta = mat3(tViewInfo.tData.tCameraViewInv[0]) * (pl_water_view_position(gl_FragCoord.xy, max(depth, 0.0000001)) - pl_water_view_position(gl_FragCoord.xy, gl_FragCoord.z));
+        outColor = vec4(vec3(clamp(-delta.y / material.tWater.tShore.y, 0.0, 1.0)), 1.0);
+        return;
+    }
     // float TdotV = clampedDot(t, v);
     // float BdotV = clampedDot(b, v);
 
@@ -261,6 +296,8 @@ void main()
     }
 
     materialInfo.perceptualRoughness = clamp(materialInfo.perceptualRoughness, 0.0, 1.0);
+    if(bWater)
+        materialInfo.perceptualRoughness = mix(max(materialInfo.perceptualRoughness, material.tWater.tAppearance.y), material.tWater.tAppearance.z, waterFoam);
     materialInfo.metallic = clamp(materialInfo.metallic, 0.0, 1.0);
 
     // Roughness is authored as perceptual roughness; as is convention,
@@ -270,6 +307,14 @@ void main()
     // Anything less than 2% is physically impossible and is instead considered to be shadowing. Compare to "Real-Time-Rendering" 4th editon on page 325.
     materialInfo.f90 = vec3(1.0);
     materialInfo.f90_dielectric = materialInfo.f90;
+
+    if(bWater)
+    {
+        float waterIor = max(materialInfo.ior, 1.0);
+        vec3 refracted = refract(-v, n, v.y >= 0.0 ? 1.0 / waterIor : waterIor);
+        waterReflectionOverride = dot(refracted, refracted) < 0.001 ? 1.0 : 0.0;
+        waterFresnel = max(waterReflectionOverride, pl_fresnel_schlick(materialInfo.f0_dielectric.r, NdotV));
+    }
 
     // LIGHTING
     vec3 f_specular_dielectric = vec3(0.0);
@@ -309,10 +354,14 @@ void main()
 
     // Only passes drawn after the background cloud composite need transport.
     // Probe captures composite clouds after all geometry instead.
-    bool bSurfaceClouds = !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE) && (material.eAlphaMode == PL_SHADER_ALPHA_MODE_BLEND || bool(material.iMaterialFlags & (PL_MATERIAL_SHADER_FLAG_TRANSMISSION | PL_MATERIAL_SHADER_FLAG_VOLUME | PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION)));
+    bool bSurfaceClouds = !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE) && (bWater || material.eAlphaMode == PL_SHADER_ALPHA_MODE_BLEND || bool(material.iMaterialFlags & (PL_MATERIAL_SHADER_FLAG_TRANSMISSION | PL_MATERIAL_SHADER_FLAG_VOLUME | PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION)));
     vec4 surfaceCloud = vec4(0.0, 0.0, 0.0, 1.0);
     if(bSurfaceClouds)
-        surfaceCloud = cloudSurfaceTransport(tShaderIn.tWorldPosition, tObjectInfo.tData.uGlobalIndex);
+    {
+        bool reused = bWater && pl_water_cached_cloud(surfaceCloud);
+        if(!reused)
+            surfaceCloud = cloudSurfaceTransport(tShaderIn.tWorldPosition, tObjectInfo.tData.uGlobalIndex);
+    }
 
     if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
     {
@@ -424,6 +473,13 @@ void main()
             icolor = f_sheen + icolor * albedoSheenScaling;
             icolor = mix(icolor, clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
             color += icolor * weights[i];
+            if(bWater)
+            {
+                waterReflection += mix(f_dielectric_fresnel_ibl, vec3(1.0), waterReflectionOverride) * f_specular_dielectric * weights[i];
+                // Diffuse convolution represents ambient radiance for a uniform
+                // environment. Use an uncolored upper-hemisphere sample.
+                waterIllumination += getDiffuseLight(vec3(0.0, 1.0, 0.0), iProbeIndex) * weights[i];
+            }
         }
     }
 
@@ -433,6 +489,7 @@ void main()
     if(bool(material.iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
         ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_OCCLUSION])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_OCCLUSION, tObjectInfo.tData.iMaterialIndex)).r;
+        waterReflection *= (1.0 + material.fOcclusionStrength * (ao - 1.0));
         color = color * (1.0 + material.fOcclusionStrength * (ao - 1.0)); 
     }
 
@@ -452,9 +509,9 @@ void main()
     vec3 f_metal_brdf = vec3(0.0);
 
     uint cascadeIndex = tGpuScene.tData.iCascadeCount - 1;
-    const bool bShadows = bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_SHADOWS) && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS);
+    const bool bShadows = bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_SHADOWS) && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS) && !(bWater && material.tWater.tFoamColorDebug.w == 3.0);
     // Only surfaces represented in the opaque depth snapshot receive contact shadows.
-    const bool bContactShadows = bShadows && tGpuScene.tData.tContactShadow.x > 0.0 &&
+    const bool bContactShadows = bShadows && !bWater && tGpuScene.tData.tContactShadow.x > 0.0 &&
         material.eAlphaMode != PL_SHADER_ALPHA_MODE_BLEND &&
         !bool(material.iMaterialFlags & (PL_MATERIAL_SHADER_FLAG_TRANSMISSION | PL_MATERIAL_SHADER_FLAG_VOLUME | PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION)) &&
         !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE);
@@ -465,9 +522,28 @@ void main()
     }
 
     const bool bPunctual = bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PUNCTUAL);
+    float waterSunTransmission = 1.0;
+    bool waterSunEvaluated = false;
     if(bPunctual)
     {
 
+        if(bWater && tGpuScene.tData.fIntensity > 0.0)
+        {
+            vec3 sunToSurface = normalize(tGpuScene.tData.tDirection);
+            float sunCosine = -sunToSurface.y;
+            if(sunCosine > 0.0)
+            {
+                float entry = 1.0 - pl_fresnel_schlick(materialInfo.f0_dielectric.r, sunCosine);
+                vec3 sun = tGpuScene.tData.fIntensity * tGpuScene.tData.tColor;
+                if(bShadows && tGpuScene.tData.iCastShadow > 0)
+                {
+                    waterSunTransmission = cloudSunTransmission(tShaderIn.tWorldPosition);
+                    waterSunEvaluated = true;
+                    sun *= waterSunTransmission;
+                }
+                waterIllumination += sun * entry * pl_water_phase(dot(sunToSurface, v), material.tWater.tOptics.y);
+            }
+        }
         // main sun light
         {
 
@@ -586,7 +662,10 @@ void main()
                 vec3 intensity = tGpuScene.tData.fIntensity * tGpuScene.tData.tColor;
                 if(bShadows && tGpuScene.tData.iCastShadow > 0)
                 {
-                    intensity *= cloudSunTransmission(tShaderIn.tWorldPosition);
+                    // The volume and surface share the same receiver and sun.
+                    // In particular, do not repeat an out-of-cache shadow march.
+                    intensity *= waterSunEvaluated ? waterSunTransmission :
+                        cloudSunTransmission(tShaderIn.tWorldPosition);
                 }
 
 
@@ -675,6 +754,8 @@ void main()
                 l_color = l_sheen + l_color * l_albedoSheenScaling;
                 l_color = mix(l_color, l_clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
                 color += l_color;
+                if(bWater)
+                    waterReflection += dielectric_fresnel * l_specular_dielectric;
             }
         }
 
@@ -825,6 +906,8 @@ void main()
                 l_color = l_sheen + l_color * l_albedoSheenScaling;
                 l_color = mix(l_color, l_clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
                 color += l_color;
+                if(bWater)
+                    waterReflection += dielectric_fresnel * l_specular_dielectric;
             }
         }
 
@@ -967,6 +1050,8 @@ void main()
                 l_color = l_sheen + l_color * l_albedoSheenScaling;
                 l_color = mix(l_color, l_clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
                 color += l_color;
+                if(bWater)
+                    waterReflection += dielectric_fresnel * l_specular_dielectric;
             }
         }
 
@@ -1120,6 +1205,8 @@ void main()
                 l_color = l_sheen + l_color * l_albedoSheenScaling;
                 l_color = mix(l_color, l_clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
                 color += l_color;
+                if(bWater)
+                    waterReflection += dielectric_fresnel * l_specular_dielectric;
             }
         }
 
@@ -1145,16 +1232,64 @@ void main()
     }
 
     color = f_emissive * (1.0 - clearcoatFactor * clearcoatFresnel) + color;
+    if(bWater && bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
+    {
+        // Captures have no transmission snapshot: use the same medium at its
+        // maximum distance instead of reverting to a tinted diffuse surface.
+        plWaterVolume deepWater = pl_water_integrate(
+            pl_water_absorption(material.tWater.tAbsorption.rgb, material.tWater.tAbsorption.a),
+            material.tWater.tScattering.rgb * material.tWater.tScattering.a,
+            material.tWater.tOptics.x, waterIllumination);
+        color = mix(waterReflection + (1.0 - waterFresnel) * deepWater.scattering, color, waterFoam);
+    }
     outColor.rgb = color.rgb;
     outColor.a = tBaseColor.a;
+    if(bWater) outColor.a = 1.0;
 
+    vec3 waterFogScatter = vec3(0.0);
+    vec3 waterFogTransmission = vec3(1.0);
     if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_HEIGHT_FOG))
     {
+        if(bWater)
+        {
+            waterFogScatter = fog(vec4(0.0, 0.0, 0.0, 1.0), vraw, tViewInfo.tData.tCameraPos.y).rgb;
+            waterFogTransmission = fog(vec4(1.0), vraw, tViewInfo.tData.tCameraPos.y).rgb - waterFogScatter;
+        }
         outColor = fog(outColor, vraw, tViewInfo.tData.tCameraPos.y);
     }
     else if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_LINEAR_FOG))
     {
+        if(bWater)
+        {
+            waterFogScatter = fogLinear(vec4(0.0, 0.0, 0.0, 1.0), vraw).rgb;
+            waterFogTransmission = fogLinear(vec4(1.0), vraw).rgb - waterFogScatter;
+        }
         outColor = fogLinear(outColor, vraw);
+    }
+
+    // Composite after fog: the scene snapshot already contains fog, so applying
+    // it again to transmitted light would fog the bed twice.
+    if(bWater && !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
+    {
+        float pathLength;
+        float totalReflection;
+        vec3 transmitted = pl_water_refraction(n, v, materialInfo.ior, pathLength, totalReflection, material.tWater);
+        float fresnel = max(totalReflection, waterFresnel);
+        plWaterVolume volume = pl_water_integrate(pl_water_absorption(material.tWater.tAbsorption.rgb, material.tWater.tAbsorption.a), material.tWater.tScattering.rgb * material.tWater.tScattering.a, pathLength, waterIllumination);
+        vec3 coverage = mix(vec3(1.0) - (1.0 - fresnel) * volume.transmittance, vec3(1.0), waterFoam);
+        int waterDebug = int(material.tWater.tFoamColorDebug.w);
+        if(waterDebug == 4) { outColor = vec4(transmitted, 1.0); return; }
+        if(waterDebug == 5) { outColor = vec4(waterReflection, 1.0); return; }
+        if(waterDebug == 6) { outColor = vec4(coverage, 1.0); return; }
+        if(waterDebug == 7) { outColor = vec4(volume.transmittance, 1.0); return; }
+        if(waterDebug == 8) { outColor = vec4(volume.scattering, 1.0); return; }
+        // The snapshot already contains foreground clouds. Remove this segment
+        // before mixing with the surface; the shared final composite restores it.
+        // Below the transmittance floor the background is no longer recoverable.
+        vec3 behindCloud = max(transmitted - surfaceCloud.rgb, vec3(0.0)) / max(surfaceCloud.a, 0.005);
+        vec3 waterColor = pl_water_composite(behindCloud, waterReflection, volume, fresnel, waterFogScatter, waterFogTransmission);
+        outColor.rgb = mix(waterColor, outColor.rgb, waterFoam);
+        outColor.a = 1.0; // Background is already included; do not alpha blend it twice.
     }
 
     if(tGpuScene.tData.bCascadeDebug == 1)

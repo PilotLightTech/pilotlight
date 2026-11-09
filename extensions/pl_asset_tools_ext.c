@@ -1367,7 +1367,8 @@ pl_asset_tools_show_assets(bool* bValue)
 
                     static const char* apcMaterialModelText[] = {
                         "PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS",
-                        "PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS_FOLIAGE"
+                        "PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS_FOLIAGE",
+                        "PL_MATERIAL_MODEL_WATER"
                     };
                     if(gptUI->begin_combo("Model", apcMaterialModelText[ptMaterial->eMaterialModel], PL_UI_COMBO_FLAGS_NONE))
                     {
@@ -1401,6 +1402,112 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->input_float("occlusion strength", &ptMaterial->fOcclusionStrength, "%g", 0);
                     gptUI->input_float("ior", &ptMaterial->fIor, "%g", 0);
 
+                    if(ptMaterial->eMaterialModel == PL_MATERIAL_MODEL_WATER && gptUI->collapsing_header("Water", 0))
+                    {
+                        plMaterialWater* ptWaterSettings = &ptMaterial->tWater;
+                        *ptMaterial = gptMaterial->sanitize(*ptMaterial);
+                        const char* apcWaveModes[] = {"Legacy swells", "Gerstner waves", "FFT ocean"};
+                        if(gptUI->begin_combo("Wave model", apcWaveModes[ptWaterSettings->iWaveMode], 0))
+                        {
+                            for(int i = 0; i < 3; i++)
+                            {
+                                bool bSelected = ptWaterSettings->iWaveMode == i;
+                                if(gptUI->selectable(apcWaveModes[i], &bSelected, 0))
+                                { ptWaterSettings->iWaveMode = i; gptUI->close_current_popup(); }
+                            }
+                            gptUI->end_combo();
+                        }
+                        const char* apcOceanSizes[] = {"64", "128", "256"};
+                        int iOceanSize = ptWaterSettings->iFftResolution == 64 ? 0 : (ptWaterSettings->iFftResolution == 128 ? 1 : 2);
+                        if(gptUI->begin_combo("FFT resolution", apcOceanSizes[iOceanSize], 0))
+                        {
+                            for(int i = 0; i < 3; i++)
+                            {
+                                bool bSelected = iOceanSize == i;
+                                if(gptUI->selectable(apcOceanSizes[i], &bSelected, 0))
+                                { ptWaterSettings->iFftResolution = 64 << i; gptUI->close_current_popup(); }
+                            }
+                            gptUI->end_combo();
+                        }
+                        gptUI->input_int("FFT seed", &ptWaterSettings->iFftSeed, 0);
+                        gptUI->input_float("gerstner steepness", &ptWaterSettings->fGerstnerSteepness, "%g", 0);
+                        gptUI->input_float("fft patch size", &ptWaterSettings->fFftPatchSize, "%g", 0);
+                        gptUI->input_float("fft height limit", &ptWaterSettings->fFftHeight, "%g", 0);
+                        gptUI->input_float("fft wind speed", &ptWaterSettings->fFftWindSpeed, "%g", 0);
+                        gptUI->input_float("fft wind heading degrees", &ptWaterSettings->fFftWindHeading, "%g", 0);
+                        gptUI->input_float("fft against wind", &ptWaterSettings->fFftWindDependency, "%g", 0);
+                        gptUI->input_float("fft short wave damping", &ptWaterSettings->fFftDamping, "%g", 0);
+                        gptUI->input_float("fft choppiness", &ptWaterSettings->fFftChoppiness, "%g", 0);
+                        gptUI->input_float("fft speed", &ptWaterSettings->fFftSpeed, "%g", 0);
+                        gptUI->separator_text("Primary swell");
+                        gptUI->input_float("swell0 amplitude", &ptWaterSettings->fAmplitude0, "%g", 0);
+                        gptUI->input_float("swell0 wavelength", &ptWaterSettings->fWavelength0, "%g", 0);
+                        gptUI->input_float("swell0 speed", &ptWaterSettings->fSpeed0, "%g", 0);
+                        gptUI->input_float("swell0 heading degrees", &ptWaterSettings->fHeading0, "%g", 0);
+                        gptUI->separator_text("Secondary swell");
+                        gptUI->input_float("swell1 amplitude", &ptWaterSettings->fAmplitude1, "%g", 0);
+                        gptUI->input_float("swell1 wavelength", &ptWaterSettings->fWavelength1, "%g", 0);
+                        gptUI->input_float("swell1 speed", &ptWaterSettings->fSpeed1, "%g", 0);
+                        gptUI->input_float("swell1 heading degrees", &ptWaterSettings->fHeading1, "%g", 0);
+                        gptUI->separator_text("Surface detail");
+                        gptUI->input_float("detail scale", &ptWaterSettings->fDetailScale, "%g", 0);
+                        gptUI->input_float("detail speed", &ptWaterSettings->fDetailSpeed, "%g", 0);
+                        gptUI->input_float("foam speed", &ptWaterSettings->fFoamSpeed, "%g", 0);
+                        gptUI->input_float("foam scale", &ptWaterSettings->fFoamScale, "%g", 0);
+                        gptUI->separator_text("Shore foam");
+                        gptUI->input_float("shore strength", &ptWaterSettings->fShoreStrength, "%g", 0);
+                        gptUI->input_float("shore depth", &ptWaterSettings->fShoreDepth, "%g", 0);
+                        gptUI->input_float("shore ray fade start", &ptWaterSettings->fShoreRayStart, "%g", 0);
+                        gptUI->input_float("shore ray fade end", &ptWaterSettings->fShoreRayEnd, "%g", 0);
+                        gptUI->separator_text("Whitecaps");
+                        gptUI->input_float("whitecap strength", &ptWaterSettings->fWhitecapStrength, "%g", 0);
+                        gptUI->input_float("crest start", &ptWaterSettings->fCrestStart, "%g", 0);
+                        gptUI->input_float("crest full", &ptWaterSettings->fCrestFull, "%g", 0);
+                        gptUI->input_float("slope start", &ptWaterSettings->fSlopeStart, "%g", 0);
+                        gptUI->separator_text("Surface and foam");
+                        gptUI->input_float("slope full", &ptWaterSettings->fSlopeFull, "%g", 0);
+                        gptUI->input_float("minimum roughness", &ptWaterSettings->fMinRoughness, "%g", 0);
+                        gptUI->input_float("foam roughness", &ptWaterSettings->fFoamRoughness, "%g", 0);
+                        gptUI->input_float("foam normal flatten", &ptWaterSettings->fFoamNormalFlatten, "%g", 0);
+                        gptUI->separator_text("Water volume");
+                        gptUI->text("Absorption color: light remaining at the reference distance.");
+                        gptUI->input_float("absorption red", &ptWaterSettings->fAbsorptionRed, "%g", 0);
+                        gptUI->input_float("absorption green", &ptWaterSettings->fAbsorptionGreen, "%g", 0);
+                        gptUI->input_float("absorption blue", &ptWaterSettings->fAbsorptionBlue, "%g", 0);
+                        gptUI->input_float("absorption distance", &ptWaterSettings->fAbsorptionDistance, "%g", 0);
+                        gptUI->input_float("scattering red", &ptWaterSettings->fScatteringRed, "%g", 0);
+                        gptUI->input_float("scattering green", &ptWaterSettings->fScatteringGreen, "%g", 0);
+                        gptUI->input_float("scattering blue", &ptWaterSettings->fScatteringBlue, "%g", 0);
+                        gptUI->input_float("scattering strength", &ptWaterSettings->fScatteringStrength, "%g", 0);
+                        gptUI->input_float("scattering direction", &ptWaterSettings->fScatteringDirection, "%g", 0);
+                        gptUI->separator_text("Refraction");
+                        gptUI->input_float("refraction strength", &ptWaterSettings->fDistortionStrength, "%g", 0);
+                        gptUI->input_float("refraction max pixels", &ptWaterSettings->fMaxDistortionPixels, "%g", 0);
+                        gptUI->input_float("refraction max distance", &ptWaterSettings->fMaxPath, "%g", 0);
+                        gptUI->input_float("refraction edge fade pixels", &ptWaterSettings->fEdgeFade, "%g", 0);
+                        gptUI->input_float("refraction intersection fade", &ptWaterSettings->fIntersectionFade, "%g", 0);
+                        gptUI->separator_text("Foam color and debug");
+                        gptUI->input_float("foam red", &ptWaterSettings->fFoamRed, "%g", 0);
+                        gptUI->input_float("foam green", &ptWaterSettings->fFoamGreen, "%g", 0);
+                        gptUI->input_float("foam blue", &ptWaterSettings->fFoamBlue, "%g", 0);
+                        const char* apcWaterDebug[] = {"Shaded", "Foam coverage", "Water depth", "Without shadows", "Refraction only", "Surface reflection only", "Composite coverage", "Volume transmittance", "Volume scattering"};
+                        *ptMaterial = gptMaterial->sanitize(*ptMaterial);
+                        int iWaterDebug = (int)ptWaterSettings->fDebugView;
+                        if(gptUI->begin_combo("Water debug", apcWaterDebug[iWaterDebug], 0))
+                        {
+                            for(int i = 0; i < (int)PL_ARRAYSIZE(apcWaterDebug); i++)
+                            {
+                                bool bSelected = i == iWaterDebug;
+                                if(gptUI->selectable(apcWaterDebug[i], &bSelected, 0))
+                                {
+                                    ptWaterSettings->fDebugView = (float)i;
+                                    gptUI->close_current_popup();
+                                }
+                            }
+                            gptUI->end_combo();
+                        }
+                    }
+
                     gptUI->separator_text("Advanced Properties");
 
                     gptUI->layout_dynamic(0.0f, 3);
@@ -1414,9 +1521,9 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->checkbox_flags("volume", &ptMaterial->eFlags, PL_MATERIAL_FLAG_VOLUME);
                     gptUI->checkbox_flags("dispersion", &ptMaterial->eFlags, PL_MATERIAL_FLAG_DISPERSION);
                     gptUI->checkbox_flags("diffuse transmission", &ptMaterial->eFlags, PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION);
-                    gptUI->checkbox_flags("foliage normals", &ptMaterial->eFlags, PL_MATERIAL_FLAG_FOLIAGE_NORMALS);
 
                     gptUI->layout_dynamic(0.0f, 1);
+                    gptUI->checkbox_flags("foliage normals", &ptMaterial->eFlags, PL_MATERIAL_FLAG_FOLIAGE_NORMALS);
 
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_EMISSIVE)
                     {

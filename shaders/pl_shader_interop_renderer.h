@@ -74,6 +74,7 @@ PL_BEGIN_ENUM(plMaterialShaderFlags)
     PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION, 1 << 7)
     PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_EMISSIVE,             1 << 8)
     PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_FOLIAGE_NORMALS,      1 << 9)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_WATER,                1 << 10)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plSceneFlags)
@@ -370,7 +371,7 @@ PL_BEGIN_STRUCT(plGpuViewData)
 
     float fAspectRatio;
     int iContactShadowDepthIndex;
-    float _fUnused1;
+    int iTransmissionDepthIndex;
     float _fUnused2;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
     
@@ -382,6 +383,8 @@ PL_BEGIN_STRUCT(plGpuViewData)
 
     vec4 tViewportSize;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    vec4 tCloudTransportCache; // xy: bindless resolved transport/depth (-1 unavailable), zw: reserved
 
     vec4 tCameraPos; // viewing camera
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
@@ -766,6 +769,22 @@ PL_END_STRUCT(plShadowInstanceBufferData)
 // [SECTION] materials
 //-----------------------------------------------------------------------------
 
+PL_BEGIN_STRUCT(plGpuWater)
+    vec4 tWaves; // mode, Gerstner steepness, FFT height bound, choppiness
+    vec4 tOcean; // texture index, patch length, resolution, unused
+    vec4 tSwell0; // swell0_amplitude, swell0_wavelength, swell0_speed, swell0_heading_degrees
+    vec4 tSwell1; // swell1_amplitude, swell1_wavelength, swell1_speed, swell1_heading_degrees
+    vec4 tDetail; // detail_scale, detail_speed, foam_speed, foam_scale
+    vec4 tShore; // shore_strength, shore_depth, shore_ray_fade_start, shore_ray_fade_end
+    vec4 tCaps; // whitecap_strength, crest_start, crest_full, slope_start
+    vec4 tAppearance; // slope_full, minimum_roughness, foam_roughness, foam_normal_flatten
+    vec4 tAbsorption; // RGB transmission at reference distance, reference distance
+    vec4 tScattering; // RGB scattering color, coefficient per world unit
+    vec4 tDistortion; // refraction strength, maximum offset in pixels, reserved, reserved
+    vec4 tOptics; // refraction_max_distance, scattering_direction, refraction_edge_fade_pixels, refraction_intersection_fade
+    vec4 tFoamColorDebug; // foam_red, foam_green, foam_blue, debug_view
+PL_END_STRUCT(plGpuWater)
+
 PL_BEGIN_STRUCT(plGpuMaterial)
 
     float fMetallicFactor;
@@ -818,6 +837,8 @@ PL_BEGIN_STRUCT(plGpuMaterial)
     vec3 tDiffuseTransmissionColor;
     float fDiffuseTransmission;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    plGpuWater tWater;
 
     int aiTextureUVSet[PL_TEXTURE_COUNT];
     int aiTextureIndices[PL_TEXTURE_COUNT];

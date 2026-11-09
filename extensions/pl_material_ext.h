@@ -45,7 +45,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plMaterialI_version {0, 3, 0}
+#define plMaterialI_version {0, 5, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -71,12 +71,14 @@ typedef struct _plMaterialDiffuseTransmission plMaterialDiffuseTransmission;
 typedef struct _plMaterialTransmission        plMaterialTransmission;
 typedef struct _plMaterialVolume              plMaterialVolume;
 typedef struct _plMaterialAnisotropy          plMaterialAnisotropy;
+typedef struct _plMaterialWater               plMaterialWater;
 
 // enums & flags
 typedef int plMaterialModel;       // -> enum _plMaterialModel       // Enum: (PL_MATERIAL_MODEL_XXXX)
 typedef int plMaterialFlags;       // -> enum _plMaterialFlags       // Flag: (PL_MATERIAL_FLAG_XXXX)
 typedef int plMaterialTextureSlot; // -> enum _plMaterialTextureSlot // Enum: (PL_MATERIAL_TEXTURE_SLOT_XXXX)
 typedef int plMaterialAlphaMode;   // -> enum _plMaterialAlphaMode   // Enum: (PL_MATERIAL_ALPHA_MODE_XXXX)
+typedef int plWaterWaveMode;       // -> enum _plWaterWaveMode       // Enum: (PL_WATER_WAVE_MODE_XXXX)
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -93,7 +95,10 @@ PL_API void pl_unload_material_ext(plApiRegistryI*, bool reload);
 typedef struct _plMaterialI
 {
     // basic
-    void (*init)(plMaterial*); // constructor
+    void (*init)(plMaterial*); // initialize all material settings
+
+    // helpers
+    plMaterial (*sanitize)(plMaterial); // clamp settings to supported ranges
 
     // asset
     void           (*register_asset_types)(void);
@@ -138,6 +143,7 @@ enum _plMaterialModel
 {
     PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS         = 0,
     PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS_FOLIAGE = 1,
+    PL_MATERIAL_MODEL_WATER                          = 2,
 
     PL_MATERIAL_MODEL_COUNT
 };
@@ -158,6 +164,18 @@ enum _plMaterialFlags
     PL_MATERIAL_FLAG_FOLIAGE_NORMALS      = 1 << 9,
 
     PL_MATERIAL_FLAG_DOUBLE_SIDED         = 1 << 20,
+};
+
+// Water distances and amplitudes are world units; headings are degrees in XZ.
+// Zero amplitude/strength disables that swell/foam layer. Debug: 0 shaded,
+// 1 foam coverage, 2 water depth, 3 shaded without shadows,
+// 4 refraction only, 5 surface lighting only, 6 composite coverage.
+// Wave modes: legacy swells, analytic Gerstner, GPU spectral ocean.
+enum _plWaterWaveMode
+{
+    PL_WATER_WAVE_MODE_SWELL = 0,
+    PL_WATER_WAVE_MODE_GERSTNER,
+    PL_WATER_WAVE_MODE_FFT
 };
 
 //-----------------------------------------------------------------------------
@@ -223,6 +241,65 @@ typedef struct _plMaterialTexture
     float         fRotation;
 } plMaterialTexture;
 
+typedef struct _plMaterialWater
+{
+    plWaterWaveMode iWaveMode;            // PL_WATER_WAVE_MODE_*; default swell for older materials
+    int             iFftResolution;       // 64, 128 or 256
+    int             iFftSeed;             // deterministic spectrum
+    float           fGerstnerSteepness;   // gerstner_steepness
+    float           fFftPatchSize;        // fft_patch_size
+    float           fFftHeight;           // fft_height_limit
+    float           fFftWindSpeed;        // fft_wind_speed
+    float           fFftWindHeading;      // fft_wind_heading_degrees
+    float           fFftWindDependency;   // fft_against_wind
+    float           fFftDamping;          // fft_short_wave_damping
+    float           fFftChoppiness;       // fft_choppiness
+    float           fFftSpeed;            // fft_speed
+    float           fAmplitude0;          // swell0_amplitude, default 20
+    float           fWavelength0;         // swell0_wavelength, default 2048
+    float           fSpeed0;              // swell0_speed, default 5
+    float           fHeading0;            // swell0_heading_degrees, default 180
+    float           fAmplitude1;          // swell1_amplitude, default 3
+    float           fWavelength1;         // swell1_wavelength, default 1024
+    float           fSpeed1;              // swell1_speed, default 1
+    float           fHeading1;            // swell1_heading_degrees, default 180
+    float           fDetailScale;         // detail_scale, default 1
+    float           fDetailSpeed;         // detail_speed, default 1
+    float           fFoamSpeed;           // foam_speed, default 1
+    float           fFoamScale;           // foam_scale, default 1
+    float           fShoreStrength;       // shore_strength, default 1
+    float           fShoreDepth;          // shore_depth, default 12
+    float           fShoreRayStart;       // shore_ray_fade_start, default 24
+    float           fShoreRayEnd;         // shore_ray_fade_end, default 48
+    float           fWhitecapStrength;    // whitecap_strength, default 0.75
+    float           fCrestStart;          // crest_start, default 0.9
+    float           fCrestFull;           // crest_full, default 1
+    float           fSlopeStart;          // slope_start, default 0.008
+    float           fSlopeFull;           // slope_full, default 0.035
+    float           fMinRoughness;        // minimum_roughness, default 0.08
+    float           fFoamRoughness;       // foam_roughness, default 0.75
+    float           fFoamNormalFlatten;   // foam_normal_flatten, default 0.65
+    float           fDistortionStrength;  // refraction_strength, default 1
+    float           fMaxDistortionPixels; // refraction_max_pixels, default 12
+    float           fAbsorptionRed;       // absorption_red, default 0.55
+    float           fAbsorptionGreen;     // absorption_green, default 0.85
+    float           fAbsorptionBlue;      // absorption_blue, default 0.92
+    float           fAbsorptionDistance;  // absorption_distance, default 128.0
+    float           fScatteringRed;       // scattering_red, default 0.2
+    float           fScatteringGreen;     // scattering_green, default 0.5
+    float           fScatteringBlue;      // scattering_blue, default 0.6
+    float           fScatteringStrength;  // scattering_strength, default 0.005
+    float           fScatteringDirection; // scattering_direction, default 0.35
+    float           fMaxPath;             // refraction_max_distance, default 128
+    float           fOpacityDistance;     // opacity_distance, default 128
+    float           fEdgeFade;            // refraction_edge_fade_pixels, default 24
+    float           fIntersectionFade;    // refraction_intersection_fade, default 2
+    float           fFoamRed;             // foam_red, default 0.85
+    float           fFoamGreen;           // foam_green, default 0.9
+    float           fFoamBlue;            // foam_blue, default 0.88
+    float           fDebugView;           // debug_view, default 0
+} plMaterialWater;
+
 typedef struct _plMaterial
 {
     plMaterialModel     eMaterialModel; // default: PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS
@@ -249,6 +326,7 @@ typedef struct _plMaterial
     plMaterialTransmission        tTransmission;
     plMaterialDiffuseTransmission tDiffuseTransmission;
     plMaterialVolume              tVolume;
+    plMaterialWater               tWater;
 
     plMaterialTexture atTextures[PL_MATERIAL_TEXTURE_SLOT_COUNT];
 } plMaterial;

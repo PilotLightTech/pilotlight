@@ -417,7 +417,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // if(!gptVfs->does_file_exist("/assets/models/humanoid_Scene.plscene"))
     // {
-    //     gptStl->import("/resources/cube.stl");
     //     gptGltf->import("/resources/DamagedHelmet.glb", NULL);
     //     gptGltf->import("/resources/humanoid.gltf", NULL);
 
@@ -845,7 +844,6 @@ pl_app_update(plAppData* ptAppData)
                         bool bPlaceHolder = false;
                         if(gptUI->button(gacImportFiles[n]))
                         {
-                            gptStl->import("/resources/cube.stl");
                             gptGltf->import(gacImportFiles[n], NULL);
                             gptScreenLog->add_message_ex(0, 10.0, PL_COLOR_32_GREEN, 1.0f, "Imported: %s", gacImportFiles[n]);
                         }

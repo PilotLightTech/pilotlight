@@ -7,6 +7,7 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] job system tasks
 // [SECTION] scene render helpers
+// [SECTION] water simulation
 */
 
 //-----------------------------------------------------------------------------
@@ -3773,6 +3774,9 @@ pl__render_view_full_screen_blit(plView* ptView)
     plCommandBuffer* ptSceneCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "main scene blit");
     gptGfx->begin_command_recording(ptSceneCmdBuffer);
 
+    // Metal 4 does not implicitly order passes, even on the same queue.
+    // Finish scene writes and previous snapshot readers before overwriting it.
+    gptGfx->consumer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_BLIT, PL_BARRIER_SCOPE_ALL);
     gptGfx->begin_compute_pass(ptSceneCmdBuffer, NULL);
 
     plImageCopy tFrameCopy = {
@@ -3783,7 +3787,12 @@ pl__render_view_full_screen_blit(plView* ptView)
         .uDestinationLayerCount = 1,
     };
     gptGfx->copy_texture(ptSceneCmdBuffer, ptView->tRawOutputTexture, ptView->tTransmissionTexture, 1, &tFrameCopy);
+    gptGfx->copy_texture(ptSceneCmdBuffer, ptView->tDepthTexture, ptView->tTransmissionDepthTexture, 1, &tFrameCopy);
+    // Mipmap generation reads the level zero written by the color copy.
+    gptGfx->intra_pass_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_BLIT, PL_PIPELINE_STAGE_BLIT, PL_BARRIER_SCOPE_ALL, NULL);
     gptGfx->generate_mipmaps(ptSceneCmdBuffer, ptView->tTransmissionTexture);
+    // Publish both snapshots and all color mips before water samples them.
+    gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_BLIT, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
     gptGfx->end_compute_pass(ptSceneCmdBuffer);
     return ptSceneCmdBuffer;
 }
@@ -3838,6 +3847,7 @@ pl__render_view_transmission_pass(plView* ptView, plCommandBuffer* ptCommandBuff
         ptDynamicData->iSpotLightCount = pl_sb_size(ptScene->sbtSpotLights);
         ptDynamicData->iDirectionLightCount = pl_sb_size(ptScene->sbtDirectionLights);
 
+        ptDynamicData->iObjectShaderFlags = PL_OBJECT_SHADER_FLAG_SHADOWS;
         pl_add_to_draw_stream(ptStream, (plDrawStreamData)
         {
             .tShader        = tTransmissionShader,
@@ -5021,11 +5031,14 @@ pl__render_view_bloom_pass(plView* ptView)
 static void
 pl__cloud_release_low_resolution(plView* ptView)
 {
+    pl__renderer_return_bindless_texture_index(ptView->ptParentScene, ptView->tCloudLowResTexture);
     if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tCloudLowResTexture))
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tCloudLowResTexture);
     ptView->tCloudLowResTexture = (plTextureHandle){0};
     for(uint32_t i = 0; i < 2; i++)
     {
+        pl__renderer_return_bindless_texture_index(ptView->ptParentScene, ptView->atCloudHistory[i]);
+        pl__renderer_return_bindless_texture_index(ptView->ptParentScene, ptView->atCloudDistance[i]);
         if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->atCloudHistory[i]))
             gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atCloudHistory[i]);
         if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->atCloudDistance[i]))
@@ -5099,8 +5112,8 @@ pl__cloud_ensure_low_resolution(plView* ptView)
         tDesc.pcDebugName = "cloud temporal radiance and transmittance";
         gptStarter->create_texture(&tDesc, NULL, 0, &ptView->atCloudHistory[i]);
     }
-    tDesc.eFormat = PL_FORMAT_R32_FLOAT;
-    tDesc.pcDebugName = "cloud temporal representative distance";
+    tDesc.eFormat = PL_FORMAT_R32G32_FLOAT;
+    tDesc.pcDebugName = "cloud representative distance and source depth";
     for(uint32_t i = 0; i < 2; i++)
         gptStarter->create_texture(&tDesc, NULL, 0, &ptView->atCloudDistance[i]);
 }
@@ -5174,6 +5187,12 @@ pl__cloud_render_half_resolution(plView* ptView, plCommandBuffer* ptCmd)
             // against the preceding frame's writes, including frames in flight.
             for(uint32_t i = 1; i < 5; i++)
                 tResources.atTextures[i] = (plPassTextureResource){.tHandle = tBindings.atTextureBindings[i].tTexture, .eStages = PL_PIPELINE_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED};
+        }
+        else
+        {
+            // Transition the source-depth metadata for the later water lookup,
+            // including when temporal resolve is disabled.
+            tResources.atTextures[3] = (plPassTextureResource){.tHandle = ptView->atCloudDistance[uCurrent], .eStages = PL_PIPELINE_STAGE_FRAGMENT, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED};
         }
         gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL);
         gptGfx->begin_compute_pass(ptCmd, &tResources);
@@ -5673,35 +5692,48 @@ pl__renderer_probe_update_all(plScene* ptScene)
     plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
 
     const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
-    for(uint32_t uProbeIndex = 1; uProbeIndex < uProbeCount; uProbeIndex++)
+    for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
     {
-        plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
-        plEnvironmentProbeComponent* ptProbeComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
+        // The sky probe also participates in sheen filtering, but has no ECS component.
+        plEnvironmentProbeData* ptProbe = uProbeIndex == 0 ? &ptScene->tDefaultProbeData : &ptScene->sbtProbeData[uProbeIndex];
+        plEnvironmentProbeComponent* ptProbeComp = uProbeIndex == 0 ? NULL : gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
         plEnvironmentProbeDataPack* ptPack = &ptScene->sbtProbeDataPacks[ptProbe->uDataPackIndex];
 
         if((ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && !gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
         {
             PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "creating required sheen env texture");
             const plTextureDesc tTextureDesc = {
-                .tDimensions = {(float)ptProbeComp->uResolution, (float)ptProbeComp->uResolution, 1},
+                .tDimensions = {ptProbe->tTargetSize.x, ptProbe->tTargetSize.y, 1},
                 .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
                 .uLayers     = 6,
-                .uMips       = (uint32_t)floorf(log2f((float)ptProbeComp->uResolution)) - 3, // guarantee final dispatch during filtering is 16 threads
+                .uMips       = (uint32_t)floorf(log2f(ptProbe->tTargetSize.x)) - 3, // guarantee final dispatch during filtering is 16 threads
                 .eType       = PL_TEXTURE_TYPE_CUBE,
                 .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
                 .pcDebugName = "tSheenEnvTexture"
             };
             gptStarter->create_texture(&tTextureDesc, NULL, 0, &ptProbe->tSheenEnvTexture);
             ptProbe->uSheenEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, ptProbe->tSheenEnvTexture);
-            ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+            if(ptProbeComp)
+                ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+            else
+                ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
         }
         else if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
         {
             PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "freeing unneeded sheen env texture");
             gptGfx->queue_texture_for_deletion(ptDevice, ptProbe->tSheenEnvTexture);
+            ptProbe->tSheenEnvTexture = (plTextureHandle){0};
+            ptProbe->uSheenEnvSampler = 0;
         }
 
-        
+        if(uProbeIndex == 0)
+        {
+            // Scene teardown owns the sky probe's resources through this array entry.
+            ptScene->sbtProbeData[0].tSheenEnvTexture = ptProbe->tSheenEnvTexture;
+            ptScene->sbtProbeData[0].uSheenEnvSampler = ptProbe->uSheenEnvSampler;
+            continue;
+        }
+
         if(ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME || ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY || ptScene->tFlags & PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY)
         {
             if(ptProbe->uDirtyFaces == 0 && (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY))
@@ -6082,6 +6114,13 @@ pl__renderer_probe_update_all(plScene* ptScene)
                                 pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD], uDrawableIndex);
                             }
                         }
+                    }
+
+                    // Probes have no screen-space transmission snapshot. Render
+                    // water with its ordinary tinted, reflective fallback.
+                    else if(ptMaterial->eMaterialModel == PL_MATERIAL_MODEL_WATER)
+                    {
+                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_TRANSPARENT_DOUBLE_SIDED], uDrawableIndex);
                     }
 
                     // transmission objects
@@ -6757,6 +6796,18 @@ pl__renderer_scene_create_bindgroup_layouts(plScene* ptScene)
     }
 
     {
+        const plBindGroupLayoutDesc ocean = {
+            .pcDebugName = "ocean FFT",
+            .atBufferBindings = {
+                {.uSlot = 0, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE},
+                {.uSlot = 1, .eType = PL_BUFFER_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE}
+            },
+            .atTextureBindings = {
+                {.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .eStages = PL_SHADER_STAGE_COMPUTE}
+            }
+        };
+        plBindGroupLayoutHandle oceanLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &ocean);
+        gptShaderLibrary->register_bind_group_layout(ptScene->ptShaderLibrary, "ocean_fft", oceanLayout);
         plBindGroupLayoutDesc tDesc = {
             .pcDebugName = "ambient occlusion",
             .atTextureBindings = {
@@ -6932,6 +6983,14 @@ pl__renderer_scene_create_compute_shaders(plScene* ptScene)
     };
     gptShader->set_options(&tNewDefaultShaderOptions);
 
+    {
+        plComputeShaderDesc desc = {
+            .pcDebugName        = "ocean_fft",
+            .tShader            = gptShader->load_glsl("pl_ocean_fft.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "ocean_fft"))->tDesc}
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "ocean_fft", &desc);
+    }
     {
         plComputeShaderDesc tClusterDesc = {
             .pcDebugName = "cluster_lights",
@@ -8537,6 +8596,8 @@ pl__renderer_view_create_textures(plView* ptView)
 
         if(gptGfx->is_texture_valid(ptDevice, ptView->tTransmissionTexture))
         {
+            pl__renderer_return_bindless_texture_index(ptView->ptParentScene, ptView->tTransmissionTexture);
+            pl__renderer_return_bindless_texture_index(ptView->ptParentScene, ptView->tTransmissionDepthTexture);
             gptGfx->queue_texture_for_deletion(ptDevice, ptView->tTransmissionTexture);
             const plTextureDesc tRawOutput2TextureDesc = {
                 .tDimensions   = tNewDimensions,
@@ -8548,6 +8609,19 @@ pl__renderer_view_create_textures(plView* ptView)
                 .pcDebugName = "tRawOutputTexture2"
             };
             gptStarter->create_texture(&tRawOutput2TextureDesc, NULL, 0, &ptView->tTransmissionTexture);
+            gptGfx->queue_texture_for_deletion(ptDevice, ptView->tTransmissionDepthTexture);
+            const plTextureDesc tDepthCopyDesc = {
+                .tDimensions = tNewDimensions,
+                .eFormat     = PL_FORMAT_D32_FLOAT_S8_UINT,
+                .uLayers     = 1,
+                .uMips       = 1,
+                .eType       = PL_TEXTURE_TYPE_2D,
+                .eUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
+                .pcDebugName = "transmission depth snapshot"
+            };
+            gptStarter->create_texture(&tDepthCopyDesc, NULL, 0, &ptView->tTransmissionDepthTexture);
+            ptView->tViewData.iTransmissionFrameBufferIndex = pl__renderer_get_bindless_texture_index(ptView->ptParentScene, ptView->tTransmissionTexture);
+            ptView->tViewData.iTransmissionDepthIndex = pl__renderer_get_bindless_texture_index(ptView->ptParentScene, ptView->tTransmissionDepthTexture);
         }
     }
 
@@ -9007,7 +9081,13 @@ pl__renderer_view_update_bindgroups(plView* ptView)
                         .uSlot    = PL_MAX_BINDLESS_TEXTURE_SLOT,
                         .uIndex   = (uint32_t)ptView->tViewData.iTransmissionFrameBufferIndex,
                         .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED
-                    }  
+                    },
+                    {
+                        .tTexture = ptView->tTransmissionDepthTexture,
+                        .uSlot = PL_MAX_BINDLESS_TEXTURE_SLOT,
+                        .uIndex = (uint32_t)ptView->tViewData.iTransmissionDepthIndex,
+                        .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+                    }
                 }
             };
             gptGfx->update_bind_group(gptData->ptDevice, ptView->ptParentScene->atSceneBindGroups[i], &tGlobalBindGroupData);
@@ -10817,5 +10897,212 @@ pl__renderer_update_object_probes(plScene* ptScene)
             plVec3 tCenter = pl_mul_vec3_scalarf(pl_add_vec3(ptObject->tAABB.tMin, ptObject->tAABB.tMax), 0.5f);
             ptTransforms[ptDrawable->uTransformIndex + j].uProbeSelection = pl__renderer_intern_probe_selection(ptScene, pl__renderer_select_probes(ptScene->sbtGPUProbeData, uProbeCount, tCenter));
         }
+    }
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] water simulation
+//-----------------------------------------------------------------------------
+
+// Per-scene, per-material spectral oceans. All work runs on the renderer's
+// ordered graphics queue; compute barriers protect reuse across frames/views.
+
+
+// Deterministic Phillips spectrum, in world units (gravity = 9.81 units/s^2).
+
+static inline uint32_t
+pl_ocean_hash(uint32_t x)
+{
+    x ^= x >> 16; x *= 0x7feb352du;
+    x ^= x >> 15; x *= 0x846ca68bu;
+    return x ^ (x >> 16);
+}
+
+// Output: h0.real, h0.imaginary, angular frequency, unused. Unshifted FFT order.
+// The L1 spectral bound normalizes the maximum possible vertical displacement
+// to fft_height_limit, independently of resolution. Actual waves are lower.
+static inline void
+pl_ocean_build_spectrum(plMaterialWater water, plVec4* output)
+{
+    const int n = water.iFftResolution;
+    const double tau = 6.283185307179586;
+    const double dk = tau / water.fFftPatchSize;
+    const double heading = water.fFftWindHeading * tau / 360.0;
+    const double windX = cos(heading), windZ = sin(heading);
+    const double length = (double)water.fFftWindSpeed * water.fFftWindSpeed / 9.81;
+    double bound = 0;
+    for(int z = 0; z < n; z++)
+    {
+        for(int x = 0; x < n; x++)
+        {
+            plVec4* h = &output[z * n + x];
+            const plVec4 zero = {0};
+            *h = zero;
+            // Remove self-conjugate Nyquist axes for real horizontal displacement.
+            if((x == 0 && z == 0) || x == n / 2 || z == n / 2 || length == 0)
+                continue;
+            const double kx = (x < n / 2 ? x : x - n) * dk;
+            const double kz = (z < n / 2 ? z : z - n) * dk;
+            const double k2 = kx * kx + kz * kz;
+            const double directional = (kx * windX + kz * windZ) / sqrt(k2);
+            double power = exp(-1.0 / (k2 * length * length)) * directional * directional / (k2 * k2);
+            if(directional < 0)
+                power *= water.fFftWindDependency;
+            power *= exp(-k2 * water.fFftDamping * water.fFftDamping);
+            const uint32_t seed = (uint32_t)water.iFftSeed ^ ((uint32_t)(z * n + x) * 0x9e3779b9u);
+            const double u = ((pl_ocean_hash(seed) >> 8) + 1.0) / 16777217.0;
+            const double v = (pl_ocean_hash(seed ^ 0x68bc21ebu) >> 8) / 16777216.0;
+            const double radius = sqrt(-log(u) * power);
+            h->x = (float)(radius * cos(tau * v));
+            h->y = (float)(radius * sin(tau * v));
+            h->z = (float)sqrt(9.81 * sqrt(k2));
+            bound += 2.0 * hypot(h->x, h->y);
+        }
+    }
+    const double scale = bound > 0 ? (double)water.fFftHeight * n * n / bound : 0;
+    for(int i = 0; i < n * n; i++)
+    {
+        output[i].x = (float)(output[i].x * scale);
+        output[i].y = (float)(output[i].y * scale);
+    }
+}
+
+static void
+pl__ocean_release(plScene* ptScene, plOcean* ptOcean)
+{
+    if(gptGfx->is_texture_valid(gptData->ptDevice, ptOcean->tDisplacement))
+    {
+        pl__renderer_return_bindless_texture_index(ptScene, ptOcean->tDisplacement);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptOcean->tDisplacement);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptOcean->tSpectrum);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptOcean->tScratch);
+    }
+    ptOcean->tDisplacement = (plTextureHandle){0};
+}
+
+static void
+pl__ocean_cleanup(plScene* ptScene)
+{
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtOceans); i++)
+        pl__ocean_release(ptScene, &ptScene->sbtOceans[i]);
+    pl_sb_free(ptScene->sbtOceans);
+}
+
+// Called during the existing material upload flush, before rendering can see
+// updated parameters. Descriptor replacement therefore never races old frames.
+// ptMaterial is the sanitized copy used by the entire GPU material upload.
+static void
+pl__ocean_update_material(plScene* ptScene, plAssetHandle tMaterial, const plMaterial* ptMaterial, plGpuWater* ptGPU)
+{
+    const plMaterialWater water = ptMaterial->tWater;
+    ptGPU->tWaves = (plVec4){(float)water.iWaveMode, water.fGerstnerSteepness, water.fFftHeight, water.fFftChoppiness};
+    ptGPU->tOcean = (plVec4){-1, water.fFftPatchSize, (float)water.iFftResolution, 0};
+    plOcean* ptOcean = NULL;
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtOceans); i++)
+    {
+        if(ptScene->sbtOceans[i].tMaterial.uData == tMaterial.uData)
+            ptOcean = &ptScene->sbtOceans[i];
+    }
+    if(ptMaterial->eMaterialModel != PL_MATERIAL_MODEL_WATER || water.iWaveMode != PL_WATER_WAVE_MODE_FFT)
+    {
+        if(ptOcean) pl__ocean_release(ptScene, ptOcean);
+        return;
+    }
+    if(!ptOcean)
+    {
+        plOcean ocean = {.tMaterial = tMaterial};
+        pl_sb_push(ptScene->sbtOceans, ocean);
+        ptOcean = &pl_sb_back(ptScene->sbtOceans);
+    }
+    pl__ocean_release(ptScene, ptOcean);
+    ptOcean->tSettings = water;
+    const uint32_t n = (uint32_t)water.iFftResolution;
+    plVec4* h0 = PL_ALLOC(sizeof(plVec4) * n * n);
+    pl_ocean_build_spectrum(water, h0);
+    double energy = 0.0;
+    for(uint32_t i = 0; i < n * n; i++)
+        energy += (double)h0[i].x * h0[i].x + (double)h0[i].y * h0[i].y;
+    ptGPU->tOcean.w = (float)(3.0 * sqrt(2.0 * energy) / (n * n)); // crest reference: 3 RMS
+    plBufferDesc buffer = {
+        .eUsage      = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER,
+        .szByteSize  = sizeof(plVec4) * n * n,
+        .pcDebugName = "ocean spectrum"
+    };
+    gptStarter->create_buffer(&buffer, h0, &ptOcean->tSpectrum);
+    PL_FREE(h0);
+    buffer.szByteSize = sizeof(plVec2) * n * n * 3;
+    buffer.pcDebugName = "ocean FFT scratch";
+    gptStarter->create_buffer(&buffer, NULL, &ptOcean->tScratch);
+    const plTextureDesc texture = {
+        .tDimensions = {(float)n, (float)n, 1}, .uLayers = 1, .uMips = 1,
+        .eType       = PL_TEXTURE_TYPE_2D,
+        .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+        .eUsage      = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_STORAGE,
+        .pcDebugName = "ocean displacement"
+    };
+    gptStarter->create_texture(&texture, NULL, 0, &ptOcean->tDisplacement);
+    ptOcean->uTextureIndex = pl__renderer_get_bindless_texture_index(ptScene, ptOcean->tDisplacement);
+    ptGPU->tOcean.x = (float)ptOcean->uTextureIndex;
+}
+
+static void
+pl__ocean_simulate(plScene* ptScene, plCommandBuffer* ptCmd)
+{
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtOceans); i++)
+    {
+        plOcean* ocean = &ptScene->sbtOceans[i];
+        if(!gptGfx->is_texture_valid(gptData->ptDevice, ocean->tDisplacement)) continue;
+        if(!gptAsset->is_valid(ocean->tMaterial)) continue;
+        const uint32_t n = (uint32_t)ocean->tSettings.iFftResolution;
+        const plBindGroupDesc desc = {
+            .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+            .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "ocean_fft"),
+            .pcDebugName = "ocean FFT"
+        };
+        const plBindGroupHandle bg = gptGfx->create_bind_group(gptData->ptDevice, &desc);
+        const plBindGroupUpdateData data = {
+            .atBufferBindings = {
+                {.uSlot = 0, .tBuffer = ocean->tSpectrum, .szBufferRange = sizeof(plVec4) * n * n},
+                {.uSlot = 1, .tBuffer = ocean->tScratch, .szBufferRange = sizeof(plVec2) * n * n * 3}
+            },
+            .atTextureBindings = {
+                {.uSlot = 2, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tTexture = ocean->tDisplacement}
+            }
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, bg, &data);
+        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, bg);
+        const plComputeShaderHandle shader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "ocean_fft", NULL);
+        gptGfx->push_debug_group(ptCmd, "Ocean FFT", (plVec4){0.0f, 0.4f, 0.6f, 1.0f});
+        for(uint32_t pass = 0; pass < 2; pass++)
+        {
+            const plPassResources resources = {
+                .atBuffers = {
+                    {.tHandle = ocean->tSpectrum, .eStages = PL_SHADER_STAGE_COMPUTE, .eUsage = PL_BUFFER_USAGE_STORAGE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ},
+                    {.tHandle = ocean->tScratch, .eStages = PL_SHADER_STAGE_COMPUTE, .eUsage = PL_BUFFER_USAGE_STORAGE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ_WRITE}
+                },
+                .atTextures = {
+                    {.tHandle = ocean->tDisplacement, .eStages = PL_SHADER_STAGE_COMPUTE, .eUsage = PL_TEXTURE_USAGE_STORAGE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE}
+                }
+            };
+            gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL);
+            gptGfx->begin_compute_pass(ptCmd, &resources);
+            struct { uint32_t n, pass; float time, chop; } params = {n, pass, (float)gptIO->dTime * ocean->tSettings.fFftSpeed, ocean->tSettings.fFftChoppiness};
+            plDynamicBinding dynamic = pl__allocate_dynamic_data(gptData->ptDevice, sizeof(params));
+            memcpy(dynamic.pcData, &params, sizeof(params));
+            gptGfx->bind_compute_shader(ptCmd, shader);
+            gptGfx->bind_compute_bind_groups(ptCmd, shader, 0, 1, &bg, 1, &dynamic);
+            const plDispatch dispatch = {
+                .uGroupCountX     = n,
+                .uGroupCountY     = 1,
+                .uGroupCountZ     = 1,
+                .uThreadPerGroupX = 256,
+                .uThreadPerGroupY = 1,
+                .uThreadPerGroupZ = 1
+            };
+            gptGfx->dispatch(ptCmd, 1, &dispatch);
+            gptGfx->producer_barrier(ptCmd, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_COMPUTE | PL_PIPELINE_STAGE_VERTEX | PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
+            gptGfx->end_compute_pass(ptCmd);
+        }
+        gptGfx->pop_debug_group(ptCmd);
     }
 }

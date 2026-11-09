@@ -18,7 +18,7 @@
 
     "shadows": {
         "max_range": 150.0,
-        "cascade_count": 4,
+        "cascade_count": 3,
         "resolution": 2048,
         "pcf": true,
         "contact_shadows": false,

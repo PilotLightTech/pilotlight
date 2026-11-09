@@ -77,6 +77,32 @@ cloudShellIntervals(vec3 origin, vec3 direction, float innerRadius, float outerR
     return true;
 }
 
+// Last possible cloud contribution on the ray, matching transport's planet and
+// distance limits. Never use the opacity-weighted temporal distance as an exit.
+float
+cloudTransportRayEnd(vec3 origin, vec3 ray, float radius, float baseHeight, float thickness)
+{
+    float limit = 80.0;
+    if(length(origin) <= radius + 0.0001 && dot(origin, ray) < 0.0)
+        return 0.0;
+    vec2 planet = cloudSphere(origin, ray, radius);
+    if(cloudForwardHit(planet)) limit = min(limit, planet.x);
+    vec2 ranges[2];
+    if(!cloudShellIntervals(origin, ray, radius + baseHeight, radius + baseHeight + thickness, limit, ranges))
+        return 0.0;
+    float end = ranges[0].y > ranges[0].x ? ranges[0].y : 0.0;
+    if(ranges[1].y > ranges[1].x) end = max(end, ranges[1].y);
+    return end;
+}
+
+bool
+cloudTransportDepthsCover(float cloudEnd, float surfaceDistance, float opaqueDistance)
+{
+    // Conservative margin at the shell boundary; invalid/foreground endpoints
+    // fall back to integration instead of borrowing clouds behind the surface.
+    return min(surfaceDistance, opaqueDistance) >= cloudEnd + max(0.001, cloudEnd * 0.0001);
+}
+
 float
 cloudAtlasSliceY(float v, float slice, float slices, float resolution)
 {

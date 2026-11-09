@@ -1466,13 +1466,13 @@ pl__add_clipped_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2
         (plDrawTextOptions){
             .fSize = fSize,
             .fWrap = fWrap,
-            .pcTextEnd = pl__find_renderered_text_end(pcText, pcTextEnd),
+            .pcTextEnd = NULL,
             .ptFont = ptFont,
             .uColor = uColor,
             .tClipMin = tMin,
             .tClipMax = tMax
     },
-        pcText);
+        "%.*s", (int)(pl__find_renderered_text_end(pcText, pcTextEnd) - pcText), pcText);
 }
 
 static plVec2

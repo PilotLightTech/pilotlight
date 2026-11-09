@@ -7,7 +7,7 @@
 layout(set = 2, binding = 0, rgba16f) uniform image2D tColorImage;
 layout(set = 2, binding = 1) uniform texture2D tDepthImage;
 #ifdef PL_CLOUD_LOW_RES
-layout(set = 2, binding = 2, r32f) uniform image2D tCloudDistance;
+layout(set = 2, binding = 2, rg32f) uniform image2D tCloudDistance;
 #endif
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
@@ -65,7 +65,7 @@ void main()
     float cloudDistance;
     vec4 transport = cloudIntegrateTransport(worldOrigin, ray, maxDistance, sampleOffset, cloudDistance);
     // Negative distances prohibit history at geometry, including moving silhouettes.
-    imageStore(tCloudDistance, pixel, vec4(depth > 0.0 ? -1.0 : cloudDistance));
+    imageStore(tCloudDistance, pixel, vec4(depth > 0.0 ? -1.0 : cloudDistance, depth, 0.0, 0.0));
     imageStore(tColorImage, pixel, transport);
 #else
     vec4 transport = cloudIntegrateTransport(worldOrigin, ray, maxDistance);

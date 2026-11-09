@@ -58,6 +58,7 @@ layout(location = 0) out plShaderOut {
     vec3 tWorldNormal;
     mat3 tTBN;
     flat uint uProbeSelection;
+    vec2 tWaterPosition; // undisplaced world XZ for wave normals
 } tShaderIn;
 
 //-----------------------------------------------------------------------------
@@ -92,6 +93,7 @@ void main()
     tShaderIn.tTBN = mat3(WorldTangent, WorldBitangent, tShaderIn.tWorldNormal);
 
     vec4 pos = tTransform * inPosition;
+    tShaderIn.tWaterPosition = vec2(0.0);
     tShaderIn.tWorldPosition = pos.xyz / pos.w;
     gl_Position = tViewInfo.tData.tCameraViewProjection[tObjectInfo.tData.uGlobalIndex] * pos;
     tShaderIn.tUV[0] = inTexCoord0;

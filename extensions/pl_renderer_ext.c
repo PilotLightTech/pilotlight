@@ -396,8 +396,16 @@ pl_renderer_destroy_view(plView* ptView)
     pl__cloud_release_low_resolution(ptView);
     if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tFXAAInputTexture))
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFXAAInputTexture);
-    if(ptView->ptParentScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
+    if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tTransmissionTexture))
+    {
+        pl__renderer_return_bindless_texture_index(ptView->ptParentScene, ptView->tTransmissionTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tTransmissionTexture);
+    }
+    if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tTransmissionDepthTexture))
+    {
+        pl__renderer_return_bindless_texture_index(ptView->ptParentScene, ptView->tTransmissionDepthTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tTransmissionDepthTexture);
+    }
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tFinalTextureHandle);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tLightingBindGroup);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tTonemapBG);
@@ -694,6 +702,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
     if(ptScene == NULL)
         return;
 
+    pl__ocean_cleanup(ptScene);
     gptFreeList->cleanup(&ptScene->tTransformFreelist);
     if(ptScene->ptTerrain)
     {
@@ -1307,7 +1316,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         else
             ptDrawable->tFlags &= ~PL_DRAWABLE_FLAG_CASTS_SHADOW;
 
-        bool bForward = false;
+        bool bForward = ptMaterial->eMaterialModel == PL_MATERIAL_MODEL_WATER;
         bool bFoliage = ptMaterial->eMaterialModel == PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS_FOLIAGE;
 
         // use forward renderer if material is transparent
@@ -1339,7 +1348,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         {
             ptDrawable->tFlags |= PL_DRAWABLE_FLAG_PATH_FOLIAGE;
         }
-        else if(ptMaterial->eFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->eFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->eFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
+        else if(ptMaterial->eMaterialModel == PL_MATERIAL_MODEL_WATER || ptMaterial->eFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->eFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->eFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
         {
             ptDrawable->tFlags |= PL_DRAWABLE_FLAG_PATH_TRANSMISSION;
             ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED;
@@ -1509,6 +1518,10 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
                 };
                 gptStarter->create_texture(&tRawOutput2TextureDesc, NULL, 0, &ptView->tTransmissionTexture);
                 ptView->tViewData.iTransmissionFrameBufferIndex = pl__renderer_get_bindless_texture_index(ptScene, ptView->tTransmissionTexture);
+                plTextureDesc tDepthCopyDesc = gptGfx->get_texture(ptDevice, ptView->tDepthTexture)->tDesc;
+                tDepthCopyDesc.pcDebugName = "transmission depth snapshot";
+                gptStarter->create_texture(&tDepthCopyDesc, NULL, 0, &ptView->tTransmissionDepthTexture);
+                ptView->tViewData.iTransmissionDepthIndex = pl__renderer_get_bindless_texture_index(ptScene, ptView->tTransmissionDepthTexture);
             }
         }
     }
@@ -1521,7 +1534,12 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
             if(gptGfx->is_texture_valid(ptDevice, ptView->tTransmissionTexture))
             {
                 PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "freeing unneeded transmission texture");
+                pl__renderer_return_bindless_texture_index(ptScene, ptView->tTransmissionTexture);
+                pl__renderer_return_bindless_texture_index(ptScene, ptView->tTransmissionDepthTexture);
                 gptGfx->queue_texture_for_deletion(ptDevice, ptView->tTransmissionTexture);
+                gptGfx->queue_texture_for_deletion(ptDevice, ptView->tTransmissionDepthTexture);
+                ptView->tTransmissionTexture = (plTextureHandle){0};
+                ptView->tTransmissionDepthTexture = (plTextureHandle){0};
             }
         }
     }
@@ -1664,6 +1682,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
     plCommandBuffer* ptSkinningCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "skinning");
     gptGfx->begin_command_recording(ptSkinningCmdBuffer);
+    pl__ocean_simulate(ptScene, ptSkinningCmdBuffer);
 
     const uint32_t uSkinCount = pl_sb_size(ptScene->sbtSkinData);
     plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, ptScene->atDynamicSkinBuffer[uFrameIdx]);
@@ -1880,6 +1899,19 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
     // ptView->tViewData.tFogDensity = (plVec3){ptSettings->tFog.fDensity, fFogDensity, ptSettings->tFog.fDensity * expf(fFogDensity)};
 
     plBuffer* ptViewBuffer = gptGfx->get_buffer(ptDevice, ptView->atViewBuffers[uFrameIdx]);
+    // Select this frame's cloud outputs before uploading the view constants.
+    // The cloud pass fills them before the transmission/water pass samples them.
+    ptView->tViewData.tCloudTransportCache = (plVec4){-1, -1, 0, 0};
+    const plRenderEnvironment* ptCloudEnvironment = gptAsset->get_data(ptScene->tEnvironment);
+    if((ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED) && ptScene->tSceneData.tCloudLayer.x > 0.0f && ptScene->tSceneData.tCloudLayer.w > 0.0f &&
+       ptCloudEnvironment->uCloudResolutionDivisor >= 2 && ptView->tTargetSize.x > 0 && ptView->tTargetSize.y > 0)
+    {
+        pl__cloud_ensure_low_resolution(ptView);
+        const bool bTemporal = ptCloudEnvironment->fCloudTemporalBlend > 0.0f && fabsf(ptCamera->tProjMat.d[15]) < 0.5f;
+        const plTextureHandle tTransport = bTemporal ? ptView->atCloudHistory[ptView->uCloudHistoryIndex] : ptView->tCloudLowResTexture;
+        ptView->tViewData.tCloudTransportCache.x = (float)pl__renderer_get_bindless_texture_index(ptScene, tTransport);
+        ptView->tViewData.tCloudTransportCache.y = (float)pl__renderer_get_bindless_texture_index(ptScene, ptView->atCloudDistance[ptView->uCloudHistoryIndex]);
+    }
     memcpy(ptViewBuffer->tMemoryAllocation.pHostMapped, &ptView->tViewData, sizeof(plGpuViewData));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~generate CSMs~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2678,6 +2710,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     };
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo7);
 
+
     // Finish opaque lighting before GI and clouds. Water and other transparency
     // blend over this result; the later transmission snapshot includes clouds.
     if(bOpaqueComposite)
@@ -3274,7 +3307,8 @@ pl_renderer_begin_frame(void)
             {
                 plAssetHandle tMaterial = ptScene->sbtDirtyMaterials[i];
 
-                plMaterial* ptMaterial = gptAsset->get_data(tMaterial);
+                const plMaterial tSanitizedMaterial = gptMaterial->sanitize(*(plMaterial*)gptAsset->get_data(tMaterial));
+                const plMaterial* ptMaterial = &tSanitizedMaterial;
                 uint32_t uMaterialIndex = pl__renderer_get_or_create_material_slot(ptScene, tMaterial);
 
                 plFreeListNode* ptNode = ptScene->sbtMaterialNodes[uMaterialIndex];
@@ -3301,6 +3335,21 @@ pl_renderer_begin_frame(void)
                 tGPUMaterial.fOcclusionStrength        = ptMaterial->fOcclusionStrength;
                 tGPUMaterial.eAlphaMode                = ptMaterial->eAlphaMode;
                 tGPUMaterial.iMaterialFlags            = ptMaterial->eFlags;
+                if(ptMaterial->eMaterialModel == PL_MATERIAL_MODEL_WATER)
+                    tGPUMaterial.iMaterialFlags |= PL_MATERIAL_SHADER_FLAG_WATER;
+                pl__ocean_update_material(ptScene, tMaterial, ptMaterial, &tGPUMaterial.tWater);
+                const plMaterialWater tWater = ptMaterial->tWater;
+                tGPUMaterial.tWater.tSwell0 = (plVec4){tWater.fAmplitude0, tWater.fWavelength0, tWater.fSpeed0, tWater.fHeading0};
+                tGPUMaterial.tWater.tSwell1 = (plVec4){tWater.fAmplitude1, tWater.fWavelength1, tWater.fSpeed1, tWater.fHeading1};
+                tGPUMaterial.tWater.tDetail = (plVec4){tWater.fDetailScale, tWater.fDetailSpeed, tWater.fFoamSpeed, tWater.fFoamScale};
+                tGPUMaterial.tWater.tShore = (plVec4){tWater.fShoreStrength, tWater.fShoreDepth, tWater.fShoreRayStart, tWater.fShoreRayEnd};
+                tGPUMaterial.tWater.tCaps = (plVec4){tWater.fWhitecapStrength, tWater.fCrestStart, tWater.fCrestFull, tWater.fSlopeStart};
+                tGPUMaterial.tWater.tAppearance = (plVec4){tWater.fSlopeFull, tWater.fMinRoughness, tWater.fFoamRoughness, tWater.fFoamNormalFlatten};
+                tGPUMaterial.tWater.tAbsorption = (plVec4){tWater.fAbsorptionRed, tWater.fAbsorptionGreen, tWater.fAbsorptionBlue, tWater.fAbsorptionDistance};
+                tGPUMaterial.tWater.tScattering = (plVec4){tWater.fScatteringRed, tWater.fScatteringGreen, tWater.fScatteringBlue, tWater.fScatteringStrength};
+                tGPUMaterial.tWater.tDistortion = (plVec4){tWater.fDistortionStrength, tWater.fMaxDistortionPixels, 0.0f, 0.0f};
+                tGPUMaterial.tWater.tOptics = (plVec4){tWater.fMaxPath, tWater.fScatteringDirection, tWater.fEdgeFade, tWater.fIntersectionFade};
+                tGPUMaterial.tWater.tFoamColorDebug = (plVec4){tWater.fFoamRed, tWater.fFoamGreen, tWater.fFoamBlue, tWater.fDebugView};
                 tGPUMaterial.fTransmissionFactor       = ptMaterial->tTransmission.fFactor;
                 tGPUMaterial.fThickness                = ptMaterial->tVolume.fThickness;
                 tGPUMaterial.fAttenuationDistance      = ptMaterial->tVolume.fAttenuationDistance;
@@ -3704,6 +3753,11 @@ pl__renderer_deserialize_settings(const char* pcName, void* pSettings)
 {
     plRenderSettings* ptSettings = pSettings;
     ptSettings->tAO = (plRendererAOOptions){.fRadius = 0.5f, .fStrength = 1.0f, .fBias = 0.05f};
+    // A missing sky block must not create zero-sized atmospheric lookup textures.
+    ptSettings->tSky.tSkyLutResolution = (plVec2){200.0f, 100.0f};
+    ptSettings->tSky.tTransmissionLutResolution = (plVec2){256.0f, 256.0f};
+    ptSettings->tSky.tMultiscatterLutResolution = (plVec2){64.0f, 64.0f};
+    ptSettings->tSky.tAerialLutResolution = (plVec3){128.0f, 128.0f, 32.0f};
 
     if(!gptVfs->does_file_exist(pcName))
         return false;
@@ -3972,6 +4026,31 @@ pl__object_update_job(plInvocationData tInvoData, void* pData, void* pGroupShare
             if(tVerticies2[i].z < ptObject->tAABB.tMin.z) ptObject->tAABB.tMin.z = tVerticies2[i].z;
         }
     }
+
+    // Vertex-displaced water can move beyond the authored flat mesh bounds.
+    // Match the maximum summed swell amplitudes across water submeshes.
+    float fWaterDisplacement = 0.0f;
+    float fWaterHorizontal = 0.0f;
+    for(uint32_t u = 0; u < ptObject->uSubmeshCount; u++)
+    {
+        plAssetHandle tMaterial = ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[u] : ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tMaterial;
+        plMaterial* ptMaterial = gptAsset->get_data(tMaterial);
+        if(ptMaterial && ptMaterial->eMaterialModel == PL_MATERIAL_MODEL_WATER)
+        {
+            const plMaterialWater tWater = gptMaterial->sanitize(*ptMaterial).tWater;
+            const float height = tWater.iWaveMode == PL_WATER_WAVE_MODE_FFT ? tWater.fFftHeight : tWater.fAmplitude0 + tWater.fAmplitude1;
+            const float horizontal = tWater.iWaveMode == PL_WATER_WAVE_MODE_FFT ? height * tWater.fFftChoppiness : (tWater.iWaveMode == PL_WATER_WAVE_MODE_GERSTNER ? height * tWater.fGerstnerSteepness : 0.0f);
+            fWaterDisplacement = pl_max(fWaterDisplacement, height);
+            fWaterHorizontal = pl_max(fWaterHorizontal, horizontal);
+        }
+    }
+
+    ptObject->tAABB.tMin.x -= fWaterHorizontal;
+    ptObject->tAABB.tMin.z -= fWaterHorizontal;
+    ptObject->tAABB.tMax.x += fWaterHorizontal;
+    ptObject->tAABB.tMax.z += fWaterHorizontal;
+    ptObject->tAABB.tMin.y -= fWaterDisplacement;
+    ptObject->tAABB.tMax.y += fWaterDisplacement;
 
     // merge
     if(ptSkinComponent)

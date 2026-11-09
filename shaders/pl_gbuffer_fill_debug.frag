@@ -59,6 +59,7 @@ layout(location = 0) in plShaderOut {
     vec3 tWorldNormal;
     mat3 tTBN;
     flat uint uProbeSelection;
+    vec2 tWaterPosition; // undisplaced world XZ for wave normals
 } tShaderIn;
 
 #include "pl_math.glsl"

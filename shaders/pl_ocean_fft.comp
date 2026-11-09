@@ -1,0 +1,94 @@
+#version 450
+// Separable radix-2 inverse FFT. One workgroup per row/column, three real fields.
+// A fixed 256-thread group handles all supported resolutions without divergent
+// barriers. Each pass normalizes by N; the total inverse transform is 1/N^2.
+layout(local_size_x = 256) in;
+layout(std430, set = 0, binding = 0) readonly buffer Spectrum { vec4 h0[]; } spectrum;
+layout(std430, set = 0, binding = 1) buffer Scratch { vec2 field[]; } scratch;
+layout(rgba32f, set = 0, binding = 2) uniform writeonly image2D displacement;
+layout(set = 3, binding = 0) uniform Params
+{
+    uint size;
+    uint pass;
+    float time;
+    float choppiness;
+} params;
+
+shared vec2 heightField[256];
+shared vec2 xField[256];
+shared vec2 zField[256];
+vec2 multiplyComplex(vec2 a, vec2 b) { return vec2(a.x*b.x-a.y*b.y, a.x*b.y+a.y*b.x); }
+
+void main()
+{
+    uint n = params.size;
+    uint lane = gl_LocalInvocationID.x;
+    uint row = gl_WorkGroupID.x;
+    uint bits = uint(findMSB(n));
+    uint reversed = bitfieldReverse(lane) >> (32u - bits);
+    uint area = n * n;
+    if(lane < n)
+    {
+        if(params.pass == 0u)
+        {
+            uint index = row * n + reversed;
+            uint mirror = ((n - row) % n) * n + (n - reversed) % n;
+            vec4 a = spectrum.h0[index];
+            vec2 b = spectrum.h0[mirror].xy;
+            float phase = a.z * params.time;
+            float c = cos(phase), s = sin(phase);
+            vec2 h = vec2((a.x+b.x)*c - (a.y+b.y)*s, (a.x-b.x)*s + (a.y-b.y)*c);
+            vec2 k = vec2(int(reversed) < int(n/2u) ? int(reversed) : int(reversed)-int(n), int(row) < int(n/2u) ? int(row) : int(row)-int(n));
+            k /= max(length(k), 1.0);
+            heightField[lane] = h;
+            xField[lane] = vec2(h.y, -h.x) * k.x;
+            zField[lane] = vec2(h.y, -h.x) * k.y;
+        }
+        else
+        {
+            uint index = reversed * n + row;
+            heightField[lane] = scratch.field[index];
+            xField[lane] = scratch.field[area + index];
+            zField[lane] = scratch.field[2u * area + index];
+        }
+    }
+    barrier();
+    for(uint span = 2u; span <= n; span *= 2u)
+    {
+        vec2 h = vec2(0), x = vec2(0), z = vec2(0);
+        if(lane < n)
+        {
+            uint halfSpan = span / 2u;
+            uint j = lane % halfSpan;
+            uint base = (lane / span) * span + j;
+            float phase = 6.28318530718 * float(j) / float(span);
+            vec2 twiddle = vec2(cos(phase), sin(phase));
+            if(lane % span >= halfSpan)
+                twiddle = -twiddle;
+            h = heightField[base] + multiplyComplex(twiddle, heightField[base + halfSpan]);
+            x = xField[base] + multiplyComplex(twiddle, xField[base + halfSpan]);
+            z = zField[base] + multiplyComplex(twiddle, zField[base + halfSpan]);
+        }
+        barrier(); // all reads complete before overwriting shared memory
+        if(lane < n)
+        {
+            heightField[lane] = h;
+            xField[lane] = x;
+            zField[lane] = z;
+        }
+        barrier();
+    }
+    if(lane < n)
+    {
+        float invN = 1.0 / float(n);
+        if(params.pass == 0u)
+        {
+            uint index = row * n + lane;
+            scratch.field[index] = heightField[lane] * invN;
+            scratch.field[area + index] = xField[lane] * invN;
+            scratch.field[2u * area + index] = zField[lane] * invN;
+        }
+        else
+            imageStore(displacement, ivec2(row, lane), vec4(xField[lane].x * params.choppiness, heightField[lane].x, zField[lane].x * params.choppiness, 0.0) * invN);
+    }
+}

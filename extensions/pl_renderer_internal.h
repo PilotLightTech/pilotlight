@@ -170,6 +170,7 @@ typedef struct _plCullData              plCullData;
 typedef struct _plMemCpyJobData         plMemCpyJobData;
 typedef struct _plEnvironmentProbeData  plEnvironmentProbeData;
 typedef struct _plTerrain               plTerrain; // opaque type for a terrain
+typedef struct _plOcean                 plOcean;
 
 // enums & flags
 typedef int plDrawableFlags;
@@ -222,6 +223,16 @@ enum _plRenderBucket
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plOcean
+{
+    plAssetHandle tMaterial;
+    plMaterialWater tSettings;
+    plBufferHandle tSpectrum;
+    plBufferHandle tScratch;
+    plTextureHandle tDisplacement;
+    uint32_t uTextureIndex;
+} plOcean;
 
 typedef struct _plForwardPassInfo
 {
@@ -400,6 +411,7 @@ typedef struct _plView
     plTextureHandle  tRawOutputTexture;            // g-buffer
     plTextureHandle  tContactShadowDepthTexture;   // immutable depth snapshot
     plTextureHandle  tDepthTexture;                // g-buffer
+    plTextureHandle  tTransmissionDepthTexture;    // opaque depth snapshot for water
     plTextureHandle  tTransmissionTexture;         // transmission texture
     plTextureHandle  tFXAAInputTexture;            // stable input for neighborhood sampling
     plTextureHandle  tFinalTexture;                // output texture
@@ -637,6 +649,7 @@ typedef struct _plScene
     plFreeList tInstanceFreelist;
 
     // material helpers & hashmaps (material component <-> GPU material)
+    plOcean*         sbtOceans;
     plMaterial*      sbtMaterials;
     plFreeListNode** sbtMaterialNodes;
     plAssetHandle*   sbtDirtyMaterials;

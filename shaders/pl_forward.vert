@@ -4,6 +4,7 @@
 
 #include "pl_bg_scene.inc"
 #include "pl_bg_view.inc"
+#include "pl_water.glsl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -33,6 +34,7 @@ layout(location = 0) out plShaderOut {
     mat4 tModel; 
     flat uvec4 tSelectedProbes;
     flat uint uProbeSelection;
+    vec2 tWaterPosition; // undisplaced world XZ for wave normals
 } tShaderIn;
 
 //-----------------------------------------------------------------------------
@@ -69,6 +71,10 @@ void main()
 
 
     vec4 pos = tTransform * inPosition;
+    tShaderIn.tWaterPosition = pos.xz / pos.w;
+    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_WATER))
+        pos.xyz += pl_water_displacement(tShaderIn.tWaterPosition, tGpuScene.tData.g_time, material.tWater) * pos.w;
     tShaderIn.tWorldPosition = pos.xyz / pos.w;
     gl_Position = tViewInfo.tData.tCameraViewProjection[tObjectInfo.tData.uGlobalIndex] * pos;
     tShaderIn.tUV[0] = inTexCoord0;

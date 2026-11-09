@@ -40,7 +40,7 @@
                 "scale": [ 40960, 1, 40960 ]
             }, 
             "object": {                
-                "mesh": "/assets/meshes/plane.plmesh", 
+                "mesh": "/assets/meshes/water_grid.plmesh",
                 "first_submesh": 0, 
                 "submesh_count": 1, 
                 "transform": 18498471, 
@@ -48,14 +48,6 @@
                 "receives_shadow": true, 
                 "renderable": true,
                 "material_overrides": ["/assets/materials/water.plmaterial"]
-            },
-            "animation": {                
-                "animation": "/assets/animations/tide.planimation", 
-                "speed": 1, 
-                "blend_amount": 1, 
-                "playing": true, 
-                "looped": true, 
-                "targets": [ 18498471 ]
             }
         },
         {            
