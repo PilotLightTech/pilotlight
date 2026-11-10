@@ -1853,6 +1853,14 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     // update environment probes
     //-----------------------------------------------------------------------------
 
+    PL_RENDERER_STAT("renderer / scenes prepared", 1);
+    PL_RENDERER_STAT("renderer / scene active drawables", pl_sb_size(ptScene->sbuActiveDrawables));
+    PL_RENDERER_STAT("renderer / scene point lights", pl_sb_size(ptScene->sbtPointLightData));
+    PL_RENDERER_STAT("renderer / scene spot lights", pl_sb_size(ptScene->sbtSpotLightData));
+    PL_RENDERER_STAT("renderer / scene directional lights", pl_sb_size(ptScene->sbtDirectionLightData));
+    PL_RENDERER_STAT("renderer / scene reflection probes", pl_sb_size(ptScene->sbtProbeData));
+    PL_RENDERER_STAT("renderer / scene decals", pl_sb_size(ptScene->sbtDecals));
+
     if(uFrameIdx == 0) // multiple frames in flight may fight
     {
         pl__renderer_probe_update_all(ptScene);
@@ -2371,6 +2379,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
             .uThreadPerGroupZ = 1
         };
         gptGfx->dispatch(ptSceneCmdBuffer, 1, &tClusterDispatch);
+        PL_RENDERER_STAT("renderer / lighting clusters built", PL_CLUSTER_X * PL_CLUSTER_Y * PL_CLUSTER_Z);
         gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
         gptGfx->end_compute_pass(ptSceneCmdBuffer);
         gptGfx->consumer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_FRAGMENT, PL_BARRIER_SCOPE_ALL);
@@ -2780,6 +2789,8 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         gptGfx->return_command_buffer(ptSceneCmdBuffer);
 
         ptSceneCmdBuffer = pl__render_view_full_screen_blit(ptView);
+        PL_RENDERER_STAT("renderer / transmission snapshots", 1);
+        PL_RENDERER_STAT("renderer / transmission snapshot pixels", (double)ptView->tTargetSize.x * ptView->tTargetSize.y);
     }
 
     // secondary render pass work (transmission & post processing effects)
@@ -2887,6 +2898,27 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     // affected
     pl__render_view_debug_pass(ptView, ptCamera, ptCullCamera);
 
+    // View workload totals (drawables are instanced batches, not unique objects).
+    PL_RENDERER_STAT("renderer / views rendered", 1);
+    PL_RENDERER_STAT("renderer / view pixels", (double)ptView->tTargetSize.x * ptView->tTargetSize.y);
+    PL_RENDERER_STAT("renderer / view drawable candidates", uDrawableCount);
+    PL_RENDERER_STAT("renderer / view visible drawables", pl_sb_size(ptScene->sbtVisibleDrawables));
+    PL_RENDERER_STAT("renderer / view rejected drawables", uDrawableCount - pl_sb_size(ptScene->sbtVisibleDrawables));
+    double dInstances = 0.0;
+    double dTriangles = 0.0;
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtVisibleDrawables); i++)
+    {
+        const plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables[i]];
+        dInstances += ptDrawable->uInstanceCount;
+        dTriangles += (double)ptDrawable->uTriangleCount * ptDrawable->uInstanceCount;
+    }
+    // Geometry counted once per view, excluding shadow/probe/depth redraws.
+    PL_RENDERER_STAT("renderer / view visible instances", dInstances);
+    PL_RENDERER_STAT("renderer / view visible triangles", dTriangles);
+    PL_RENDERER_STAT("renderer / view transmission drawables", pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_TRANSMISSION]) + pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE_TRANSMISSION]));
+    PL_RENDERER_STAT("renderer / view foliage drawables", pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FOLIAGE]) + pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FOLIAGE_OUTLINE]));
+    PL_RENDERER_STAT("renderer / view blended drawables", pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_TRANSPARENT]) + pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_TRANSPARENT_DOUBLE_SIDED]));
+
     // update stats
     static double* pdVisibleOpaqueObjects = NULL;
     static double* pdVisibleTransparentObjects = NULL;
@@ -2905,12 +2937,9 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         pdVisibleTransparentObjects = gptStats->get_counter("visible forward objects");
     }
 
-    // only record stats for first scene
-    if(ptScene == gptData->sbptScenes[0])
-    {
-        *pdVisibleOpaqueObjects = (double)(pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_DEFERRED]) + pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_DEFERRED_DOUBLE_SIDED]));
-        *pdVisibleTransparentObjects = (double)(pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_TRANSMISSION]) + pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD]) + pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_DOUBLE_SIDED]));
-    }
+    const uint32_t uDeferred = pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_DEFERRED]) + pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_DEFERRED_DOUBLE_SIDED]);
+    *pdVisibleOpaqueObjects += (double)uDeferred;
+    *pdVisibleTransparentObjects += (double)(pl_sb_size(ptScene->sbtVisibleDrawables) - uDeferred);
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }

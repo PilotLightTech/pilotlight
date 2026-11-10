@@ -220,6 +220,15 @@ enum _plRenderBucket
     PL_RENDER_BUCKET_COUNT
 };
 
+// CPU-recorded workload totals across all scenes/views in the stats frame.
+// Call on the render thread only, with a string literal (stats retains the name).
+// Each call site caches its counter; plStatsI::new_frame resets the values.
+#define PL_RENDERER_STAT(name, value) do { \
+    static double* pdRendererStat = NULL; \
+    if(!pdRendererStat) pdRendererStat = gptStats->get_counter(name); \
+    *pdRendererStat += (double)(value); \
+} while(0)
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------

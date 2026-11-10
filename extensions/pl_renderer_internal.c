@@ -261,6 +261,9 @@ pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene
         {
             if(!ptScene->sbtSkinData[i].bActive)
                 continue;
+
+            PL_RENDERER_STAT("renderer / skinning dispatches", 1);
+            PL_RENDERER_STAT("renderer / skinned vertices", ptScene->sbtSkinData[i].uVertexCount);
                 
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynSkinData));
             plGpuDynSkinData* ptDynamicData = (plGpuDynSkinData*)tDynamicBinding.pcData;
@@ -674,6 +677,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
                 gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
                 gptGfx->set_depth_bias(ptCommandBuffer, ptSettings->tShadows.fConstantDepthBias, 0.0f, ptSettings->tShadows.fSlopeDepthBias);
                 *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
+                PL_RENDERER_STAT("renderer / shadow drawable submissions", uVisibleOpaqueDrawCount);
                 for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                 {
                     plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables0[i].uDrawableIndex];
@@ -710,6 +714,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
                 }
 
                 *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
+                PL_RENDERER_STAT("renderer / shadow drawable submissions", uVisibleTransparentDrawCount);
                 for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
                 {
                     plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables1[i].uDrawableIndex];
@@ -842,6 +847,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
                     gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
                     gptGfx->set_depth_bias(ptCommandBuffer, ptSettings->tShadows.fConstantDepthBias, 0.0f, ptSettings->tShadows.fSlopeDepthBias);
                     *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
+                    PL_RENDERER_STAT("renderer / shadow drawable submissions", uVisibleOpaqueDrawCount);
                     for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                     {
                         plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables0[i].uDrawableIndex];
@@ -878,6 +884,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
                     }
 
                     *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
+                    PL_RENDERER_STAT("renderer / shadow drawable submissions", uVisibleTransparentDrawCount);
                     for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
                     {
                         plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables1[i].uDrawableIndex];
@@ -957,6 +964,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
             gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
             gptGfx->set_depth_bias(ptCommandBuffer, ptSettings->tShadows.fConstantDepthBias, 0.0f, ptSettings->tShadows.fSlopeDepthBias);
             *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
+            PL_RENDERER_STAT("renderer / shadow drawable submissions", uVisibleOpaqueDrawCount);
             for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
             {
                 plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables0[i].uDrawableIndex];
@@ -993,6 +1001,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
             }
 
             *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
+            PL_RENDERER_STAT("renderer / shadow drawable submissions", uVisibleTransparentDrawCount);
             for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
             {
                 plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables1[i].uDrawableIndex];
@@ -1388,6 +1397,7 @@ pl__renderer_generate_direction_view_map(plCommandBuffer* ptCommandBuffer, plSce
         gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
         gptGfx->set_depth_bias(ptCommandBuffer, ptSettings->tShadows.fConstantDepthBias, 0.0f, ptSettings->tShadows.fSlopeDepthBias);
         *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
+        PL_RENDERER_STAT("renderer / shadow drawable submissions", uVisibleOpaqueDrawCount);
         for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
         {
             plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables0[i].uDrawableIndex];
@@ -1424,6 +1434,7 @@ pl__renderer_generate_direction_view_map(plCommandBuffer* ptCommandBuffer, plSce
         }
 
         *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
+        PL_RENDERER_STAT("renderer / shadow drawable submissions", uVisibleTransparentDrawCount);
         for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
         {
             plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables1[i].uDrawableIndex];
@@ -1943,6 +1954,7 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
             gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
             gptGfx->set_depth_bias(ptCommandBuffer, ptSettings->tShadows.fConstantDepthBias, 0.0f, ptSettings->tShadows.fSlopeDepthBias);
             *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
+            PL_RENDERER_STAT("renderer / shadow drawable submissions", uVisibleOpaqueDrawCount);
             for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
             {
                 plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables0[i].uDrawableIndex];
@@ -1979,6 +1991,7 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
             }
 
             *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
+            PL_RENDERER_STAT("renderer / shadow drawable submissions", uVisibleTransparentDrawCount);
             for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
             {
                 plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables1[i].uDrawableIndex];
@@ -2085,6 +2098,7 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
                 gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
                 gptGfx->set_depth_bias(ptCommandBuffer, ptSettings->tShadows.fConstantDepthBias, 0.0f, ptSettings->tShadows.fSlopeDepthBias);
                 *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
+                PL_RENDERER_STAT("renderer / shadow drawable submissions", uVisibleOpaqueDrawCount);
                 for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                 {
                     plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables0[i].uDrawableIndex];
@@ -2121,6 +2135,7 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
                 }
 
                 *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
+                PL_RENDERER_STAT("renderer / shadow drawable submissions", uVisibleTransparentDrawCount);
                 for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
                 {
                     plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables1[i].uDrawableIndex];
@@ -4549,6 +4564,9 @@ pl__render_view_ao_pass(plView* ptView, plCommandBuffer* ptCmd)
     plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
     const plRendererAOOptions* ptOptions = &ptSettings->tAO;
     const int iLevels = ptOptions->tMode == PL_RENDERER_AO_MSAO ? 3 : 1;
+    PL_RENDERER_STAT("renderer / AO views", 1);
+    PL_RENDERER_STAT("renderer / AO dispatches", iLevels * 2 + 1);
+    PL_RENDERER_STAT("renderer / AO output pixels", (double)ptView->tTargetSize.x * ptView->tTargetSize.y);
 
     if(ptView->tAOSize.x != ptView->tTargetSize.x || ptView->tAOSize.y != ptView->tTargetSize.y)
         pl__renderer_release_ao(ptView);
@@ -4684,6 +4702,8 @@ pl__render_view_ssgi_pass(plView* ptView, plCommandBuffer* ptCmd)
         };
         gptStarter->create_texture(&tDesc, NULL, 0, &ptView->tSSGITexture);
     }
+    PL_RENDERER_STAT("renderer / SSGI views", 1);
+    PL_RENDERER_STAT("renderer / SSGI output pixels", (double)ptView->tTargetSize.x * ptView->tTargetSize.y);
     plDynamicBinding tDynamic = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynSSGI));
     plGpuDynSSGI* ptData = (plGpuDynSSGI*)tDynamic.pcData;
     *ptData = (plGpuDynSSGI){
@@ -4755,6 +4775,7 @@ pl__render_view_ssgi_pass(plView* ptView, plCommandBuffer* ptCmd)
 static void
 pl__render_view_bloom_pass(plView* ptView)
 {
+    PL_RENDERER_STAT("renderer / bloom views", 1);
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "bloom");
 
     // for convience
@@ -5139,6 +5160,9 @@ pl__cloud_render_half_resolution(plView* ptView, plCommandBuffer* ptCmd)
         pl_dot_vec3(tForward, ptView->tCloudHistoryForward) > 0.9f;
 
     const float fHistoryWeight = bHistory ? pl_clampf(0.0f, ptEnvironment->fCloudTemporalBlend, 0.95f) : 0.0f;
+    PL_RENDERER_STAT("renderer / cloud temporal resolves", bTemporal ? 1 : 0);
+    PL_RENDERER_STAT("renderer / cloud history accepted views", bHistory ? 1 : 0);
+    PL_RENDERER_STAT("renderer / cloud history rejected views", bTemporal && !bHistory ? 1 : 0);
     const plTextureHandle tResolvedCloud = bTemporal ? ptView->atCloudHistory[uCurrent] : ptView->tCloudLowResTexture;
     gptGfx->push_debug_group(ptCmd, "Half resolution clouds, temporal resolve and upsample", (plVec4){0.3f, 0.5f, 0.8f, 1});
     for(uint32_t uPass = 0; uPass < 3; uPass++)
@@ -5216,6 +5240,10 @@ pl__cloud_render_half_resolution(plView* ptView, plCommandBuffer* ptCmd)
         uint32_t uDivisor = uPass < 2 ? 2 : 1;
         uint32_t uWidth = ((uint32_t)ptView->tTargetSize.x + uDivisor - 1) / uDivisor;
         uint32_t uHeight = ((uint32_t)ptView->tTargetSize.y + uDivisor - 1) / uDivisor;
+        if(uPass == 0)
+        {
+            PL_RENDERER_STAT("renderer / cloud integration pixels", (double)uWidth * uHeight);
+        }
         const plDispatch tDispatch = {.uGroupCountX = (uWidth + 7) / 8, .uGroupCountY = (uHeight + 7) / 8, .uGroupCountZ = 1, .uThreadPerGroupX = 8, .uThreadPerGroupY = 8, .uThreadPerGroupZ = 1};
         gptGfx->dispatch(ptCmd, 1, &tDispatch);
         gptGfx->producer_barrier(ptCmd, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
@@ -5378,9 +5406,12 @@ pl__render_view_cloud_pass(plView* ptView, plCommandBuffer* ptPostCmdBuffer)
     }
     if(ptCloudEnvironment->uCloudResolutionDivisor >= 2)
     {
+        PL_RENDERER_STAT("renderer / cloud low resolution views", 1);
         pl__cloud_render_half_resolution(ptView, ptPostCmdBuffer);
         return;
     }
+    PL_RENDERER_STAT("renderer / cloud full resolution views", 1);
+    PL_RENDERER_STAT("renderer / cloud integration pixels", (double)ptView->tTargetSize.x * ptView->tTargetSize.y);
     pl__cloud_release_low_resolution(ptView);
     plDevice*      ptDevice  = gptData->ptDevice;
     plScene*       ptScene   = ptView->ptParentScene;
@@ -5587,6 +5618,7 @@ pl__render_view_fxaa_pass(plView* ptView)
 {
     if(ptView->tTargetSize.x <= 0 || ptView->tTargetSize.y <= 0)
         return;
+    PL_RENDERER_STAT("renderer / FXAA views", 1);
     plDevice* ptDevice = gptData->ptDevice;
     plScene* ptScene = ptView->ptParentScene;
     if(!gptGfx->is_texture_valid(ptDevice, ptView->tFXAAInputTexture))
@@ -5976,6 +6008,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
             gptGfx->begin_command_recording(ptCmdBuffer);
 
             uint32_t uFace = ptProbe->uCurrentFace + uFaceIndex;
+            PL_RENDERER_STAT("renderer / reflection probe faces rendered", 1);
             uFace = uFace % 6;
 
             //~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 0 - g buffer fill~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -10672,6 +10705,7 @@ pl__renderer_update_sky_probe(plScene* ptScene)
             gptGfx->begin_command_recording(ptCmdBuffer);
 
             uint32_t uFace = ptScene->tDefaultProbeData.uCurrentFace + uFaceIndex;
+            PL_RENDERER_STAT("renderer / sky probe faces rendered", 1);
             uFace = uFace % 6;
 
             plRenderInfo tForwardRenderInfo = {
@@ -10857,11 +10891,13 @@ pl__renderer_intern_probe_selection(plScene* ptScene, plGpuProbeSelection tSelec
     uint32_t uIndex = pl_probe_selection_table_intern(&ptScene->tProbeSelections, tSelection);
     if(ptScene->tProbeSelections.uCount != uOldCount)
     {
+        PL_RENDERER_STAT("renderer / probe selections created", 1);
         plBuffer* ptBuffer = gptGfx->get_buffer(gptData->ptDevice, ptScene->atProbeSelectionBuffers[gptGfx->get_current_frame_index()]);
         ((plGpuProbeSelection*)ptBuffer->tMemoryAllocation.pHostMapped)[uIndex] = tSelection;
     }
     else if(uIndex == 2 && memcmp(&tSelection, &ptScene->tProbeSelections.atEntries[2], sizeof(tSelection)) != 0)
     {
+        PL_RENDERER_STAT("renderer / probe selection fallback requests", 1);
         if(!ptScene->bProbeSelectionOverflowReported)
         {
             ptScene->bProbeSelectionOverflowReported = true;
@@ -11054,6 +11090,8 @@ pl__ocean_simulate(plScene* ptScene, plCommandBuffer* ptCmd)
         if(!gptGfx->is_texture_valid(gptData->ptDevice, ocean->tDisplacement)) continue;
         if(!gptAsset->is_valid(ocean->tMaterial)) continue;
         const uint32_t n = (uint32_t)ocean->tSettings.iFftResolution;
+        PL_RENDERER_STAT("renderer / ocean simulations", 1);
+        PL_RENDERER_STAT("renderer / ocean FFT texels", (double)n * n);
         const plBindGroupDesc desc = {
             .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
             .tLayout     = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "ocean_fft"),
