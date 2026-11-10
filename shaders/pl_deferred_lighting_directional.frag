@@ -42,8 +42,6 @@ const int iMaterialFlags = 0;
 
 void main() 
 {
-    if(subpassLoad(tAOMetalRoughnessTexture).a == 0.0)
-        discard;
 
     vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
     float depth = subpassLoad(tDepthSampler).r;
@@ -62,6 +60,10 @@ void main()
     tViewPosition.xyz = tViewPosition.xyz / tViewPosition.w;
     tViewPosition.w = 1.0;
     vec4 tWorldPosition = tViewInfo.tData.tCameraViewInv[tObjectInfo.tData.uGlobalIndex] * tViewPosition;
+    pl_shadow_surface(tWorldPosition.xyz);
+    if(subpassLoad(tAOMetalRoughnessTexture).a == 0.0)
+        discard;
+
 
     MaterialInfo materialInfo;
 
@@ -128,17 +130,18 @@ void main()
             vec4 tWorldPos2 = vec4(tWorldPosition.xyz, 1.0);
 
             vec4 shadowCoord = (abiasMat * tDirectionShadowData.atData[iShadowIndex].viewProjMat) * tWorldPos2;
+            plShadowReceiver shadowReceiver = pl_shadow_receiver((abiasMat * tDirectionShadowData.atData[iShadowIndex].viewProjMat), shadowCoord, 1.0, tDirectionShadowData.atData[iShadowIndex].fFactor);
         
             if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
             {
                 shadow = filterPCF(
                     shadowCoord,
                     vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset),
-                    tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx, 0);
+                    tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx, 0, shadowReceiver);
             }
             else
             {
-                shadow = textureProj(shadowCoord, vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset), tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx);
+                shadow = textureProj(shadowCoord, vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset), tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx, shadowReceiver);
             }
         }
         

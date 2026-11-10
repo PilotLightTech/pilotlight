@@ -45,14 +45,16 @@ void main()
 {
     vec4 packedMaterial = subpassLoad(tAOMetalRoughnessTexture);
     // ORM alpha holds a positive probe-selection index for geometry; zero is background.
-    if(packedMaterial.a == 0.0)
-        discard;
     float depth = subpassLoad(tDepthSampler).r;
     vec2 ndc = gl_FragCoord.xy / tViewInfo.tData.tViewportSize.xy * 2.0 - 1.0;
     uint viewIndex = tObjectInfo.tData.uGlobalIndex;
     vec4 viewPosition = tViewInfo.tData.tCameraProjectionInv[viewIndex] * vec4(ndc, depth, 1.0);
     viewPosition /= viewPosition.w;
     vec3 worldPosition = (tViewInfo.tData.tCameraViewInv[viewIndex] * viewPosition).xyz;
+    pl_shadow_surface(worldPosition.xyz);
+    if(packedMaterial.a == 0.0)
+        discard;
+
     vec3 n = Decode(subpassLoad(tNormalTexture).xy);
     vec3 v = normalize(tViewInfo.tData.tCameraPos.xyz - worldPosition);
     MaterialInfo materialInfo;

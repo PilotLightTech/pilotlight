@@ -21,7 +21,8 @@ pl_deferred_point(int lightIndex, vec3 worldPosition, vec3 n, vec3 v, MaterialIn
             vec3 result = sampleCube(-normalize(pointToLight));
             plGpuPointLightShadow tShadowData = tPointShadowData.atData[tLightData.iShadowIndex];
             vec4 shadowCoord = tShadowData.viewProjMat[int(result.z)] * vec4(tWorldPosition.xyz, 1.0);
-            if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
+            plShadowReceiver shadowReceiver = pl_shadow_receiver(tShadowData.viewProjMat[int(result.z)], shadowCoord, 0.5 * tShadowData.fFactor, tShadowData.fFactor);
+            if(shadowCoord.w > 0.0 && shadowCoord.z >= 0.0 && shadowCoord.z <= shadowCoord.w)
             {
                 shadow = 1.0;
                 const vec2 faceoffsets[6] = {
@@ -34,15 +35,15 @@ pl_deferred_point(int lightIndex, vec3 worldPosition, vec3 n, vec3 v, MaterialIn
                 };
 
                 shadowCoord.xyz /= shadowCoord.w;
-                result.xy *= tShadowData.fFactor;
-                shadowCoord.xy = result.xy;
+                // Use the same face projection that rasterized the atlas.
+                    shadowCoord.xy = (shadowCoord.xy * 0.5 + 0.5) * tShadowData.fFactor;
                 if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
                 {
-                    shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+                    shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx, shadowReceiver);
                 }
                 else
                 {
-                    shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+                    shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx, shadowReceiver);
                 }
             }
         }
@@ -105,7 +106,8 @@ pl_deferred_spot(int lightIndex, vec3 worldPosition, vec3 n, vec3 v, MaterialInf
         {
             plGpuSpotLightShadow tShadowData = tSpotShadowData.atData[tLightData.iShadowIndex];
             vec4 shadowCoord = tShadowData.viewProjMat * vec4(tWorldPosition.xyz, 1.0);
-            if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
+            plShadowReceiver shadowReceiver = pl_shadow_receiver(tShadowData.viewProjMat, shadowCoord, 0.5 * tShadowData.fFactor, tShadowData.fFactor);
+            if(shadowCoord.w > 0.0 && shadowCoord.z >= 0.0 && shadowCoord.z <= shadowCoord.w)
             {
                 shadowCoord.xyz /= shadowCoord.w;
                 shadow = 0.0;
@@ -115,11 +117,11 @@ pl_deferred_spot(int lightIndex, vec3 worldPosition, vec3 n, vec3 v, MaterialInf
 
                 if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
                 {
-                    shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                    shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx, shadowReceiver);
                 }
                 else
                 {
-                    shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                    shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx, shadowReceiver);
                 }
             }
         }

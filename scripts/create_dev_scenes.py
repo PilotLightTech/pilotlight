@@ -13,7 +13,7 @@ from pathlib import Path
 import struct
 import zlib
 
-import craete_meshes as meshes
+import create_meshes as meshes
 
 ROOT = Path(__file__).resolve().parents[1]
 PREFIX = '/assets/'
@@ -129,6 +129,10 @@ def assets():
         iridescence={'factor': 1, 'ior': 1.3, 'thickness_min': 100, 'thickness_max': 400})
     materials['glass'] = material((0.75, 0.95, 1), 0.08, transmission={'factor': 1},
         volume={'thickness': 0.5, 'attenuation_color': [0.7, 0.95, 1], 'attenuation_distance': 2})
+    materials['glass_rough'] = copy.deepcopy(materials['glass'])
+    materials['glass_rough']['roughness'] = 0.4
+    materials['glass_amber'] = material((1,0.8,0.4),0.08,transmission={'factor':1},
+        volume={'thickness':1.5,'attenuation_color':[1,0.45,0.08],'attenuation_distance':1})
     materials['blend'] = material((0.1, 0.65, 0.8, 0.35), 0.25)
     materials['blend']['alpha']['mode'] = 'blend'
     materials['glow'] = material((1, 0.4, 0.1), emissive={'color': [1, 0.24, 0.04], 'strength': 8})
@@ -215,7 +219,7 @@ def assets():
         lighting=dict(image_based=True, normal_mapping=True, punctual_lights=True, shadows=True),
         shadows=dict(max_range=100, cascade_count=3, resolution=2048, pcf=True, contact_shadows=True,
                      contact_length=0.3, contact_thickness=0.05, contact_bias=0.01, contact_steps=16,
-                     multiviewport=True, constant_bias=-1, slope_bias=-10.0),
+                     multiviewport=True, constant_bias=-1, slope_bias=-1.0),
         fxaa={'enabled': True}, ambient_occlusion=dict(mode='ssao', radius=0.5, strength=1, bias=0.05),
         ssgi=dict(enabled=False, strength=1, radius=2, thickness=0.15, ray_count=8, step_count=16),
         bloom=dict(enabled=False, strength=0.05, radius=1.5, chain_length=5), fog={'enabled': False},
@@ -226,7 +230,15 @@ def assets():
     night_settings['lighting']['image_based'] = False
     water_settings = copy.deepcopy(quality); water_settings['ambient_occlusion']['mode'] = 'none'
     water_settings['shadows']['contact_shadows'] = False
-    for name, settings in [('quality', quality), ('gi', gi), ('night', night_settings), ('water', water_settings)]:
+    integrated = copy.deepcopy(quality); integrated['ssgi']['enabled'] = True
+    ao_settings = copy.deepcopy(quality)
+    # AO attenuates ambient IBL, not direct light. Keep the sky illumination but
+    # disable direct sun/local lighting so unshadowed light cannot hide the AO.
+    ao_settings['lighting']['punctual_lights'] = False
+    ao_settings['lighting']['shadows'] = False
+    ao_settings['shadows']['contact_shadows'] = False
+    ao_settings['ambient_occlusion'].update(radius=0.6, strength=1.2)
+    for name, settings in [('quality', quality), ('gi', gi), ('night', night_settings), ('water', water_settings), ('integrated', integrated), ('ao', ao_settings)]:
         emit(f'settings/showcase_{name}.plrenderer', settings)
 
 
@@ -314,6 +326,11 @@ def decals():
           decal=dict(material=matref('decal_teal'), enabled=True, opacity=0.8, edge_fade=0.08, normal_cutoff=0.1, sort_order=2))
     for i, mat in enumerate(('masked', 'masked_forward', 'foliage', 'blend')):
         s.obj(mat+' screen', 'plane', mat, ((i-1.5)*3.2, 1.6, 4.8), (2.3, 1, 2.8), quat((1,0,0), math.pi/2), casts=False)
+    s.obj('Corner receiver A','cube','ivory',(-6,1.6,0),(0.15,1.6,1.5))
+    s.obj('Corner receiver B / forward','cube','forward',(-4.6,1.6,-1.35),(1.25,1.6,0.15))
+    s.add('Oblique corner projector / normal rejection',
+          transform=dict(translation=[-5.3,1.6,-0.3],rotation=quat((0,1,0),math.pi/4),scale=[3,3,3]),
+          decal=dict(material=matref('decal_coral'),enabled=True,opacity=1,edge_fade=0.08,normal_cutoff=0.25,sort_order=3))
     return s.finish()
 
 
@@ -344,6 +361,12 @@ def water():
             s.obj(f'Depth marker {i}', 'cube', 'white' if i%2==0 else 'coral',
                   (x,0.1-z*math.tan(0.13),z), (3.8,0.03,0.12), quat((1,0,0),0.13))
         s.obj('Piercing refraction target', 'sphere', 'coral', (x+1.5,0.7,1.5), (0.8,)*3)
+        for i in range(6):
+            top=1.2-i*0.22
+            s.obj('Submerged staircase','cube','ivory',(x-3,top-0.12,-3+i),(0.7,0.12,0.5))
+        s.obj('Pier deck','cube','sand',(x+3,1.6,4.5),(0.65,0.15,2.5))
+        for z in (2.5,6):
+            s.obj('Pier post / water intersection','cylinder','basalt',(x+3,0.4,z),(0.16,1.4,0.16))
     return s.finish()
 
 
@@ -363,8 +386,117 @@ def coast():
     return s.finish()
 
 
+def animate(scene, name, entity, positions, duration=12):
+    times = [duration*i/(len(positions)-1) for i in range(len(positions))]
+    emit(f'animations/showcase_{name}.planimation', dict(format='planimation', version=1,
+        start=0, end=duration, channels=[dict(data=0,target=0,path='translation',mode='linear')],
+        data=[dict(times=times,data=[v for p in positions for v in p])]))
+    scene.add(name+' / looping motion', animation=dict(animation=ref('animations',name,'planimation'),
+        targets=[entity['id']], playing=True, looped=True, speed=1, blend_amount=1))
+
+
+def shadow_courtyard():
+    s=Scene('08_shadows','Shadow courtyard',position=(13,7,32),target=(0,2,-20))
+    s.floor((18,90))
+    for i,z in enumerate((12,0,-16,-36,-64,-82)):
+        for x in (-8,8):
+            s.obj(f'Distance station {i} / pillar','cylinder','ivory',(x,4,z),(0.7,4,0.7))
+        s.obj(f'Distance station {i} / lintel','cube','ivory',(0,8,z),(8.7,0.45,0.7))
+        s.obj(f'Distance station {i} / thin wall','cube','forward',(2,2,z+3),(0.035,2,1.5))
+        s.obj(f'Distance station {i} / floating contact target','sphere','coral',(-3,0.7,z+3),(0.6,)*3)
+    for i in range(12):
+        h=(i+1)*0.15
+        s.obj('Stair tread','cube','basalt',(-12,h/2,16-i*0.8),(1.8,h/2,0.4))
+    return s.finish()
+
+
+def glass_lab():
+    s=Scene('09_glass','Glass and refraction laboratory',position=(13,8,22),target=(0,2,0))
+    s.floor((11,8))
+    for i in range(19):
+        s.obj('Refraction background stripe','cube',('coral','teal','white')[i%3],
+              (-9+i,2.5,-4),(0.35,2.5,0.2))
+    for i,mat in enumerate(('glass','glass_rough','glass_amber')):
+        x=(i-1)*5
+        s.obj(mat+' sphere','sphere',mat,(x,1.5,0),(1.5,)*3)
+        s.obj(mat+' slab','cube',mat,(x,1.7,4),(1.6,1.7,0.18))
+        s.obj('Object between refractors','torus','copper',(x,1.5,2),(0.65,)*3,quat((1,0,0),math.pi/2))
+    s.obj('Overlapping alpha panel A','plane','blend',(-8,2,2),(3,1,3),quat((1,0,0),math.pi/2),casts=False)
+    s.obj('Overlapping alpha panel B','plane','blend',(-7,2,3),(3,1,3),quat((1,0,0),math.pi/2),casts=False)
+    s.probe('Laboratory capture',(0,3,2),25)
+    return s.finish()
+
+
+def corridor():
+    s=Scene('10_corridor','Indoor outdoor transition corridor',settings='integrated',
+            position=(0,2.5,15),target=(0,2,-20))
+    s.floor((12,30))
+    s.obj('Interior west wall','cube','coral',(-4,3,5),(0.2,3,15))
+    s.obj('Interior east wall','cube','teal',(4,3,5),(0.2,3,15))
+    s.obj('Interior roof','cube','ivory',(0,6.2,5),(4.2,0.2,15))
+    for z in (12,4,-4,-12,-20):
+        for x,mat in ((-2.5,'chrome'),(2.5,'coat')):
+            s.obj('Lighting boundary receiver','sphere',mat,(x,1,z),(0.85,)*3)
+    for x in (-8,8):
+        s.obj('Courtyard column','cylinder','ivory',(x,4,-20),(0.7,4,0.7))
+    s.light('Dim interior lamp',(0,4,10),(1,0.65,0.35),8,reach=12)
+    s.probe('Interior capture',(0,2,9),10)
+    s.probe('Doorway capture',(0,2,-8),9)
+    s.probe('Courtyard capture',(0,3,-23),14)
+    return s.finish()
+
+
+def motion():
+    s=Scene('11_motion','Motion and disocclusion',environment='coast',settings='integrated',
+            position=(0,5,24),target=(0,3,0))
+    s.floor((15,12))
+    for i in range(15):
+        s.obj('Thin foreground fence','cube','basalt',(-10+i*1.4,3,8),(0.045,3,0.045))
+    for i in range(7):
+        s.obj('Color behind moving occluder','sphere',('coral','teal','ivory')[i%3],
+              (-9+i*3,1.3,-3),(1.3,)*3)
+    panel=s.obj('Moving occluder','cube','forward',(-7,3,2),(2,3,0.15))
+    animate(s,'moving_occluder',panel,[(-7,3,2),(7,3,2),(-7,3,2)],10)
+    cam=s.entities[1]
+    cam.pop('script')
+    cam['tag']['name']='Automated camera / 40 second loop'
+    cam['transform']=dict(translation=[0,5,24],rotation=[0,0,0,1],scale=[1,1,1])
+    animate(s,'camera_disocclusion',cam,[(0,5,24),(9,5,24),(-9,5,24),(0,5,24),
+        (0,150,24),(0,320,24),(0,150,24),(0,5,24),(0,5,24)],40)
+    return s.finish()
+
+
+def ao_lab():
+    s=Scene('12_ao','Ambient occlusion laboratory',settings='ao',
+            position=(17,13,24),target=(0,1,0))
+    s.obj('Laboratory foundation','cube','basalt',(0,-0.4,0),(13,0.3,9))
+    # Matched geometry and base color; the zero-strength coat selects forward shading.
+    for center,mat,label in ((-6,'ivory','Deferred'),(6,'forward','Forward')):
+        s.obj(label+' floor receiver','cube',mat,(center,-0.04,0),(5.6,0.04,8.7))
+        s.obj(label+' back wall','cube',mat,(center,2,-5),(4,2,0.15))
+        s.obj(label+' corner wall','cube',mat,(center-3.85,2,-2.5),(0.15,2,2.35))
+        s.obj(label+' floor contact sphere','sphere',mat,(center-1.7,1,-1.8),(1,)*3)
+        s.obj(label+' contact cube','cube',mat,(center+1.2,0.7,-2.5),(0.7,)*3)
+        s.obj(label+' stacked cube','cube',mat,(center+1.4,1.85,-2.5),(0.45,)*3)
+        s.obj(label+' narrow-gap bench','cube',mat,(center,0.45,0.8),(2.5,0.15,0.6))
+        for dx in (-2.1,2.1):
+            s.obj(label+' bench leg','cube',mat,(center+dx,0.15,0.8),(0.15,)*3)
+        for i,gap in enumerate((0,0.05,0.2,0.6)):
+            s.obj(f'{label} sphere / floor clearance {gap:g}','sphere',mat,
+                  (center-2.4+i*1.6,0.45+gap,3.3),(0.45,)*3)
+        for i in range(5):
+            height=0.15*(i+1)
+            s.obj(label+' stair crevice','cube',mat,(center+2.8,height/2,-0.8+i*0.6),
+                  (0.5,height/2,0.3))
+    # Alpha cases remain distinct from the matched opaque rows.
+    for i,mat in enumerate(('masked','masked_forward','foliage','blend')):
+        s.obj(mat+' AO edge case','plane',mat,(-5.4+i*3.6,1.25,6.5),(2.3,1,2.3),
+              quat((1,0,0),math.pi/2),casts=False)
+    return s.finish()
+
+
 def validate():
-    documents = {p: json.loads(b) for p,b in FILES.items() if p.endswith(('.plscene','.plmesh','.plmaterial','.pltexture','.plrenderer','.plenvironment'))}
+    documents = {p: json.loads(b) for p,b in FILES.items() if p.endswith(('.plscene','.plmesh','.plmaterial','.pltexture','.plrenderer','.plenvironment','.planimation'))}
     def walk(value):
         if isinstance(value,dict):
             for v in value.values(): yield from walk(v)
@@ -381,11 +513,26 @@ def validate():
             assert len(ids)==len(set(ids)), path
             assert sum('camera' in e for e in data['entities'])==1, path
             for e in data['entities']:
+                if 'animation' in e:
+                    animation=e['animation']
+                    assert all(t in ids for t in animation['targets']), path
+                    clip=documents[animation['animation'][len(PREFIX):]]
+                    assert all(c['target']<len(animation['targets']) for c in clip['channels']), path
                 if 'object' in e:
                     assert e['object']['transform']==e['id'] and 'transform' in e, path
                 if 'transform' in e:
                     assert all(v>0 for v in e['transform']['scale']), path
                     assert abs(sum(v*v for v in e['transform']['rotation'])-1)<1e-6, path
+        if path.endswith('.planimation'):
+            assert data['end']>data['start'], path
+            for channel in data['channels']:
+                track=data['data'][channel['data']]
+                assert all(a<b for a,b in zip(track['times'],track['times'][1:])), path
+                assert len(track['data'])==len(track['times'])*3, path
+                assert track['data'][:3]==track['data'][-3:], path
+        if path.endswith('.plrenderer'):
+            assert all(v>0 for extent in data['sky'].values() for v in extent), path
+            assert data['shadows']['cascade_count']==3 and data['shadows']['slope_bias']==-1, path
         if path.endswith('.plmesh'):
             for m in data['submeshes']:
                 count=len(m['positions'])//3
@@ -404,7 +551,8 @@ def main():
     args=parser.parse_args()
     FILES.clear()
     assets()
-    scenes=[gallery(),lighting(),indirect(),decals(),probes(),water(),coast()]
+    scenes=[gallery(),lighting(),indirect(),decals(),probes(),water(),coast(),
+            shadow_courtyard(),glass_lab(),corridor(),motion(),ao_lab()]
     if args.regressions:
         for kind in ('sun','point','spot','direction'):
             scenes.append(lighting('regression_shadow_'+kind,isolated=kind))

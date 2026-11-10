@@ -310,129 +310,98 @@ vec3 getPunctualRadianceTransmission(vec3 normal, vec3 view, vec3 pointToLight, 
     return baseColor * D * Vis;
 }
 
-float
-textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
+// Derivatives are captured before discard, cascade selection or divergent light loops.
+// Projecting them analytically avoids undefined derivatives across cascade/atlas edges.
+vec3 plShadowWorldDx;
+vec3 plShadowWorldDy;
+void pl_shadow_surface(vec3 worldPosition)
 {
-	float shadow = 1.0;
-    vec2 comp2 = shadowCoord.st + offset;
-
-	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
-    {
-		float dist = texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), comp2).r;
-		if (shadowCoord.w > 0 && dist > shadowCoord.z)
-        {
-			shadow = 0.0; // ambient
-		}
-	}
-	return shadow;
+    plShadowWorldDx = dFdx(worldPosition);
+    plShadowWorldDy = dFdy(worldPosition);
 }
 
-float
-textureProj2(vec4 shadowCoord, vec2 offset, int textureIndex)
+struct plShadowReceiver
 {
+    vec2 depthGradient; // depth per atlas UV unit
+    float tileScale;
+};
 
-    // Perspective divide
-    vec3 proj = shadowCoord.xyz / shadowCoord.w;
+plShadowReceiver pl_shadow_receiver(mat4 lightMatrix, vec4 clip, float uvScale, float tileScale)
+{
+    vec4 dx = lightMatrix * vec4(plShadowWorldDx, 0.0);
+    vec4 dy = lightMatrix * vec4(plShadowWorldDy, 0.0);
+    // Quotient rule; the common 1/w^2 cancels when solving for dz/duv.
+    vec3 a = dx.xyz * clip.w - clip.xyz * dx.w;
+    vec3 b = dy.xyz * clip.w - clip.xyz * dy.w;
+    a.xy *= uvScale;
+    b.xy *= uvScale;
+    float det = a.x*b.y - a.y*b.x;
+    float area = length(a.xy)*length(b.xy);
+    vec2 gradient = vec2(0.0);
+    if(area > 1e-20 && abs(det) > area*1e-4)
+        gradient = vec2(a.z*b.y - a.y*b.z, a.x*b.z - a.z*b.x) / det;
+    if(any(isnan(gradient)) || any(isinf(gradient)))
+        gradient = vec2(0.0);
+    return plShadowReceiver(gradient, tileScale);
+}
 
-    // Early out: outside light frustum → lit
-    if (proj.z < 0.0 || proj.z > 1.0)
+float pl_shadow_sample(vec3 proj, float clipW, vec2 tileOffset, int textureIndex,
+                       plShadowReceiver receiver, int radius)
+{
+    if(clipW <= 0.0 || any(isnan(proj)) || any(isinf(proj)) ||
+       proj.z < 0.0 || proj.z > 1.0 ||
+       any(lessThan(proj.xy, vec2(0.0))) || any(greaterThan(proj.xy, vec2(receiver.tileScale))))
         return 1.0;
-
-    // Apply atlas offset in UV space
-    vec2 uv = proj.xy + offset;
-
-    float dist =
-        texture(
-            sampler2D(
-                at2DTextures[nonuniformEXT(textureIndex)],
-                tSamplerNearestClamp),
-            uv).r;
-    return (dist <= proj.z) ? 1.0 : 0.0;
-}
-
-float hash12(vec2 p)
-{
-    vec3 p3  = fract(vec3(p.xyx) * 0.1031);
-    p3 += dot(p3, p3.yzx + 33.33);
-    return fract((p3.x + p3.y) * p3.z);
-}
-
-float
-filterPCFSimple(vec4 sc, vec2 offset, int textureIndex)
-{
-	ivec2 texDim = textureSize(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), 0).xy;
-	float scale = 1.0;
-	float dx = scale * 1.0 / (float(texDim.x));
-	float dy = scale * 1.0 / (float(texDim.y));
-    vec2 texelSize = 1.0 / vec2(texDim);
-
-	float shadowFactor = 0.0;
-	// int count = 0;
-	int range = 1;
-	
-	for (int x = -range; x <= range; x++)
+    ivec2 size = textureSize(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), 0);
+    vec2 uv = proj.xy + tileOffset;
+    ivec2 first = ivec2(round(tileOffset * vec2(size)));
+    ivec2 last = first + ivec2(round(vec2(receiver.tileScale) * vec2(size))) - 1;
+    first = clamp(first, ivec2(0), size-1);
+    last = clamp(last, first, size-1);
+    ivec2 center = ivec2(floor(uv * vec2(size)));
+    float sum = 0.0;
+    float weights = 0.0;
+    // D16_UNORM atlas: half a storage quantum plus floating-point roundoff.
+    // This is independent of surface slope and filter radius.
+    const float precisionBias = 0.5 / 65535.0 + 2e-7;
+    for(int y=-radius; y<=radius; ++y)
+    for(int x=-radius; x<=radius; ++x)
     {
-		for (int y = -range; y <= range; y++)
-        {
-            vec2 jitter = (hash12(gl_FragCoord.xy + vec2(x, y)) - 0.5) * texelSize;
-			shadowFactor += textureProj(sc, vec2(dx*x, dy*y) + offset + jitter, textureIndex);
-			// count++;
-		}
-	}
-	return shadowFactor / 9.0;
-}
-
-
-float
-filterPCF(vec4 sc, vec2 offset, int textureIndex, uint cascadeIndex)
-
-{
-    ivec2 texDim =
-        textureSize(
-            sampler2D(
-                at2DTextures[nonuniformEXT(textureIndex)],
-                tSamplerNearestClamp),
-            0).xy;
-
-    vec2 texelSize = 1.0 / vec2(texDim);
-
-    // ----- CHANGES BEGIN -----
-    int range = 1; // 5×5 PCF instead of 3×3
-    if(cascadeIndex == 0)
-        range = 3;
-    // ----- CHANGES END -----
-
-    float shadowSum = 0.0;
-    float weightSum = 0.0;
-
-    for (int x = -range; x <= range; x++)
-    {
-        for (int y = -range; y <= range; y++)
-        {
-            // Texel-centered PCF offset
-
-            vec2 jitter = (hash12(gl_FragCoord.xy + vec2(x, y)) - 0.5) * texelSize;
-
-            vec2 pcfOffset =
-                (vec2(x, y) + 0.5) * texelSize + jitter;
-
-            // ----- NEW: tent (pyramid) weights -----
-            float wx = 1.0 - abs(float(x)) / (float(range) + 1.0);
-            float wy = 1.0 - abs(float(y)) / (float(range) + 1.0);
-            float w  = wx * wy;
-            // --------------------------------------
-
-            shadowSum +=
-                w * textureProj2(
-                        sc,
-                        offset + pcfOffset,
-                        textureIndex);
-
-            weightSum += w;
-        }
+        ivec2 texel = clamp(center + ivec2(x,y), first, last);
+        vec2 tapUV = (vec2(texel)+0.5) / vec2(size);
+        float receiverDepth = proj.z + dot(receiver.depthGradient, tapUV-uv);
+        float storedDepth = texelFetch(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), texel, 0).r;
+        // Center the tent on the receiver, not on a shifted/randomized kernel.
+        // Zero weight at the support boundary avoids popping as center changes texel.
+        vec2 distanceInTexels = abs(vec2(center + ivec2(x,y)) + 0.5 - uv*vec2(size));
+        vec2 tent = max(vec2(0.0), vec2(float(radius)+0.5) - distanceInTexels);
+        float weight = radius == 0 ? 1.0 : tent.x*tent.y;
+        // Reverse Z: closer occluders have larger depth. Cleared texels are lit.
+        sum += weight * ((storedDepth == 0.0 || storedDepth <= receiverDepth + precisionBias) ? 1.0 : 0.0);
+        weights += weight;
     }
+    return sum / weights;
+}
 
-    return shadowSum / weightSum;
+// Local light callers have already divided xyz by w; orthographic callers have w=1.
+float textureProj(vec4 sc, vec2 offset, int textureIndex, plShadowReceiver receiver)
+{
+    return pl_shadow_sample(sc.xyz, sc.w, offset, textureIndex, receiver, 0);
+}
+float textureProj2(vec4 sc, vec2 offset, int textureIndex, plShadowReceiver receiver)
+{
+    return pl_shadow_sample(sc.xyz / sc.w, sc.w, offset, textureIndex, receiver, 0);
+}
+float filterPCFSimple(vec4 sc, vec2 offset, int textureIndex, plShadowReceiver receiver)
+{
+    int radius = bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS) ? 1 : 0;
+    return pl_shadow_sample(sc.xyz, sc.w, offset, textureIndex, receiver, radius);
+}
+float filterPCF(vec4 sc, vec2 offset, int textureIndex, uint cascadeIndex, plShadowReceiver receiver)
+{
+    // Also honored for the neighboring cascade in the blend region.
+    int radius = bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS) ? (cascadeIndex == 0 ? 3 : 1) : 0;
+    return pl_shadow_sample(sc.xyz / sc.w, sc.w, offset, textureIndex, receiver, radius);
 }
 
 

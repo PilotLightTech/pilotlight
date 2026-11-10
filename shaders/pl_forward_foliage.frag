@@ -65,6 +65,7 @@ float IorToFresnel0(float transmittedIor, float incidentIor) {
 
 void main() 
 {
+    pl_shadow_surface(tShaderIn.tWorldPosition);
     int iClusterBase = pl_cluster_base(tShaderIn.tWorldPosition, tObjectInfo.tData.uGlobalIndex);
     int iPointCount = pl_cluster_count(iClusterBase, 0, tObjectInfo.tData.iPointLightCount);
     int iSpotCount = pl_cluster_count(iClusterBase, 1, tObjectInfo.tData.iSpotLightCount);
@@ -260,19 +261,20 @@ void main()
                 // if(cascadeIndex < 4)
                 {
                     vec4 shadowCoord = (abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex]) * tWorldPos2;
+                    plShadowReceiver shadowReceiver = pl_shadow_receiver((abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex]), shadowCoord, 1.0, tGpuScene.tData.fFactor);
                     // cascadeIndex = j;
                 
                     if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
                     {
-                        shadow = filterPCFSimple(
+                        shadow = filterPCF(
                             shadowCoord,
                             vec2(tGpuScene.tData.fXOffset, tGpuScene.tData.fYOffset) + vec2(cascadeIndex * tGpuScene.tData.fFactor, 0),
-                            tGpuScene.tData.iShadowMapTexIdx);
+                            tGpuScene.tData.iShadowMapTexIdx, cascadeIndex, shadowReceiver);
                             // cascadeIndex);
                     }
                     else
                     {
-                        shadow = textureProj(shadowCoord, vec2(tGpuScene.tData.fXOffset, tGpuScene.tData.fYOffset) + vec2(cascadeIndex * tGpuScene.tData.fFactor, 0), tGpuScene.tData.iShadowMapTexIdx);
+                        shadow = textureProj(shadowCoord, vec2(tGpuScene.tData.fXOffset, tGpuScene.tData.fYOffset) + vec2(cascadeIndex * tGpuScene.tData.fFactor, 0), tGpuScene.tData.iShadowMapTexIdx, shadowReceiver);
                     }
 
                     
@@ -295,10 +297,11 @@ void main()
                         {
 
                             shadowCoord = (abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex + 1]) * tWorldPos2;
+                            shadowReceiver = pl_shadow_receiver((abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex + 1]), shadowCoord, 1.0, tGpuScene.tData.fFactor);
                             float shadowfallback = filterPCF(
                                 shadowCoord,
                                 vec2(tGpuScene.tData.fXOffset, tGpuScene.tData.fYOffset) + vec2((cascadeIndex + 1.0) * tGpuScene.tData.fFactor, 0),
-                                tGpuScene.tData.iShadowMapTexIdx, cascadeIndex + 1);
+                                tGpuScene.tData.iShadowMapTexIdx, cascadeIndex + 1, shadowReceiver);
 
                             shadow = mix(shadow, shadowfallback, cascade_fade);
                             // shadow = 100.0;
@@ -371,7 +374,8 @@ void main()
 
                 vec3 result = sampleCube(-normalize(pointToLight));
                 vec4 shadowCoord = tShadowData.viewProjMat[int(result.z)] * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
-                if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
+                plShadowReceiver shadowReceiver = pl_shadow_receiver(tShadowData.viewProjMat[int(result.z)], shadowCoord, 0.5 * tShadowData.fFactor, tShadowData.fFactor);
+                if(shadowCoord.w > 0.0 && shadowCoord.z >= 0.0 && shadowCoord.z <= shadowCoord.w)
                 {
                     shadow = 1.0;
                     const vec2 faceoffsets[6] = {
@@ -384,15 +388,15 @@ void main()
                     };
 
                     shadowCoord.xyz /= shadowCoord.w;
-                    result.xy *= tShadowData.fFactor;
-                    shadowCoord.xy = result.xy;
+                    // Use the same face projection that rasterized the atlas.
+                    shadowCoord.xy = (shadowCoord.xy * 0.5 + 0.5) * tShadowData.fFactor;
                     if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
                     {
-                        shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+                        shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx, shadowReceiver);
                     }
                     else
                     {
-                        shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+                        shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx, shadowReceiver);
                     }
                 }
             }
@@ -452,7 +456,8 @@ void main()
                 plGpuSpotLightShadow tShadowData = tSpotShadowData.atData[tLightData.iShadowIndex];
 
                 vec4 shadowCoord = tShadowData.viewProjMat * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
-                if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
+                plShadowReceiver shadowReceiver = pl_shadow_receiver(tShadowData.viewProjMat, shadowCoord, 0.5 * tShadowData.fFactor, tShadowData.fFactor);
+                if(shadowCoord.w > 0.0 && shadowCoord.z >= 0.0 && shadowCoord.z <= shadowCoord.w)
                 {
                     shadowCoord.xyz /= shadowCoord.w;
                     shadow = 1.0;
@@ -463,11 +468,11 @@ void main()
 
                     if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
                     {
-                        shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                        shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx, shadowReceiver);
                     }
                     else
                     {
-                        shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                        shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx, shadowReceiver);
                     }
                 }
             }
@@ -544,6 +549,7 @@ void main()
                 vec4 tWorldPos2 = vec4(tShaderIn.tWorldPosition.xyz, 1.0);
 
                 vec4 shadowCoord = (abiasMat * tDirectionShadowData.atData[iShadowIndex].viewProjMat) * tWorldPos2;
+                plShadowReceiver shadowReceiver = pl_shadow_receiver((abiasMat * tDirectionShadowData.atData[iShadowIndex].viewProjMat), shadowCoord, 1.0, tDirectionShadowData.atData[iShadowIndex].fFactor);
             
                 if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
                 {
@@ -551,11 +557,11 @@ void main()
                         shadowCoord,
                         vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset),
                         tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx,
-                        cascadeIndex);
+                        cascadeIndex, shadowReceiver);
                 }
                 else
                 {
-                    shadow = textureProj(shadowCoord, vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset), tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx);
+                    shadow = textureProj(shadowCoord, vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset), tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx, shadowReceiver);
                 }   
             }
             if(bContactShadows && tLightData.iContactShadow != 0 && tLightData.iCastShadow > 0 && shadow > 0.0)

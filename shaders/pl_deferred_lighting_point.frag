@@ -59,6 +59,8 @@ void main()
     tViewPosition.xyz = tViewPosition.xyz / tViewPosition.w;
     tViewPosition.w = 1.0;
     vec4 tWorldPosition = tViewInfo.tData.tCameraViewInv[tObjectInfo.tData.uGlobalIndex] * tViewPosition;
+    pl_shadow_surface(tWorldPosition.xyz);
+
 
     
 

@@ -28,7 +28,7 @@
         "contact_steps": 16,
         "multiviewport": true,
         "constant_bias": -1.25,
-        "slope_bias": -10.75
+        "slope_bias": -1.0
     },
 
     "fxaa": {

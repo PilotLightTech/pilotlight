@@ -3823,7 +3823,7 @@ pl__renderer_deserialize_settings(const char* pcName, void* pSettings)
         {
             ptSettings->tShadows.fMaxShadowRange = gptJson->float_member(ptJsonShadows, "max_range", 100.0f);
             ptSettings->tShadows.fConstantDepthBias = gptJson->float_member(ptJsonShadows, "constant_bias", -1.25f);
-            ptSettings->tShadows.fSlopeDepthBias = gptJson->float_member(ptJsonShadows, "slope_bias", -10.75f);
+            ptSettings->tShadows.fSlopeDepthBias = gptJson->float_member(ptJsonShadows, "slope_bias", -1.0f);
             ptSettings->tShadows.uShadowResolution = gptJson->uint32_member(ptJsonShadows, "resolution", 2048);
             ptSettings->tShadows.uShadowCascadeCount = gptJson->uint32_member(ptJsonShadows, "cascade_count", 4);
             ptSettings->tShadows.fContactShadowLength = gptJson->float_member(ptJsonShadows, "contact_length", 0.3f);
