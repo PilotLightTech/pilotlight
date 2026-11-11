@@ -61,7 +61,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plEcsI_version {3, 0, 0}
+#define plEcsI_version {3, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -195,6 +195,16 @@ typedef struct _plEcsI
     // component types (can store)
     plEcsTypeKey (*get_ecs_type_key_tag)(void);
     plEcsTypeKey (*get_ecs_type_key_library)(void);
+
+    // Runtime copying within one library (call between system updates).
+    // Deep-copies owned component data via clone callbacks; assets remain shared.
+    // copy_component adds/replaces a component on a local destination and preserves references.
+    // clone_entity creates a local entity with a new ID, remaps self references,
+    // and retains references to other entities. It does not clone children.
+    // Library container components are unsupported; copy their instantiated entities instead.
+    // Invalid inputs return false / an invalid entity without changing the library.
+    bool     (*copy_component)(plComponentLibrary*, plEcsTypeKey, plEntity source, plEntity destination);
+    plEntity (*clone_entity)  (plComponentLibrary*, plEntity source);
 
 } plEcsI;
 

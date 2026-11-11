@@ -933,7 +933,11 @@ pl_ecs_create_entity_with_id(plComponentLibrary* ptLibrary, const char* pcName, 
         };
         pl_sb_push(ptLibrary->_sbtEntityData, tEntityData);
     }
-    ptLibrary->_sbtEntityData[tNewEntity.uIndex].tId = tId;
+    // A reused slot must not retain an old library instance's ownership/patch pointers.
+    ptLibrary->_sbtEntityData[tNewEntity.uIndex] = (plEntityData){
+        .uGeneration = tNewEntity.uGeneration,
+        .tId         = tId
+    };
 
     const uint32_t uComponentTypeCount = pl_sb_size(gptEcsCtx->sbtComponentDescriptions);
 
@@ -969,6 +973,80 @@ plEntity
 pl_ecs_create_entity(plComponentLibrary* ptLibrary, const char* pcName)
 {
     return pl_ecs_create_entity_with_id(ptLibrary, pcName, pl__generate_entity_id(ptLibrary));
+}
+
+bool
+pl_ecs_copy_component(plComponentLibrary* ptLibrary, plEcsTypeKey tType, plEntity tSource, plEntity tDestination)
+{
+    if(!ptLibrary || tType >= pl_sb_size(gptEcsCtx->sbtComponentDescriptions) || tType == gptEcsCtx->tLibraryComponentType || !pl_ecs_is_entity_valid(ptLibrary, tSource) || !pl_ecs_is_local(ptLibrary, tDestination))
+        return false;
+
+    const plComponentDesc* ptDesc = &gptEcsCtx->sbtComponentDescriptions[tType];
+    if(!pl_ecs_has_component(ptLibrary, tType, tSource))
+        return false;
+    if(tSource.uData == tDestination.uData)
+        return true;
+
+    bool bExisting = pl_ecs_has_component(ptLibrary, tType, tDestination);
+    void* pDestination = pl_ecs_add_component(ptLibrary, tType, tDestination);
+
+    // Adding can move this type's component array, so retrieve the source AFTER adding.
+    const void* pSource = pl_ecs_get_component(ptLibrary, tType, tSource);
+    if(bExisting && ptDesc->destroy)
+        ptDesc->destroy(pDestination, ptLibrary);
+    memset(pDestination, 0, ptDesc->szSize);
+    if(ptDesc->clone)
+        ptDesc->clone(pSource, ptLibrary, pDestination, ptLibrary);
+    else
+        memcpy(pDestination, pSource, ptDesc->szSize);
+
+    if(ptDesc->resolve)
+        ptDesc->resolve(ptLibrary, pl_ecs_get_entity_id(ptLibrary, tDestination), NULL, pDestination);
+    if(bExisting)
+        pl_ecs_mark_component_changed(ptLibrary, tDestination, tType);
+    return true;
+}
+
+plEntity
+pl_ecs_clone_entity(plComponentLibrary* ptLibrary, plEntity tSource)
+{
+    const plEntity tInvalid = {UINT32_MAX, UINT32_MAX};
+    if(!ptLibrary || !pl_ecs_is_entity_valid(ptLibrary, tSource) || pl_ecs_has_component(ptLibrary, gptEcsCtx->tLibraryComponentType, tSource))
+        return tInvalid;
+
+    plEntityId tSourceId = pl_ecs_get_entity_id(ptLibrary, tSource);
+    plEntity tDestination = pl_ecs_create_entity(ptLibrary, NULL);
+    uint32_t uTypeCount = pl_sb_size(gptEcsCtx->sbtComponentDescriptions);
+    for(uint32_t i = 0; i < uTypeCount; i++)
+    {
+        if(pl_ecs_has_component(ptLibrary, i, tSource))
+        {
+            const plComponentDesc* ptDesc = &gptEcsCtx->sbtComponentDescriptions[i];
+            void* pDestination = pl_ecs_add_component(ptLibrary, i, tDestination);
+            const void* pSource = pl_ecs_get_component(ptLibrary, i, tSource);
+            memset(pDestination, 0, ptDesc->szSize);
+            if(ptDesc->clone)
+                ptDesc->clone(pSource, ptLibrary, pDestination, ptLibrary);
+            else
+                memcpy(pDestination, pSource, ptDesc->szSize);
+        }
+    }
+
+    // Existing resolve callbacks expect a complete map. Keep external references
+    // unchanged and redirect only references to the cloned entity itself.
+    plHashMap64 tMap = {0};
+    pl_hm_insert(&tMap, 0, 0);
+    pl_hm_insert(&tMap, UINT64_MAX, UINT64_MAX);
+    for(uint32_t i = 1; i < pl_sb_size(ptLibrary->_sbtEntityData); i++)
+    {
+        plEntityId tId = ptLibrary->_sbtEntityData[i].tId;
+        if(tId)
+            pl_hm_insert(&tMap, tId, tId);
+    }
+    pl_hm_insert(&tMap, tSourceId, pl_ecs_get_entity_id(ptLibrary, tDestination));
+    pl__ecs_resolve_components(ptLibrary, tDestination, &tMap);
+    pl_hm_free(&tMap);
+    return tDestination;
 }
 
 uint64_t
@@ -1671,6 +1749,8 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_changes               = pl_ecs_get_changes,
         .clear_changes             = pl_ecs_clear_changes,
         .mark_component_changed    = pl_ecs_mark_component_changed,
+        .copy_component            = pl_ecs_copy_component,
+        .clone_entity              = pl_ecs_clone_entity,
     };
     pl_set_api(ptApiRegistry, plEcsI, &tApi);
 
