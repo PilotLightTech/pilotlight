@@ -1450,11 +1450,11 @@ pl__add_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, uin
     gptDraw->add_text(ptLayer, (plVec2){roundf(tP.x), roundf(tP.y)}, (plDrawTextOptions){
         .fSize = fSize,
         .fWrap = fWrap,
-        .pcTextEnd = pl__find_renderered_text_end(pcText, pcTextEnd),
+        .pcTextEnd = NULL,
         .ptFont = ptFont,
         .uColor = uColor
     },
-        pcText
+        "%.*s", (int)(pl__find_renderered_text_end(pcText, pcTextEnd) - pcText), pcText
     );
 }
 

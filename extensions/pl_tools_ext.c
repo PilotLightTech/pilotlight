@@ -324,9 +324,48 @@ pl__show_memory_allocations(bool* bValue)
     }
 }
 
+// Keep navigation in seconds. Converting a huge scrolling canvas to floats
+// loses precision when inspecting a short sample late in a frame.
+static void
+pl__profile_clamp_view(double dFrameDuration, double* pdStart, double* pdSpan)
+{
+    const double dMinSpan = pl_mind(dFrameDuration, pl_maxd(1e-9, dFrameDuration * DBL_EPSILON * 32.0));
+    *pdSpan = pl_clampd(dMinSpan, *pdSpan, dFrameDuration);
+    *pdStart = pl_clampd(0.0, *pdStart, dFrameDuration - *pdSpan);
+}
+
+static void
+pl__profile_zoom_view(double dFrameDuration, double dRatio, double dWheel, double* pdStart, double* pdSpan)
+{
+    dRatio = pl_clampd(0.0, dRatio, 1.0);
+    const double dAnchor = *pdStart + dRatio * *pdSpan;
+    *pdSpan *= pow(1.2, -dWheel);
+    pl__profile_clamp_view(dFrameDuration, pdStart, pdSpan);
+    *pdStart = dAnchor - dRatio * *pdSpan;
+    pl__profile_clamp_view(dFrameDuration, pdStart, pdSpan);
+}
+
+static double
+pl__profile_tick_step(double dSpan, float fWidth, float fLabelWidth)
+{
+    const double dTarget = dSpan * pl_maxd(1.0, fLabelWidth) / pl_maxd(1.0, fWidth);
+    const double dMagnitude = pow(10.0, floor(log10(dTarget)));
+    const double dFraction = dTarget / dMagnitude;
+    double dStep = 10.0;
+    if(dFraction <= 1.0)      dStep = 1.0;
+    else if(dFraction <= 2.0) dStep = 2.0;
+    else if(dFraction <= 5.0) dStep = 5.0;
+    return dStep * dMagnitude;
+}
+
 static void
 pl__show_profiling(bool* bValue)
 {
+    static double dViewStart = 0.0;
+    static double dViewSpan = 0.016;
+    static float fDepthScroll = 0.0f;
+    static bool bFitGraph = true;
+    static bool bGraphDragged = false;
     static const plVec4 atColors[6] = {
         {0.0f, 1.0f, 1.0f, 0.75f},
         {1.0f, 0.5f, 0.0f, 0.75f},
@@ -371,6 +410,7 @@ pl__show_profiling(bool* bValue)
         {
             if(gptUI->button("Capture Frame"))
             {
+                bFitGraph = true;
                 pl_sb_resize(gptDebugCtx->sbtSamples, uSampleSize);
                 memcpy(gptDebugCtx->sbtSamples, ptSamples, sizeof(plProfileCpuSample) * uSampleSize);
             }
@@ -379,10 +419,14 @@ pl__show_profiling(bool* bValue)
         {
             if(gptUI->button("Release Frame"))
             {
+                bFitGraph = true;
                 pl_sb_reset(gptDebugCtx->sbtSamples);
             }
         }
-        gptUI->text("Frame Time: %0.3f", gptDebugCtx->fDeltaTime);
+        double dFrameDuration = pl_maxd(1e-9, (double)gptDebugCtx->fDeltaTime);
+        for(uint32_t uIndex = 0; uIndex < uSampleSize; uIndex++)
+            dFrameDuration = pl_maxd(dFrameDuration, ptSamples[uIndex].dStartTime + ptSamples[uIndex].dDuration);
+        gptUI->text("Frame Time: %.3f ms", dFrameDuration * 1000.0);
 
         gptUI->layout_dynamic(0.0f, 1);
 
@@ -432,7 +476,7 @@ pl__show_profiling(bool* bValue)
                         gptUI->text("%7.3f", ptSamples[i].dDuration * 1000.0);
                         gptUI->text("%7.3f", ptSamples[i].dStartTime * 1000.0);
                         gptUI->push_theme_color(PL_UI_COLOR_PROGRESS_BAR, atColors[ptSamples[i]._uDepth % 6]);
-                        gptUI->progress_bar((float)(ptSamples[i].dDuration / (double)gptDebugCtx->fDeltaTime), (plVec2){-1.0f, 0.0f}, NULL);
+                        gptUI->progress_bar((float)(ptSamples[i].dDuration / dFrameDuration), (plVec2){-1.0f, 0.0f}, NULL);
                         gptUI->pop_theme_color(1);
                     } 
                 }
@@ -441,203 +485,156 @@ pl__show_profiling(bool* bValue)
 
             if(gptUI->begin_tab("Graph", 0))
             {
-
+                gptUI->layout_static(0.0f, 110.0f, 1);
+                if(gptUI->button("Fit Frame")) bFitGraph = true;
+                gptUI->layout_dynamic(0.0f, 1);
+                gptUI->text("Wheel: zoom at cursor | Drag: pan time/depth | Click sample: focus");
                 const plVec2 tParentCursorPos = gptUI->get_cursor_pos();
-                gptUI->layout_dynamic(tWindowEnd.y - tParentCursorPos.y - 5.0f, 1);
-                if(gptUI->begin_child("timeline", 0, 0))
+                gptUI->layout_dynamic(pl_maxf(1.0f, tWindowEnd.y - tParentCursorPos.y - 15.0f), 1);
+                if(gptUI->begin_child("timeline", 0, PL_UI_WINDOW_FLAGS_NO_SCROLLBAR))
                 {
-
-                    const plVec2 tChildWindowSize = gptUI->get_window_size();
+                    const plVec2 tChildPos = gptUI->get_window_pos();
+                    const plVec2 tChildSize = gptUI->get_window_size();
                     const plVec2 tCursorPos = gptUI->get_cursor_pos();
-                    gptUI->layout_space_begin(PL_UI_LAYOUT_ROW_TYPE_STATIC, gptUI->get_window_size().y - 50.0f, uSampleSize + 1);
-
-                    (void)tWindowSize;
-                    static double dInitialVisibleTime = 0.016;
-                    static double dIncrement = 0.001;
-
-                    const double dVisibleTime = dInitialVisibleTime;
-                    const double dMaxTime = pl_maxd(gptDebugCtx->fDeltaTime, dVisibleTime);
-
-                    while(dVisibleTime/dIncrement < 20.0)
+                    const float fWidth = pl_maxf(1.0f, tChildPos.x + tChildSize.x - tCursorPos.x - 10.0f);
+                    const float fHeight = pl_maxf(1.0f, tChildPos.y + tChildSize.y - tCursorPos.y - 10.0f);
+                    const float fRowsTop = tCursorPos.y + 50.0f;
+                    const float fBottom = tCursorPos.y + fHeight;
+                    uint32_t uMaxDepth = 0;
+                    for(uint32_t uIndex = 0; uIndex < uSampleSize; uIndex++)
+                        uMaxDepth = pl_max(uMaxDepth, ptSamples[uIndex]._uDepth);
+                    const float fMaxDepthScroll = pl_maxf(0.0f, (uMaxDepth + 1) * 25.0f - pl_maxf(0.0f, fHeight - 50.0f));
+                    if(bFitGraph)
                     {
-                        dIncrement *= 0.5f;
+                        dViewStart = 0.0;
+                        dViewSpan = dFrameDuration;
+                        fDepthScroll = 0.0f;
+                        bFitGraph = false;
                     }
+                    pl__profile_clamp_view(dFrameDuration, &dViewStart, &dViewSpan);
+                    fDepthScroll = pl_clampf(0.0f, fDepthScroll, fMaxDepthScroll);
 
-                    while(dVisibleTime/dIncrement > 30.0)
-                    {
-                        dIncrement *= 2.0f;
-                    }
-
-                    const double dConvertToPixel = tChildWindowSize.x / dVisibleTime;
-                    const double dConvertToTime = dVisibleTime / tChildWindowSize.x;
-
-                    // timeline bar
-                    plDrawLayer2D* ptFgLayer = gptUI->get_window_fg_drawlayer();
-                    
-                    gptUI->layout_space_push(0.0f, 0.0f, (float)(dMaxTime * dConvertToPixel), 50.0f);
-                    const plVec2 tTimelineSize = {(float)(dMaxTime * dConvertToPixel), tWindowEnd.y - tParentCursorPos.y - 15.0f};
-                    const plVec2 tTimelineBarSize = {(float)(dMaxTime * dConvertToPixel), 50.0f};
-                    // pl_invisible_button("hitregion", tTimelineSize);
-
-                    // bool bHovered = pl_was_last_item_hovered();
+                    gptUI->layout_static(fHeight, fWidth, 1);
+                    const bool bClicked = gptUI->invisible_button("##profile_canvas", (plVec2){fWidth, fHeight});
+                    const bool bHovered = gptUI->was_last_item_hovered();
+                    const bool bActive = gptUI->was_last_item_active();
                     const plVec2 tMousePos = gptIOI->get_mouse_pos();
-                    const plRect tWidgetRect = pl_calculate_rect(tCursorPos, tTimelineSize);
-                    bool bHovered = pl_rect_contains_point(&tWidgetRect, tMousePos);
-                    if(bHovered)
+                    if(bHovered && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+                        bGraphDragged = false;
+                    if(bHovered && gptIOI->get_mouse_wheel() != 0.0f)
+                        pl__profile_zoom_view(dFrameDuration, (tMousePos.x - tCursorPos.x) / fWidth, gptIOI->get_mouse_wheel(), &dViewStart, &dViewSpan);
+                    if(bActive && gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT) && (bGraphDragged || gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 5.0f)))
                     {
+                        bGraphDragged = true;
+                        const plVec2 tDrag = gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 0.0f);
+                        dViewStart -= (double)tDrag.x * dViewSpan / (double)fWidth;
+                        fDepthScroll = pl_clampf(0.0f, fDepthScroll - tDrag.y, fMaxDepthScroll);
+                        pl__profile_clamp_view(dFrameDuration, &dViewStart, &dViewSpan);
+                        gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+                    }
+
+                    const double dPixelsPerSecond = (double)fWidth / dViewSpan;
+                    const double dViewEnd = dViewStart + dViewSpan;
+                    plDrawLayer2D* ptFgLayer = gptUI->get_window_fg_drawlayer();
+                    plFont* ptFont = gptUI->get_default_font();
+                    gptDraw->add_rect_filled(ptFgLayer, tCursorPos, (plVec2){tCursorPos.x + fWidth, pl_minf(fRowsTop, fBottom)},
+                        (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.0f, 0.0f, 0.7f)});
+
+                    // Choose 1/2/5 ticks from pixel spacing. Labels use stack buffers;
+                    // no pointers survive resetting or growing a temporary allocator.
+                    double dIncrement = pl__profile_tick_step(dViewSpan, fWidth, 100.0f);
+                    double dUnit = 1.0;
+                    const char* pcUnit = "s";
+                    uint32_t uDecimals = 0;
+                    char acLabel[96];
+                    for(uint32_t uPass = 0; uPass < 2; uPass++)
+                    {
+                        dUnit = 1.0;
+                        pcUnit = "s";
+                        if(dIncrement < 1.0)  { dUnit = 1e3; pcUnit = "ms"; }
+                        if(dIncrement < 1e-3) { dUnit = 1e6; pcUnit = "us"; }
+                        if(dIncrement < 1e-6) { dUnit = 1e9; pcUnit = "ns"; }
+                        uDecimals = (uint32_t)pl_clampd(0.0, ceil(-log10(dIncrement * dUnit)), 6.0);
+                        pl_snprintf(acLabel, sizeof(acLabel), "%.*f %s", (int)uDecimals, dViewEnd * dUnit, pcUnit);
+                        const float fLabelWidth = gptDraw->calculate_text_size(acLabel, (plDrawTextOptions){.ptFont = ptFont}).x + 20.0f;
+                        if(uPass == 0)
+                            dIncrement = pl__profile_tick_step(dViewSpan, fWidth, pl_maxf(100.0f, fLabelWidth));
+                    }
+                    const double dFirstTick = floor(dViewStart / dIncrement) * dIncrement;
+                    const uint32_t uTickCount = (uint32_t)ceil(dViewSpan / dIncrement) + 2;
+                    float fLastLabelEnd = tCursorPos.x - 8.0f;
+                    for(uint32_t uTick = 0; uTick < uTickCount; uTick++)
+                    {
+                        const double dTime = dFirstTick + (double)uTick * dIncrement;
+                        for(uint32_t uMinor = 0; uMinor < 5; uMinor++)
+                        {
+                            const double dTickTime = dTime + (double)uMinor * dIncrement / 5.0;
+                            if(dTickTime < dViewStart || dTickTime > dViewEnd)
+                                continue;
+                            const float fX = tCursorPos.x + (float)((dTickTime - dViewStart) * dPixelsPerSecond);
+                            const float fTickHeight = uMinor == 0 ? 18.0f : 6.0f;
+                            gptDraw->add_line(ptFgLayer, (plVec2){fX, tCursorPos.y}, (plVec2){fX, pl_minf(tCursorPos.y + fTickHeight, fBottom)}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
+                            if(uMinor != 0) continue;
+                            pl_snprintf(acLabel, sizeof(acLabel), "%.*f %s", (int)uDecimals, dTickTime * dUnit, pcUnit);
+                            const float fTextWidth = gptDraw->calculate_text_size(acLabel, (plDrawTextOptions){.ptFont = ptFont}).x;
+                            const float fTextX = pl_clampf(tCursorPos.x, fX - fTextWidth * 0.5f, tCursorPos.x + pl_maxf(0.0f, fWidth - fTextWidth));
+                            if(fTextX < fLastLabelEnd + 8.0f)
+                                continue;
+                            fLastLabelEnd = fTextX + fTextWidth;
+                            gptDraw->add_text(ptFgLayer, (plVec2){fTextX, tCursorPos.y + 20.0f}, (plDrawTextOptions){.ptFont = ptFont, .uColor = PL_COLOR_32_WHITE, .tClipMin = tCursorPos, .tClipMax = {tCursorPos.x + fWidth, fBottom}}, "%s", acLabel);
+                        }
+                    }
+
+                    uint32_t uHoveredSample = UINT32_MAX;
+                    for(uint32_t uIndex = 0; uIndex < uSampleSize; uIndex++)
+                    {
+                        const plProfileCpuSample* ptSample = &ptSamples[uIndex];
+                        const double dEnd = ptSample->dStartTime + pl_maxd(0.0, ptSample->dDuration);
+                        if(dEnd < dViewStart || ptSample->dStartTime > dViewEnd)
+                            continue;
+                        const float fY = fRowsTop + (float)ptSample->_uDepth * 25.0f - fDepthScroll;
+                        if(fY + 20.0f <= fRowsTop || fY >= fBottom)
+                            continue;
+                        const float fX = tCursorPos.x + (float)((pl_maxd(dViewStart, ptSample->dStartTime) - dViewStart) * dPixelsPerSecond);
+                        const float fEndX = tCursorPos.x + (float)((pl_mind(dViewEnd, dEnd) - dViewStart) * dPixelsPerSecond);
                         
-                        const double dStartVisibleTime = dInitialVisibleTime;
-                        float fWheel = gptIOI->get_mouse_wheel();
-                        if(fWheel < 0)      dInitialVisibleTime += dInitialVisibleTime * 0.2;
-                        else if(fWheel > 0) dInitialVisibleTime -= dInitialVisibleTime * 0.2;
-                        dInitialVisibleTime = pl_clampd(0.0001, dInitialVisibleTime, gptDebugCtx->fDeltaTime);
-
-                        if(fWheel != 0)
-                        {
-                            const double dNewConvertToPixel = tChildWindowSize.x / dInitialVisibleTime;
-                            const double dNewConvertToTime = dInitialVisibleTime / tChildWindowSize.x;
-
-                            const double dTimeHovered = (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + gptUI->get_window_scroll().x);
-                            const float fConservedRatio = (tMousePos.x - tParentCursorPos.x) / tChildWindowSize.x;
-                            const double dOldPixelStart = dConvertToPixel * dTimeHovered;
-                            const double dNewPixelStart = dNewConvertToPixel * (dTimeHovered - fConservedRatio * dInitialVisibleTime);
-                            gptUI->set_window_scroll((plVec2){(float)dNewPixelStart, 0.0f});
-                        }
-
-                        if(gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 5.0f))
-                        {
-                            const plVec2 tWindowScroll = gptUI->get_window_scroll();
-                            const plVec2 tMouseDrag = gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 5.0f);
-                            gptUI->set_window_scroll((plVec2){tWindowScroll.x - tMouseDrag.x, tWindowScroll.y});
-                            gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
-                        }
+                        // Very short samples remain visible/hittable without changing their times.
+                        const plVec2 tMin = {pl_minf(fX, tCursorPos.x + fWidth - 1.0f), pl_maxf(fRowsTop, fY)};
+                        const plVec2 tMax = {pl_minf(tCursorPos.x + fWidth, pl_maxf(fEndX, tMin.x + 1.0f)), pl_minf(fBottom, fY + 20.0f)};
+                        const plRect tRect = {tMin, tMax};
+                        gptDraw->add_rect_filled(ptFgLayer, tMin, tMax, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(atColors[ptSample->_uDepth % 6])});
+                        if(tMax.x - tMin.x > 8.0f)
+                            gptDraw->add_text(ptFgLayer, (plVec2){tMin.x + 3.0f, fY + 2.0f}, (plDrawTextOptions){.ptFont = ptFont, .uColor = PL_COLOR_32_WHITE, .tClipMin = tMin, .tClipMax = tMax}, "%s", ptSample->pcName);
+                        if(bHovered && pl_rect_contains_point(&tRect, tMousePos))
+                            uHoveredSample = uIndex;
                     }
-                    
-                    gptDraw->add_rect_rounded_filled(ptFgLayer, tCursorPos, pl_add_vec2(tCursorPos, tTimelineBarSize), 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.0f, 0.0f, 0.7f)});
-
-                    const double dUnitMultiplier = 1000.0;
-                    uint32_t uDecimalPlaces = 0;
-
-                    // major ticks
-                    const float fScrollStartPosPixel = gptUI->get_window_scroll().x;
-                    const float fScrollEndPosPixel = fScrollStartPosPixel + gptUI->get_window_size().x;
-                    const double dScrollStartPosTime = dConvertToTime * (double)fScrollStartPosPixel;
-                    const double dScrollEndPosTime = dConvertToTime * (double)fScrollEndPosPixel;
-                    const uint32_t uScrollStartPosNearestUnit = (uint32_t)round(dScrollStartPosTime / dIncrement);
-                    const uint32_t uScrollEndPosNearestUnit = (uint32_t)round(dScrollEndPosTime / dIncrement);
-
-                    while(true)
-                    {
-                        const double dTime0 = (double)uScrollStartPosNearestUnit * dIncrement;
-                        char* pcDecimals = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%%0.%uf", uDecimalPlaces);
-                        char* pcText0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, pcDecimals, (double)dTime0 * dUnitMultiplier);
-  
-                        const double dTime1 = dTime0 + dIncrement * 0.5;
-                        char* pcText1 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, pcDecimals, (double)dTime1 * dUnitMultiplier);
-                        pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
-
-                        if(strcmp(pcText0, pcText1) != 0)
-                            break;
-                        uDecimalPlaces++;
-
-                        if(uDecimalPlaces > 6)
-                            break;
-                    }
-
-                    while(true)
-                    {
-                        const double dTime0 = (double)uScrollEndPosNearestUnit * dIncrement;
-                        const double dLineX0 = (double)(dTime0 * dConvertToPixel) + tCursorPos.x;
-                        char* pcDecimals = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, " %%0.%uf ms ", uDecimalPlaces);
-                        char* pcText0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, pcDecimals, (double)dTime0 * dUnitMultiplier);
-                        const plRect tBB0 = gptDraw->calculate_text_bb((plVec2){roundf((float)dLineX0), tCursorPos.y + 20.0f}, pcText0, (plDrawTextOptions){.ptFont = gptUI->get_default_font()});
-
-                        const double dTime1 = dTime0 + dIncrement;
-                        const float dLineX1 = (float)(dTime1 * dConvertToPixel) + tCursorPos.x;
-                        char* pcText1 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, pcDecimals, (double)dTime1 * dUnitMultiplier);
-                        const plRect tBB1 = gptDraw->calculate_text_bb((plVec2){roundf((float)dLineX1), tCursorPos.y + 20.0f}, pcText1, (plDrawTextOptions){.ptFont = gptUI->get_default_font()});
-                        pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
-
-                        if(!pl_rect_overlaps_rect(&tBB0, &tBB1))
-                            break;
-                        dIncrement *= 2.0;
-                    }
-
-                    
-                    const uint32_t uScrollStartPosNearestUnit1 = (uint32_t)round(dScrollStartPosTime / dIncrement);
-                    const uint32_t uScrollEndPosNearestUnit1 = (uint32_t)round(dScrollEndPosTime / dIncrement);
-                    const double dStartTime = (double)uScrollStartPosNearestUnit1 * dIncrement;
-                    const double dEndTime = (double)uScrollEndPosNearestUnit1 * dIncrement;
-
-                    // minor ticks
-                    double dCurrentTime = dStartTime - dIncrement * 0.5f;
-                    while(dCurrentTime < dEndTime)
-                    {
-                        const float fLineX = (float)((dCurrentTime * dConvertToPixel)) + tCursorPos.x;
-                        gptDraw->add_line(ptFgLayer, (plVec2){fLineX, tCursorPos.y}, (plVec2){fLineX, tCursorPos.y + 10.0f}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
-                        dCurrentTime += dIncrement * 0.5f;
-                    }
-
-                    // micro ticks
-                    dCurrentTime = dStartTime - dIncrement * 0.1f;
-                    while(dCurrentTime < dEndTime)
-                    {
-                        const float fLineX = (float)((dCurrentTime * dConvertToPixel)) + tCursorPos.x;
-                        gptDraw->add_line(ptFgLayer, (plVec2){fLineX, tCursorPos.y}, (plVec2){fLineX, tCursorPos.y + 5.0f}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
-                        dCurrentTime += dIncrement * 0.1f;
-                    }
-
-                    // major ticks
-                    dCurrentTime = dStartTime;
-                    while(dCurrentTime < dEndTime)
-                    {
-                        const float fLineX = (float)((dCurrentTime * dConvertToPixel)) + tCursorPos.x;
-                        char* pcDecimals = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%%0.%uf ms", uDecimalPlaces);
-                        char* pcText = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, pcDecimals, (double)dCurrentTime * dUnitMultiplier);
-                        const float fTextWidth = gptDraw->calculate_text_size(pcText, (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x;
-                        gptDraw->add_line(ptFgLayer, (plVec2){fLineX, tCursorPos.y}, (plVec2){fLineX, tCursorPos.y + 20.0f}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
-                        gptDraw->add_text(ptFgLayer, (plVec2){roundf(fLineX - fTextWidth / 2.0f), tCursorPos.y + 20.0f}, (plDrawTextOptions){.uColor = PL_COLOR_32_WHITE, .ptFont = gptUI->get_default_font()}, pcText);
-                        pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);  
-                        dCurrentTime += dIncrement;
-                    }
-
-                    for(uint32_t i = 0; i < uSampleSize; i++)
-                    {
-                        const float fPixelWidth = (float)(dConvertToPixel * ptSamples[i].dDuration);
-                        const float fPixelStart = (float)(dConvertToPixel * ptSamples[i].dStartTime);
-                        gptUI->layout_space_push(fPixelStart, (float)ptSamples[i]._uDepth * 25.0f + 55.0f, fPixelWidth, 20.0f);
-                        char* pcTempBuffer = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%s##pro%u", ptSamples[i].pcName, i);
-                        gptUI->push_theme_color(PL_UI_COLOR_BUTTON, atColors[ptSamples[i]._uDepth % 6]);
-                        if(gptUI->button(pcTempBuffer))
-                        {
-                            dInitialVisibleTime = pl_clampd(0.0001, ptSamples[i].dDuration, (double)gptDebugCtx->fDeltaTime);
-                            const double dNewConvertToPixel = tChildWindowSize.x / dInitialVisibleTime;
-                            const double dNewPixelStart = dNewConvertToPixel * (ptSamples[i].dStartTime + 0.5 * ptSamples[i].dDuration);
-                            const double dNewScrollX = dNewPixelStart - dNewConvertToPixel * dInitialVisibleTime * 0.5;
-                            gptUI->set_window_scroll((plVec2){(float)dNewScrollX, 0.0f});
-                        }
-                        pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
-                        if(gptUI->was_last_item_hovered())
-                        {
-                            // bHovered = false;
-                            gptUI->begin_tooltip();
-                            gptUI->color_text(atColors[ptSamples[i]._uDepth % 6], "%s", ptSamples[i].pcName);
-                            gptUI->text("Duration:   %0.7f seconds", ptSamples[i].dDuration);
-                            gptUI->text("Start Time: %0.7f seconds", ptSamples[i].dStartTime);
-                            gptUI->color_text(atColors[ptSamples[i]._uDepth % 6], "Frame Time: %0.2f %%", 100.0 * ptSamples[i].dDuration / (double)gptDebugCtx->fDeltaTime);
-                            gptUI->end_tooltip(); 
-                        }
-                        gptUI->pop_theme_color(1);
-                    }
-
                     if(bHovered)
                     {
-                        gptDraw->add_line(ptFgLayer, (plVec2){tMousePos.x, tCursorPos.y}, (plVec2){tMousePos.x, tWindowEnd.y}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
-                        gptDraw->add_text(ptFgLayer, tMousePos, (plDrawTextOptions){.uColor = PL_COLOR_32_WHITE, .ptFont = gptUI->get_default_font()}, "%0.6f", (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + gptUI->get_window_scroll().x));
+                        const double dHoveredTime = dViewStart + (double)(tMousePos.x - tCursorPos.x) / dPixelsPerSecond;
+                        gptDraw->add_line(ptFgLayer, (plVec2){tMousePos.x, tCursorPos.y}, (plVec2){tMousePos.x, fBottom}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
+                        if(uHoveredSample == UINT32_MAX)
+                        {
+                            gptUI->begin_tooltip();
+                            gptUI->text("%.3f %s", dHoveredTime * dUnit, pcUnit);
+                            gptUI->end_tooltip();
+                        }
                     }
-
-                    gptUI->layout_space_end();
-
+                    if(uHoveredSample != UINT32_MAX)
+                    {
+                        const plProfileCpuSample* ptSample = &ptSamples[uHoveredSample];
+                        gptUI->begin_tooltip();
+                        gptUI->color_text(atColors[ptSample->_uDepth % 6], "%s", ptSample->pcName);
+                        gptUI->text("Duration: %.3f us", ptSample->dDuration * 1e6);
+                        gptUI->text("Start: %.3f us", ptSample->dStartTime * 1e6);
+                        gptUI->text("Frame Time: %.2f %%", 100.0 * ptSample->dDuration / dFrameDuration);
+                        gptUI->end_tooltip();
+                        if(bClicked && !bGraphDragged && gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
+                        {
+                            dViewSpan = pl_maxd(1e-9, ptSample->dDuration * 1.2);
+                            dViewStart = ptSample->dStartTime + ptSample->dDuration * 0.5 - dViewSpan * 0.5;
+                            pl__profile_clamp_view(dFrameDuration, &dViewStart, &dViewSpan);
+                        }
+                    }
                     gptUI->end_child();
                 }
                 gptUI->end_tab();
