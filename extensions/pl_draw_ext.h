@@ -53,7 +53,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plDrawI_version {4, 0, 0}
+#define plDrawI_version {4, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -100,8 +100,9 @@ typedef struct _plFontCustomRect plFontCustomRect; // internal type
 typedef uint16_t plUiWChar;
 
 // enums
-typedef int plDrawFlags;     // -> enum _plDrawFlags     // Flags:
-typedef int plDrawRectFlags; // -> enum _plDrawRectFlags // Flags:
+typedef int plDrawFlags;       // -> enum _plDrawFlags
+typedef int plDrawStrokeFlags; // -> enum _plDrawStrokeFlags
+typedef int plDrawRectFlags;   // -> enum _plDrawRectFlags
 
 // backend texture type
 #ifndef plTextureID
@@ -109,12 +110,12 @@ typedef int plDrawRectFlags; // -> enum _plDrawRectFlags // Flags:
 #endif
 
 // external
-typedef struct _plDevice        plDevice;          // pl_graphics_ext.h
-typedef struct _plCommandBuffer plCommandBuffer;   // pl_graphics_ext.h
-typedef struct _plBindGroupPool plBindGroupPool;   // pl_graphics_ext.h
-typedef union plBindGroupHandle plBindGroupHandle; // pl_graphics_ext.h
-typedef union plTextureHandle   plTextureHandle;   // pl_graphics_ext.h
-typedef struct _plRenderAttachmentInfo plRenderAttachmentInfo;  // pl_graphics_ext.h
+typedef struct _plDevice               plDevice;               // pl_graphics_ext.h
+typedef struct _plCommandBuffer        plCommandBuffer;        // pl_graphics_ext.h
+typedef struct _plBindGroupPool        plBindGroupPool;        // pl_graphics_ext.h
+typedef union plBindGroupHandle        plBindGroupHandle;      // pl_graphics_ext.h
+typedef union plTextureHandle          plTextureHandle;        // pl_graphics_ext.h
+typedef struct _plRenderAttachmentInfo plRenderAttachmentInfo; // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -174,6 +175,8 @@ typedef struct _plDrawI
     void           (*return_2d_layer) (plDrawLayer2D*);
     void           (*submit_2d_layer) (plDrawLayer2D*);
 
+    // Circles: segments=0 selects adaptive tessellation (0.25 draw-unit error, 12..512).
+    // Explicit circle segment counts are clamped to 3..512.
     // drawing (lines)
     void (*add_line)          (plDrawLayer2D*, plVec2 p0, plVec2 p1, plDrawLineOptions);
     void (*add_lines)         (plDrawLayer2D*, plVec2* points, uint32_t count, plDrawLineOptions);
@@ -185,6 +188,23 @@ typedef struct _plDrawI
     void (*add_polygon)       (plDrawLayer2D*, plVec2* points, uint32_t count, plDrawLineOptions);
     void (*add_bezier_quad)   (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, uint32_t segments, plDrawLineOptions);
     void (*add_bezier_cubic)  (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, uint32_t segments, plDrawLineOptions);
+
+    // Filled circles and convex polygons have a coverage fringe for use without MSAA.
+    // Convex polygons accept either winding; other filled primitives keep their existing paths.
+    // Stateful paths belong to the layer. Stroke/fill consumes the path.
+    // Convenience add_* calls do not alter a pending public path. Angles are radians.
+    // segments=0 uses adaptive curves/arcs; path_rect appends a clockwise outline.
+    void (*path_clear)         (plDrawLayer2D*);
+    void (*path_line_to)       (plDrawLayer2D*, plVec2);
+    void (*path_arc_to)        (plDrawLayer2D*, plVec2 center, float radius, float angleMin, float angleMax, uint32_t segments);
+    void (*path_ellipse_to)    (plDrawLayer2D*, plVec2 center, plVec2 radii, float rotation, float angleMin, float angleMax, uint32_t segments);
+    void (*path_bezier_quad_to)(plDrawLayer2D*, plVec2 control, plVec2 end, uint32_t segments);
+    void (*path_bezier_cubic_to)(plDrawLayer2D*, plVec2 control0, plVec2 control1, plVec2 end, uint32_t segments);
+    void (*path_rect)          (plDrawLayer2D*, plVec2 min, plVec2 max, float radius, uint32_t cornerSegments, plDrawRectFlags);
+    void (*path_stroke)        (plDrawLayer2D*, plDrawLineOptions);
+    void (*path_fill_convex)   (plDrawLayer2D*, plDrawSolidOptions); // convex only, either winding
+    void (*add_line_h)         (plDrawLayer2D*, float x0, float x1, float y, plDrawLineOptions);
+    void (*add_line_v)         (plDrawLayer2D*, float x, float y0, float y1, plDrawLineOptions);
 
     // drawing (solids)
     void (*add_triangle_filled)         (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plDrawSolidOptions);
@@ -200,6 +220,11 @@ typedef struct _plDrawI
     void (*add_image_ex)                (plDrawLayer2D*, plTextureID, plVec2 minP, plVec2 maxP, plVec2 minUV, plVec2 maxUV, uint32_t color);
     void (*add_image_quad)              (plDrawLayer2D*, plTextureID, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3);
     void (*add_image_quad_ex)           (plDrawLayer2D*, plTextureID, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plVec2 p0UV, plVec2 p1UV, plVec2 p2UV, plVec2 p3UV, uint32_t color);
+
+    // Rounded images: segments=0 is adaptive; flags=0 rounds every corner.
+    // The _ex variant supports UV cropping/flipping and tint. Respects the image sampler.
+    void (*add_image_rounded)   (plDrawLayer2D*, plTextureID, plVec2 tMin, plVec2 tMax, float fRadius, uint32_t uSegments, plDrawRectFlags eFlags);
+    void (*add_image_rounded_ex)(plDrawLayer2D*, plTextureID, plVec2 tMin, plVec2 tMax, plVec2 tUvMin, plVec2 tUvMax, uint32_t uColor, float fRadius, uint32_t uSegments, plDrawRectFlags eFlags);
 
     // drawing (text)
     void (*add_text)   (plDrawLayer2D*, plVec2 p, plDrawTextOptions, const char* fmt, ...);
@@ -274,6 +299,21 @@ enum _plDrawFlags
     PL_DRAW_FLAG_REVERSE_Z_DEPTH = 1 << 5,
 };
 
+// Inside is right along the path; use clockwise closed shapes.
+// Zero flags: centered stroke, automatic bevels at miter limit 4, AA butt caps.
+enum _plDrawStrokeFlags
+{
+    PL_DRAW_STROKE_NONE          = 0,
+    PL_DRAW_STROKE_CLOSED        = 1 << 0,
+    PL_DRAW_STROKE_INSIDE        = 1 << 1,
+    PL_DRAW_STROKE_OUTSIDE       = 1 << 2,
+    PL_DRAW_STROKE_CENTER_BIASED = 1 << 3,
+    PL_DRAW_STROKE_CAP_SQUARE    = 1 << 4,
+    PL_DRAW_STROKE_JOIN_MITER    = 1 << 5,
+    PL_DRAW_STROKE_NO_AA         = 1 << 6,
+    PL_DRAW_STROKE_NO_AA_CAPS    = 1 << 7
+};
+
 enum _plDrawRectFlags
 {
     PL_DRAW_RECT_FLAG_NONE                       = 0, // default: PL_DRAW_RECT_FLAG_ROUND_CORNERS_All
@@ -308,8 +348,9 @@ typedef struct _plDrawFrustumDesc
 
 typedef struct _plDrawLineOptions
 {
-    uint32_t uColor;
-    float    fThickness;
+    uint32_t          uColor;
+    float             fThickness;
+    plDrawStrokeFlags tFlags; // 2D only; zero preserves centered strokes.
 } plDrawLineOptions;
 
 typedef struct _plDrawSolidOptions

@@ -1,4 +1,78 @@
 
+static void
+pl__show_pixel_perfect_demo(plAppData* ptAppData)
+{
+    static float thickness = 3.0f, offset = 0.0f;
+    static bool square = false, miter = false, noAA = false;
+    gptUI->text("Compare without MSAA. Coordinates are never implicitly snapped.");
+    bool msaa = gptGfx->get_swapchain_info(gptStarter->get_swapchain()).eSampleCount != 1;
+    if(gptUI->checkbox("MSAA", &msaa))
+    {
+        if(msaa) gptStarter->activate_msaa(); else gptStarter->deactivate_msaa();
+    }
+    gptUI->slider_float("Stroke width", &thickness, 0.25f, 12.0f, 0);
+    gptUI->slider_float("Subpixel offset", &offset, 0.0f, 1.0f, 0);
+    gptUI->checkbox("Square caps", &square);
+    gptUI->checkbox("Force miter joins", &miter);
+    gptUI->checkbox("Disable stroke AA", &noAA);
+    const plDrawStrokeFlags modes[] = {0, PL_DRAW_STROKE_CENTER_BIASED, PL_DRAW_STROKE_INSIDE, PL_DRAW_STROKE_OUTSIDE};
+    const char* names[] = {"Centered", "Center biased", "Inside (right of path)", "Outside (left of path)"};
+    plDrawLayer2D* layer = gptUI->get_window_fg_drawlayer();
+    for(int mode = 0; mode < 4; mode++)
+    {
+        gptUI->text("%s", names[mode]);
+        plVec2 p = gptUI->get_cursor_pos();
+        p.x = floorf(p.x) + 12.0f + offset; p.y = floorf(p.y) + 12.0f + offset;
+        plDrawLineOptions options = {.uColor = 0xc0f0b060, .fThickness = thickness,
+            .tFlags = modes[mode] | (square ? PL_DRAW_STROKE_CAP_SQUARE : 0) |
+            (miter ? PL_DRAW_STROKE_JOIN_MITER : 0) | (noAA ? PL_DRAW_STROKE_NO_AA : 0)};
+        // Red hairlines mark the actual path boundary, not the stroke's outside edge.
+        plDrawLineOptions guide = {.uColor = 0x807070ff, .fThickness = 0.5f};
+        plVec2 a = {p.x, p.y}, b = {p.x + 70, p.y + 44};
+        gptDraw->add_rect(layer, a, b, guide);
+        gptDraw->add_rect(layer, a, b, options);
+        gptDraw->add_circle(layer, (plVec2){p.x + 110.5f, p.y + 22.5f}, 7.5f, 0, options);
+        gptDraw->add_circle(layer, (plVec2){p.x + 150, p.y + 22}, 8.0f, 0, options);
+        gptDraw->path_line_to(layer, (plVec2){p.x + 190, p.y + 44});
+        gptDraw->path_line_to(layer, (plVec2){p.x + 220, p.y});
+        gptDraw->path_line_to(layer, (plVec2){p.x + 224, p.y + 44});
+        gptDraw->path_line_to(layer, (plVec2){p.x + 270, p.y + 22});
+        gptDraw->path_stroke(layer, options);
+        gptDraw->add_line_h(layer, p.x + 300, p.x + 370, p.y + 10, options);
+        gptDraw->add_line_v(layer, p.x + 335, p.y + 26, p.y + 48, options);
+        gptUI->dummy((plVec2){400, 76});
+    }
+    gptUI->text("Path API: rounded rectangle, rotated ellipse, quadratic + cubic curves, convex fill");
+    plVec2 p = gptUI->get_cursor_pos(); p.x += 12; p.y += 12;
+    plDrawLineOptions options = {.uColor = 0xff80d0ff, .fThickness = thickness};
+    gptDraw->path_rect(layer, p, (plVec2){p.x + 80, p.y + 50}, 12, 0, 0);
+    gptDraw->path_stroke(layer, (plDrawLineOptions){.uColor = options.uColor, .fThickness = thickness, .tFlags = PL_DRAW_STROKE_CLOSED});
+    gptDraw->path_ellipse_to(layer, (plVec2){p.x + 125, p.y + 25}, (plVec2){30, 15}, 0.4f, 0, 2.0f * PL_PI, 0);
+    gptDraw->path_fill_convex(layer, (plDrawSolidOptions){.uColor = 0x8080d0ff});
+    gptDraw->path_line_to(layer, (plVec2){p.x + 180, p.y + 45});
+    gptDraw->path_bezier_quad_to(layer, (plVec2){p.x + 205, p.y - 30}, (plVec2){p.x + 230, p.y + 25}, 0);
+    gptDraw->path_bezier_cubic_to(layer, (plVec2){p.x + 250, p.y + 80}, (plVec2){p.x + 290, p.y - 40}, (plVec2){p.x + 330, p.y + 25}, 0);
+    gptDraw->path_stroke(layer, options);
+    gptUI->dummy((plVec2){400, 90});
+    gptUI->text("Filled triangle and quad: geometry AA (no MSAA required)");
+    p = gptUI->get_cursor_pos(); p.x += 12; p.y += 12;
+    gptDraw->add_triangle_filled(layer,p,(plVec2){p.x+60,p.y+12},(plVec2){p.x+20,p.y+45},(plDrawSolidOptions){.uColor=0xc080d0ff});
+    gptDraw->add_quad_filled(layer,(plVec2){p.x+90,p.y},(plVec2){p.x+150,p.y+12},(plVec2){p.x+140,p.y+45},(plVec2){p.x+100,p.y+35},(plDrawSolidOptions){.uColor=0xc080d0ff});
+    gptUI->dummy((plVec2){400,70});
+    static float rounding = 6.0f;
+    gptUI->slider_float("Corner radius", &rounding, 1, 16, 0);
+    gptUI->text("Rounded rectangles: automatic/baked (left), explicit geometry (right)");
+    p = gptUI->get_cursor_pos(); p.x = floorf(p.x)+12; p.y = floorf(p.y)+12;
+    for(int i=0; i<2; i++)
+    {
+        plVec2 a = {p.x+i*190,p.y}, b = {p.x+i*190+150,p.y+50};
+        gptDraw->add_rect_rounded_filled(layer,a,b,rounding,i ? 16 : 0,0,(plDrawSolidOptions){.uColor=0xff805030});
+        gptDraw->add_rect_rounded(layer,a,b,rounding,i ? 16 : 0,0,(plDrawLineOptions){.uColor=0xff80d0ff,.fThickness=thickness,.tFlags=PL_DRAW_STROKE_INSIDE});
+    }
+    gptUI->dummy((plVec2){400,80});
+
+}
+
 void
 pl__show_ui_demo_window(plAppData* ptAppData)
 {
@@ -786,6 +860,8 @@ pl__show_ui_demo_window(plAppData* ptAppData)
             }
             gptUI->apply_layout();
         }
+        if(gptUI->collapsing_header("Drawing", 0))
+            pl__show_pixel_perfect_demo(ptAppData);
         gptUI->end_window();
     }
 }

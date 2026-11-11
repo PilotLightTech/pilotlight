@@ -885,12 +885,12 @@ pl_ui_radio_button(const char* pcText, int* piValue, int iButtonValue)
         if(bPressed)
             *piValue = iButtonValue;
 
-        if(gptCtx->uActiveId == uHash)       gptDraw->add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + tWidgetSize.y / 2.0f, tStartPos.y + tWidgetSize.y / 2.0f}, gptCtx->tStyle.fFontSize / 1.5f, 12, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgActiveCol)});
-        else if(gptCtx->uHoveredId == uHash) gptDraw->add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + tWidgetSize.y / 2.0f, tStartPos.y + tWidgetSize.y / 2.0f}, gptCtx->tStyle.fFontSize / 1.5f, 12, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgHoveredCol)});
-        else                                 gptDraw->add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + tWidgetSize.y / 2.0f, tStartPos.y + tWidgetSize.y / 2.0f}, gptCtx->tStyle.fFontSize / 1.5f, 12, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + tWidgetSize.y / 2.0f, tStartPos.y + tWidgetSize.y / 2.0f}, gptCtx->tStyle.fFontSize / 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgActiveCol)});
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + tWidgetSize.y / 2.0f, tStartPos.y + tWidgetSize.y / 2.0f}, gptCtx->tStyle.fFontSize / 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgHoveredCol)});
+        else                                 gptDraw->add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + tWidgetSize.y / 2.0f, tStartPos.y + tWidgetSize.y / 2.0f}, gptCtx->tStyle.fFontSize / 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
 
         if(*piValue == iButtonValue)
-            gptDraw->add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + tWidgetSize.y / 2.0f, tStartPos.y + tWidgetSize.y / 2.0f}, gptCtx->tStyle.fFontSize / 2.5f,12, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tCheckmarkCol)});
+            gptDraw->add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + tWidgetSize.y / 2.0f, tStartPos.y + tWidgetSize.y / 2.0f}, gptCtx->tStyle.fFontSize / 2.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tCheckmarkCol)});
 
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, tStartPos, pl_add_vec2(tStartPos, tWidgetSize), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcText, -1.0f); 
         pl__add_widget(uHash);
@@ -3807,8 +3807,8 @@ pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tF
 
     tSvMarker.x = tSvPos.x + fS * fPickerSize;
     tSvMarker.y = tSvPos.y + (1.0f - fV) * fPickerSize;
-    gptDraw->add_circle(ptDrawLayer, tSvMarker, 5.0f, 12, (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, 1.0f), .fThickness = 2.0f});
-    gptDraw->add_circle(ptDrawLayer, tSvMarker, 4.0f, 12, (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 1.0f, 1.0f), .fThickness = 1.5f});
+    gptDraw->add_circle(ptDrawLayer, tSvMarker, 5.0f, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, 1.0f), .fThickness = 2.0f});
+    gptDraw->add_circle(ptDrawLayer, tSvMarker, 4.0f, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 1.0f, 1.0f), .fThickness = 1.5f});
 
     pl__add_widget(uSvHash);
 

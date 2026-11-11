@@ -51,6 +51,12 @@ Index of this file:
     #define PL_MAX_DRAWLISTS 64
 #endif
 
+// Integer-width coverage rows baked into every font atlas.
+#define PL_DRAW_CORNER_RADIUS_MAX 16
+#define PL_DRAW_LINE_WIDTH_MAX 63
+#define PL_DRAW_LINE_DETAIL_COUNT 13
+#define PL_DRAW_LINE_ROW_COUNT (PL_DRAW_LINE_WIDTH_MAX + 1 + PL_DRAW_LINE_DETAIL_COUNT)
+
 // advanced callbacks (you probably shouldn't be using this, mostly for backends)
 typedef void (*plDrawCallback)(const plDrawList2D*, const plDrawCommand*);
 #define plDrawCallbackResetRenderState (plDrawCallback)(-8)
@@ -116,6 +122,7 @@ typedef struct _plDrawCommand
     plTextureID    tTextureId;
     plRect         tClip;
     bool           bSdf;
+    bool           bLinearSampler; // baked line coverage requires bilinear filtering
     plDrawCallback tUserCallback;
     void*          pUserCallbackData;
     uint32_t       uUserCallbackDataSize;
@@ -152,6 +159,9 @@ typedef struct _plFontAtlas
     size_t            _szPixelDataSize;
     plFontCustomRect* _ptWhiteRect;
     float             _fTotalArea;
+    plVec4            _atLineUv[PL_DRAW_LINE_ROW_COUNT];
+    bool              _bLinesReady;
+    plVec4            _aatCornerUv[PL_DRAW_CORNER_RADIUS_MAX + 1][PL_DRAW_CORNER_RADIUS_MAX + 1];
 } plFontAtlas;
 
 //-----------------------------------------------------------------------------
@@ -203,6 +213,9 @@ typedef struct _plDrawLayer2D
     plDrawCommand* sbtCommandBuffer;
     uint32_t*      sbuIndexBuffer;
     plVec2*        sbtPath;
+    plVec2*        sbtUserPath;
+    plVec2*        sbtStrokePoints;
+    plVec2*        sbtStrokeScratch;
     uint32_t       uVertexCount;
 } plDrawLayer2D;
 
@@ -306,11 +319,27 @@ static unsigned char*        ptrDOut_ = NULL;
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
+static inline float
+pl__draw_framebuffer_scale(void)
+{
+    // Match the logical-coordinate to framebuffer conversion used at submission.
+    // Platform display scales are uniform; use the larger axis conservatively
+    // for the scalar AA width and tessellation tolerance if they differ.
+    const plVec2 tScale = gptIO ? gptIO->tMainFramebufferScale : (plVec2){1.0f, 1.0f};
+    const float fX = tScale.x > 0.0f ? tScale.x : 1.0f;
+    const float fY = tScale.y > 0.0f ? tScale.y : 1.0f;
+    return pl_max(fX, fY);
+}
+
+static void pl__convex_fill_aa_ex(plDrawLayer2D*, const plVec2*, uint32_t, uint32_t, float, plTextureID, plVec2);
+static uint32_t pl__circle_segments     (float fRadius, uint32_t uRequestedSegments);
+static void pl__convex_fill_aa          (plDrawLayer2D*, const plVec2*, uint32_t, uint32_t uColor, float fHalfFringe);
 static void pl__prepare_draw_command    (plDrawLayer2D*, plTextureID, bool sdf);
+static void pl__prepare_draw_command_ex (plDrawLayer2D*, plTextureID, bool sdf, bool linearSampler);
 static void pl__reserve_triangles       (plDrawLayer2D*, uint32_t uIndexCount, uint32_t uVertexCount);
 static void pl__add_vertex              (plDrawLayer2D*, plVec2 tPos, uint32_t uColor, plVec2 tUv);
 static void pl__add_index               (plDrawLayer2D*, uint32_t uVertexStart, uint32_t i0, uint32_t i1, uint32_t i2);
-static bool pl__draw_can_merge_commands (const plDrawCommand* a, const plDrawCommand* b);
+static bool pl__draw_can_merge_commands (const plDrawCommand* ptFirstCommand, const plDrawCommand* ptSecondCommand);
 static void pl__draw_append_draw_command(plDrawList2D*, plDrawCommand);
 
 static const plFontGlyph* pl__find_glyph(plFont* ptFont, uint32_t c);
@@ -716,6 +745,9 @@ pl_draw_cleanup(void)
             {
                 pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtCommandBuffer);
                 pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtPath);
+                pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtUserPath);
+                pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtStrokePoints);
+                pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtStrokeScratch);
                 pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbuIndexBuffer);
                 PL_FREE(ptDrawlist->_sbtLayersCreated[j]);
             }
@@ -801,6 +833,9 @@ pl_draw_return_2d_drawlist(plDrawList2D* ptDrawlist)
     {
         pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtCommandBuffer);
         pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtPath);
+        pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtUserPath);
+        pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtStrokePoints);
+        pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtStrokeScratch);
         pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbuIndexBuffer);
         PL_FREE(ptDrawlist->_sbtLayersCreated[j]);
     }
@@ -827,6 +862,7 @@ pl_draw_return_2d_layer(plDrawLayer2D* ptLayer)
     pl_sb_reset(ptLayer->sbtCommandBuffer);
     pl_sb_reset(ptLayer->sbuIndexBuffer);
     pl_sb_reset(ptLayer->sbtPath);
+    pl_sb_reset(ptLayer->sbtUserPath);
     pl_sb_push(ptLayer->ptDrawlist->_sbtLayerCache, ptLayer);
 }
 
@@ -908,43 +944,723 @@ pl_draw_primitive_get_next_index(plDrawLayer2D* ptLayer)
     return pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
 }
 
-void
-pl_draw_add_lines(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCount, plDrawLineOptions tOptions)
+// Supersampled rounded-square/ring tiles. Nine-slicing stretches straight edges and
+// center while retaining one framebuffer pixel per texel at each corner.
+static plFontCustomRect
+pl__bake_corner(uint32_t uRadius, uint32_t uThickness)
 {
-    uint32_t uSegmentCount = uCount - 1;
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
-    pl__reserve_triangles(ptLayer, 6 * uSegmentCount, 4 * uSegmentCount);
-
-    const float fThickness = tOptions.fThickness / 2.0f;
-
-    for(uint32_t i = 0; i < uSegmentCount; i++)
+    const uint32_t uSize = uRadius * 2 + 4;
+    plFontCustomRect tRect = {
+        .uWidth = uSize,
+        .uHeight = uSize,
+        .pucBytes = malloc(uSize * uSize)};
+    const float fInnerRadius = (float)(uRadius - uThickness);
+    for(uint32_t uY = 0; uY < uSize; uY++)
     {
-        float dx = atPoints[i + 1].x - atPoints[i].x;
-        float dy = atPoints[i + 1].y - atPoints[i].y;
-        PL_NORMALIZE2F_OVER_ZERO(dx, dy);
-
-        const plVec2 tNormalVector = {
-            .x = dy * fThickness,
-            .y = -dx * fThickness
-        };
-
-        const plVec2 atCornerPoints[4] = 
+        for(uint32_t uX = 0; uX < uSize; uX++)
         {
-            pl__subtract_vec2(atPoints[i],     tNormalVector),
-            pl__subtract_vec2(atPoints[i + 1], tNormalVector),
-            pl__add_vec2(     atPoints[i + 1], tNormalVector),
-            pl__add_vec2(     atPoints[i],     tNormalVector)
-        };
+            uint32_t uCoveredSamples = 0;
+            for(uint32_t uSampleY = 0; uSampleY < 8; uSampleY++)
+            {
+                for(uint32_t uSampleX = 0; uSampleX < 8; uSampleX++)
+                {
+                    const float fPixelX = (float)uX + ((float)uSampleX + 0.5f) / 8.0f;
+                    const float fPixelY = (float)uY + ((float)uSampleY + 0.5f) / 8.0f;
+                    const float fDeltaX = pl_max(0.0f, pl_max((float)(uRadius + 1) - fPixelX, fPixelX - (float)(uRadius + 3)));
+                    const float fDeltaY = pl_max(0.0f, pl_max((float)(uRadius + 1) - fPixelY, fPixelY - (float)(uRadius + 3)));
+                    const float fDistanceSquared = fDeltaX * fDeltaX + fDeltaY * fDeltaY;
+                    uCoveredSamples += fDistanceSquared <= (float)(uRadius * uRadius) && (uThickness == 0 || fDistanceSquared > fInnerRadius * fInnerRadius);
+                }
+            }
+            tRect.pucBytes[uY * uSize + uX] = (unsigned char)((uCoveredSamples * 255 + 32) / 64);
+        }
+    }
+    return tRect;
+}
 
-        const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-        pl__add_vertex(ptLayer, atCornerPoints[0], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-        pl__add_vertex(ptLayer, atCornerPoints[1], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-        pl__add_vertex(ptLayer, atCornerPoints[2], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-        pl__add_vertex(ptLayer, atCornerPoints[3], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
+static bool
+pl__rounded_baked(plDrawLayer2D* ptLayer, plVec2 tMin, plVec2 tMax, float fRadius, float fThickness, plDrawRectFlags eFlags, uint32_t uColor)
+{
+    if(eFlags != 0 && eFlags != PL_DRAW_RECT_FLAG_ROUND_CORNERS_All)
+        return false;
 
-        pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
-        pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
-    }  
+    // A circular coverage tile cannot represent nonuniform framebuffer scaling.
+    if(gptIO && gptIO->tMainFramebufferScale.x != gptIO->tMainFramebufferScale.y)
+        return false;
+
+    const float fScale = pl__draw_framebuffer_scale();
+    const float fPixelRadius = fRadius * fScale;
+    const float fPixelThickness = fThickness * fScale;
+
+    if(fPixelRadius < 1 || fPixelRadius > PL_DRAW_CORNER_RADIUS_MAX || fPixelThickness < 0 || fPixelThickness > fPixelRadius)
+        return false;
+
+    // Fractional dimensions use the geometric path, without silently snapping.
+    const float afValues[] = {tMin.x * fScale, tMin.y * fScale, tMax.x * fScale, tMax.y * fScale, fPixelRadius, fPixelThickness};
+    for(uint32_t uIndex = 0; uIndex < 6; uIndex++)
+    {
+        if(fabsf(afValues[uIndex] - roundf(afValues[uIndex])) > 0.0001f)
+            return false;
+    }
+
+    if(tMax.x - tMin.x < 2 * fRadius || tMax.y - tMin.y < 2 * fRadius)
+        return false;
+
+    const plVec4 tUv = gptDrawCtx->ptAtlas->_aatCornerUv[(uint32_t)roundf(fPixelRadius)][(uint32_t)roundf(fPixelThickness)];
+    if(tUv.z <= tUv.x || tUv.w <= tUv.y)
+        return false;
+
+    const float fPixel = 1.0f / fScale;
+    const float afX[] = {tMin.x - fPixel, tMin.x + fRadius, tMax.x - fRadius, tMax.x + fPixel};
+    const float afY[] = {tMin.y - fPixel, tMin.y + fRadius, tMax.y - fRadius, tMax.y + fPixel};
+    const float fSplit = (fPixelRadius + 1.0f) / (2.0f * fPixelRadius + 4.0f);
+    const float afU[] = {tUv.x, tUv.x + (tUv.z - tUv.x) * fSplit, tUv.z - (tUv.z - tUv.x) * fSplit, tUv.z};
+    const float afV[] = {tUv.y, tUv.y + (tUv.w - tUv.y) * fSplit, tUv.w - (tUv.w - tUv.y) * fSplit, tUv.w};
+
+    pl__prepare_draw_command_ex(ptLayer, gptDrawCtx->ptAtlas->tTexture, false, true);
+    pl__reserve_triangles(ptLayer, 54, 16);
+
+    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+    for(uint32_t uRow = 0; uRow < 4; uRow++)
+    {
+        for(uint32_t uIndex = 0; uIndex < 4; uIndex++)
+            pl__add_vertex(ptLayer, (plVec2){afX[uIndex], afY[uRow]}, uColor, (plVec2){afU[uIndex], afV[uRow]});
+    }
+
+    for(uint32_t uRow = 0; uRow < 3; uRow++)
+    {
+        for(uint32_t uIndex = 0; uIndex < 3; uIndex++)
+        {
+            uint32_t uVertexIndex = uRow * 4 + uIndex;
+            pl__add_index(ptLayer, uVertexStart, uVertexIndex, uVertexIndex + 1, uVertexIndex + 5);
+            pl__add_index(ptLayer, uVertexStart, uVertexIndex, uVertexIndex + 5, uVertexIndex + 4);
+        }
+    }
+    return true;
+}
+
+static inline float
+pl__stroke_bias(float fThickness)
+{
+    const float fPixels = fThickness * pl__draw_framebuffer_scale();
+    const float fWhole = floorf(fPixels);
+    return (floorf(fWhole * 0.5f) + fmodf(fWhole, 2.0f) * (fPixels - fWhole)) / pl__draw_framebuffer_scale();
+}
+
+// Polyline tessellation adapted from Dear ImGui (MIT).
+// Defaults: AA caps, clipped bevels above miter limit 4; inside is path-right.
+#define PL_STROKE_VERTEX(X, Y, UV, COL) pl__add_vertex(ptLayer, ((plVec2){(X), (Y)}), (COL), (UV))
+#define PL_STROKE_TRIANGLE(A, B, C)    pl__add_index(ptLayer, 0, (uint32_t)(A), (uint32_t)(B), (uint32_t)(C))
+
+static void
+pl__stroke_polyline(plDrawLayer2D* ptLayer, const plVec2* ptPoints, int iPointCount, uint32_t uColor, float fThickness, plDrawStrokeFlags eFlags, float fMaxInnerOffset)
+{
+    if(iPointCount < 2 || (uColor & 0xff000000u) == 0)
+        return;
+
+    float fScreenThickness = fThickness * pl__draw_framebuffer_scale();
+    if(fScreenThickness < 1.0f)
+    {
+        if(fScreenThickness < 1.0f / 255.0f)
+            return;
+        uColor = (uColor & 0x00ffffffu) | ((uint32_t)((float)(uColor >> 24) * fScreenThickness + 0.5f) << 24);
+        fScreenThickness = 1.0f;
+        fThickness = 1.0f / pl__draw_framebuffer_scale();
+    }
+
+    pl_sb_resize(ptLayer->sbtStrokeScratch, (uint32_t)iPointCount * 2);
+    plVec2* ptNormals = ptLayer->sbtStrokeScratch;
+    float* pfSquaredLengths = (float*)(ptNormals + iPointCount);
+
+    // Calculate normals for each line segment
+    for(int iIndex = 0; iIndex < iPointCount - 1; iIndex++)
+    {
+        float fDeltaX = ptPoints[iIndex + 1].x - ptPoints[iIndex].x;
+        float fDeltaY = ptPoints[iIndex + 1].y - ptPoints[iIndex].y;
+        const float fDistanceSquared = fDeltaX * fDeltaX + fDeltaY * fDeltaY;
+        const float fInverseLength = (fDistanceSquared > 0.0f) ? (1.0f / sqrtf(fDistanceSquared)) : 0.0f;
+        ptNormals[iIndex].x = -fDeltaY * fInverseLength;
+        ptNormals[iIndex].y = fDeltaX * fInverseLength;
+        pfSquaredLengths[iIndex] = fDistanceSquared;
+    }
+
+    if((eFlags & PL_DRAW_STROKE_CLOSED) != 0)
+    {
+        const float fDeltaX = ptPoints[0].x - ptPoints[iPointCount - 1].x;
+        const float fDeltaY = ptPoints[0].y - ptPoints[iPointCount - 1].y;
+        const float fDistanceSquared = fDeltaX * fDeltaX + fDeltaY * fDeltaY;
+        const float fInverseLength = (fDistanceSquared > 0.0f) ? (1.0f / sqrtf(fDistanceSquared)) : 0.0f;
+        ptNormals[iPointCount - 1].x = -fDeltaY * fInverseLength;
+        ptNormals[iPointCount - 1].y = fDeltaX * fInverseLength;
+        pfSquaredLengths[iPointCount - 1] = fDistanceSquared;
+    }
+    else
+    {
+        ptNormals[iPointCount - 1] = ptNormals[iPointCount - 2];
+        pfSquaredLengths[iPointCount - 1] = 0.0f;
+    }
+
+    plVec2 tUv0;
+    plVec2 tUv1;
+    float fFringe = 0.0f;
+    const bool bAntiAliased = !(eFlags & PL_DRAW_STROKE_NO_AA) && gptDrawCtx->ptAtlas->_bLinesReady;
+    if(bAntiAliased)
+    {
+        uint32_t uRow = fScreenThickness <= 4.0f ? PL_DRAW_LINE_WIDTH_MAX + 1 + (uint32_t)((fScreenThickness - 1.0f) * 4.0f + 0.5f) : (uint32_t)pl_min(fScreenThickness + 0.5f, (float)PL_DRAW_LINE_WIDTH_MAX);
+        plVec4 tUv = gptDrawCtx->ptAtlas->_atLineUv[uRow];
+        tUv0 = (plVec2){tUv.x, tUv.z};
+        tUv1 = (plVec2){tUv.y, tUv.z};
+        fFringe = fScreenThickness * tUv.w / pl__draw_framebuffer_scale();
+    }
+    else
+    {
+        tUv0 = tUv1 = gptDrawCtx->ptAtlas->_tWhiteUv;
+        fFringe = 0.0f;
+    }
+
+    const uint32_t uTransparentColor = uColor & ~0xff000000u;
+
+    const plDrawStrokeFlags eStrokePos = eFlags & (PL_DRAW_STROKE_INSIDE | PL_DRAW_STROKE_OUTSIDE | PL_DRAW_STROKE_CENTER_BIASED);
+
+    const bool bClosed = (eFlags & PL_DRAW_STROKE_CLOSED) != 0;
+    const bool bMitersOnly = (eFlags & PL_DRAW_STROKE_JOIN_MITER) != 0;
+    const float fMiterDistanceLimitSqr = 4.0f * 4.0f;
+
+    float fThickness0 = (fThickness + fFringe) * 0.5f; // Center (or legacy)
+    if(eStrokePos == PL_DRAW_STROKE_OUTSIDE)
+        fThickness0 = fThickness + fFringe * 0.5f;
+    else if(eStrokePos == PL_DRAW_STROKE_CENTER_BIASED)
+        fThickness0 = pl__stroke_bias(fThickness) + fFringe * 0.5f;
+    else if(eStrokePos == PL_DRAW_STROKE_INSIDE)
+        fThickness0 = fFringe * 0.5f;
+    float fThickness1 = (fThickness + fFringe) - fThickness0;
+
+    int iIndexCount = 0;
+    int iVertexCount = 0;
+    const int iMaxVerticesPerPoint = bMitersOnly ? 2 : 4;
+    const int iMaxTrianglesPerPoint = bMitersOnly ? 2 : 5;
+    if(bClosed)
+    {
+        iVertexCount = iPointCount * iMaxVerticesPerPoint + 2;
+        iIndexCount = (iPointCount * iMaxTrianglesPerPoint + 2) * 3;
+    }
+    else
+    {
+        iVertexCount = (iPointCount - 2) * iMaxVerticesPerPoint + (4 * 2);
+        iIndexCount = ((iPointCount - 2) * iMaxTrianglesPerPoint + 2 + (2 * 2)) * 3;
+    }
+
+    pl__prepare_draw_command_ex(ptLayer, gptDrawCtx->ptAtlas->tTexture, false, bAntiAliased);
+    const uint32_t uIndexStart = pl_sb_size(ptLayer->sbuIndexBuffer);
+    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+    pl__reserve_triangles(ptLayer, (uint32_t)iIndexCount, (uint32_t)iVertexCount);
+
+    const float fRatio = fThickness0 / (fThickness0 + fThickness1); // The points that use uv2 are placed directly on the path (offset = 0), calculate the texture position from stroke offsets.
+    const plVec2 tUv2 = {tUv0.x + (tUv1.x - tUv0.x) * fRatio, tUv0.y};
+
+    // Clamp inner offset and adjust texture coordinates to match the change.
+    // This is used by some of the convex shape rendering to avoid rendering artifacts when thickness is about to fill the whole shape.
+    if(fThickness1 > fMaxInnerOffset)
+    {
+        fThickness1 = fMaxInnerOffset;
+        const float fScale = (fThickness0 + fThickness1) / (fThickness + fFringe);
+        const float fDu = tUv1.x - tUv0.x;
+        tUv1.x = tUv0.x + fDu * fScale;
+    }
+
+    const float fHalfAa = 0.5f / pl__draw_framebuffer_scale(); // Used for end caps, does not use "fringe" since end cap AA is not using the texture.
+    const bool bAntiAliasedEnds = bAntiAliased && !(eFlags & PL_DRAW_STROKE_NO_AA_CAPS);
+
+    const int iFirstVertexOffset = (int)uVertexStart;
+    int iBaseIndex = (int)pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+
+    plVec2 tPointA = {0};
+    plVec2 tPointB = {0};
+    plVec2 tDirection = {0};
+    plVec2 tPoint1 = {0};
+    plVec2 tNormal1 = {0};
+    float fLengthSquared1 = 0.0f;
+
+    int iPointIndex = 0;
+    int iPointEnd = iPointCount;
+    if(!bClosed)
+    {
+        // Start cap
+        iPointIndex++;
+        iPointEnd--;
+        tPoint1 = ptPoints[0];
+        tNormal1 = ptNormals[0];
+        fLengthSquared1 = pfSquaredLengths[0];
+
+        tDirection.x = tNormal1.y;
+        tDirection.y = -tNormal1.x;
+        if(eFlags & PL_DRAW_STROKE_CAP_SQUARE)
+        {
+            tPoint1.x -= tDirection.x * fThickness * 0.5f;
+            tPoint1.y -= tDirection.y * fThickness * 0.5f;
+        }
+
+        if(!bAntiAliasedEnds)
+        {
+            iBaseIndex = (int)pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+            PL_STROKE_VERTEX(tPoint1.x - tNormal1.x * fThickness0, tPoint1.y - tNormal1.y * fThickness0, tUv0, uColor);
+            PL_STROKE_VERTEX(tPoint1.x + tNormal1.x * fThickness1, tPoint1.y + tNormal1.y * fThickness1, tUv1, uColor);
+        }
+        else
+        {
+            tPointA.x = tPoint1.x - tDirection.x * fHalfAa;
+            tPointA.y = tPoint1.y - tDirection.y * fHalfAa;
+            tPointB.x = tPoint1.x + tDirection.x * fHalfAa;
+            tPointB.y = tPoint1.y + tDirection.y * fHalfAa;
+
+            iBaseIndex = (int)pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+            PL_STROKE_VERTEX(tPointA.x - tNormal1.x * fThickness0, tPointA.y - tNormal1.y * fThickness0, tUv0, uTransparentColor);
+            PL_STROKE_VERTEX(tPointA.x + tNormal1.x * fThickness1, tPointA.y + tNormal1.y * fThickness1, tUv1, uTransparentColor);
+
+            int iNextBaseIndex = (int)pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+            PL_STROKE_VERTEX(tPointB.x - tNormal1.x * fThickness0, tPointB.y - tNormal1.y * fThickness0, tUv0, uColor);
+            PL_STROKE_VERTEX(tPointB.x + tNormal1.x * fThickness1, tPointB.y + tNormal1.y * fThickness1, tUv1, uColor);
+
+            // AA cap
+            PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 2, iBaseIndex + 3);
+            PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 3, iBaseIndex + 1);
+            iBaseIndex = iNextBaseIndex;
+        }
+    }
+    else
+    {
+        // Wrap around segment
+        tPoint1 = ptPoints[iPointCount - 1];
+        tNormal1 = ptNormals[iPointCount - 1];
+        fLengthSquared1 = pfSquaredLengths[iPointCount - 1];
+
+        // This will be filled later, allocate space.
+        iBaseIndex = (int)pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+        PL_STROKE_VERTEX(0, 0, tUv0, uColor);
+        PL_STROKE_VERTEX(0, 0, tUv1, uColor);
+    }
+
+    if(bMitersOnly)
+    {
+        while(iPointIndex < iPointEnd)
+        {
+            plVec2 tNormal0 = tNormal1;
+            tPoint1 = ptPoints[iPointIndex];
+            tNormal1 = ptNormals[iPointIndex];
+
+            // theta is the angle between two segments
+            const float fCosTheta = tNormal0.x * tNormal1.x + tNormal0.y * tNormal1.y;
+
+            // miter offset formula is derived here: https://www.angusj.com/clipper2/Docs/Trigonometry.htm
+            const float fCosThetaClamped = pl_max(-0.999999f, fCosTheta); // Avoid div by 0.
+            const float fMiterScaleFactor = pl_min(1000.0f, 1.0f / (1.0f + fCosThetaClamped));
+            const float fMiterOffsetX = (tNormal0.x + tNormal1.x) * fMiterScaleFactor;
+            const float fMiterOffsetY = (tNormal0.y + tNormal1.y) * fMiterScaleFactor;
+
+            // Miter
+            const int iNextBaseIndex = (uint32_t)pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+            PL_STROKE_VERTEX(tPoint1.x - fMiterOffsetX * fThickness0, tPoint1.y - fMiterOffsetY * fThickness0, tUv0, uColor); // 2
+            PL_STROKE_VERTEX(tPoint1.x + fMiterOffsetX * fThickness1, tPoint1.y + fMiterOffsetY * fThickness1, tUv1, uColor); // 3
+
+            // Connect prev to next
+            PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 2, iBaseIndex + 3);
+            PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 3, iBaseIndex + 1);
+
+            iBaseIndex = iNextBaseIndex;
+
+            iPointIndex++;
+        }
+    }
+    else
+    {
+        while(iPointIndex < iPointEnd)
+        {
+            plVec2 tNormal0 = tNormal1;
+            float fLengthSquared0 = fLengthSquared1;
+            tPoint1 = ptPoints[iPointIndex];
+            tNormal1 = ptNormals[iPointIndex];
+            fLengthSquared1 = pfSquaredLengths[iPointIndex];
+
+            // theta is the angle between two segments
+            const float fCosTheta = tNormal0.x * tNormal1.x + tNormal0.y * tNormal1.y;
+            const float fSinTheta = tNormal0.y * tNormal1.x - tNormal0.x * tNormal1.y;
+
+            // miter offset formula is derived here: https://www.angusj.com/clipper2/Docs/Trigonometry.htm
+            const float fCosThetaClamped = pl_max(-0.999999f, fCosTheta); // Avoid div by 0.
+            const float fMiterScaleFactor = pl_min(1000.0f, 1.0f / (1.0f + fCosThetaClamped));
+            float fMiterOffsetX = (tNormal0.x + tNormal1.x) * fMiterScaleFactor;
+            float fMiterOffsetY = (tNormal0.y + tNormal1.y) * fMiterScaleFactor;
+
+            const float fMiterDistanceSqr = fMiterOffsetX * fMiterOffsetX + fMiterOffsetY * fMiterOffsetY;
+
+            if(fMiterDistanceSqr > fMiterDistanceLimitSqr)
+            {
+                // Clipped bevel
+
+                // Limit the inner miter offset to avoid overshooting.
+                const float fRefThickness = (fSinTheta < 0.0f) ? fThickness1 : fThickness0;
+                const float fRefThicknessSqr = fRefThickness * fRefThickness;
+                const float fLimitSqr = pl_max(pl_max(fLengthSquared0, fLengthSquared1), fRefThicknessSqr);
+                const float fRefMiterDistSqr = fMiterDistanceSqr * fRefThicknessSqr;
+                if(fRefMiterDistSqr > fLimitSqr)
+                {
+                    const float fScale = sqrtf(fLimitSqr / fRefMiterDistSqr);
+                    fMiterOffsetX *= fScale;
+                    fMiterOffsetY *= fScale;
+                }
+
+                float fBevelNormalX = tNormal0.x + tNormal1.x;
+                float fBevelNormalY = tNormal0.y + tNormal1.y;
+                PL_NORMALIZE2F_OVER_ZERO(fBevelNormalX, fBevelNormalY);
+
+                const float fSideOffset = ((tNormal0.x * fBevelNormalX + tNormal0.y * fBevelNormalY) - 1.0f) / (tNormal0.y * fBevelNormalX - tNormal0.x * fBevelNormalY);
+                const float fSideOffsetX = fBevelNormalY * fSideOffset;
+                const float fSideOffsetY = -fBevelNormalX * fSideOffset;
+
+                // Bevel
+                if(fSinTheta < 0.0f)
+                {
+                    PL_STROKE_VERTEX(tPoint1.x - (fBevelNormalX + fSideOffsetX) * fThickness0, tPoint1.y - (fBevelNormalY + fSideOffsetY) * fThickness0, tUv0, uColor); // 2
+                    PL_STROKE_VERTEX(tPoint1.x, tPoint1.y, tUv2, uColor);                                                                                               // 3
+                    const int iNextBaseIndex = (uint32_t)pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+                    PL_STROKE_VERTEX(tPoint1.x - (fBevelNormalX - fSideOffsetX) * fThickness0, tPoint1.y - (fBevelNormalY - fSideOffsetY) * fThickness0, tUv0, uColor); // 4
+                    PL_STROKE_VERTEX(tPoint1.x + fMiterOffsetX * fThickness1, tPoint1.y + fMiterOffsetY * fThickness1, tUv1, uColor);                                   // 5
+
+                    // Connect prev to next
+                    PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 2, iBaseIndex + 5);
+                    PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 5, iBaseIndex + 1);
+                    // Bevel
+                    PL_STROKE_TRIANGLE(iBaseIndex + 3, iBaseIndex + 5, iBaseIndex + 2);
+                    PL_STROKE_TRIANGLE(iBaseIndex + 3, iBaseIndex + 2, iBaseIndex + 4);
+                    PL_STROKE_TRIANGLE(iBaseIndex + 3, iBaseIndex + 4, iBaseIndex + 5);
+                    iBaseIndex = iNextBaseIndex;
+                }
+                else
+                {
+                    PL_STROKE_VERTEX(tPoint1.x + (fBevelNormalX + fSideOffsetX) * fThickness1, tPoint1.y + (fBevelNormalY + fSideOffsetY) * fThickness1, tUv1, uColor); // 2
+                    PL_STROKE_VERTEX(tPoint1.x, tPoint1.y, tUv2, uColor);                                                                                               // 3
+                    const int iNextBaseIndex = (uint32_t)pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+                    PL_STROKE_VERTEX(tPoint1.x - fMiterOffsetX * fThickness0, tPoint1.y - fMiterOffsetY * fThickness0, tUv0, uColor);                                   // 4
+                    PL_STROKE_VERTEX(tPoint1.x + (fBevelNormalX - fSideOffsetX) * fThickness1, tPoint1.y + (fBevelNormalY - fSideOffsetY) * fThickness1, tUv1, uColor); // 5
+
+                    // Connect prev to next
+                    PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 4, iBaseIndex + 2);
+                    PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 2, iBaseIndex + 1);
+                    // Bevel
+                    PL_STROKE_TRIANGLE(iBaseIndex + 3, iBaseIndex + 2, iBaseIndex + 4);
+                    PL_STROKE_TRIANGLE(iBaseIndex + 3, iBaseIndex + 4, iBaseIndex + 5);
+                    PL_STROKE_TRIANGLE(iBaseIndex + 3, iBaseIndex + 5, iBaseIndex + 2);
+                    iBaseIndex = iNextBaseIndex;
+                }
+            }
+            else
+            {
+                // Miter
+                const int iNextBaseIndex = (uint32_t)pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+                PL_STROKE_VERTEX(tPoint1.x - fMiterOffsetX * fThickness0, tPoint1.y - fMiterOffsetY * fThickness0, tUv0, uColor); // 2
+                PL_STROKE_VERTEX(tPoint1.x + fMiterOffsetX * fThickness1, tPoint1.y + fMiterOffsetY * fThickness1, tUv1, uColor); // 3
+
+                // Connect prev to next
+                PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 2, iBaseIndex + 3);
+                PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 3, iBaseIndex + 1);
+                iBaseIndex = iNextBaseIndex;
+            }
+
+            iPointIndex++;
+        }
+    }
+
+    // End cap
+    if(!bClosed)
+    {
+        tPoint1 = ptPoints[iPointCount - 1];
+        tNormal1 = ptNormals[iPointCount - 1];
+
+        // End cap
+        tDirection.x = tNormal1.y;
+        tDirection.y = -tNormal1.x;
+        if(eFlags & PL_DRAW_STROKE_CAP_SQUARE)
+        {
+            tPoint1.x += tDirection.x * fThickness * 0.5f;
+            tPoint1.y += tDirection.y * fThickness * 0.5f;
+        }
+
+        if(!bAntiAliasedEnds)
+        {
+            PL_STROKE_VERTEX(tPoint1.x - tNormal1.x * fThickness0, tPoint1.y - tNormal1.y * fThickness0, tUv0, uColor);
+            PL_STROKE_VERTEX(tPoint1.x + tNormal1.x * fThickness1, tPoint1.y + tNormal1.y * fThickness1, tUv1, uColor);
+
+            // Connect
+            PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 2, iBaseIndex + 3);
+            PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 3, iBaseIndex + 1);
+        }
+        else
+        {
+            tPointA.x = tPoint1.x - tDirection.x * fHalfAa;
+            tPointA.y = tPoint1.y - tDirection.y * fHalfAa;
+            tPointB.x = tPoint1.x + tDirection.x * fHalfAa;
+            tPointB.y = tPoint1.y + tDirection.y * fHalfAa;
+
+            int iNextBaseIndex = (int)pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+            PL_STROKE_VERTEX(tPointA.x - tNormal1.x * fThickness0, tPointA.y - tNormal1.y * fThickness0, tUv0, uColor);
+            PL_STROKE_VERTEX(tPointA.x + tNormal1.x * fThickness1, tPointA.y + tNormal1.y * fThickness1, tUv1, uColor);
+
+            PL_STROKE_VERTEX(tPointB.x - tNormal1.x * fThickness0, tPointB.y - tNormal1.y * fThickness0, tUv0, uTransparentColor);
+            PL_STROKE_VERTEX(tPointB.x + tNormal1.x * fThickness1, tPointB.y + tNormal1.y * fThickness1, tUv1, uTransparentColor);
+
+            // Connect
+            PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 2, iBaseIndex + 3);
+            PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 3, iBaseIndex + 1);
+            iBaseIndex = iNextBaseIndex;
+
+            // AA cap
+            PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 2, iBaseIndex + 3);
+            PL_STROKE_TRIANGLE(iBaseIndex + 0, iBaseIndex + 3, iBaseIndex + 1);
+        }
+    }
+    else
+    {
+        // Connect the path.
+        ptLayer->ptDrawlist->sbtVertexBuffer[iFirstVertexOffset + 0] = ptLayer->ptDrawlist->sbtVertexBuffer[iBaseIndex + 0];
+        ptLayer->ptDrawlist->sbtVertexBuffer[iFirstVertexOffset + 1] = ptLayer->ptDrawlist->sbtVertexBuffer[iBaseIndex + 1];
+    }
+
+    const uint32_t uUsedIndices = pl_sb_size(ptLayer->sbuIndexBuffer) - uIndexStart;
+    const uint32_t uUsedVertices = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer) - uVertexStart;
+    PL_ASSERT(uUsedIndices <= (uint32_t)iIndexCount && uUsedVertices <= (uint32_t)iVertexCount);
+    pl_sb_back(ptLayer->sbtCommandBuffer).uElementCount -= (uint32_t)iIndexCount - uUsedIndices;
+    ptLayer->uVertexCount -= (uint32_t)iVertexCount - uUsedVertices;
+}
+#undef PL_STROKE_VERTEX
+#undef PL_STROKE_TRIANGLE
+
+static void
+pl__draw_lines(plDrawLayer2D* ptLayer, plVec2* ptPoints, uint32_t uPointCount, plDrawLineOptions tOptions, float fMaxInnerOffset)
+{
+    if(uPointCount < 2 || !(tOptions.fThickness > 0.0f))
+        return;
+
+    // Remove duplicate segments before normal construction (including the closing point).
+    pl_sb_reset(ptLayer->sbtStrokePoints);
+    for(uint32_t uIndex = 0; uIndex < uPointCount; uIndex++)
+    {
+        if(pl_sb_size(ptLayer->sbtStrokePoints) && ptPoints[uIndex].x == pl_sb_back(ptLayer->sbtStrokePoints).x && ptPoints[uIndex].y == pl_sb_back(ptLayer->sbtStrokePoints).y)
+            continue;
+        pl_sb_push(ptLayer->sbtStrokePoints, ptPoints[uIndex]);
+    }
+    uPointCount = pl_sb_size(ptLayer->sbtStrokePoints);
+    if(uPointCount < 2)
+        return;
+    if(ptLayer->sbtStrokePoints[0].x == ptLayer->sbtStrokePoints[uPointCount - 1].x && ptLayer->sbtStrokePoints[0].y == ptLayer->sbtStrokePoints[uPointCount - 1].y)
+    {
+        uPointCount--;
+        tOptions.tFlags |= PL_DRAW_STROKE_CLOSED;
+    }
+    if(uPointCount < 2)
+        return;
+
+    pl__stroke_polyline(ptLayer, ptLayer->sbtStrokePoints, (int)uPointCount, tOptions.uColor, tOptions.fThickness, tOptions.tFlags, fMaxInnerOffset);
+}
+
+void
+pl_draw_add_lines(plDrawLayer2D* ptLayer, plVec2* ptPoints, uint32_t uPointCount, plDrawLineOptions tOptions)
+{
+    pl__draw_lines(ptLayer, ptPoints, uPointCount, tOptions, FLT_MAX);
+}
+
+static void
+pl__path_point(plVec2** pptPath, plVec2 tPoint)
+{
+    if(pl_sb_size(*pptPath))
+    {
+        plVec2 tDelta = pl__subtract_vec2(tPoint, pl_sb_back(*pptPath));
+        if(tDelta.x * tDelta.x + tDelta.y * tDelta.y < 1e-8f)
+            return;
+    }
+    pl_sb_push(*pptPath, tPoint);
+}
+
+static void
+pl__path_ellipse(plVec2** pptPath, plVec2 tCenter, plVec2 tRadii, float fRotation, float fStartAngle, float fEndAngle, uint32_t uSegments)
+{
+    if(tRadii.x < 0 || tRadii.y < 0)
+        return;
+
+    if(tRadii.x == 0 && tRadii.y == 0)
+    {
+        pl__path_point(pptPath, tCenter);
+        return;
+    }
+    if(uSegments == 0)
+        uSegments = (uint32_t)pl_min(4096.0f, ceilf(fabsf(fEndAngle - fStartAngle) / PL_2PI * (float)pl__circle_segments(pl_max(tRadii.x, tRadii.y), 0)));
+
+    uSegments = pl_max(1u, pl_min(uSegments, 4096u));
+    const float fCosRotation = cosf(fRotation);
+    const float fSinRotation = sinf(fRotation);
+    for(uint32_t uIndex = 0; uIndex <= uSegments; uIndex++)
+    {
+        // Reuse the exact first point for a full turn, avoiding a tiny closing edge.
+        const float fAngle = (uIndex == uSegments && fabsf(fabsf(fEndAngle - fStartAngle) - PL_2PI) < 1e-5f) ? fStartAngle : fStartAngle + (fEndAngle - fStartAngle) * ((float)uIndex / (float)uSegments);
+        const float fX = cosf(fAngle) * tRadii.x;
+        const float fY = sinf(fAngle) * tRadii.y;
+        pl__path_point(pptPath, (plVec2){tCenter.x + fCosRotation * fX - fSinRotation * fY, tCenter.y + fSinRotation * fX + fCosRotation * fY});
+    }
+}
+
+static float
+pl__path_distance_squared(plVec2 tPoint, plVec2 tSegmentStart, plVec2 tSegmentEnd)
+{
+    plVec2 tDelta = pl__subtract_vec2(tSegmentEnd, tSegmentStart);
+    plVec2 tOffset = pl__subtract_vec2(tPoint, tSegmentStart);
+    float fLengthSquared = tDelta.x * tDelta.x + tDelta.y * tDelta.y;
+    float fParameter = 0.0f;
+    if(fLengthSquared > 0)
+        fParameter = pl_max(0.0f, pl_min(1.0f, (tOffset.x * tDelta.x + tOffset.y * tDelta.y) / fLengthSquared));
+    tOffset.x -= tDelta.x * fParameter;
+    tOffset.y -= tDelta.y * fParameter;
+    return tOffset.x * tOffset.x + tOffset.y * tOffset.y;
+}
+
+static void
+pl__path_cubic_adaptive(plVec2** pptPath, plVec2 tPoint0, plVec2 tPoint1, plVec2 tPoint2, plVec2 tPoint3, uint32_t uDepth)
+{
+    if(uDepth == 10 || (pl__path_distance_squared(tPoint1, tPoint0, tPoint3) <= 0.0625f / (pl__draw_framebuffer_scale() * pl__draw_framebuffer_scale()) && pl__path_distance_squared(tPoint2, tPoint0, tPoint3) <= 0.0625f / (pl__draw_framebuffer_scale() * pl__draw_framebuffer_scale())))
+    {
+        pl__path_point(pptPath, tPoint3);
+        return;
+    }
+    plVec2 tMidpoint01 = pl__mul_vec2_f(pl__add_vec2(tPoint0, tPoint1), 0.5f);
+    plVec2 tMidpoint12 = pl__mul_vec2_f(pl__add_vec2(tPoint1, tPoint2), 0.5f);
+    plVec2 tMidpoint23 = pl__mul_vec2_f(pl__add_vec2(tPoint2, tPoint3), 0.5f);
+    plVec2 tMidpoint012 = pl__mul_vec2_f(pl__add_vec2(tMidpoint01, tMidpoint12), 0.5f);
+    plVec2 tMidpoint123 = pl__mul_vec2_f(pl__add_vec2(tMidpoint12, tMidpoint23), 0.5f);
+    plVec2 tMidpoint = pl__mul_vec2_f(pl__add_vec2(tMidpoint012, tMidpoint123), 0.5f);
+    pl__path_cubic_adaptive(pptPath, tPoint0, tMidpoint01, tMidpoint012, tMidpoint, uDepth + 1);
+    pl__path_cubic_adaptive(pptPath, tMidpoint, tMidpoint123, tMidpoint23, tPoint3, uDepth + 1);
+}
+
+static void
+pl__path_cubic(plVec2** pptPath, plVec2 tControl0, plVec2 tControl1, plVec2 tEnd, uint32_t uSegments)
+{
+    if(!pl_sb_size(*pptPath))
+        return;
+    const plVec2 tStart = pl_sb_back(*pptPath);
+    if(uSegments == 0)
+    {
+        pl__path_cubic_adaptive(pptPath, tStart, tControl0, tControl1, tEnd, 0);
+        return;
+    }
+    uSegments = pl_min(uSegments, 4096u);
+    for(uint32_t uIndex = 1; uIndex <= uSegments; uIndex++)
+    {
+        float fParameter = (float)uIndex / (float)uSegments;
+        float fInverseParameter = 1.0f - fParameter;
+        pl__path_point(pptPath, (plVec2){fInverseParameter * fInverseParameter * fInverseParameter * tStart.x + 3 * fInverseParameter * fInverseParameter * fParameter * tControl0.x + 3 * fInverseParameter * fParameter * fParameter * tControl1.x + fParameter * fParameter * fParameter * tEnd.x,
+                                    fInverseParameter * fInverseParameter * fInverseParameter * tStart.y + 3 * fInverseParameter * fInverseParameter * fParameter * tControl0.y + 3 * fInverseParameter * fParameter * fParameter * tControl1.y + fParameter * fParameter * fParameter * tEnd.y});
+    }
+}
+
+static void
+pl__path_quad(plVec2** pptPath, plVec2 tControl, plVec2 tEnd, uint32_t uSegments)
+{
+    if(!pl_sb_size(*pptPath))
+        return;
+    plVec2 tStart = pl_sb_back(*pptPath);
+    plVec2 tControl0 = pl__add_vec2(tStart, pl__mul_vec2_f(pl__subtract_vec2(tControl, tStart), 2.0f / 3.0f));
+    plVec2 tControl1 = pl__add_vec2(tEnd, pl__mul_vec2_f(pl__subtract_vec2(tControl, tEnd), 2.0f / 3.0f));
+    pl__path_cubic(pptPath, tControl0, tControl1, tEnd, uSegments);
+}
+
+static void
+pl__path_rectangle(plVec2** pptPath, plVec2 tMin, plVec2 tMax, float fRadius, uint32_t uSegments, plDrawRectFlags eFlags)
+{
+    if(!(tMax.x > tMin.x) || !(tMax.y > tMin.y))
+        return;
+    fRadius = pl_max(0.0f, pl_min(fRadius, pl_min(tMax.x - tMin.x, tMax.y - tMin.y) * 0.5f));
+    if(eFlags == PL_DRAW_RECT_FLAG_NONE)
+        eFlags = PL_DRAW_RECT_FLAG_ROUND_CORNERS_All;
+    const plDrawRectFlags aeMasks[4] = {PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT};
+    const plVec2 atCorners[4] = {{tMax.x, tMin.y}, tMax, {tMin.x, tMax.y}, tMin};
+    for(uint32_t uCorner = 0; uCorner < 4; uCorner++)
+    {
+        if(fRadius == 0.0f || !(eFlags & aeMasks[uCorner]) || (eFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_NONE))
+        {
+            pl__path_point(pptPath, atCorners[uCorner]);
+            continue;
+        }
+        const plVec2 atCenters[4] = {{tMax.x - fRadius, tMin.y + fRadius}, {tMax.x - fRadius, tMax.y - fRadius}, {tMin.x + fRadius, tMax.y - fRadius}, {tMin.x + fRadius, tMin.y + fRadius}};
+        pl__path_ellipse(pptPath, atCenters[uCorner], (plVec2){fRadius, fRadius}, 0, ((float)uCorner - 1.0f) * PL_PI_2, (float)uCorner * PL_PI_2, uSegments);
+    }
+}
+
+void
+pl_draw_path_clear(plDrawLayer2D* ptLayer)
+{
+    pl_sb_reset(ptLayer->sbtUserPath);
+}
+
+void
+pl_draw_path_line_to(plDrawLayer2D* ptLayer, plVec2 tPoint)
+{
+    pl__path_point(&ptLayer->sbtUserPath, tPoint);
+}
+
+void
+pl_draw_path_arc_to(plDrawLayer2D* ptLayer, plVec2 tCenter, float fRadius, float fStartAngle, float fEndAngle, uint32_t uSegments)
+{
+    pl__path_ellipse(&ptLayer->sbtUserPath, tCenter, (plVec2){fRadius, fRadius}, 0, fStartAngle, fEndAngle, uSegments);
+}
+
+void
+pl_draw_path_ellipse_to(plDrawLayer2D* ptLayer, plVec2 tCenter, plVec2 tRadii, float fRotation, float fStartAngle, float fEndAngle, uint32_t uSegments)
+{
+    pl__path_ellipse(&ptLayer->sbtUserPath, tCenter, tRadii, fRotation, fStartAngle, fEndAngle, uSegments);
+}
+
+void
+pl_draw_path_bezier_quad_to(plDrawLayer2D* ptLayer, plVec2 tControl, plVec2 tEnd, uint32_t uSegments)
+{
+    pl__path_quad(&ptLayer->sbtUserPath, tControl, tEnd, uSegments);
+}
+
+void
+pl_draw_path_bezier_cubic_to(plDrawLayer2D* ptLayer, plVec2 tControl0, plVec2 tControl1, plVec2 tEnd, uint32_t uSegments)
+{
+    pl__path_cubic(&ptLayer->sbtUserPath, tControl0, tControl1, tEnd, uSegments);
+}
+
+void
+pl_draw_path_rect(plDrawLayer2D* ptLayer, plVec2 tMin, plVec2 tMax, float fRadius, uint32_t uSegments, plDrawRectFlags eFlags)
+{
+    pl__path_rectangle(&ptLayer->sbtUserPath, tMin, tMax, fRadius, uSegments, eFlags);
+}
+
+void
+pl_draw_path_stroke(plDrawLayer2D* ptLayer, plDrawLineOptions tOptions)
+{
+    pl_draw_add_lines(ptLayer, ptLayer->sbtUserPath, pl_sb_size(ptLayer->sbtUserPath), tOptions);
+    pl_sb_reset(ptLayer->sbtUserPath);
+}
+
+void
+pl_draw_path_fill_convex(plDrawLayer2D* ptLayer, plDrawSolidOptions tOptions)
+{
+    pl__convex_fill_aa(ptLayer, ptLayer->sbtUserPath, pl_sb_size(ptLayer->sbtUserPath), tOptions.uColor, 0.5f / pl__draw_framebuffer_scale());
+    pl_sb_reset(ptLayer->sbtUserPath);
+}
+
+void
+pl_draw_add_line_h(plDrawLayer2D* ptLayer, float fX0, float fX1, float fY, plDrawLineOptions tOptions)
+{
+    plVec2 atPoints[2] = {{fX0, fY}, {fX1, fY}};
+    pl_draw_add_lines(ptLayer, atPoints, 2, tOptions);
+}
+
+void
+pl_draw_add_line_v(plDrawLayer2D* ptLayer, float fX, float fY0, float fY1, plDrawLineOptions tOptions)
+{
+    plVec2 atPoints[2] = {{fX, fY0}, {fX, fY1}};
+    pl_draw_add_lines(ptLayer, atPoints, 2, tOptions);
 }
 
 void
@@ -1314,17 +2030,10 @@ pl_draw_add_triangle(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2,
 }
 
 void
-pl_draw_add_triangle_filled(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plVec2 p2, plDrawSolidOptions tOptions)
+pl_draw_add_triangle_filled(plDrawLayer2D* ptLayer, plVec2 tPoint0, plVec2 tPoint1, plVec2 tPoint2, plDrawSolidOptions tOptions)
 {
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
-    pl__reserve_triangles(ptLayer, 3, 3);
-
-    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-    pl__add_vertex(ptLayer, p0, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, p1, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, p2, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-
-    pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
+    const plVec2 atPoints[] = {tPoint0, tPoint1, tPoint2};
+    pl__convex_fill_aa(ptLayer, atPoints, 3, tOptions.uColor, 0.5f / pl__draw_framebuffer_scale());
 }
 
 void
@@ -1358,36 +2067,22 @@ pl_draw_add_triangles_filled(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t 
 }
 
 void
-pl_draw_add_rect(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plDrawLineOptions tOptions)
+pl_draw_add_rect(plDrawLayer2D* ptLayer, plVec2 tMin, plVec2 tMax, plDrawLineOptions tOptions)
 {
-    const plVec2 fBotLeftVec  = {tMinP.x, tMaxP.y};
-    const plVec2 fTopRightVec = {tMaxP.x, tMinP.y};
-
-    pl_sb_push(ptLayer->sbtPath, tMinP);
-    pl_sb_push(ptLayer->sbtPath, fBotLeftVec);
-    pl_sb_push(ptLayer->sbtPath, tMaxP);
-    pl_sb_push(ptLayer->sbtPath, fTopRightVec);
-    pl_sb_push(ptLayer->sbtPath, tMinP);
-    pl__submit_path(ptLayer, tOptions);   
+    if(!(tMax.x > tMin.x) || !(tMax.y > tMin.y))
+        return;
+    plVec2 atPoints[4] = {tMin, {tMax.x, tMin.y}, tMax, {tMin.x, tMax.y}};
+    tOptions.tFlags |= PL_DRAW_STROKE_CLOSED;
+    pl__draw_lines(ptLayer, atPoints, 4, tOptions, pl_min(tMax.x - tMin.x, tMax.y - tMin.y) * 0.5f);
 }
 
 void
-pl_draw_add_rect_filled(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plDrawSolidOptions tOptions)
+pl_draw_add_rect_filled(plDrawLayer2D* ptLayer, plVec2 tMin, plVec2 tMax, plDrawSolidOptions tOptions)
 {
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
-    pl__reserve_triangles(ptLayer, 6, 4);
-
-    const plVec2 tBottomLeft = { tMinP.x, tMaxP.y };
-    const plVec2 tTopRight =   { tMaxP.x, tMinP.y };
-
-    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-    pl__add_vertex(ptLayer, tMinP,       tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tBottomLeft, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tMaxP,       tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tTopRight,   tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-
-    pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
-    pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
+    if(!(tMax.x > tMin.x) || !(tMax.y > tMin.y))
+        return;
+    plVec2 atPoints[4] = {tMin, {tMax.x, tMin.y}, tMax, {tMin.x, tMax.y}};
+    pl__convex_fill_aa(ptLayer, atPoints, 4, tOptions.uColor, pl_min(0.5f / pl__draw_framebuffer_scale(), pl_min(tMax.x - tMin.x, tMax.y - tMin.y) * 0.5f));
 }
 
 void
@@ -1410,243 +2105,40 @@ pl_draw_add_rect_filled_gradient(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tM
 }
 
 void
-pl_draw_add_rect_rounded(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, float fRadius,
-    uint32_t uSegments, plDrawRectFlags tFlags, plDrawLineOptions tOptions)
+pl_draw_add_rect_rounded(plDrawLayer2D* ptLayer, plVec2 tMin, plVec2 tMax, float fRadius, uint32_t uSegments, plDrawRectFlags eFlags, plDrawLineOptions tOptions)
 {
-    // segments is the number of segments used to approximate one corner
-
-    if(fRadius <= 0.0f)
+    fRadius = pl_min(fRadius, pl_min(tMax.x - tMin.x, tMax.y - tMin.y) * 0.5f);
+    if(uSegments == 0 && fRadius > 0 && tOptions.fThickness > 0 && !(tOptions.tFlags & PL_DRAW_STROKE_NO_AA))
     {
-        pl_draw_add_rect(ptLayer, tMinP, tMaxP, tOptions);
-        return;
+        plDrawStrokeFlags eAlignment = tOptions.tFlags & (PL_DRAW_STROKE_INSIDE | PL_DRAW_STROKE_OUTSIDE | PL_DRAW_STROKE_CENTER_BIASED);
+        float fOffset = tOptions.fThickness * 0.5f;
+        if(eAlignment == PL_DRAW_STROKE_INSIDE)
+            fOffset = 0;
+        else if(eAlignment == PL_DRAW_STROKE_OUTSIDE)
+            fOffset = tOptions.fThickness;
+        else if(eAlignment == PL_DRAW_STROKE_CENTER_BIASED)
+            fOffset = pl__stroke_bias(tOptions.fThickness);
+
+        if(pl__rounded_baked(ptLayer, (plVec2){tMin.x - fOffset, tMin.y - fOffset}, (plVec2){tMax.x + fOffset, tMax.y + fOffset}, fRadius + fOffset, tOptions.fThickness, eFlags, tOptions.uColor))
+            return;
     }
-    else
-    {
-        if(tFlags == PL_DRAW_RECT_FLAG_NONE)
-            tFlags = PL_DRAW_RECT_FLAG_ROUND_CORNERS_All;
-    }
-
-    if(uSegments == 0)
-        uSegments = 4;
-
-    const float fIncrement = PL_PI_2 / uSegments;
-    float fTheta = 0.0f;
-
-    const plVec2 tBottomRightStart = { tMaxP.x, tMaxP.y - fRadius };
-    const plVec2 tBottomRightInner = { tMaxP.x - fRadius, tMaxP.y - fRadius };
-    const plVec2 tBottomRightEnd   = { tMaxP.x - fRadius, tMaxP.y };
-
-    const plVec2 tBottomLeftStart  = { tMinP.x + fRadius, tMaxP.y };
-    const plVec2 tBottomLeftInner  = { tMinP.x + fRadius, tMaxP.y - fRadius };
-    const plVec2 tBottomLeftEnd    = { tMinP.x , tMaxP.y - fRadius};
- 
-    const plVec2 tTopLeftStart     = { tMinP.x, tMinP.y + fRadius };
-    const plVec2 tTopLeftInner     = { tMinP.x + fRadius, tMinP.y + fRadius };
-    const plVec2 tTopLeftEnd       = { tMinP.x + fRadius, tMinP.y };
-
-    const plVec2 tTopRightStart    = { tMaxP.x - fRadius, tMinP.y };
-    const plVec2 tTopRightInner    = { tMaxP.x - fRadius, tMinP.y + fRadius };
-    const plVec2 tTopRightEnd      = { tMaxP.x, tMinP.y + fRadius };
-    
-    pl_sb_push(ptLayer->sbtPath, tBottomRightStart);
-    fTheta += fIncrement;
-    for(uint32_t i = 1; i < uSegments; i++)
-    {
-        pl_sb_push(ptLayer->sbtPath, ((plVec2){tBottomRightInner.x + fRadius * sinf(fTheta + PL_PI_2), tBottomRightInner.y + fRadius * sinf(fTheta)}));
-        fTheta += fIncrement;
-    }
-    pl_sb_push(ptLayer->sbtPath, tBottomRightEnd);
-
-    pl_sb_push(ptLayer->sbtPath, tBottomLeftStart);
-    fTheta += fIncrement;
-    for(uint32_t i = 1; i < uSegments; i++)
-    {
-        pl_sb_push(ptLayer->sbtPath, ((plVec2){tBottomLeftInner.x + fRadius * sinf(fTheta + PL_PI_2), tBottomLeftInner.y + fRadius * sinf(fTheta)}));
-        fTheta += fIncrement;
-    }
-    pl_sb_push(ptLayer->sbtPath, tBottomLeftEnd);
-
-    pl_sb_push(ptLayer->sbtPath, tTopLeftStart);
-    fTheta += fIncrement;
-    for(uint32_t i = 1; i < uSegments; i++)
-    {
-        pl_sb_push(ptLayer->sbtPath, ((plVec2){tTopLeftInner.x + fRadius * sinf(fTheta + PL_PI_2), tTopLeftInner.y + fRadius * sinf(fTheta)}));
-        fTheta += fIncrement;
-    }
-    pl_sb_push(ptLayer->sbtPath, tTopLeftEnd);
-
-    pl_sb_push(ptLayer->sbtPath, tTopRightStart);
-    fTheta += fIncrement;
-    for(uint32_t i = 1; i < uSegments; i++)
-    {
-        pl_sb_push(ptLayer->sbtPath, ((plVec2){tTopRightInner.x + fRadius * sinf(fTheta + PL_PI_2), tTopRightInner.y + fRadius * sinf(fTheta)}));
-        fTheta += fIncrement;
-    }
-    pl_sb_push(ptLayer->sbtPath, tTopRightEnd);
-    pl_sb_push(ptLayer->sbtPath, tBottomRightStart);
-    pl__submit_path(ptLayer, tOptions);
+    pl_sb_reset(ptLayer->sbtPath);
+    pl__path_rectangle(&ptLayer->sbtPath, tMin, tMax, fRadius, uSegments, eFlags);
+    tOptions.tFlags |= PL_DRAW_STROKE_CLOSED;
+    pl_draw_add_lines(ptLayer, ptLayer->sbtPath, pl_sb_size(ptLayer->sbtPath), tOptions);
+    pl_sb_reset(ptLayer->sbtPath);
 }
 
 void
-pl_draw_add_rect_rounded_filled(
-        plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, float fRadius,
-        uint32_t uSegments, plDrawRectFlags tFlags, plDrawSolidOptions tOptions)
+pl_draw_add_rect_rounded_filled(plDrawLayer2D* ptLayer, plVec2 tMin, plVec2 tMax, float fRadius, uint32_t uSegments, plDrawRectFlags eFlags, plDrawSolidOptions tOptions)
 {
-    if(fRadius <= 0.0f)
-    {
-        pl_draw_add_rect_filled(ptLayer, tMinP, tMaxP, tOptions);
+    fRadius = pl_min(fRadius, pl_min(tMax.x - tMin.x, tMax.y - tMin.y) * 0.5f);
+    if(uSegments == 0 && pl__rounded_baked(ptLayer, tMin, tMax, fRadius, 0, eFlags, tOptions.uColor))
         return;
-    }
-    else
-    {
-        if(tFlags == PL_DRAW_RECT_FLAG_NONE)
-            tFlags = PL_DRAW_RECT_FLAG_ROUND_CORNERS_All;
-    }
-
-    if(tMaxP.x - tMinP.x < fRadius * 2.0f)
-    {
-        pl_draw_add_rect_filled(ptLayer, tMinP, tMaxP, tOptions);
-        return;
-    }
-
-    if(tMaxP.y - tMinP.y < fRadius * 2.0f)
-    {
-        pl_draw_add_rect_filled(ptLayer, tMinP, tMaxP, tOptions);
-        return;
-    }
-
-    if(uSegments == 0)
-        uSegments = 4;
-
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
-    pl__reserve_triangles(ptLayer, 30, 12);
-
-    const plVec2 tInnerTopLeft = {tMinP.x + fRadius, tMinP.y + fRadius};
-    const plVec2 tInnerBottomLeft = {tMinP.x + fRadius, tMaxP.y - fRadius};
-    const plVec2 tInnerBottomRight = {tMaxP.x - fRadius, tMaxP.y - fRadius};
-    const plVec2 tInnerTopRight = {tMaxP.x - fRadius, tMinP.y + fRadius};
-
-    const plVec2 tOuterTopLeft0 = {tMinP.x + fRadius, tMinP.y};
-    const plVec2 tOuterTopLeft1 = {tMinP.x, tMinP.y + fRadius};
-    const plVec2 tOuterBottomLeft0 = {tMinP.x, tMaxP.y - fRadius};
-    const plVec2 tOuterBottomLeft1 = {tMinP.x + fRadius, tMaxP.y};
-    const plVec2 tOuterBottomRight0 = {tMaxP.x - fRadius, tMaxP.y};
-    const plVec2 tOuterBottomRight1 = {tMaxP.x, tMaxP.y - fRadius};
-    const plVec2 tOuterTopRight0 = {tMaxP.x, tMinP.y + fRadius};
-    const plVec2 tOuterTopRight1 = {tMaxP.x - fRadius, tMinP.y};
-    
-    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-    pl__add_vertex(ptLayer, tInnerTopLeft, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tInnerBottomLeft, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tInnerBottomRight, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tInnerTopRight, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-
-    pl__add_vertex(ptLayer, tOuterTopLeft1, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tOuterBottomLeft0, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tOuterBottomLeft1, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tOuterBottomRight0, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tOuterBottomRight1, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tOuterTopRight0, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tOuterTopRight1, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, tOuterTopLeft0, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    
-    // center
-    pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
-    pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
-
-    // left
-    pl__add_index(ptLayer, uVertexStart, 4, 5, 1);
-    pl__add_index(ptLayer, uVertexStart, 4, 1, 0);
-
-    // bottom
-    pl__add_index(ptLayer, uVertexStart, 6, 7, 2);
-    pl__add_index(ptLayer, uVertexStart, 6, 2, 1);
-
-    // right
-    pl__add_index(ptLayer, uVertexStart, 3, 2, 8);
-    pl__add_index(ptLayer, uVertexStart, 3, 8, 9);
-
-    // top
-    pl__add_index(ptLayer, uVertexStart, 0, 3, 10);
-    pl__add_index(ptLayer, uVertexStart, 0, 10, 11);
-
-    const float fIncrement = PL_PI_2 / uSegments;
-    float fTheta = PL_PI_2 + fIncrement;
-    plVec2 tLastPoint = tOuterTopLeft0;
-
-    if(tFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT)
-    {
-        for(uint32_t i = 0; i < uSegments - 1; i++)
-        {
-            plVec2 tPoint = {tInnerTopLeft.x + fRadius * cosf(fTheta), tInnerTopLeft.y - fRadius * sinf(fTheta)};
-            pl_draw_add_triangle_filled(ptLayer, tInnerTopLeft, tLastPoint, tPoint, tOptions);
-            tLastPoint = tPoint;
-            fTheta += fIncrement;
-        }
-        pl_draw_add_triangle_filled(ptLayer, tInnerTopLeft, tLastPoint, tOuterTopLeft1, tOptions);
-    }
-    else
-    {
-        pl_draw_add_triangle_filled(ptLayer, tInnerTopLeft, tOuterTopLeft0, tMinP, tOptions);
-        pl_draw_add_triangle_filled(ptLayer, tInnerTopLeft, tMinP, tOuterTopLeft1, tOptions);
-    }
-
-    if(tFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT)
-    {
-        fTheta = PL_PI + fIncrement;
-        tLastPoint = tOuterBottomLeft0;
-        for(uint32_t i = 0; i < uSegments - 1; i++)
-        {
-            plVec2 tPoint = {tInnerBottomLeft.x + fRadius * cosf(fTheta), tInnerBottomLeft.y - fRadius * sinf(fTheta)};
-            pl_draw_add_triangle_filled(ptLayer, tInnerBottomLeft, tLastPoint, tPoint, tOptions);
-            tLastPoint = tPoint;
-            fTheta += fIncrement;
-        }
-        pl_draw_add_triangle_filled(ptLayer, tInnerBottomLeft, tLastPoint, tOuterBottomLeft1, tOptions);
-    }
-    else
-    {
-        pl_draw_add_triangle_filled(ptLayer, tInnerBottomLeft, tOuterBottomLeft0, (plVec2){tMinP.x, tMaxP.y}, tOptions);
-        pl_draw_add_triangle_filled(ptLayer, tInnerBottomLeft, (plVec2){tMinP.x, tMaxP.y}, tOuterBottomLeft1, tOptions);
-    }
-
-    if(tFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT)
-    {
-        fTheta = PL_PI + PL_PI_2 + fIncrement;
-        tLastPoint = tOuterBottomRight0;
-        for(uint32_t i = 0; i < uSegments - 1; i++)
-        {
-            plVec2 tPoint = {tInnerBottomRight.x + fRadius * cosf(fTheta), tInnerBottomRight.y - fRadius * sinf(fTheta)};
-            pl_draw_add_triangle_filled(ptLayer, tInnerBottomRight, tLastPoint, tPoint, tOptions);
-            tLastPoint = tPoint;
-            fTheta += fIncrement;
-        }
-        pl_draw_add_triangle_filled(ptLayer, tInnerBottomRight, tLastPoint, tOuterBottomRight1, tOptions);
-    }
-    else
-    {
-        pl_draw_add_triangle_filled(ptLayer, tInnerBottomRight, tOuterBottomRight0, tMaxP, tOptions);
-        pl_draw_add_triangle_filled(ptLayer, tInnerBottomRight, tMaxP, tOuterBottomRight1, tOptions);
-    }
-
-    if(tFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT)
-    {
-        fTheta = fIncrement;
-        tLastPoint = tOuterTopRight0;
-        for(uint32_t i = 0; i < uSegments - 1; i++)
-        {
-            plVec2 tPoint = {tInnerTopRight.x + fRadius * cosf(fTheta), tInnerTopRight.y - fRadius * sinf(fTheta)};
-            pl_draw_add_triangle_filled(ptLayer, tInnerTopRight, tLastPoint, tPoint, tOptions);
-            tLastPoint = tPoint;
-            fTheta += fIncrement;
-        }
-        pl_draw_add_triangle_filled(ptLayer, tInnerTopRight, tLastPoint, tOuterTopRight1, tOptions);
-    }
-    else
-    {
-        pl_draw_add_triangle_filled(ptLayer, tInnerTopRight, tOuterTopRight0, (plVec2){tMaxP.x, tMinP.y}, tOptions);
-        pl_draw_add_triangle_filled(ptLayer, tInnerTopRight, (plVec2){tMaxP.x, tMinP.y}, tOuterTopRight1, tOptions);
-    }
+    pl_sb_reset(ptLayer->sbtPath);
+    pl__path_rectangle(&ptLayer->sbtPath, tMin, tMax, fRadius, uSegments, eFlags);
+    pl__convex_fill_aa(ptLayer, ptLayer->sbtPath, pl_sb_size(ptLayer->sbtPath), tOptions.uColor, pl_min(0.5f / pl__draw_framebuffer_scale(), pl_min(tMax.x - tMin.x, tMax.y - tMin.y) * 0.5f));
+    pl_sb_reset(ptLayer->sbtPath);
 }
 
 void
@@ -1663,62 +2155,53 @@ pl_draw_add_quad(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plV
 void
 pl_draw_add_quad_filled(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plDrawSolidOptions tOptions)
 {
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
-    pl__reserve_triangles(ptLayer, 6, 4);
-
-    const uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-    pl__add_vertex(ptLayer, tP0, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv); // top left
-    pl__add_vertex(ptLayer, tP1, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv); // bot left
-    pl__add_vertex(ptLayer, tP2, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv); // bot right
-    pl__add_vertex(ptLayer, tP3, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv); // top right
-
-    pl__add_index(ptLayer, uVtxStart, 0, 1, 2);
-    pl__add_index(ptLayer, uVtxStart, 0, 2, 3);
+    const plVec2 atPoints[] = {tP0, tP1, tP2, tP3};
+    pl__convex_fill_aa(ptLayer, atPoints, 4, tOptions.uColor, 0.5f / pl__draw_framebuffer_scale());
 }
 
 void
 pl_draw_add_circle(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, uint32_t uSegments, plDrawLineOptions tOptions)
 {
-    if(uSegments == 0){ uSegments = 12; }
-    const float fIncrement = PL_2PI / uSegments;
-    float fTheta = 0.0f;
+    if(!(fRadius > 0.0f))
+        return;
+    uSegments = pl__circle_segments(fRadius, uSegments);
+    const float fIncrement = PL_2PI / (float)uSegments;
+    const uint32_t uPathStart = pl_sb_size(ptLayer->sbtPath);
     for(uint32_t i = 0; i < uSegments; i++)
     {
-        pl_sb_push(ptLayer->sbtPath, ((plVec2){tP.x + fRadius * sinf(fTheta + PL_PI_2), tP.y + fRadius * sinf(fTheta)}));
-        fTheta += fIncrement;
+        const float fTheta = (float)i * fIncrement;
+        pl_sb_push(ptLayer->sbtPath, ((plVec2){tP.x + fRadius * cosf(fTheta), tP.y + fRadius * sinf(fTheta)}));
     }
-    pl_sb_push(ptLayer->sbtPath, ((plVec2){tP.x + fRadius, tP.y}));
-    pl__submit_path(ptLayer, tOptions);   
+    // Copy the first point exactly so the stroke recognizes the closed seam.
+    plVec2 tFirst = ptLayer->sbtPath[uPathStart];
+    pl_sb_push(ptLayer->sbtPath, tFirst);
+    pl__draw_lines(ptLayer, &ptLayer->sbtPath[uPathStart], uSegments + 1, tOptions, fRadius * cosf(PL_PI / (float)uSegments));
+    pl_sb_resize(ptLayer->sbtPath, uPathStart);
 }
 
 void
 pl_draw_add_circle_filled(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
 {
-    if(uSegments == 0){ uSegments = 12; }
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
-    pl__reserve_triangles(ptLayer, 3 * uSegments, uSegments + 1);
-
-    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-    pl__add_vertex(ptLayer, tP, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-
-    const float fIncrement = PL_2PI / uSegments;
-    float fTheta = 0.0f;
+    if(!(fRadius > 0.0f))
+        return;
+    uSegments = pl__circle_segments(fRadius, uSegments);
+    const float fIncrement = PL_2PI / (float)uSegments;
+    const uint32_t uPathStart = pl_sb_size(ptLayer->sbtPath);
     for(uint32_t i = 0; i < uSegments; i++)
     {
-        pl__add_vertex(ptLayer,
-            ((plVec2){tP.x + (fRadius * sinf(fTheta + PL_PI_2)), tP.y + (fRadius * sinf(fTheta))}),
-            tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-        fTheta += fIncrement;
+        const float fTheta = (float)i * fIncrement;
+        pl_sb_push(ptLayer->sbtPath, ((plVec2){tP.x + fRadius * cosf(fTheta), tP.y + fRadius * sinf(fTheta)}));
     }
-
-    for(uint32_t i = 0; i < uSegments - 1; i++)
-        pl__add_index(ptLayer, uVertexStart, i + 1, 0, i + 2);
-    pl__add_index(ptLayer, uVertexStart, uSegments, 0, 1);
+    // Limit the inset to the polygon's apothem for subpixel circles.
+    const float fHalfFringe = pl_min(0.5f / pl__draw_framebuffer_scale(), fRadius * cosf(PL_PI / (float)uSegments));
+    pl__convex_fill_aa(ptLayer, &ptLayer->sbtPath[uPathStart], uSegments, tOptions.uColor, fHalfFringe);
+    pl_sb_resize(ptLayer->sbtPath, uPathStart);
 }
 
 void
 pl_draw_add_polygon(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, plDrawLineOptions tOptions)
 {
+    if(uPointsSize < 2) return;
     for(uint32_t i = 0; i < uPointsSize; i++)
     {
         pl_sb_push(ptLayer->sbtPath, tPoints[i]);
@@ -1731,20 +2214,7 @@ pl_draw_add_polygon(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSiz
 void
 pl_draw_add_convex_polygon_filled(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, plDrawSolidOptions tOptions)
 {
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
-    pl__reserve_triangles(ptLayer, 3 * (uPointsSize - 2), uPointsSize);
-
-    const uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-    for(uint32_t i = 0; i < uPointsSize; i++)
-    {
-        pl__add_vertex(ptLayer, tPoints[i], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    }
-
-    uint32_t numTriangles = uPointsSize - 2;
-    for(uint32_t i = 0; i < numTriangles; i++)
-    {
-        pl__add_index(ptLayer, uVtxStart, 0, i + 1, i + 2);
-    }
+    pl__convex_fill_aa(ptLayer, tPoints, uPointsSize, tOptions.uColor, 0.5f / pl__draw_framebuffer_scale());
 }
 
 void
@@ -1764,6 +2234,44 @@ pl_draw_add_image_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin,
 
     pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
     pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
+}
+
+void
+pl_draw_add_image_rounded_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tMin, plVec2 tMax, plVec2 tUvMin, plVec2 tUvMax, uint32_t uColor, float fRadius, uint32_t uSegments, plDrawRectFlags eFlags)
+{
+    if(tMax.x <= tMin.x || tMax.y <= tMin.y || (uColor >> 24) == 0)
+        return;
+    if(fRadius <= 0.0f || (eFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_NONE))
+    {
+        pl_draw_add_image_ex(ptLayer, tTexture, tMin, tMax, tUvMin, tUvMax, uColor);
+        return;
+    }
+
+    pl_sb_reset(ptLayer->sbtPath);
+    pl__path_rectangle(&ptLayer->sbtPath, tMin, tMax, fRadius, uSegments, eFlags);
+    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+    const float fHalfFringe = pl_min(0.5f / pl__draw_framebuffer_scale(), pl_min(tMax.x - tMin.x, tMax.y - tMin.y) * 0.5f);
+    pl__convex_fill_aa_ex(ptLayer, ptLayer->sbtPath, pl_sb_size(ptLayer->sbtPath), uColor, fHalfFringe, tTexture, tUvMin);
+    pl_sb_reset(ptLayer->sbtPath);
+
+    // Map the complete rectangle to the supplied UV range. Clamp the outward
+    // AA fringe to that range, including flipped UVs and cropped images.
+    const plVec2 tInverseSize = {1.0f / (tMax.x - tMin.x), 1.0f / (tMax.y - tMin.y)};
+    const plVec2 tUvSize = {tUvMax.x - tUvMin.x, tUvMax.y - tUvMin.y};
+    for(uint32_t uIndex = uVertexStart; uIndex < pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer); uIndex++)
+    {
+        plDrawVertex* ptVertex = &ptLayer->ptDrawlist->sbtVertexBuffer[uIndex];
+        const float fX = pl_max(0.0f, pl_min((ptVertex->afPos[0] - tMin.x) * tInverseSize.x, 1.0f));
+        const float fY = pl_max(0.0f, pl_min((ptVertex->afPos[1] - tMin.y) * tInverseSize.y, 1.0f));
+        ptVertex->afUv[0] = tUvMin.x + fX * tUvSize.x;
+        ptVertex->afUv[1] = tUvMin.y + fY * tUvSize.y;
+    }
+}
+
+void
+pl_draw_add_image_rounded(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tMin, plVec2 tMax, float fRadius, uint32_t uSegments, plDrawRectFlags eFlags)
+{
+    pl_draw_add_image_rounded_ex(ptLayer, tTexture, tMin, tMax, (plVec2){0.0f, 0.0f}, (plVec2){1.0f, 1.0f}, PL_COLOR_32_WHITE, fRadius, uSegments, eFlags);
 }
 
 void
@@ -1798,69 +2306,18 @@ pl_draw_add_image(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin, pl
 void
 pl_draw_add_bezier_quad(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, uint32_t uSegments, plDrawLineOptions tOptions)
 {
-    // order of the bezier curve inputs are 0=start, 1=control, 2=ending
-
-    if(uSegments == 0)
-        uSegments = 12;
-
-    // push first point
-    pl_sb_push(ptLayer->sbtPath, tP0);
-
-    // calculate and push points between first and last
-    for (int i = 1; i < (int)uSegments; i++)
-    {
-        const float t = i / (float)uSegments;
-        const float u = 1.0f - t;
-        const float tt = t * t;
-        const float uu = u * u;
-        
-        const plVec2 p0 = pl_mul_vec2_scalarf(tP0, uu);
-        const plVec2 p1 = pl_mul_vec2_scalarf(tP1, (2.0f * u * t)); 
-        const plVec2 p2 = pl_mul_vec2_scalarf(tP2, tt); 
-        const plVec2 p3 = pl_add_vec2(p0,p1);
-        const plVec2 p4 = pl_add_vec2(p2,p3);
-
-        pl_sb_push(ptLayer->sbtPath, p4);
-    }
-
-    // push last point
-    pl_sb_push(ptLayer->sbtPath, tP2);
+    pl_sb_reset(ptLayer->sbtPath);
+    pl__path_point(&ptLayer->sbtPath, tP0);
+    pl__path_quad(&ptLayer->sbtPath, tP1, tP2, uSegments);
     pl__submit_path(ptLayer, tOptions); 
 }
 
 void
 pl_draw_add_bezier_cubic(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, uint32_t uSegments, plDrawLineOptions tOptions)
 {
-    // order of the bezier curve inputs are 0=start, 1=control 1, 2=control 2, 3=ending
-    if(uSegments == 0)
-        uSegments = 12;
-
-    // push first point
-    pl_sb_push(ptLayer->sbtPath, tP0);
-
-    // calculate and push points between first and last
-    for (int i = 1; i < (int)uSegments; i++)
-    {
-        const float t = i / (float)uSegments;
-        const float u = 1.0f - t;
-        const float tt = t * t;
-        const float uu = u * u;
-        const float uuu = uu * u;
-        const float ttt = tt * t;
-        
-        const plVec2 p0 = pl_mul_vec2_scalarf(tP0, uuu);
-        const plVec2 p1 = pl_mul_vec2_scalarf(tP1, (3.0f * uu * t)); 
-        const plVec2 p2 = pl_mul_vec2_scalarf(tP2, (3.0f * u * tt)); 
-        const plVec2 p3 = pl_mul_vec2_scalarf(tP3, (ttt));
-        const plVec2 p5 = pl_add_vec2(p0,p1);
-        const plVec2 p6 = pl_add_vec2(p2,p3);
-        const plVec2 p7 = pl_add_vec2(p5,p6);
-
-        pl_sb_push(ptLayer->sbtPath, p7);
-    }
-
-    // push last point
-    pl_sb_push(ptLayer->sbtPath, tP3);
+    pl_sb_reset(ptLayer->sbtPath);
+    pl__path_point(&ptLayer->sbtPath, tP0);
+    pl__path_cubic(&ptLayer->sbtPath, tP1, tP2, tP3, uSegments);
     pl__submit_path(ptLayer, tOptions); 
 }
 
@@ -2430,14 +2887,51 @@ bool
 pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
 {
 
+    // Bake opaque coverage bands with transparent padding. Linear filtering
+    // reconstructs the fringe; each width samples the center of its own row.
+    const uint32_t uLineRectIndex = pl_sb_size(ptAtlas->_sbtCustomRects);
+    plFontCustomRect tLineRect = {
+        .uWidth = PL_DRAW_LINE_WIDTH_MAX + 2,
+        .uHeight = PL_DRAW_LINE_ROW_COUNT,
+        .pucBytes = malloc((PL_DRAW_LINE_WIDTH_MAX + 2) * PL_DRAW_LINE_ROW_COUNT)};
+    memset(tLineRect.pucBytes, 0, tLineRect.uWidth * tLineRect.uHeight);
+    for(uint32_t uWidth = 1; uWidth <= PL_DRAW_LINE_WIDTH_MAX; uWidth++)
+        memset(tLineRect.pucBytes + uWidth * tLineRect.uWidth + (tLineRect.uWidth - uWidth) / 2, 255, uWidth);
+    for(uint32_t uDetail = 0; uDetail < PL_DRAW_LINE_DETAIL_COUNT; uDetail++)
+    {
+        unsigned char* pucRow = tLineRect.pucBytes + (PL_DRAW_LINE_WIDTH_MAX + 1 + uDetail) * tLineRect.uWidth;
+        uint32_t uX = 0;
+        for(uint32_t uIndex = 0; uIndex < 4; uIndex++)
+            pucRow[uX++] = (unsigned char)(uIndex * 255 / 4);
+        for(uint32_t uIndex = 0; uIndex < 1 + uDetail; uIndex++)
+            pucRow[uX++] = 255;
+        for(int iIndex = 3; iIndex >= 0; iIndex--)
+            pucRow[uX++] = (unsigned char)(iIndex * 255 / 4);
+    }
+    pl_sb_push(ptAtlas->_sbtCustomRects, tLineRect);
+    ptAtlas->_fTotalArea += (float)(tLineRect.uWidth * tLineRect.uHeight);
+    ptAtlas->_bLinesReady = false;
+
+    uint32_t auCornerIndices[PL_DRAW_CORNER_RADIUS_MAX + 1][PL_DRAW_CORNER_RADIUS_MAX + 1] = {0};
+    memset(ptAtlas->_aatCornerUv, 0, sizeof(ptAtlas->_aatCornerUv));
+    for(uint32_t uRadius = 1; uRadius <= PL_DRAW_CORNER_RADIUS_MAX; uRadius++)
+    {
+        for(uint32_t uThickness = 0; uThickness <= uRadius; uThickness++)
+        {
+            auCornerIndices[uRadius][uThickness] = pl_sb_size(ptAtlas->_sbtCustomRects);
+            plFontCustomRect tCorner = pl__bake_corner(uRadius, uThickness);
+            pl_sb_push(ptAtlas->_sbtCustomRects, tCorner);
+            ptAtlas->_fTotalArea += (float)(tCorner.uWidth * tCorner.uHeight);
+        }
+    }
+
     // create our white location
     plFontCustomRect ptWhiteRect = {
         .uWidth = 8u,
         .uHeight = 8u,
         .uX = 0u,
         .uY = 0u,
-        .pucBytes = malloc(64)
-    };
+        .pucBytes = malloc(64)};
     memset(ptWhiteRect.pucBytes, 255, 64);
     pl_sb_push(ptAtlas->_sbtCustomRects, ptWhiteRect);
     ptAtlas->_ptWhiteRect = &pl_sb_back(ptAtlas->_sbtCustomRects);
@@ -2463,20 +2957,20 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
     memset(ptRects, 0, sizeof(stbrp_rect) * pl_sb_size(ptAtlas->_sbtCustomRects));
 
     // transfer our data to stb data
-    for(uint32_t i = 0; i < pl_sb_size(ptAtlas->_sbtCustomRects); i++)
+    for(uint32_t uIndex = 0; uIndex < pl_sb_size(ptAtlas->_sbtCustomRects); uIndex++)
     {
-        ptRects[i].w = (int)ptAtlas->_sbtCustomRects[i].uWidth;
-        ptRects[i].h = (int)ptAtlas->_sbtCustomRects[i].uHeight;
+        ptRects[uIndex].w = (int)ptAtlas->_sbtCustomRects[uIndex].uWidth;
+        ptRects[uIndex].h = (int)ptAtlas->_sbtCustomRects[uIndex].uHeight;
     }
-    
+
     // pack bitmap fonts
     plFont* ptFont = ptAtlas->_ptFontListHead;
     while(ptFont)
     {
         const uint32_t uRangeCount = pl_sb_size(ptFont->_sbtRanges);
-        for(uint32_t j = 0; j < uRangeCount; j++)
+        for(uint32_t uRow = 0; uRow < uRangeCount; uRow++)
         {
-            plFontRange* ptRange = &ptFont->_sbtRanges[j];
+            plFontRange* ptRange = &ptFont->_sbtRanges[uRow];
             if(!ptFont->_sbtConfigs[ptRange->_uConfigIndex].bSdf)
             {
                 plFontPrepData* ptPrep = &ptFont->_sbtPreps[ptRange->_uConfigIndex];
@@ -2485,10 +2979,10 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
                     stbtt_PackSetOversampling(&tSpc, ptFont->_sbtConfigs[ptRange->_uConfigIndex].uHOverSampling,
                         ptFont->_sbtConfigs[ptRange->_uConfigIndex].uVOverSampling);
                     stbrp_pack_rects((stbrp_context*)tSpc.pack_info, ptPrep->ptRects, ptPrep->uTotalCharCount);
-                    for(uint32_t k = 0; k < ptPrep->uTotalCharCount; k++)
+                    for(uint32_t uK = 0; uK < ptPrep->uTotalCharCount; uK++)
                     {
-                        if(ptPrep->ptRects[k].was_packed)
-                            ptAtlas->tAtlasSize.y = pl_max((float)ptAtlas->tAtlasSize.y, (float)(ptPrep->ptRects[k].y + ptPrep->ptRects[k].h));
+                        if(ptPrep->ptRects[uK].was_packed)
+                            ptAtlas->tAtlasSize.y = pl_max((float)ptAtlas->tAtlasSize.y, (float)(ptPrep->ptRects[uK].y + ptPrep->ptRects[uK].h));
                     }
                     ptPrep->bPrepped = true;
                 }
@@ -2502,10 +2996,10 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
     stbrp_pack_rects((stbrp_context*)tSpc.pack_info, ptRects, pl_sb_size(ptAtlas->_sbtCustomRects));
 
     const uint32_t uCustomRectCount = pl_sb_size(ptAtlas->_sbtCustomRects);
-    for(uint32_t i = 0; i < uCustomRectCount; i++)
+    for(uint32_t uIndex = 0; uIndex < uCustomRectCount; uIndex++)
     {
-        if(ptRects[i].was_packed)
-            ptAtlas->tAtlasSize.y = pl_max((float)ptAtlas->tAtlasSize.y, (float)(ptRects[i].y + ptRects[i].h));
+        if(ptRects[uIndex].was_packed)
+            ptAtlas->tAtlasSize.y = pl_max((float)ptAtlas->tAtlasSize.y, (float)(ptRects[uIndex].y + ptRects[uIndex].h));
     }
 
     // grow cpu side buffers if needed
@@ -2520,7 +3014,7 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
             PL_FREE(ptAtlas->pucPixelsAsRGBA32);
         }
 
-        ptAtlas->_pucPixelsAsAlpha8 = PL_ALLOC((uint32_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y));   
+        ptAtlas->_pucPixelsAsAlpha8 = PL_ALLOC((uint32_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y));
         ptAtlas->pucPixelsAsRGBA32 = PL_ALLOC((uint32_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y * 4));
 
         memset(ptAtlas->_pucPixelsAsAlpha8, 0, (uint32_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y));
@@ -2534,21 +3028,21 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
     while(ptFont)
     {
         const uint32_t uConfigCount = pl_sb_size(ptFont->_sbtConfigs);
-        for(uint32_t j = 0; j < uConfigCount; j++)
+        for(uint32_t uRow = 0; uRow < uConfigCount; uRow++)
         {
-            plFontPrepData* ptPrep = &ptFont->_sbtPreps[j];
-            if(!ptFont->_sbtConfigs[j].bSdf)
+            plFontPrepData* ptPrep = &ptFont->_sbtPreps[uRow];
+            if(!ptFont->_sbtConfigs[uRow].bSdf)
                 stbtt_PackFontRangesRenderIntoRects(&tSpc, &ptPrep->tFontInfo, ptPrep->ptRanges,
-                    pl_sb_size(ptFont->_sbtConfigs[j]._sbtRanges), ptPrep->ptRects);
+                    pl_sb_size(ptFont->_sbtConfigs[uRow]._sbtRanges), ptPrep->ptRects);
         }
         ptFont = ptFont->_ptNextFont;
     }
 
     // update SDF/custom data
-    for(uint32_t i = 0; i < uCustomRectCount; i++)
+    for(uint32_t uIndex = 0; uIndex < uCustomRectCount; uIndex++)
     {
-        ptAtlas->_sbtCustomRects[i].uX = (uint32_t)ptRects[i].x;
-        ptAtlas->_sbtCustomRects[i].uY = (uint32_t)ptRects[i].y;
+        ptAtlas->_sbtCustomRects[uIndex].uX = (uint32_t)ptRects[uIndex].x;
+        ptAtlas->_sbtCustomRects[uIndex].uY = (uint32_t)ptRects[uIndex].y;
     }
 
     ptFont = ptAtlas->_ptFontListHead;
@@ -2556,19 +3050,19 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
     {
         uint32_t uCharDataOffset = 0;
         const uint32_t uConfigCount = pl_sb_size(ptFont->_sbtConfigs);
-        for(uint32_t j = 0; j < uConfigCount; j++)
+        for(uint32_t uRow = 0; uRow < uConfigCount; uRow++)
         {
-            plFontConfig* ptConfig = &ptFont->_sbtConfigs[j];
+            plFontConfig* ptConfig = &ptFont->_sbtConfigs[uRow];
             if(ptConfig->bSdf)
             {
-                for(uint32_t i = 0u; i < pl_sb_size(ptConfig->_sbtCharData); i++)
+                for(uint32_t uIndex = 0u; uIndex < pl_sb_size(ptConfig->_sbtCharData); uIndex++)
                 {
-                    ptConfig->_sbtCharData[i].x0 = (uint16_t)ptRects[uCharDataOffset + i].x;
-                    ptConfig->_sbtCharData[i].y0 = (uint16_t)ptRects[uCharDataOffset + i].y;
-                    ptConfig->_sbtCharData[i].x1 = (uint16_t)(ptRects[uCharDataOffset + i].x + ptAtlas->_sbtCustomRects[ptConfig->_uSdfRectOffset + uCharDataOffset + i].uWidth);
-                    ptConfig->_sbtCharData[i].y1 = (uint16_t)(ptRects[uCharDataOffset + i].y + ptAtlas->_sbtCustomRects[ptConfig->_uSdfRectOffset + uCharDataOffset + i].uHeight);
+                    ptConfig->_sbtCharData[uIndex].x0 = (uint16_t)ptRects[uCharDataOffset + uIndex].x;
+                    ptConfig->_sbtCharData[uIndex].y0 = (uint16_t)ptRects[uCharDataOffset + uIndex].y;
+                    ptConfig->_sbtCharData[uIndex].x1 = (uint16_t)(ptRects[uCharDataOffset + uIndex].x + ptAtlas->_sbtCustomRects[ptConfig->_uSdfRectOffset + uCharDataOffset + uIndex].uWidth);
+                    ptConfig->_sbtCharData[uIndex].y1 = (uint16_t)(ptRects[uCharDataOffset + uIndex].y + ptAtlas->_sbtCustomRects[ptConfig->_uSdfRectOffset + uCharDataOffset + uIndex].uHeight);
                 }
-                uCharDataOffset += pl_sb_size(ptConfig->_sbtCharData);  
+                uCharDataOffset += pl_sb_size(ptConfig->_sbtCharData);
             }
         }
         ptFont = ptFont->_ptNextFont;
@@ -2578,17 +3072,56 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
     stbtt_PackEnd(&tSpc);
 
     // rasterize SDF/custom rects
-    for(uint32_t r = 0; r < uCustomRectCount; r++)
+    for(uint32_t uRadius = 0; uRadius < uCustomRectCount; uRadius++)
     {
-        plFontCustomRect* ptCustomRect = &ptAtlas->_sbtCustomRects[r];
-        for(uint32_t i = 0; i < ptCustomRect->uHeight; i++)
+        plFontCustomRect* ptCustomRect = &ptAtlas->_sbtCustomRects[uRadius];
+        for(uint32_t uIndex = 0; uIndex < ptCustomRect->uHeight; uIndex++)
         {
-            for(uint32_t j = 0; j < ptCustomRect->uWidth; j++)
-                ptAtlas->_pucPixelsAsAlpha8[(ptCustomRect->uY + i) * (uint32_t)ptAtlas->tAtlasSize.x + (ptCustomRect->uX + j)] = ptCustomRect->pucBytes[i * ptCustomRect->uWidth + j];
+            for(uint32_t uRow = 0; uRow < ptCustomRect->uWidth; uRow++)
+                ptAtlas->_pucPixelsAsAlpha8[(ptCustomRect->uY + uIndex) * (uint32_t)ptAtlas->tAtlasSize.x + (ptCustomRect->uX + uRow)] = ptCustomRect->pucBytes[uIndex * ptCustomRect->uWidth + uRow];
         }
         stbtt_FreeSDF(ptCustomRect->pucBytes, NULL);
         ptCustomRect->pucBytes = NULL;
     }
+
+    // Store UVs only after packing, using indices instead of pointers across
+    // stretchy-buffer growth. Include one transparent texel on either side.
+    const plFontCustomRect* ptLines = &ptAtlas->_sbtCustomRects[uLineRectIndex];
+    for(uint32_t uWidth = 1; uWidth <= PL_DRAW_LINE_WIDTH_MAX; uWidth++)
+    {
+        const uint32_t uLeft = (ptLines->uWidth - uWidth) / 2;
+        const float fV = ((float)(ptLines->uY + uWidth) + 0.5f) / ptAtlas->tAtlasSize.y;
+        ptAtlas->_atLineUv[uWidth] = (plVec4){
+            ((float)(ptLines->uX + uLeft) - 0.5f) / ptAtlas->tAtlasSize.x,
+            ((float)(ptLines->uX + uLeft + uWidth) + 0.5f) / ptAtlas->tAtlasSize.x,
+            fV,
+            1.0f / (float)uWidth};
+    }
+    for(uint32_t uDetail = 0; uDetail < PL_DRAW_LINE_DETAIL_COUNT; uDetail++)
+    {
+        const uint32_t uRow = PL_DRAW_LINE_WIDTH_MAX + 1 + uDetail;
+        ptAtlas->_atLineUv[uRow] = (plVec4){
+            ((float)ptLines->uX + 0.5f) / ptAtlas->tAtlasSize.x,
+            ((float)(ptLines->uX + 8 + 1 + uDetail) - 0.5f) / ptAtlas->tAtlasSize.x,
+            ((float)(ptLines->uY + uRow) + 0.5f) / ptAtlas->tAtlasSize.y,
+            1.0f / (1.0f + (float)uDetail * 0.25f)};
+    }
+    ptAtlas->_bLinesReady = ptRects[uLineRectIndex].was_packed != 0;
+
+    for(uint32_t uRadius = 1; uRadius <= PL_DRAW_CORNER_RADIUS_MAX; uRadius++)
+        for(uint32_t uThickness = 0; uThickness <= uRadius; uThickness++)
+        {
+            uint32_t uIndex = auCornerIndices[uRadius][uThickness];
+            const plFontCustomRect* ptCorner = &ptAtlas->_sbtCustomRects[uIndex];
+            if(ptRects[uIndex].was_packed)
+            {
+                ptAtlas->_aatCornerUv[uRadius][uThickness] = (plVec4){
+                    (float)ptCorner->uX / ptAtlas->tAtlasSize.x,
+                    (float)ptCorner->uY / ptAtlas->tAtlasSize.y,
+                    (float)(ptCorner->uX + ptCorner->uWidth) / ptAtlas->tAtlasSize.x,
+                    (float)(ptCorner->uY + ptCorner->uHeight) / ptAtlas->tAtlasSize.y};
+            }
+        }
 
     // update white point uvs
     ptAtlas->_tWhiteUv.x = (float)(ptAtlas->_ptWhiteRect->uX + ptAtlas->_ptWhiteRect->uWidth / 2) / (float)ptAtlas->tAtlasSize.x;
@@ -2602,11 +3135,11 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
         uint32_t uConfigIndex = 0;
         uint32_t uCharIndex = 0;
         float fPixelHeight = 0.0f;
-        
+
         const uint32_t uRangeCount = pl_sb_size(ptFont->_sbtRanges);
-        for(uint32_t i = 0; i < uRangeCount; i++)
+        for(uint32_t uIndex = 0; uIndex < uRangeCount; uIndex++)
         {
-            plFontRange* ptRange = &ptFont->_sbtRanges[i];
+            plFontRange* ptRange = &ptFont->_sbtRanges[uIndex];
             if(uConfigIndex != ptRange->_uConfigIndex)
             {
                 uCharIndex = 0;
@@ -2617,78 +3150,76 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
             else
                 fPixelHeight = 0.0f;
 
-            for(uint32_t j = 0; j < ptRange->uCharCount; j++)
+            for(uint32_t uRow = 0; uRow < ptRange->uCharCount; uRow++)
             {
 
-                const int iCodePoint = ptRange->iFirstCodePoint + j;
+                const int iCodePoint = ptRange->iFirstCodePoint + uRow;
                 stbtt_aligned_quad tQuad;
-                float unused_x = 0.0f;
-                float unused_y = 0.0f;
+                float fUnusedX = 0.0f;
+                float fUnusedY = 0.0f;
                 stbtt_GetPackedQuad((stbtt_packedchar*)ptFont->_sbtConfigs[ptRange->_uConfigIndex]._sbtCharData,
-                    (int)ptAtlas->tAtlasSize.x, (int)ptAtlas->tAtlasSize.y, uCharIndex, &unused_x, &unused_y, &tQuad, 0);
+                    (int)ptAtlas->tAtlasSize.x, (int)ptAtlas->tAtlasSize.y, uCharIndex, &fUnusedX, &fUnusedY, &tQuad, 0);
 
-                int unusedAdvanced = 0;
+                int iUnusedAdvanced = 0;
                 int iLeftSideBearing = 0;
                 stbtt_GetCodepointHMetrics(&ptFont->_sbtPreps[ptRange->_uConfigIndex].tFontInfo, iCodePoint,
-                    &unusedAdvanced, &iLeftSideBearing);
+                    &iUnusedAdvanced, &iLeftSideBearing);
 
                 plFontGlyph tGlyph = {
-                    .x0           = tQuad.x0,
-                    .y0           = tQuad.y0 + ptFont->_sbtPreps[ptRange->_uConfigIndex].fAscent,
-                    .x1           = tQuad.x1,
-                    .y1           = tQuad.y1 + ptFont->_sbtPreps[ptRange->_uConfigIndex].fAscent,
-                    .u0           = tQuad.s0,
-                    .v0           = tQuad.t0 + fPixelHeight,
-                    .u1           = tQuad.s1,
-                    .v1           = tQuad.t1 - fPixelHeight,
-                    .fXAdvance    = ptFont->_sbtConfigs[ptRange->_uConfigIndex]._sbtCharData[uCharIndex].xAdv,
+                    .x0 = tQuad.x0,
+                    .y0 = tQuad.y0 + ptFont->_sbtPreps[ptRange->_uConfigIndex].fAscent,
+                    .x1 = tQuad.x1,
+                    .y1 = tQuad.y1 + ptFont->_sbtPreps[ptRange->_uConfigIndex].fAscent,
+                    .u0 = tQuad.s0,
+                    .v0 = tQuad.t0 + fPixelHeight,
+                    .u1 = tQuad.s1,
+                    .v1 = tQuad.t1 - fPixelHeight,
+                    .fXAdvance = ptFont->_sbtConfigs[ptRange->_uConfigIndex]._sbtCharData[uCharIndex].xAdv,
                     .fLeftBearing = (float)iLeftSideBearing * ptFont->_sbtPreps[ptRange->_uConfigIndex].fScale,
-                    .iSDF         = (int)ptFont->_sbtConfigs[ptRange->_uConfigIndex].bSdf
-                };
+                    .iSDF = (int)ptFont->_sbtConfigs[ptRange->_uConfigIndex].bSdf};
                 pl_sb_push(ptFont->_sbtGlyphs, tGlyph);
                 ptFont->_auCodePoints[iCodePoint] = pl_sb_size(ptFont->_sbtGlyphs) - 1;
                 uCharIndex++;
             }
         }
 
-        for(uint32_t i = 0; i < pl_sb_size(ptFont->_sbtPreps); i++)
+        for(uint32_t uIndex = 0; uIndex < pl_sb_size(ptFont->_sbtPreps); uIndex++)
         {
-            PL_FREE(ptFont->_sbtPreps[i].ptRanges);
-            PL_FREE(ptFont->_sbtPreps[i].ptRects);
-            PL_FREE(ptFont->_sbtPreps[i].tFontInfo.data);
-            ptFont->_sbtPreps[i].tFontInfo.data = NULL;
+            PL_FREE(ptFont->_sbtPreps[uIndex].ptRanges);
+            PL_FREE(ptFont->_sbtPreps[uIndex].ptRects);
+            PL_FREE(ptFont->_sbtPreps[uIndex].tFontInfo.data);
+            ptFont->_sbtPreps[uIndex].tFontInfo.data = NULL;
         }
         pl_sb_free(ptFont->_sbtPreps);
 
-        for(uint32_t i = 0; i < pl_sb_size(ptFont->_sbtConfigs); i++)
+        for(uint32_t uIndex = 0; uIndex < pl_sb_size(ptFont->_sbtConfigs); uIndex++)
         {
-            pl_sb_free(ptFont->_sbtConfigs[i]._sbtCharData);
+            pl_sb_free(ptFont->_sbtConfigs[uIndex]._sbtCharData);
         }
         ptFont = ptFont->_ptNextFont;
     }
 
     // convert to 4 color channels
     const uint32_t uPixelCount = (uint32_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y);
-    for(uint32_t i = 0; i < uPixelCount; i++)
+    for(uint32_t uIndex = 0; uIndex < uPixelCount; uIndex++)
     {
-        ptAtlas->pucPixelsAsRGBA32[i * 4]     = 255;
-        ptAtlas->pucPixelsAsRGBA32[i * 4 + 1] = 255;
-        ptAtlas->pucPixelsAsRGBA32[i * 4 + 2] = 255;
-        ptAtlas->pucPixelsAsRGBA32[i * 4 + 3] = ptAtlas->_pucPixelsAsAlpha8[i];
+        ptAtlas->pucPixelsAsRGBA32[uIndex * 4] = 255;
+        ptAtlas->pucPixelsAsRGBA32[uIndex * 4 + 1] = 255;
+        ptAtlas->pucPixelsAsRGBA32[uIndex * 4 + 2] = 255;
+        ptAtlas->pucPixelsAsRGBA32[uIndex * 4 + 3] = ptAtlas->_pucPixelsAsAlpha8[uIndex];
     }
 
     PL_FREE(ptRects);
 
     // create texture
     const plTextureDesc tFontTextureDesc = {
-        .tDimensions   = {ptAtlas->tAtlasSize.x, ptAtlas->tAtlasSize.y, 1},
-        .eFormat       = PL_FORMAT_R8G8B8A8_UNORM,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .eType         = PL_TEXTURE_TYPE_2D,
-        .eUsage        = PL_TEXTURE_USAGE_SAMPLED,
-        .pcDebugName   = "2D Drawing Font Atlas"
-    };
+        .tDimensions = {ptAtlas->tAtlasSize.x, ptAtlas->tAtlasSize.y, 1},
+        .eFormat = PL_FORMAT_R8G8B8A8_UNORM,
+        .uLayers = 1,
+        .uMips = 1,
+        .eType = PL_TEXTURE_TYPE_2D,
+        .eUsage = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName = "2D Drawing Font Atlas"};
 
     plDevice* ptDevice = gptDrawCtx->ptDevice;
 
@@ -2696,7 +3227,7 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
     plTextureHandle tTexture = gptGfx->create_texture(ptDevice, &tFontTextureDesc, &ptTexture);
     uint64_t ulData = (uint64_t)tTexture.uData;
     ptAtlas->ptUserData = (void*)ulData;
-    
+
     const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
         ptTexture->tMemoryRequirements.ulSize,
         PL_MEMORY_FLAGS_DEVICE_LOCAL,
@@ -2706,23 +3237,21 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
     gptGfx->bind_texture_to_memory(ptDevice, tTexture, &tAllocation);
 
     const plBufferDesc tBufferDesc = {
-        .eUsage      = PL_BUFFER_USAGE_TRANSFER,
-        .szByteSize  = (size_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y * 4),
-        .pcDebugName = "font staging buffer"
-    };
+        .eUsage = PL_BUFFER_USAGE_TRANSFER,
+        .szByteSize = (size_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y * 4),
+        .pcDebugName = "font staging buffer"};
     plBufferHandle tStagingBuffer = pl__create_staging_buffer(&tBufferDesc, "font staging buffer", 0);
     plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptAtlas->pucPixelsAsRGBA32, tBufferDesc.szByteSize);
 
     // begin recording
     gptGfx->begin_command_recording(ptCommandBuffer);
-    
+
     const plBufferImageCopy tBufferImageCopy = {
         .uImageWidth = (uint32_t)ptAtlas->tAtlasSize.x,
         .uImageHeight = (uint32_t)ptAtlas->tAtlasSize.y,
         .uImageDepth = 1,
-        .uLayerCount = 1
-    };
+        .uLayerCount = 1};
 
     // begin blit pass, copy texture, end pass
     gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
@@ -2823,6 +3352,7 @@ pl_draw_new_frame(void)
             pl_sb_reset(ptDrawlist->_sbtLayersCreated[j]->sbtCommandBuffer);
             pl_sb_reset(ptDrawlist->_sbtLayersCreated[j]->sbuIndexBuffer);   
             pl_sb_reset(ptDrawlist->_sbtLayersCreated[j]->sbtPath);  
+            pl_sb_reset(ptDrawlist->_sbtLayersCreated[j]->sbtUserPath);
             ptDrawlist->_sbtLayersCreated[j]->uVertexCount = 0u;
         }
         pl_sb_reset(ptDrawlist->_sbtSubmittedLayers); 
@@ -4475,7 +5005,7 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plCommandBuffer* ptCommandB
 
             plBindGroupHandle tTexture = {.uData = cmd.tTextureId};
             plBindGroupHandle atBindGroups[] = {
-                gptDrawCtx->tCurrentSamplerBindGroup,
+                cmd.bLinearSampler ? gptDrawCtx->tFontSamplerBindGroup : gptDrawCtx->tCurrentSamplerBindGroup,
                 tTexture
             };
             gptGfx->bind_graphics_bind_groups(ptCommandBuffer, tCurrentShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
@@ -4752,23 +5282,97 @@ pl_draw_get_bind_group_pool(void)
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
-static bool
-pl__draw_can_merge_commands(const plDrawCommand* a, const plDrawCommand* b)
+// Bound the sagitta (radius * (1 - cos(pi / segments))) to 0.25 framebuffer pixels.
+// Multiples of four keep automatic circles symmetric at the cardinal axes.
+static uint32_t
+pl__circle_segments(float fRadius, uint32_t uRequestedSegments)
 {
-    if(a->tUserCallback || b->tUserCallback)
+    if(uRequestedSegments != 0)
+        return pl_max(3u, pl_min(uRequestedSegments, 512u));
+    const double dError = 0.25 / (double)pl__draw_framebuffer_scale();
+    const double dAngle = acos(1.0 - fmin(dError / (double)fRadius, 1.0));
+    const double dSegmentCount = dAngle > 0.0 ? ceil(3.14159265358979323846 / dAngle) : 512.0;
+    const uint32_t uSegments = (uint32_t)fmin(512.0, fmax(12.0, dSegmentCount));
+    return (uSegments + 3u) & ~3u;
+}
+
+// Convex perimeter with an inset opaque ring and an outset transparent ring.
+// RGB is preserved at alpha zero to avoid dark fringes with straight-alpha blending.
+static void
+pl__convex_fill_aa_ex(plDrawLayer2D* ptLayer, const plVec2* ptPoints, uint32_t uPointCount, uint32_t uColor, float fHalfFringe, plTextureID tTexture, plVec2 tUv)
+{
+    if(uPointCount < 3 || (uColor >> 24) == 0)
+        return;
+    if(ptPoints[0].x == ptPoints[uPointCount - 1].x && ptPoints[0].y == ptPoints[uPointCount - 1].y)
+        uPointCount--;
+    if(uPointCount < 3)
+        return;
+    double dArea = 0.0;
+    for(uint32_t uIndex = 0; uIndex < uPointCount; uIndex++)
+    {
+        const plVec2 tEdgeStart = pl__subtract_vec2(ptPoints[uIndex], ptPoints[0]);
+        const plVec2 tEdgeEnd = pl__subtract_vec2(ptPoints[(uIndex + 1) % uPointCount], ptPoints[0]);
+        dArea += (double)tEdgeStart.x * tEdgeEnd.y - (double)tEdgeStart.y * tEdgeEnd.x;
+    }
+    if(dArea == 0.0)
+        return;
+    const float fWinding = dArea > 0.0 ? 1.0f : -1.0f;
+    pl__prepare_draw_command(ptLayer, tTexture, false);
+    pl__reserve_triangles(ptLayer, (uPointCount - 2) * 3 + uPointCount * 6, uPointCount * 2);
+    const uint32_t uStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+    for(uint32_t uIndex = 0; uIndex < uPointCount; uIndex++)
+    {
+        const uint32_t uPrevious = uIndex ? uIndex - 1 : uPointCount - 1;
+        const uint32_t uNext = (uIndex + 1) % uPointCount;
+        plVec2 tBefore = pl__subtract_vec2(ptPoints[uIndex], ptPoints[uPrevious]);
+        plVec2 tAfter = pl__subtract_vec2(ptPoints[uNext], ptPoints[uIndex]);
+        PL_NORMALIZE2F_OVER_ZERO(tBefore.x, tBefore.y);
+        PL_NORMALIZE2F_OVER_ZERO(tAfter.x, tAfter.y);
+        if(tBefore.x == 0.0f && tBefore.y == 0.0f)
+            tBefore = tAfter;
+        if(tAfter.x == 0.0f && tAfter.y == 0.0f)
+            tAfter = tBefore;
+        plVec2 tOffset = {(tBefore.y + tAfter.y) * 0.5f, -(tBefore.x + tAfter.x) * 0.5f};
+        const float fLengthSquared = tOffset.x * tOffset.x + tOffset.y * tOffset.y;
+        if(fLengthSquared > 0.000001f)
+            tOffset = pl__mul_vec2_f(tOffset, pl_min(1.0f / fLengthSquared, 100.0f));
+        tOffset = pl__mul_vec2_f(tOffset, fHalfFringe * fWinding);
+        pl__add_vertex(ptLayer, pl__subtract_vec2(ptPoints[uIndex], tOffset), uColor, tUv);
+        pl__add_vertex(ptLayer, pl__add_vec2(ptPoints[uIndex], tOffset), uColor & 0x00ffffffu, tUv);
+    }
+    for(uint32_t uIndex = 1; uIndex + 1 < uPointCount; uIndex++)
+        pl__add_index(ptLayer, uStart, 0, uIndex * 2, (uIndex + 1) * 2);
+    for(uint32_t uIndex = 0; uIndex < uPointCount; uIndex++)
+    {
+        const uint32_t uNext = (uIndex + 1) % uPointCount;
+        pl__add_index(ptLayer, uStart, uIndex * 2, uIndex * 2 + 1, uNext * 2 + 1);
+        pl__add_index(ptLayer, uStart, uIndex * 2, uNext * 2 + 1, uNext * 2);
+    }
+}
+
+static void
+pl__convex_fill_aa(plDrawLayer2D* ptLayer, const plVec2* ptPoints, uint32_t uPointCount, uint32_t uColor, float fHalfFringe)
+{
+    pl__convex_fill_aa_ex(ptLayer, ptPoints, uPointCount, uColor, fHalfFringe, gptDrawCtx->ptAtlas->tTexture, gptDrawCtx->ptAtlas->_tWhiteUv);
+}
+
+static bool
+pl__draw_can_merge_commands(const plDrawCommand* ptFirstCommand, const plDrawCommand* ptSecondCommand)
+{
+    if(ptFirstCommand->tUserCallback || ptSecondCommand->tUserCallback)
         return false;
 
-    if(a->tTextureId != b->tTextureId || a->bSdf != b->bSdf)
+    if(ptFirstCommand->tTextureId != ptSecondCommand->tTextureId || ptFirstCommand->bSdf != ptSecondCommand->bSdf || ptFirstCommand->bLinearSampler != ptSecondCommand->bLinearSampler)
         return false;
 
-    if(a->tClip.tMin.x != b->tClip.tMin.x ||
-       a->tClip.tMin.y != b->tClip.tMin.y ||
-       a->tClip.tMax.x != b->tClip.tMax.x ||
-       a->tClip.tMax.y != b->tClip.tMax.y)
+    if(ptFirstCommand->tClip.tMin.x != ptSecondCommand->tClip.tMin.x ||
+        ptFirstCommand->tClip.tMin.y != ptSecondCommand->tClip.tMin.y ||
+        ptFirstCommand->tClip.tMax.x != ptSecondCommand->tClip.tMax.x ||
+        ptFirstCommand->tClip.tMax.y != ptSecondCommand->tClip.tMax.y)
         return false;
 
     // Index ranges must be contiguous.
-    return a->uIndexOffset + a->uElementCount == b->uIndexOffset;
+    return ptFirstCommand->uIndexOffset + ptFirstCommand->uElementCount == ptSecondCommand->uIndexOffset;
 }
 
 static void
@@ -4796,6 +5400,12 @@ pl__draw_append_draw_command(plDrawList2D* ptDrawlist, plDrawCommand tCommand)
 static void
 pl__prepare_draw_command(plDrawLayer2D* ptLayer, plTextureID tTextureID, bool bSdf)
 {
+    pl__prepare_draw_command_ex(ptLayer, tTextureID, bSdf, false);
+}
+
+static void
+pl__prepare_draw_command_ex(plDrawLayer2D* ptLayer, plTextureID tTextureID, bool bSdf, bool bLinearSampler)
+{
     bool bCreateNewCommand = true;
 
     const plRect tCurrentClip = pl_sb_size(ptLayer->ptDrawlist->_sbtClipStack) > 0 ? pl_sb_top(ptLayer->ptDrawlist->_sbtClipStack) : (plRect){0};
@@ -4810,7 +5420,7 @@ pl__prepare_draw_command(plDrawLayer2D* ptLayer, plTextureID tTextureID, bool bS
     if(ptLastCommand)
     {
         // check if last command has same texture
-        if(ptLastCommand->tTextureId == tTextureID && ptLastCommand->bSdf == bSdf)
+        if(!ptLastCommand->tUserCallback && ptLastCommand->tTextureId == tTextureID && ptLastCommand->bSdf == bSdf && ptLastCommand->bLinearSampler == bLinearSampler)
         {
             bCreateNewCommand = false;
         }
@@ -4830,12 +5440,13 @@ pl__prepare_draw_command(plDrawLayer2D* ptLayer, plTextureID tTextureID, bool bS
     {
         plDrawCommand tNewdrawCommand = 
         {
-            .uVertexOffset = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer),
-            .uIndexOffset  = pl_sb_size(ptLayer->sbuIndexBuffer),
-            .uElementCount = 0,
-            .tTextureId    = tTextureID,
-            .bSdf          = bSdf,
-            .tClip         = tCurrentClip
+            .uVertexOffset  = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer),
+            .uIndexOffset   = pl_sb_size(ptLayer->sbuIndexBuffer),
+            .uElementCount  = 0,
+            .tTextureId     = tTextureID,
+            .bSdf           = bSdf,
+            .bLinearSampler = bLinearSampler,
+            .tClip          = tCurrentClip
         };
         pl_sb_push(ptLayer->sbtCommandBuffer, tNewdrawCommand);
         
@@ -5246,6 +5857,17 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .push_clip_rect                = pl_draw_push_clip_rect,
         .pop_clip_rect                 = pl_draw_pop_clip_rect,
         .get_clip_rect                 = pl_draw_get_clip_rect,
+        .path_clear                    = pl_draw_path_clear,
+        .path_line_to                  = pl_draw_path_line_to,
+        .path_arc_to                   = pl_draw_path_arc_to,
+        .path_ellipse_to               = pl_draw_path_ellipse_to,
+        .path_bezier_quad_to           = pl_draw_path_bezier_quad_to,
+        .path_bezier_cubic_to          = pl_draw_path_bezier_cubic_to,
+        .path_rect                     = pl_draw_path_rect,
+        .path_stroke                   = pl_draw_path_stroke,
+        .path_fill_convex              = pl_draw_path_fill_convex,
+        .add_line_h                    = pl_draw_add_line_h,
+        .add_line_v                    = pl_draw_add_line_v,
         .add_line                      = pl_draw_add_line,
         .add_lines                     = pl_draw_add_lines,
         .add_text                      = pl_draw_add_text,
@@ -5267,6 +5889,8 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .add_convex_polygon_filled     = pl_draw_add_convex_polygon_filled,
         .add_image                     = pl_draw_add_image,
         .add_image_ex                  = pl_draw_add_image_ex,
+        .add_image_rounded             = pl_draw_add_image_rounded,
+        .add_image_rounded_ex          = pl_draw_add_image_rounded_ex,
         .add_image_quad                = pl_draw_add_image_quad,
         .add_image_quad_ex             = pl_draw_add_image_quad_ex,
         .add_bezier_quad               = pl_draw_add_bezier_quad,
