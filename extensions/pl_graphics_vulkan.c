@@ -5577,7 +5577,7 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
         ptTexture->tDesc.tDimensions = (plVec3){(float)ptSwap->tInfo.uWidth, (float)ptSwap->tInfo.uHeight, 1.0f};
         ptTexture->tDesc.uLayers = 1;
         ptTexture->tDesc.uMips = 1;
-        ptTexture->tDesc.eSampleCount = ptSwap->tInfo.eSampleCount;
+        ptTexture->tDesc.eSampleCount = 1; // Swapchain images are resolve targets, never multisampled.
         ptTexture->tDesc.eFormat = tTextureViewDesc.eFormat;
         ptTexture->tDesc.eType = PL_TEXTURE_TYPE_2D;
         ptTexture->tDesc.eUsage = PL_TEXTURE_USAGE_PRESENT | PL_TEXTURE_USAGE_STORAGE | PL_TEXTURE_USAGE_COLOR_ATTACHMENT;

@@ -3130,12 +3130,33 @@ pl_renderer_begin_frame(void)
             "Probe Selection",
         };
 
-        if(pl_sb_size(gptData->sbptScenes) > 0 && gptUI->begin_window("Renderer", &gptData->bShowTools, 0))
+        if(gptUI->begin_window("Renderer", &gptData->bShowTools, 0))
         {
             const float pfRatios[] = {1.0f};
             const float pfRatios2[] = {0.5f, 0.5f};
             gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
             
+            gptUI->separator_text("Main Window");
+            const plSwapchainInfo tSwapInfo = gptGfx->get_swapchain_info(gptStarter->get_swapchain());
+            bool bVSync = tSwapInfo.bVSync;
+            bool bMSAA = tSwapInfo.eSampleCount > 1;
+            if(gptUI->checkbox("VSync", &bVSync))
+            {
+                if(bVSync) gptStarter->activate_vsync();
+                else       gptStarter->deactivate_vsync();
+            }
+            if(gptGfx->get_device_info(gptData->ptDevice)->eMaxSampleCount > 1)
+            {
+                if(gptUI->checkbox("Main-window MSAA", &bMSAA))
+                {
+                    if(bMSAA) gptStarter->activate_msaa();
+                    else      gptStarter->deactivate_msaa();
+                }
+            }
+            else
+                gptUI->text("Main-window MSAA unavailable on this device.");
+            gptUI->labeled_text("Active samples", "%u", (uint32_t)tSwapInfo.eSampleCount);
+            gptUI->text("MSAA applies to the main window, not offscreen scene rendering.");
             gptUI->separator_text("Scenes");
 
             for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)

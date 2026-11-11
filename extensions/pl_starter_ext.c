@@ -75,10 +75,6 @@ Index of this file:
 typedef struct _plStarterContext plStarterContext;
 
 // helpers
-static void pl__starter_activate_msaa(void);
-static void pl__starter_deactivate_msaa(void);
-static void pl__starter_activate_depth_buffer(void);
-static void pl__starter_deactivate_depth_buffer(void);
 
 plDevice* pl_starter_create_device(plSurface*);
 
@@ -107,6 +103,7 @@ typedef struct _plStarterContext
     bool                     bDepthBufferActivateRequested;
     bool                     bDepthBufferDeactivateRequested;
     bool                     bVSyncChangeRequested;
+    bool                     bVSyncRequested;
 
     // drawing
     plDrawList2D*  ptFGDrawlist;
@@ -356,11 +353,13 @@ pl__starter_resize_attachments(void)
                 (float)tInfo.uHeight,
                 1};
 
-        plTexture* ptTexture = gptGfx->get_texture(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
+        plTexture* ptTexture = gptGfx->is_texture_valid(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture)
+            ? gptGfx->get_texture(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture) : NULL;
 
-        if(ptTexture->tDesc.tDimensions.x < tNewDimensions.x || ptTexture->tDesc.tDimensions.y < tNewDimensions.y || ptTexture->tDesc.eSampleCount != tInfo.eSampleCount)
+        if(!ptTexture || ptTexture->tDesc.tDimensions.x < tNewDimensions.x || ptTexture->tDesc.tDimensions.y < tNewDimensions.y || ptTexture->tDesc.eSampleCount != tInfo.eSampleCount)
         {
-            gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
+            if(ptTexture)
+                gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
 
             tNewDimensions.x += 400.0f;
             tNewDimensions.y += 400.0f;
@@ -391,6 +390,11 @@ pl__starter_resize_attachments(void)
             gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
         }
     }
+    else if(gptGfx->is_texture_valid(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture))
+    {
+        gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
+        gptStarterCtx->tDepthTexture = (plTextureHandle){0};
+    }
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA)
     {
 
@@ -399,13 +403,15 @@ pl__starter_resize_attachments(void)
                 (float)tInfo.uHeight,
                 1};
 
-        plTexture* ptTexture = gptGfx->get_texture(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
+        plTexture* ptTexture = gptGfx->is_texture_valid(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture)
+            ? gptGfx->get_texture(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture) : NULL;
 
-        // if(ptTexture->tDesc.tDimensions.x < tNewDimensions.x || ptTexture->tDesc.tDimensions.y < tNewDimensions.y || ptTexture->tDesc.eSampleCount != tInfo.eSampleCount)
+        if(!gptGfx->is_texture_valid(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture)
+            || ptTexture->tDesc.tDimensions.x != tNewDimensions.x || ptTexture->tDesc.tDimensions.y != tNewDimensions.y
+            || ptTexture->tDesc.eSampleCount != tInfo.eSampleCount || ptTexture->tDesc.eFormat != tInfo.eFormat)
         {
-            // tNewDimensions.x += 400.0f;
-            // tNewDimensions.y += 400.0f;
-            gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
+            if(gptGfx->is_texture_valid(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture))
+                gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
 
             const plTextureDesc tDepthTextureDesc = {
                 .tDimensions   = tNewDimensions,
@@ -434,6 +440,11 @@ pl__starter_resize_attachments(void)
             gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture, &tDepthAllocation);
         }
 
+    }
+    else if(gptGfx->is_texture_valid(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture))
+    {
+        gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
+        gptStarterCtx->tResolveTexture = (plTextureHandle){0};
     }
 }
 
@@ -538,48 +549,34 @@ pl_starter_begin_frame(void)
     plCommandPool* ptCmdPool = gptStarterCtx->atCmdPools[uCurrentFrameIndex];
     gptGfx->reset_command_pool(ptCmdPool, 0);
 
-    if(gptStarterCtx->bVSyncChangeRequested)
+    // Apply presentation requests together, before acquiring an image.
+    if(gptStarterCtx->bVSyncChangeRequested || gptStarterCtx->bMSAAActivateRequested || gptStarterCtx->bMSAADeactivateRequested || gptStarterCtx->bDepthBufferActivateRequested || gptStarterCtx->bDepthBufferDeactivateRequested)
     {
-        pl_starter_resize();
-        gptStarterCtx->bVSyncChangeRequested = false;
-        if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
-            gptProfile->end_frame();
-        return false; 
-    }
-
-    if(gptStarterCtx->bMSAAActivateRequested)
-    {
-        pl__starter_activate_msaa();
-        gptStarterCtx->bMSAAActivateRequested = false;
-        if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
-            gptProfile->end_frame();
-        return false;
-    }
-    else if(gptStarterCtx->bMSAADeactivateRequested)
-    {
-        pl__starter_deactivate_msaa();
-        gptStarterCtx->bMSAADeactivateRequested = false;
-        if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
-            gptProfile->end_frame();
-        return false;
-    }
-    else if(gptStarterCtx->bDepthBufferActivateRequested)
-    {
-        pl__starter_activate_depth_buffer();
+        if(gptStarterCtx->bVSyncChangeRequested)
+        {
+            if(gptStarterCtx->bVSyncRequested)
+                gptStarterCtx->eFlags &= ~PL_STARTER_FLAGS_VSYNC_OFF;
+            else
+                gptStarterCtx->eFlags |= PL_STARTER_FLAGS_VSYNC_OFF;
+        }
+        if(gptStarterCtx->bMSAAActivateRequested)
+            gptStarterCtx->eFlags |= PL_STARTER_FLAGS_MSAA;
+        else if(gptStarterCtx->bMSAADeactivateRequested)
+            gptStarterCtx->eFlags &= ~PL_STARTER_FLAGS_MSAA;
+        if(gptStarterCtx->bDepthBufferActivateRequested)
+            gptStarterCtx->eFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
+        else if(gptStarterCtx->bDepthBufferDeactivateRequested)
+            gptStarterCtx->eFlags &= ~PL_STARTER_FLAGS_DEPTH_BUFFER;
         gptStarterCtx->bDepthBufferActivateRequested = false;
-        if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
-            gptProfile->end_frame();
-        return false;
-    }
-    else if(gptStarterCtx->bDepthBufferDeactivateRequested)
-    {
-        pl__starter_deactivate_depth_buffer();
         gptStarterCtx->bDepthBufferDeactivateRequested = false;
+        gptStarterCtx->bVSyncChangeRequested = false;
+        gptStarterCtx->bMSAAActivateRequested = false;
+        gptStarterCtx->bMSAADeactivateRequested = false;
+        pl_starter_resize();
         if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
             gptProfile->end_frame();
         return false;
     }
-
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
     {
         const plSwapchainInfo tBeforeAcquire = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
@@ -1000,246 +997,48 @@ pl_starter_create_device(plSurface* ptSurface)
 void
 pl_starter_activate_vsync(void)
 {
-    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF)
-        gptStarterCtx->bVSyncChangeRequested = true;
-    gptStarterCtx->eFlags &= ~PL_STARTER_FLAGS_VSYNC_OFF;
+    gptStarterCtx->bVSyncRequested = true;
+    gptStarterCtx->bVSyncChangeRequested = (gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF) != 0;
 }
 
 void
 pl_starter_deactivate_vsync(void)
 {
-    if(!(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF))
-        gptStarterCtx->bVSyncChangeRequested = true;
-    gptStarterCtx->eFlags |= PL_STARTER_FLAGS_VSYNC_OFF;
+    gptStarterCtx->bVSyncRequested = false;
+    gptStarterCtx->bVSyncChangeRequested = (gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF) == 0;
 }
 
 void
 pl_starter_activate_msaa(void)
 {
-    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA)
-        return;
-    gptStarterCtx->bMSAAActivateRequested = true;
+    gptStarterCtx->bMSAADeactivateRequested = false;
+    gptStarterCtx->bMSAAActivateRequested = !(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA) && gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount > 1;
 }
 
 void
 pl_starter_deactivate_msaa(void)
 {
-    if(!(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA))
-        return;
-    gptStarterCtx->bMSAADeactivateRequested = true;
+    gptStarterCtx->bMSAAActivateRequested = false;
+    gptStarterCtx->bMSAADeactivateRequested = (gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA) != 0;
 }
 
 void
 pl_starter_activate_depth_buffer(void)
 {
-    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
-        return;
-    gptStarterCtx->bDepthBufferActivateRequested = true;
+    gptStarterCtx->bDepthBufferDeactivateRequested = false;
+    gptStarterCtx->bDepthBufferActivateRequested = !(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER);
 }
 
 void
 pl_starter_deactivate_depth_buffer(void)
 {
-    if(!(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER))
-        return;
-    gptStarterCtx->bDepthBufferDeactivateRequested = true;
+    gptStarterCtx->bDepthBufferActivateRequested = false;
+    gptStarterCtx->bDepthBufferDeactivateRequested = (gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER) != 0;
 }
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper implementations
 //-----------------------------------------------------------------------------
-
-static void
-pl__starter_activate_msaa(void)
-{
-    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA)
-        return;
-    
-    gptStarterCtx->eFlags |= PL_STARTER_FLAGS_MSAA;
-
-    plIO* ptIO = gptIOI->get_io();
-    plSwapchainInit tDesc = {
-        .bVSync  = !(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF),
-        .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
-        .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
-        .eSampleCount = gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount
-    };
-    gptGfx->recreate_swapchain(gptStarterCtx->ptSwapchain, &tDesc);
-
-    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA)
-    {
-        plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
-        const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
-            .eFormat       = tInfo.eFormat,
-            .uLayers       = 1,
-            .uMips         = 1,
-            .eType         = PL_TEXTURE_TYPE_2D,
-            .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-            .pcDebugName   = "MSAA texture",
-            .eSampleCount  = gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount
-        };
-
-        plTexture* ptResolveTexture = NULL;
-        gptStarterCtx->tResolveTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptResolveTexture);
-
-        plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
-        if(ptResolveTexture->tMemoryRequirements.ulSize * 2 > gptGpuAllocators->get_buddy_block_size())
-            ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
-
-        const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst,
-            ptResolveTexture->tMemoryRequirements.uMemoryTypeBits, 
-            ptResolveTexture->tMemoryRequirements.ulSize,
-            ptResolveTexture->tMemoryRequirements.ulAlignment,
-            "msaa texture memory");
-
-        gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture, &tDepthAllocation);
-    }
-
-    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
-    {
-        gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
-        plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
-        const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {
-                (float)tInfo.uWidth + 400.0f,
-                (float)tInfo.uHeight + 400.0f,
-                1},
-            .eFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
-            .uLayers       = 1,
-            .uMips         = 1,
-            .eType         = PL_TEXTURE_TYPE_2D,
-            .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-            .pcDebugName   = "main depth texture",
-            .eSampleCount  = gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount
-        };
-
-        plTexture* ptDepthTexture = NULL;
-        gptStarterCtx->tDepthTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptDepthTexture);
-
-        plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
-        if(ptDepthTexture->tMemoryRequirements.ulSize * 2 > gptGpuAllocators->get_buddy_block_size())
-            ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
-
-        const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst,
-            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits, 
-            ptDepthTexture->tMemoryRequirements.ulSize,
-            ptDepthTexture->tMemoryRequirements.ulAlignment,
-            "depth texture memory");
-
-        gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
-
-        // pl__starter_create_render_pass_with_msaa_and_depth();
-    }
-    // else
-    //     pl__starter_create_render_pass_with_msaa();
-}
-
-static void
-pl__starter_deactivate_msaa(void)
-{
-    if(!(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA))
-        return;
-
-    gptStarterCtx->eFlags &= ~PL_STARTER_FLAGS_MSAA;
-
-    plIO* ptIO = gptIOI->get_io();
-    plSwapchainInit tDesc = {
-        .bVSync  = !(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF),
-        .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
-        .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
-        .eSampleCount = 1
-    };
-    gptGfx->recreate_swapchain(gptStarterCtx->ptSwapchain, &tDesc);
-
-    gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
-
-    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
-    {
-        gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
-        const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {
-                gptIOI->get_io()->tMainViewportSize.x * ptIO->tMainFramebufferScale.x + 400.0f,
-                gptIOI->get_io()->tMainViewportSize.y * ptIO->tMainFramebufferScale.y + 400.0f,
-                1},
-            .eFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
-            .uLayers       = 1,
-            .uMips         = 1,
-            .eType         = PL_TEXTURE_TYPE_2D,
-            .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-            .pcDebugName   = "main depth texture",
-            .eSampleCount  = 1
-        };
-
-        plTexture* ptDepthTexture = NULL;
-        gptStarterCtx->tDepthTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptDepthTexture);
-
-        plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
-        if(ptDepthTexture->tMemoryRequirements.ulSize * 2 > gptGpuAllocators->get_buddy_block_size())
-            ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
-
-        const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst,
-            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits, 
-            ptDepthTexture->tMemoryRequirements.ulSize,
-            ptDepthTexture->tMemoryRequirements.ulAlignment,
-            "depth texture memory");
-
-        gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
-    }
-}
-
-static void
-pl__starter_activate_depth_buffer(void)
-{
-    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
-        return;
-    
-    gptStarterCtx->eFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
-
-    gptGfx->flush_device(gptStarterCtx->ptDevice);
-
-    const plTextureDesc tDepthTextureDesc = {
-        .tDimensions   = {
-            gptIOI->get_io()->tMainViewportSize.x * gptIOI->get_io()->tMainFramebufferScale.x + 400.0f,
-            gptIOI->get_io()->tMainViewportSize.y * gptIOI->get_io()->tMainFramebufferScale.y + 400.0f,
-            1},
-        .eFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .eType         = PL_TEXTURE_TYPE_2D,
-        .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-        .pcDebugName   = "main depth texture",
-        .eSampleCount  = (gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount : 1
-    };
-
-    plTexture* ptDepthTexture = NULL;
-    gptStarterCtx->tDepthTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptDepthTexture);
-
-    plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
-    if(ptDepthTexture->tMemoryRequirements.ulSize * 2 > gptGpuAllocators->get_buddy_block_size())
-        ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
-
-    const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst,
-        ptDepthTexture->tMemoryRequirements.uMemoryTypeBits, 
-        ptDepthTexture->tMemoryRequirements.ulSize,
-        ptDepthTexture->tMemoryRequirements.ulAlignment,
-        "depth texture memory");
-
-    gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
-}
-
-static void
-pl__starter_deactivate_depth_buffer(void)
-{
-    if(!(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER))
-        return;
-
-    gptStarterCtx->eFlags &= ~PL_STARTER_FLAGS_DEPTH_BUFFER;
-
-    gptGfx->flush_device(gptStarterCtx->ptDevice);
-
-    gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
-}
 
 void
 pl_starter_get_readback_buffer(uint64_t uSize, plBufferHandle* ptHandleOut, const char* pcName)

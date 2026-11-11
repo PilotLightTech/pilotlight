@@ -1843,6 +1843,7 @@ pl_graphics_acquire_swapchain_image(plSwapchain* ptSwapchain)
     plPlatformExtData* ptBackendData = ptIOCtx->pBackendPlatformData;
     gptGraphics->pMetalLayer = ptBackendData->ptLayer;
     gptGraphics->pMetalLayer.device = ptBackendData->tDevice;
+    gptGraphics->pMetalLayer.displaySyncEnabled = ptSwapchain->tInfo.bVSync;
 
     // get next drawable
     // if(ptSwapchain->tCurrentDrawable)

@@ -180,9 +180,10 @@ typedef struct _plStarterI
 
     // VSync/MSAA/Depth Buffering
     //    - active/deactive MSAA & depth buffers & vsync
-    //    - this will recreate the swapchain, render pass layouts
-    //      and render passes, so be sure to recreate any shaders
-    //      you created using these.
+    //    - MSAA/VSync changes are queued until begin_frame, before image acquisition.
+    //      The latest request wins; simultaneous changes share one recreation.
+    //    - MSAA affects the main pass only. Custom main-pass pipelines must match
+    //      get_swapchain_info().eSampleCount; draw extension pipelines adapt automatically.
     void (*activate_msaa)          (void);
     void (*deactivate_msaa)        (void);
     void (*activate_depth_buffer)  (void);
