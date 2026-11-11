@@ -225,7 +225,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
 @set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no -nodefaultlib:MSVCRT 
-@set PL_STATIC_LINK_LIBRARIES=vulkan-1.lib shaderc_combined.lib spirv-cross-c.lib spirv-cross-core.lib spirv-cross-cpp.lib spirv-cross-glsl.lib spirv-cross-hlsl.lib spirv-cross-msl.lib spirv-cross-reflect.lib spirv-cross-util.lib 
+@set PL_STATIC_LINK_LIBRARIES=vulkan-1.lib 
 @set PL_SOURCES="../extensions/pl_graphics_ext.c" 
 
 :: run compiler (and linker)
@@ -506,7 +506,6 @@ if %ERRORLEVEL% NEQ 0 (
 :Build_pl_draw_2d_frag
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
 @set PL_SOURCES="../shaders/pl_draw_2d_frag.cpp" 
@@ -516,7 +515,7 @@ if %ERRORLEVEL% NEQ 0 (
 @echo [1m[93mTarget: pl_draw_2d_frag[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_frag.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_frag_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_frag.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_frag_%random%.pdb"
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -564,7 +563,6 @@ if %ERRORLEVEL% NEQ 0 (
 :Build_pl_draw_2d_sdf_frag
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
 @set PL_SOURCES="../shaders/pl_draw_2d_sdf_frag.cpp" 
@@ -574,7 +572,7 @@ if %ERRORLEVEL% NEQ 0 (
 @echo [1m[93mTarget: pl_draw_2d_sdf_frag[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_sdf_frag.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_sdf_frag_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_sdf_frag.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_sdf_frag_%random%.pdb"
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -622,7 +620,6 @@ if %ERRORLEVEL% NEQ 0 (
 :Build_pl_draw_2d_vert
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
 @set PL_SOURCES="../shaders/pl_draw_2d_vert.cpp" 
@@ -632,7 +629,7 @@ if %ERRORLEVEL% NEQ 0 (
 @echo [1m[93mTarget: pl_draw_2d_vert[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_vert.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_vert_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_vert.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_vert_%random%.pdb"
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -1121,7 +1118,6 @@ if %ERRORLEVEL% NEQ 0 (
 :Build_pl_draw_2d_frag
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
 @set PL_SOURCES="../shaders/pl_draw_2d_frag.cpp" 
@@ -1131,7 +1127,7 @@ if %ERRORLEVEL% NEQ 0 (
 @echo [1m[93mTarget: pl_draw_2d_frag[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_frag.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_frag_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_frag.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_frag_%random%.pdb"
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -1179,7 +1175,6 @@ if %ERRORLEVEL% NEQ 0 (
 :Build_pl_draw_2d_sdf_frag
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
 @set PL_SOURCES="../shaders/pl_draw_2d_sdf_frag.cpp" 
@@ -1189,7 +1184,7 @@ if %ERRORLEVEL% NEQ 0 (
 @echo [1m[93mTarget: pl_draw_2d_sdf_frag[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_sdf_frag.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_sdf_frag_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_sdf_frag.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_sdf_frag_%random%.pdb"
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -1237,7 +1232,6 @@ if %ERRORLEVEL% NEQ 0 (
 :Build_pl_draw_2d_vert
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
 @set PL_SOURCES="../shaders/pl_draw_2d_vert.cpp" 
@@ -1247,7 +1241,7 @@ if %ERRORLEVEL% NEQ 0 (
 @echo [1m[93mTarget: pl_draw_2d_vert[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_vert.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_vert_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_vert.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_vert_%random%.pdb"
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -1457,7 +1451,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
 @set PL_LINKER_FLAGS=-noexp -noimplib -incremental:no 
-@set PL_STATIC_LINK_LIBRARIES=vulkan-1.lib shaderc_combined.lib spirv-cross-c.lib spirv-cross-core.lib spirv-cross-cpp.lib spirv-cross-glsl.lib spirv-cross-hlsl.lib spirv-cross-msl.lib spirv-cross-reflect.lib spirv-cross-util.lib 
+@set PL_STATIC_LINK_LIBRARIES=vulkan-1.lib 
 @set PL_SOURCES="../extensions/pl_graphics_ext.c" 
 
 :: run compiler (and linker)
@@ -1738,7 +1732,6 @@ if %ERRORLEVEL% NEQ 0 (
 :Build_pl_draw_2d_frag
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
 @set PL_SOURCES="../shaders/pl_draw_2d_frag.cpp" 
@@ -1748,7 +1741,7 @@ if %ERRORLEVEL% NEQ 0 (
 @echo [1m[93mTarget: pl_draw_2d_frag[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_frag.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_frag_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_frag.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_frag_%random%.pdb"
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -1796,7 +1789,6 @@ if %ERRORLEVEL% NEQ 0 (
 :Build_pl_draw_2d_sdf_frag
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
 @set PL_SOURCES="../shaders/pl_draw_2d_sdf_frag.cpp" 
@@ -1806,7 +1798,7 @@ if %ERRORLEVEL% NEQ 0 (
 @echo [1m[93mTarget: pl_draw_2d_sdf_frag[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_sdf_frag.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_sdf_frag_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_sdf_frag.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_sdf_frag_%random%.pdb"
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -1854,7 +1846,6 @@ if %ERRORLEVEL% NEQ 0 (
 :Build_pl_draw_2d_vert
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_CPU_BACKEND -DPL_SHADER_CODE 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -Zi -TP 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
 @set PL_SOURCES="../shaders/pl_draw_2d_vert.cpp" 
@@ -1864,7 +1855,7 @@ if %ERRORLEVEL% NEQ 0 (
 @echo [1m[93mTarget: pl_draw_2d_vert[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_vert.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_vert_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_draw_2d_vert.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_draw_2d_vert_%random%.pdb"
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%

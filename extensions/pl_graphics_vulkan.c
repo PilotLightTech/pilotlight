@@ -3620,7 +3620,6 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
 
         if (ptDevice->iGraphicsQueueFamily > -1 && ptDevice->iPresentQueueFamily > -1) // complete
             break;
-        i++;
     }
 
     const float fQueuePriority = 1.0f;

@@ -145,7 +145,10 @@ pl_starter_initialize(plStarterInit tInit)
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_SHADER_EXT)
     {
         static const plShaderOptions tDefaultShaderOptions = {
-            .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG
+            .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
+                #ifdef PL_CONFIG_DEBUG
+                    | PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG
+                #endif
         };
         gptShader->initialize(&tDefaultShaderOptions);
     }

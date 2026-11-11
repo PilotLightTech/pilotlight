@@ -7057,7 +7057,10 @@ pl__renderer_scene_create_compute_shaders(plScene* ptScene)
         .apcDirectories = {
             "../shaders/"
         },
-        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
+            #ifdef PL_CONFIG_DEBUG
+                | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+            #endif
 
     };
     gptShader->set_options(&tNewDefaultShaderOptions);
@@ -7399,7 +7402,10 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
         .apcDirectories = {
             "../shaders/"
         },
-        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
+            #ifdef PL_CONFIG_DEBUG
+                | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+            #endif
 
     };
     gptShader->set_options(&tNewDefaultShaderOptions);
@@ -10074,7 +10080,10 @@ pl__renderer_load_shaders(plScene* ptScene)
         .apcDirectories = {
             "../shaders/"
         },
-        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
+            #ifdef PL_CONFIG_DEBUG
+                | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+            #endif
 
     };
     gptShader->set_options(&tNewDefaultShaderOptions);
