@@ -222,6 +222,10 @@ void main()
 
     bool bWater = bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_WATER);
     NormalInfo tNormalInfo;
+    // Texture modulation cannot make a zero clearcoat factor contribute.
+    if(material.fClearcoatFactor == 0.0)
+        material.iMaterialFlags &= ~PL_MATERIAL_SHADER_FLAG_CLEARCOAT;
+
     // Water replaces the base normal analytically. Only optional clearcoat and
     // anisotropy still consume the mesh tangent frame / normal map below.
     if(!bWater || bool(material.iMaterialFlags & (PL_MATERIAL_SHADER_FLAG_CLEARCOAT | PL_MATERIAL_SHADER_FLAG_ANISOTROPY)))
@@ -592,7 +596,8 @@ void main()
                 waterIllumination += sun * entry * pl_water_phase(dot(sunToSurface, v), material.tWater.tOptics.y);
             }
         }
-        // main sun light
+        // A disabled sun contributes neither surface lighting nor shadows.
+        if(tGpuScene.tData.fIntensity != 0.0 && any(notEqual(tGpuScene.tData.tColor, vec3(0.0))))
         {
 
             float shadow = 1.0;
@@ -818,6 +823,9 @@ void main()
             float shadow = 1.0;
 
             vec3 pointToLight = tLightData.tPosition - tShaderIn.tWorldPosition.xyz;
+            vec3 intensity = getLightIntensity(tLightData, pointToLight);
+            if(all(equal(intensity, vec3(0.0))))
+                continue;
 
             if(bShadows && tLightData.iCastShadow > 0)
             {
@@ -871,10 +879,6 @@ void main()
 
             if (NdotL > 0.0 && NdotV > 0.0)
             {
-                
-                vec3 intensity = getLightIntensity(tLightData, pointToLight);
-
-
                 vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
                 vec3 l_specular_dielectric = vec3(0.0);
                 vec3 l_specular_metal = vec3(0.0);
@@ -971,6 +975,9 @@ void main()
             float shadow = 1.0;
 
             vec3 pointToLight = tLightData.tPosition - tShaderIn.tWorldPosition.xyz;
+            vec3 intensity = getLightIntensity(tLightData, pointToLight);
+            if(all(equal(intensity, vec3(0.0))))
+                continue;
 
             if(bShadows && tLightData.iCastShadow > 0)
             {
@@ -1016,10 +1023,6 @@ void main()
 
             if (NdotL > 0.0 && NdotV > 0.0)
             {
-                
-                vec3 intensity = getLightIntensity(tLightData, pointToLight);
-
-
                 vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
                 vec3 l_specular_dielectric = vec3(0.0);
                 vec3 l_specular_metal = vec3(0.0);

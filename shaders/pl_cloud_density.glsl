@@ -42,7 +42,18 @@ cloudDensity(vec3 p, bool detail)
     // Avoid the three-octave shape noise and erosion in empty weather regions.
     if(coverage <= 0.0)
         return 0.0;
-    float shape = clamp((cloudFbm(q) - 0.25) / 0.6, 0.0, 1.0);
+    // Each noise octave is in [0, 1]. Stop only when even the maximum
+    // remaining contribution cannot lift the shape above the coverage cutoff.
+    // The margin makes the bound conservative under floating-point rounding.
+    float emptyThreshold = 0.25 + 0.6 * (1.0 - coverage) - 1e-6;
+    float shapeNoise = 0.57143 * cloudNoise(q);
+    if(shapeNoise + (0.28571 + 0.14286) <= emptyThreshold)
+        return 0.0;
+    shapeNoise += 0.28571 * cloudNoise(q * 2.03 + 17.1);
+    if(shapeNoise + 0.14286 <= emptyThreshold)
+        return 0.0;
+    shapeNoise += 0.14286 * cloudNoise(q * 4.11 + 31.7);
+    float shape = clamp((shapeNoise - 0.25) / 0.6, 0.0, 1.0);
     float density = clamp((shape - (1.0 - coverage)) / max(coverage, 0.01), 0.0, 1.0);
     // Flat bases, rounded tops, and fine erosion along the exposed edges.
     density *= smoothstep(0.0, 0.12, h) * (1.0 - smoothstep(0.55, 1.0, h));

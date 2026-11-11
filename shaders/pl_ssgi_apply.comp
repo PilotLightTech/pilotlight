@@ -10,12 +10,17 @@ void main()
     vec4 material = texelFetch(sampler2D(materialTexture, pointSampler), pixel, 0);
     if(depth <= 0.0 || !surfaceAt(pixel))
         return;
+    vec3 albedo = texelFetch(sampler2D(albedoTexture, pointSampler), pixel, 0).rgb;
+    vec3 diffuse = diffuseReflectance(material, albedo);
+    if(all(equal(diffuse, vec3(0.0))))
+        return;
     vec3 position = positionAt(pixel, depth);
-    vec3 n = normalAt(pixel);
+    vec3 worldNormal = Decode(texelFetch(sampler2D(normalTexture, pointSampler), pixel, 0).xy);
+    vec3 n = normalize(mat3(info.tData.tView) * worldNormal);
     vec3 indirect = vec3(0);
     float weights = 0.0;
-    for(int y = -2; y <= 2; y++)
-    for(int x = -2; x <= 2; x++)
+    for(int y = -PL_SSGI_FILTER_RADIUS; y <= PL_SSGI_FILTER_RADIUS; y++)
+    for(int x = -PL_SSGI_FILTER_RADIUS; x <= PL_SSGI_FILTER_RADIUS; x++)
     {
         ivec2 p = pixel + ivec2(x,y);
         if(!inside(p))
@@ -25,12 +30,19 @@ void main()
         if(d <= 0.0 || sampleLight.a <= 0.0)
             continue;
         vec3 offset = positionAt(p, d) - position;
-        float weight = exp(-float(x*x+y*y) / 4.0) * pow(max(dot(n, normalAt(p)), 0.0), 32.0) * exp(-abs(dot(offset, n)) / max(info.tData.tParameters.y * 0.25, 0.001));
+        // Camera rotation preserves normal angles; compare in world space to
+        // avoid rotating and renormalizing each neighboring normal.
+        // Exact integer exponent: avoid a general logarithm/exponential power.
+        float normalWeight = max(dot(worldNormal, Decode(texelFetch(sampler2D(normalTexture, pointSampler), p, 0).xy)), 0.0);
+        normalWeight *= normalWeight; // 2
+        normalWeight *= normalWeight; // 4
+        normalWeight *= normalWeight; // 8
+        normalWeight *= normalWeight; // 16
+        normalWeight *= normalWeight; // 32
+        float weight = exp(-float(x*x+y*y) / 4.0) * normalWeight * exp(-abs(dot(offset, n)) / max(info.tData.tParameters.y * 0.25, 0.001));
         indirect += sampleLight.rgb * weight;
         weights += weight;
     }
-    vec3 albedo = texelFetch(sampler2D(albedoTexture, pointSampler), pixel, 0).rgb;
-    vec3 diffuse = albedo * (1.0 - clamp(material.g, 0.0, 1.0)) * clamp(material.r, 0.0, 1.0);
     vec4 color = imageLoad(target, pixel);
     color.rgb += indirect / max(weights, 0.00001) * diffuse * info.tData.tParameters.z;
     imageStore(target, pixel, color);

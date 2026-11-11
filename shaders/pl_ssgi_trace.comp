@@ -2,14 +2,40 @@
 #extension GL_ARB_separate_shader_objects : enable
 #include "pl_ssgi.inc"
 
+// The 5x5 apply filter only consumes samples near a nonzero diffuse receiver.
+// Include a two-pixel halo around each 8x8 workgroup before rejecting a trace.
+#define PL_SSGI_RECEIVER_TILE_SIZE (PL_SSGI_GROUP_SIZE + 2 * PL_SSGI_FILTER_RADIUS)
+shared uint diffuseReceivers[PL_SSGI_RECEIVER_TILE_SIZE * PL_SSGI_RECEIVER_TILE_SIZE];
+
 void main()
 {
+    ivec2 tileOrigin = ivec2(gl_WorkGroupID.xy) * PL_SSGI_GROUP_SIZE - ivec2(PL_SSGI_FILTER_RADIUS);
+    for(uint i = gl_LocalInvocationIndex; i < uint(PL_SSGI_RECEIVER_TILE_SIZE * PL_SSGI_RECEIVER_TILE_SIZE); i += uint(PL_SSGI_GROUP_SIZE * PL_SSGI_GROUP_SIZE))
+    {
+        ivec2 receiver = tileOrigin + ivec2(int(i % uint(PL_SSGI_RECEIVER_TILE_SIZE)), int(i / uint(PL_SSGI_RECEIVER_TILE_SIZE)));
+        uint needed = 0u;
+        if(inside(receiver))
+        {
+            vec4 material = texelFetch(sampler2D(materialTexture, pointSampler), receiver, 0);
+            vec3 albedo = texelFetch(sampler2D(albedoTexture, pointSampler), receiver, 0).rgb;
+            vec3 diffuse = diffuseReflectance(material, albedo);
+            needed = any(notEqual(diffuse, vec3(0.0))) ? 1u : 0u;
+        }
+        diffuseReceivers[i] = needed;
+    }
+    barrier();
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if(!inside(pixel)) return;
     imageStore(target, pixel, vec4(0.0));
     float depth = depthAt(pixel);
     // Reverse-Z clear depth is zero; both opaque lighting paths supply data.
     if(depth <= 0.0 || !surfaceAt(pixel))
+        return;
+    bool needed = false;
+    for(uint y = 0u; y < uint(2 * PL_SSGI_FILTER_RADIUS + 1) && !needed; ++y)
+        for(uint x = 0u; x < uint(2 * PL_SSGI_FILTER_RADIUS + 1) && !needed; ++x)
+            needed = diffuseReceivers[(gl_LocalInvocationID.y + y) * uint(PL_SSGI_RECEIVER_TILE_SIZE) + gl_LocalInvocationID.x + x] != 0u;
+    if(!needed)
         return;
     vec3 origin = positionAt(pixel, depth);
     vec3 n = normalAt(pixel);
@@ -20,19 +46,27 @@ void main()
     float bias = min(thickness * 0.25, radius * 0.02);
     float rotation = fract(sin(dot(vec2(pixel), vec2(12.9898,78.233))) * 43758.5453);
     vec3 indirect = vec3(0.0);
+    vec3 start = origin + n * bias;
+    vec4 startClip = info.tData.tProjection * vec4(start, 1.0);
+    // Standard perspective and orthographic depth reconstruction needs only Z/W.
+    // Keep the general path for projections whose depth also depends on X/Y.
+    bool depthOnly = info.tData.tProjectionInv[0].z == 0.0 && info.tData.tProjectionInv[1].z == 0.0 &&
+        info.tData.tProjectionInv[0].w == 0.0 && info.tData.tProjectionInv[1].w == 0.0;
+    vec2 depthScale = info.tData.tProjectionInv[2].zw;
+    vec2 depthOffset = info.tData.tProjectionInv[3].zw;
     for(uint ray = 0; ray < info.tData.uRayCount; ray++)
     {
         // Cosine-weighted hemisphere: BRDF cosine / PDF cancels to albedo.
         float u = (float(ray) + 0.5) / float(info.tData.uRayCount);
         float phi = 2.0 * PL_PI * fract(float(ray) * 0.61803398875 + rotation);
         vec3 dir = tangent * (sqrt(u) * cos(phi)) + bitangent * (sqrt(u) * sin(phi)) + n * sqrt(1.0 - u);
-        vec3 start = origin + n * bias;
+        vec4 directionClip = info.tData.tProjection * vec4(dir, 0.0);
         float previousDelta = -thickness;
         for(uint step = 1; step <= info.tData.uStepCount; step++)
         {
             float distanceAlongRay = radius * float(step) / float(info.tData.uStepCount);
-            vec3 p = start + dir * distanceAlongRay;
-            vec4 clip = info.tData.tProjection * vec4(p, 1.0);
+            vec4 clip = startClip + directionClip * distanceAlongRay;
+            float rayDepth = start.z + dir.z * distanceAlongRay;
             if(clip.w <= 0.0)
                 break;
             vec3 ndc = clip.xyz / clip.w;
@@ -51,9 +85,16 @@ void main()
                 continue; 
             }
             
-            vec3 surface = positionAt(hitPixel, hitDepth);
+            float surfaceDepth;
+            if(depthOnly)
+            {
+                vec2 surfaceZW = depthScale * hitDepth + depthOffset;
+                surfaceDepth = surfaceZW.x / surfaceZW.y;
+            }
+            else
+                surfaceDepth = positionAt(hitPixel, hitDepth).z;
             // Absolute camera distance supports either view-space Z convention.
-            float delta = abs(p.z) - abs(surface.z);
+            float delta = abs(rayDepth) - abs(surfaceDepth);
             if(delta >= 0.0 && delta <= thickness && previousDelta < 0.0)
             {
                 if(surfaceAt(hitPixel) && dot(normalAt(hitPixel), -dir) > 0.0)

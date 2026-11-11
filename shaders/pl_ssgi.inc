@@ -1,7 +1,9 @@
 #include "pl_shader_interop_renderer.h"
 #include "pl_math.glsl"
 
-layout(local_size_x = 8, local_size_y = 8) in;
+#define PL_SSGI_GROUP_SIZE 8
+#define PL_SSGI_FILTER_RADIUS 2
+layout(local_size_x = PL_SSGI_GROUP_SIZE, local_size_y = PL_SSGI_GROUP_SIZE) in;
 layout(set = 0, binding = 0, rgba16f) uniform image2D target;
 layout(set = 0, binding = 1) uniform texture2D sourceTexture;
 layout(set = 0, binding = 2) uniform texture2D depthTexture;
@@ -46,4 +48,11 @@ bool
 surfaceAt(ivec2 p)
 {
     return texelFetch(sampler2D(materialTexture, pointSampler), p, 0).a > 0.0 || texelFetch(sampler2D(albedoTexture, pointSampler), p, 0).a > 0.0;
+}
+
+// Shared by trace support culling and the apply pass; keep their zero tests identical.
+vec3
+diffuseReflectance(vec4 material, vec3 albedo)
+{
+    return albedo * (1.0 - clamp(material.g, 0.0, 1.0)) * clamp(material.r, 0.0, 1.0);
 }
