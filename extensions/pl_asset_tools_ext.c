@@ -110,6 +110,8 @@ static const plConsoleI*       gptConsole       = NULL;
 #define PL_ICON_FA_DRAW_POLYGON "\xef\x97\xae"	// U+f5ee
 #define PL_ICON_FA_BONE "\xef\x97\x97"	// U+f5d7
 #define PL_ICON_FA_TRASH_CAN "\xef\x8b\xad"	// U+f2ed
+#define PL_ICON_FA_STAR "\xef\x80\x85"	// U+f005
+
 
 static const char* apcComponentNames[] = {
     "None",
@@ -130,6 +132,7 @@ static const char* apcComponentNames[] = {
     PL_ICON_FA_FILM " Renderer",
     PL_ICON_FA_GLOBE " Terrain",
     PL_ICON_FA_FOLDER_OPEN " Library",
+    PL_ICON_FA_STAR " Decal",
 };
 
 static const char* apcAssetIcons[] = {
@@ -223,6 +226,7 @@ pl__asset_tools_blah(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, 
     const plEcsTypeKey tEnvironmentComponentType = gptRenderer->get_ecs_type_key_environment();
     const plEcsTypeKey tRendererComponentType = gptRenderer->get_ecs_type_key_renderer();
     const plEcsTypeKey tTerrainComponentType = gptRenderer->get_ecs_type_key_terrain();
+    const plEcsTypeKey tDecalComponentType = gptRenderer->get_ecs_type_key_decal();
 
     bool bResult = false;
     plTagComponent*               ptTagComp           = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), tEntity);
@@ -243,6 +247,7 @@ pl__asset_tools_blah(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, 
     plEnvironmentComponent*       ptEnvironment       = gptEcs->get_component(ptLibrary, tEnvironmentComponentType, tEntity);
     plRendererComponent*          ptRenderer          = gptEcs->get_component(ptLibrary, tRendererComponentType, tEntity);
     plTerrainComponent*           ptTerrain           = gptEcs->get_component(ptLibrary, tTerrainComponentType, tEntity);
+    plDecalComponent*             ptDecal             = gptEcs->get_component(ptLibrary, tDecalComponentType, tEntity);
 
 
     pl_sb_reset(gptAssetToolsCtx->sbcBuffer);
@@ -263,6 +268,7 @@ pl__asset_tools_blah(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, 
     if(ptRenderer)      { pl_sb_sprintf(gptAssetToolsCtx->sbcBuffer, "%s", PL_ICON_FA_FILM);                       pl_sb_pop(gptAssetToolsCtx->sbcBuffer); }
     if(ptLibraryComp)   { pl_sb_sprintf(gptAssetToolsCtx->sbcBuffer, "%s", PL_ICON_FA_FOLDER_OPEN);                pl_sb_pop(gptAssetToolsCtx->sbcBuffer); }
     if(ptTerrain)       { pl_sb_sprintf(gptAssetToolsCtx->sbcBuffer, "%s", PL_ICON_FA_GLOBE);                      pl_sb_pop(gptAssetToolsCtx->sbcBuffer); }
+    if(ptDecal)         { pl_sb_sprintf(gptAssetToolsCtx->sbcBuffer, "%s", PL_ICON_FA_STAR);                       pl_sb_pop(gptAssetToolsCtx->sbcBuffer); }
     pl_sb_sprintf(gptAssetToolsCtx->sbcBuffer, " %s", pcName);
 
     bool bLocal = gptEcs->is_local(ptLibrary, tEntity);
@@ -360,6 +366,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
         const plEcsTypeKey tRendererComponentType = gptRenderer->get_ecs_type_key_renderer();
         const plEcsTypeKey tTerrainComponentType = gptRenderer->get_ecs_type_key_terrain();
         const plEcsTypeKey tLibraryComponentType = gptEcs->get_ecs_type_key_library();
+        const plEcsTypeKey tDecalComponentType = gptRenderer->get_ecs_type_key_decal();
 
         plEcsTypeKey atComponentTypes[] = {
             INT32_MAX,
@@ -380,6 +387,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
             tRendererComponentType,
             tTerrainComponentType,
             tLibraryComponentType,
+            tDecalComponentType,
         };
 
         bool abCombo[PL_ARRAYSIZE(atComponentTypes)] = {0};

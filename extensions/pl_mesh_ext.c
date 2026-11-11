@@ -1323,7 +1323,7 @@ void
 pl_mesh_create_plane(plMesh* ptMesh)
 {
     plSubmeshAllocationDesc tAllocDesc = {
-        .uVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL,
+        .uVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0,
         .szVertexCount = 4,
         .szIndexCount = 6
     };

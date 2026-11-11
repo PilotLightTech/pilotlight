@@ -59,8 +59,8 @@ def rename_with_retry(src, dst):
             time.sleep(0.25)
 
 if development_assets:
-    download_zip('https://github.com/PilotLightTech/pilotlight-assets/archive/refs/heads/master.zip', '../resources/pilotlight-assets.zip', "test assets")
-    rename_with_retry('../resources/pilotlight-assets-master', '../resources/development')
+    download_zip('https://github.com/PilotLightTech/assets-dev/archive/refs/heads/main.zip', '../assets/assets-dev.zip', "dev assets")
+    rename_with_retry('../resources/assets-dev-main', '../assets/dev')
 
 if gltf_assets:
     download_zip('https://github.com/KhronosGroup/glTF-Sample-Assets/archive/refs/heads/main.zip', '../resources/gltf-sample-assets.zip', "sample gltf assets")

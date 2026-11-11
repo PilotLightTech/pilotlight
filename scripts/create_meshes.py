@@ -64,49 +64,6 @@ def sphere(radius, bands, material):
     return mesh
 
 
-def island(material, rings=24, segments=96):
-    """Irregular radial heightfield: submerged perimeter, beaches and low hills.
-
-    Unit-scale footprint, sea level y=0. Shared smooth normals keep material
-    boundaries continuous when the caller partitions triangles into submeshes.
-    """
-    mesh = primitive(material, [0]*6)
-    positions = [(0, 0.22, 0)]
-    for ring in range(1, rings+1):
-        r = ring/rings
-        for sector in range(segments):
-            a = math.tau*sector/segments
-            outline = 1 + 0.16*math.sin(3*a+0.6) + 0.09*math.cos(5*a-0.4) + 0.04*math.sin(9*a)
-            x, z = r*outline*math.cos(a), r*outline*math.sin(a)
-            # A gentle, uneven inland ridge falls through a broad shore into sea.
-            h = 0.22 - 0.48*r**2.8
-            h += 0.085*math.sin(x*5+z*2)*math.sin(z*4-x)*math.sin(math.pi*r)
-            positions.append((x,h,z))
-    indices = []
-    for j in range(segments):
-        indices.extend((0, 1+(j+1)%segments, 1+j))
-    for ring in range(1,rings):
-        inner, outer = 1+(ring-1)*segments, 1+ring*segments
-        for j in range(segments):
-            k=(j+1)%segments
-            indices.extend((inner+j, inner+k, outer+j, inner+k, outer+k, outer+j))
-    normals = [[0.,0.,0.] for _ in positions]
-    for i in range(0,len(indices),3):
-        a,b,c = indices[i:i+3]
-        u = [positions[b][k]-positions[a][k] for k in range(3)]
-        v = [positions[c][k]-positions[a][k] for k in range(3)]
-        n = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]]
-        for j in (a,b,c):
-            for k in range(3): normals[j][k] += n[k]
-    for p,n in zip(positions,normals):
-        length=math.sqrt(sum(v*v for v in n)); n=[v/length for v in n]
-        t=[n[1],-n[0],0]; length=math.sqrt(sum(v*v for v in t)); t=[v/length for v in t]
-        vertex(mesh,p,n,(*t,-1),((p[0]+1.4)/2.8,(p[2]+1.4)/2.8))
-    mesh['indices']=indices
-    mesh['aabb']=[min(p[k] for p in positions) for k in range(3)]+[max(p[k] for p in positions) for k in range(3)]
-    return mesh
-
-
 def ocean(material, inner_cells=128, outer_cells=32, inner_extent=128, extent=65536):
     """One continuous ocean grid, dense near islands and coarse at the horizon."""
     positive = [inner_extent*i/(inner_cells//2) for i in range(inner_cells//2+1)]

@@ -57,6 +57,7 @@ assets/textures/*
 
 # resources
 resources/development
+assets/dev
 resources/gltf-samples
 resources/user
 resources/*.zip

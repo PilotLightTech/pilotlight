@@ -400,6 +400,117 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptRenderer->register_asset_types();
     gptAsset->finalize();
 
+    // Generate missing built-in meshes once; no Python setup is required.
+    if(!gptVfs->does_file_exist("/assets/meshes/sphere.plmesh"))
+    {
+        plMesh tMesh = {0};
+        gptMesh->create_sphere(1.0f, 16, 16, &tMesh);
+        gptMesh->calculate_bounds(&tMesh);
+        tMesh.atSubmeshes[0].tMaterial = gptAsset->load("/assets/materials/default.plmaterial");
+        const plAssetDesc tMeshAsset = {
+            .tType = gptMesh->get_asset_type_key(),
+            .pcPath = "/assets/meshes/sphere.plmesh"
+        };
+        // Asset creation takes ownership of the mesh allocation.
+        plAssetHandle tMeshHandle = gptAsset->create(&tMeshAsset, &tMesh);
+        gptAsset->save(tMeshHandle, PL_ASSET_ENCODING_TEXT);
+    }
+
+    if(!gptVfs->does_file_exist("/assets/meshes/probe.plmesh"))
+    {
+        plMesh tMesh = {0};
+        gptMesh->create_sphere(0.25f, 32, 32, &tMesh);
+        gptMesh->calculate_bounds(&tMesh);
+        tMesh.atSubmeshes[0].tMaterial = gptAsset->load("/assets/materials/probe.plmaterial");
+        const plAssetDesc tMeshAsset = {
+            .tType = gptMesh->get_asset_type_key(),
+            .pcPath = "/assets/meshes/probe.plmesh"
+        };
+        // Asset creation takes ownership of the mesh allocation.
+        plAssetHandle tMeshHandle = gptAsset->create(&tMeshAsset, &tMesh);
+        gptAsset->save(tMeshHandle, PL_ASSET_ENCODING_TEXT);
+    }
+
+    if(!gptVfs->does_file_exist("/assets/meshes/cube.plmesh"))
+    {
+        plMesh tMesh = {0};
+        gptMesh->create_cube(&tMesh);
+        gptMesh->calculate_bounds(&tMesh);
+        tMesh.atSubmeshes[0].tMaterial = gptAsset->load("/assets/materials/default.plmaterial");
+        const plAssetDesc tMeshAsset = {
+            .tType = gptMesh->get_asset_type_key(),
+            .pcPath = "/assets/meshes/cube.plmesh"
+        };
+        // Asset creation takes ownership of the mesh allocation.
+        plAssetHandle tMeshHandle = gptAsset->create(&tMeshAsset, &tMesh);
+        gptAsset->save(tMeshHandle, PL_ASSET_ENCODING_TEXT);
+    }
+
+    if(!gptVfs->does_file_exist("/assets/meshes/plane.plmesh"))
+    {
+        plMesh tMesh = {0};
+        gptMesh->create_plane(&tMesh);
+        gptMesh->calculate_bounds(&tMesh);
+        tMesh.atSubmeshes[0].tMaterial = gptAsset->load("/assets/materials/default.plmaterial");
+        const plAssetDesc tMeshAsset = {
+            .tType = gptMesh->get_asset_type_key(),
+            .pcPath = "/assets/meshes/plane.plmesh"
+        };
+        // Asset creation takes ownership of the mesh allocation.
+        plAssetHandle tMeshHandle = gptAsset->create(&tMeshAsset, &tMesh);
+        gptAsset->save(tMeshHandle, PL_ASSET_ENCODING_TEXT);
+    }
+
+    if(!gptVfs->does_file_exist("/assets/meshes/water_grid.plmesh"))
+    {
+        const uint32_t uCells = 256;
+        const uint32_t uWidth = uCells + 1;
+        plMesh tWaterGrid = {0};
+        const plSubmeshAllocationDesc tAllocation = {
+            .uVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_TANGENT | PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0,
+            .szVertexCount = uWidth * uWidth,
+            .szIndexCount = uCells * uCells * 6
+        };
+        gptMesh->allocate(&tWaterGrid, &tAllocation, 1);
+        plSubmesh* ptSubmesh = &tWaterGrid.atSubmeshes[0];
+        for(uint32_t uZ = 0; uZ < uWidth; uZ++)
+        {
+            for(uint32_t uX = 0; uX < uWidth; uX++)
+            {
+                const uint32_t uVertex = uZ * uWidth + uX;
+                const float fU = (float)uX / (float)uCells;
+                const float fV = (float)uZ / (float)uCells;
+                ptSubmesh->ptVertexPositions[uVertex] = (plVec3){fU - 0.5f, 0.0f, fV - 0.5f};
+                ptSubmesh->ptVertexNormals[uVertex] = (plVec3){0.0f, 1.0f, 0.0f};
+                ptSubmesh->ptVertexTangents[uVertex] = (plVec4){1.0f, 0.0f, 0.0f, -1.0f};
+                ptSubmesh->ptVertexTextureCoordinates[0][uVertex] = (plVec2){fU, fV};
+            }
+        }
+        uint32_t uIndex = 0;
+        for(uint32_t uZ = 0; uZ < uCells; uZ++)
+        {
+            for(uint32_t uX = 0; uX < uCells; uX++)
+            {
+                const uint32_t uVertex = uZ * uWidth + uX;
+                ptSubmesh->puIndices[uIndex++] = uVertex;
+                ptSubmesh->puIndices[uIndex++] = uVertex + uWidth;
+                ptSubmesh->puIndices[uIndex++] = uVertex + 1;
+                ptSubmesh->puIndices[uIndex++] = uVertex + 1;
+                ptSubmesh->puIndices[uIndex++] = uVertex + uWidth;
+                ptSubmesh->puIndices[uIndex++] = uVertex + uWidth + 1;
+            }
+        }
+        gptMesh->calculate_bounds(&tWaterGrid);
+        ptSubmesh->tMaterial = gptAsset->load("/assets/materials/water.plmaterial");
+        const plAssetDesc tMeshAsset = {
+            .tType = gptMesh->get_asset_type_key(),
+            .pcPath = "/assets/meshes/water_grid.plmesh"
+        };
+        // Asset creation takes ownership of the mesh allocation.
+        plAssetHandle tWaterAsset = gptAsset->create(&tMeshAsset, &tWaterGrid);
+        gptAsset->save(tWaterAsset, PL_ASSET_ENCODING_TEXT);
+    }
+
     // initialize ecs component library
     plEcsInit tEcsInit = {0};
     gptEcs->initialize(tEcsInit);
@@ -1111,7 +1222,7 @@ pl__refresh_files(plAppData* ptAppData)
     // local
     {
         plDirectoryInfo tDirectoryInfo = {0};
-        gptFile->get_directory_info("../resources/development/scenes/", &tDirectoryInfo);
+        gptFile->get_directory_info("../assets/dev/scenes/", &tDirectoryInfo);
         pl_sb_reserve(ptAppData->sbtSceneFilesCore, tDirectoryInfo.uFileCount);
         for(uint32_t i = 0; i < tDirectoryInfo.uEntryCount; i++)
         {
@@ -1125,8 +1236,8 @@ pl__refresh_files(plAppData* ptAppData)
                     pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
                     char acCurrentScene[PL_MAX_PATH_LENGTH] = {0};
                     char acFullPath[PL_MAX_PATH_LENGTH] = {0};
-                    pl_sprintf(acCurrentScene, "../resources/development/scenes/%s.plscene", acFileNameOnly);
-                    pl_sprintf(acFullPath, "../resources/development/scenes/%s.plscene", acFileNameOnly);
+                    pl_sprintf(acCurrentScene, "../assets/dev/scenes/%s.plscene", acFileNameOnly);
+                    pl_sprintf(acFullPath, "../assets/dev/scenes/%s.plscene", acFileNameOnly);
                     // if(pl__verify_scene(ptAppData, acCurrentScene))
                     {
                         pl_sb_add(ptAppData->sbtSceneFilesCore);
