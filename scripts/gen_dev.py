@@ -94,6 +94,9 @@ with pl.project("pilotlight"):
     pl.add_profile(compiler_filter=["clang"],
                     configuration_filter=["debug", "moltenvk", "test"],
                     compiler_flags=["--debug", "-g"])
+    pl.add_profile(compiler_filter=["clang"],
+                    configuration_filter=["release"],
+                    compiler_flags=["-O2"])
     
     # configs
     pl.add_profile(configuration_filter=["test"], definitions=["PL_CONFIG_TEST"])
