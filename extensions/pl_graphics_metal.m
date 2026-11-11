@@ -1685,8 +1685,8 @@ pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plS
     memset(ptSwap, 0, sizeof(plSwapchain));
 
     ptSwap->tInfo.bVSync = ptInit->bVSync;
-    ptSwap->tInfo.uWidth = ptInit->uWidth;
-    ptSwap->tInfo.uHeight = ptInit->uHeight;
+    ptSwap->tInfo.uWidth = ptInit->uWidth ? ptInit->uWidth : (uint32_t)(gptIO->tMainViewportSize.x * gptIO->tMainFramebufferScale.x);
+    ptSwap->tInfo.uHeight = ptInit->uHeight ? ptInit->uHeight : (uint32_t)(gptIO->tMainViewportSize.y * gptIO->tMainFramebufferScale.y);
     ptSwap->ptSurface = ptSurface;
     ptSwap->ptDevice = ptDevice;
     ptSwap->uImageCount = gptGraphics->uFramesInFlight;
@@ -1703,10 +1703,10 @@ pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plS
         plTextureHandle tHandle = pl__get_new_texture_handle(ptDevice);
         plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tHandle);
         pl_sb_push(ptSwap->sbtSwapchainTextureViews, tHandle);
-        ptTexture->tDesc.tDimensions = (plVec3){gptIO->tMainViewportSize.x, gptIO->tMainViewportSize.y, 1.0f};
+        ptTexture->tDesc.tDimensions = (plVec3){(float)ptSwap->tInfo.uWidth, (float)ptSwap->tInfo.uHeight, 1.0f};
         ptTexture->tDesc.uLayers = 1;
         ptTexture->tDesc.uMips = 1;
-        ptTexture->tDesc.eSampleCount = ptSwap->tInfo.eSampleCount;
+        ptTexture->tDesc.eSampleCount = 1; // Drawables are single-sampled; MSAA uses a separate attachment.
         ptTexture->tDesc.eFormat = ptSwap->tInfo.eFormat;
         ptTexture->tDesc.eType = PL_TEXTURE_TYPE_2D;
         ptTexture->tDesc.eUsage = PL_TEXTURE_USAGE_PRESENT;
@@ -1720,8 +1720,6 @@ pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plS
         ptTexture->tView.tTexture = tHandle;
         ptTexture->tView.pcDebugName = "swapchain dummy image view";
     }
-    ptSwap->tInfo.uWidth = (uint32_t)gptIO->tMainViewportSize.x;
-    ptSwap->tInfo.uHeight = (uint32_t)gptIO->tMainViewportSize.y;
     pl_sb_resize(ptSwap->sbtSwapchainTextureViews, gptGraphics->uFramesInFlight);
 
     return ptSwap;
@@ -1739,15 +1737,18 @@ void
 pl_graphics_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
 {
 
-    bool bMSAAChange = ptSwap->tInfo.eSampleCount != ptInit->eSampleCount;
-
-    // gptGraphics->uCurrentFrameIndex = 0;
     ptSwap->tInfo.bVSync = ptInit->bVSync;
     ptSwap->tInfo.uWidth = ptInit->uWidth;
     ptSwap->tInfo.uHeight = ptInit->uHeight;
     ptSwap->tInfo.eSampleCount = pl_min(ptInit->eSampleCount, ptSwap->ptDevice->tInfo.eMaxSampleCount);
     if(ptSwap->tInfo.eSampleCount == 0)
         ptSwap->tInfo.eSampleCount = 1;
+
+    for(uint32_t i = 0; i < ptSwap->uImageCount; i++)
+    {
+        plTexture* ptTexture = pl_graphics_get_texture(ptSwap->ptDevice, ptSwap->sbtSwapchainTextureViews[i]);
+        ptTexture->tDesc.tDimensions = (plVec3){(float)ptSwap->tInfo.uWidth, (float)ptSwap->tInfo.uHeight, 1.0f};
+    }
 }
 
 plCommandPool*
@@ -1820,7 +1821,11 @@ pl_graphics_begin_frame(plDevice* ptDevice)
     // gptGraphics->tSwapchain.uCurrentImageIndex = gptGraphics->uCurrentFrameIndex;
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
     // ptFrame->uCurrentBufferIndex = 0;
-    [ptFrame->tFrameBoundaryEvent waitUntilSignaledValue:ptFrame->uNextValue timeoutMS:10000];
+    // A timeout does not make frame resources safe to collect or reset.
+    while(![ptFrame->tFrameBoundaryEvent waitUntilSignaledValue:ptFrame->uNextValue timeoutMS:10000])
+    {
+        PL_LOG_WARN_API(gptLog, uLogChannelGraphics, "GPU frame wait timed out; continuing to wait before reusing resources");
+    }
 
     pl__garbage_collect(ptDevice); 
     [ptDevice->tResidencySet requestResidency];
@@ -1856,6 +1861,13 @@ pl_graphics_acquire_swapchain_image(plSwapchain* ptSwapchain)
     plTextureHandle tTexture = ptSwapchain->sbtSwapchainTextureViews[gptGraphics->uCurrentFrameIndex];
     ptDevice->sbtTexturesHot[tTexture.uIndex].tTexture = ptSwapchain->tCurrentDrawable.texture;
     ptDevice->sbtTexturesHot[tTexture.uIndex].bSwapchain = true;
+
+    // The acquired drawable is authoritative, including during a Retina/resize transition.
+    ptSwapchain->tInfo.uWidth = (uint32_t)ptSwapchain->tCurrentDrawable.texture.width;
+    ptSwapchain->tInfo.uHeight = (uint32_t)ptSwapchain->tCurrentDrawable.texture.height;
+    plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tTexture);
+    ptTexture->tDesc.tDimensions = (plVec3){(float)ptSwapchain->tInfo.uWidth, (float)ptSwapchain->tInfo.uHeight, 1.0f};
+    ptTexture->tDesc.eSampleCount = 1;
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;

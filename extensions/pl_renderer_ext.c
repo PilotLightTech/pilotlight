@@ -1508,7 +1508,9 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
             {
                 PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "creating required transmission texture");
                 const plTextureDesc tRawOutput2TextureDesc = {
-                    .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
+                    // resize_view grows textures only after their spare capacity is exhausted.
+                    // The snapshot must cover the same capacity as its copy source.
+                    .tDimensions   = gptGfx->get_texture(ptDevice, ptView->tRawOutputTexture)->tDesc.tDimensions,
                     .eFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
                     .uLayers       = 1,
                     .uMips         = 0,

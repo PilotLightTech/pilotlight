@@ -199,11 +199,14 @@ pl_starter_initialize(plStarterInit tInit)
 
     // create swapchain
     const plSwapchainInit tSwapInit = {
+        .uWidth = (uint32_t)(gptIOI->get_io()->tMainViewportSize.x * gptIOI->get_io()->tMainFramebufferScale.x),
+        .uHeight = (uint32_t)(gptIOI->get_io()->tMainViewportSize.y * gptIOI->get_io()->tMainFramebufferScale.y),
         .bVSync = !(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF),
         .eSampleCount= (gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount : 1
     };
     plSwapchain* ptSwapchain = gptGfx->create_swapchain(ptDevice, gptStarterCtx->ptSurface, &tSwapInit);
     gptStarterCtx->ptSwapchain = ptSwapchain;
+    const plSwapchainInfo tInitialSwapchainInfo = gptGfx->get_swapchain_info(ptSwapchain);
 
     gptStarterCtx->ptLocalBuddyAllocator           = gptGpuAllocators->get_local_buddy_allocator(ptDevice);
     gptStarterCtx->ptLocalDedicatedAllocator       = gptGpuAllocators->get_local_dedicated_allocator(ptDevice);
@@ -214,7 +217,7 @@ pl_starter_initialize(plStarterInit tInit)
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
         const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {gptIOI->get_io()->tMainViewportSize.x + 400.0f, gptIOI->get_io()->tMainViewportSize.y + 400.0f, 1},
+            .tDimensions   = {(float)tInitialSwapchainInfo.uWidth + 400.0f, (float)tInitialSwapchainInfo.uHeight + 400.0f, 1},
             .eFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers       = 1,
             .uMips         = 1,
@@ -341,26 +344,16 @@ pl_starter_finalize(void)
     gptStarterCtx->ptBGLayer = gptDraw->request_2d_layer(gptStarterCtx->ptBGDrawlist);
 }
 
-void
-pl_starter_resize(void)
+static void
+pl__starter_resize_attachments(void)
 {
-    // perform any operations required during a window resize
-    plIO* ptIO = gptIOI->get_io();
-    plSwapchainInit tDesc = {
-        .bVSync  = !(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF),
-        .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
-        .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
-        .eSampleCount = (gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount : 1
-    };
-    gptGfx->recreate_swapchain(gptStarterCtx->ptSwapchain, &tDesc);
-
     plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
 
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
         plVec3 tNewDimensions = {
-                (float)tInfo.uWidth * ptIO->tMainFramebufferScale.x,
-                (float)tInfo.uHeight * ptIO->tMainFramebufferScale.y,
+                (float)tInfo.uWidth,
+                (float)tInfo.uHeight,
                 1};
 
         plTexture* ptTexture = gptGfx->get_texture(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
@@ -442,6 +435,22 @@ pl_starter_resize(void)
         }
 
     }
+}
+
+void
+pl_starter_resize(void)
+{
+    // perform any operations required during a window resize
+    plIO* ptIO = gptIOI->get_io();
+    plSwapchainInit tDesc = {
+        .bVSync  = !(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF),
+        .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
+        .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
+        .eSampleCount = (gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount : 1
+    };
+    gptGfx->recreate_swapchain(gptStarterCtx->ptSwapchain, &tDesc);
+
+    pl__starter_resize_attachments();
 }
 
 void
@@ -573,12 +582,19 @@ pl_starter_begin_frame(void)
 
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
     {
+        const plSwapchainInfo tBeforeAcquire = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
         if(!gptGfx->acquire_swapchain_image(gptStarterCtx->ptSwapchain))
         {
             pl_starter_resize();
             if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
                 gptProfile->end_frame();
             return false;
+        }
+        const plSwapchainInfo tAfterAcquire = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
+        if(tBeforeAcquire.uWidth != tAfterAcquire.uWidth || tBeforeAcquire.uHeight != tAfterAcquire.uHeight)
+        {
+            // Keep the acquired drawable; only rebuild its dependent attachments.
+            pl__starter_resize_attachments();
         }
     }
 
@@ -604,11 +620,12 @@ pl_starter_begin_main_pass(void)
 
         uint32_t uImageCount = 0;
         plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptStarterCtx->ptSwapchain, &uImageCount);
+        const plSwapchainInfo tSwapchainInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
 
         plRenderInfo tRenderInfo = {
             .tRenderArea = {
                 .tMin = {0},
-                .tMax = {.x = gptIOI->get_io()->tMainViewportSize.x, .y = gptIOI->get_io()->tMainViewportSize.y}
+                .tMax = {.x = (float)tSwapchainInfo.uWidth, .y = (float)tSwapchainInfo.uHeight}
             },
             .atColorAttachments = {
                 {

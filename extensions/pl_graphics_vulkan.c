@@ -288,6 +288,7 @@ typedef struct _plSwapchain
     plTextureHandle* sbtSwapchainTextureViews;
     uint32_t         uCurrentImageIndex; // current image to use within the swap chain
     VkSemaphore*     sbtRenderFinish;
+    bool             bSuboptimal;
 
     // platform specific
     plSurface*          ptSurface;
@@ -3951,6 +3952,16 @@ pl_graphics_acquire_swapchain_image(plSwapchain* ptSwap)
         PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
         return false;
     }
+    // SUBOPTIMAL still acquires an image and signals the acquire semaphore.
+    // Consume it in present() before asking the caller to recreate the swapchain.
+    ptSwap->bSuboptimal = err == VK_SUBOPTIMAL_KHR;
+    if(err != VK_SUCCESS && err != VK_SUBOPTIMAL_KHR)
+    {
+        PL_LOG_ERROR_API_F(gptLog, uLogChannelGraphics, "swapchain acquisition failed: %d", (int)err);
+        PL_VULKAN(err);
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        return false;
+    }
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;
 }
@@ -3994,6 +4005,16 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
 
     VkSemaphore atSignalSemaphores[PL_MAX_TIMELINE_SEMAPHORES + 1] = {0};
 
+    // Acquisition waits are required even without timeline submission info.
+    const uint32_t uTimelineWaitCount = ptSubmitInfo ? ptSubmitInfo->uWaitSemaphoreCount : 0;
+    PL_ASSERT(uTimelineWaitCount + uSwapchainCount <= 64);
+    for(uint32_t i = 0; i < uSwapchainCount; i++)
+    {
+        atWaitSemaphores[uTimelineWaitCount + i] = ptSwaps[i]->atImageAvailable[gptGraphics->uCurrentFrameIndex];
+        atWaitStages[uTimelineWaitCount + i] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    }
+    uint64_t auWaitValues[64] = {0};
+
     if(ptSubmitInfo)
     {
         for (uint32_t i = 0; i < ptSubmitInfo->uWaitSemaphoreCount; i++)
@@ -4001,14 +4022,13 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
             atWaitSemaphores[i] = ptSubmitInfo->atWaitSempahores[i]->tSemaphore;
             atWaitStages[i] = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
         }
-        for(uint32_t i = 0; i < uSwapchainCount; i++)
+        for(uint32_t i = 0; i < ptSubmitInfo->uWaitSemaphoreCount; i++)
         {
-            atWaitSemaphores[ptSubmitInfo->uWaitSemaphoreCount + i] = ptSwaps[i]->atImageAvailable[gptGraphics->uCurrentFrameIndex];
-            atWaitStages[ptSubmitInfo->uWaitSemaphoreCount + i] = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+            auWaitValues[i] = ptSubmitInfo->auWaitSemaphoreValues[i];
         }
 
         tTimelineInfo.waitSemaphoreValueCount = ptSubmitInfo->uWaitSemaphoreCount + uSwapchainCount;
-        tTimelineInfo.pWaitSemaphoreValues = ptSubmitInfo->auWaitSemaphoreValues;
+        tTimelineInfo.pWaitSemaphoreValues = auWaitValues;
 
         tSubmitInfo.pNext = &tTimelineInfo;
         tSubmitInfo.pWaitSemaphores = atWaitSemaphores;
@@ -4048,17 +4068,21 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
         .pImageIndices      = auImageIndices
     };
     tResult = vkQueuePresentKHR(ptDevice->tPresentQueue, &tPresentInfo);
-    if (tResult == VK_ERROR_OUT_OF_DATE_KHR)
+    bool bRecreate = tResult == VK_ERROR_OUT_OF_DATE_KHR || tResult == VK_SUBOPTIMAL_KHR;
+    for(uint32_t i = 0; i < uSwapchainCount; i++)
+        bRecreate |= ptSwaps[i]->bSuboptimal;
+    if(tResult != VK_SUCCESS && tResult != VK_ERROR_OUT_OF_DATE_KHR && tResult != VK_SUBOPTIMAL_KHR)
     {
-        pl_sb_push(ptCmdBuffer->ptPool->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-        return false;
+        PL_LOG_ERROR_API_F(gptLog, uLogChannelGraphics, "swapchain presentation failed: %d", (int)tResult);
+        PL_VULKAN(tResult);
+        bRecreate = true;
     }
+    // Submission happened even when presentation requests recreation.
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
     ptDevice->sbtFrames[gptGraphics->uCurrentFrameIndex].uCurrentBufferIndex = 0;
     pl_sb_push(ptCmdBuffer->ptPool->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-    return true;
+    return !bRecreate;
 }
 
 void
