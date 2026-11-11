@@ -57,6 +57,13 @@ Index of this file:
 #define PL_DRAW_LINE_DETAIL_COUNT 13
 #define PL_DRAW_LINE_ROW_COUNT (PL_DRAW_LINE_WIDTH_MAX + 1 + PL_DRAW_LINE_DETAIL_COUNT)
 
+// Submitted workload totals; plStatsI::new_frame resets these counters.
+#define PL_DRAW_STAT(name, value) do { \
+    static double* pdDrawStat = NULL; \
+    if(!pdDrawStat) pdDrawStat = gptStats->get_counter(name); \
+    *pdDrawStat += (double)(value); \
+} while(0)
+
 // advanced callbacks (you probably shouldn't be using this, mostly for backends)
 typedef void (*plDrawCallback)(const plDrawList2D*, const plDrawCommand*);
 #define plDrawCallbackResetRenderState (plDrawCallback)(-8)
@@ -4823,6 +4830,8 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plCommandBuffer* ptCommandB
     if(pl_sb_size(ptDrawlist->sbtVertexBuffer) == 0u)
         return;
 
+    PL_DRAW_STAT("draw / 2D lists", 1);
+    PL_DRAW_STAT("draw / 2D uploaded vertices", pl_sb_size(ptDrawlist->sbtVertexBuffer));
     gptGfx->push_debug_group(ptCommandBuffer, "2D Draw", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
 
     plDevice* ptDevice = gptDrawCtx->ptDevice;
@@ -5018,9 +5027,13 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plCommandBuffer* ptCommandB
                 .uInstanceCount = 1,
                 .uVertexStart   = iVertexOffset
             };
+            PL_DRAW_STAT("draw / 2D draw calls", 1);
+            PL_DRAW_STAT("draw / 2D submitted triangles", cmd.uElementCount / 3);
             gptGfx->draw_indexed(ptCommandBuffer, 1, &tDraw);
         }
     }
+
+    PL_DRAW_STAT("draw / uploaded bytes", (double)uVtxBufSzNeeded + uIdxBufSzNeeded);
 
     // bump vertex & index buffer offset
     ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
@@ -5140,6 +5153,9 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandB
             .uVertexStart = iVertexOffset
         };
 
+        PL_DRAW_STAT("draw / 3D draw calls", 1);
+        PL_DRAW_STAT("draw / 3D submitted triangles", tDrawIndex.uIndexCount / 3);
+        PL_DRAW_STAT("draw / uploaded bytes", (double)uVtxBufSzNeeded + uIdxBufSzNeeded);
         gptGfx->draw_indexed(ptCommandBuffer, 1, &tDrawIndex);
         
         // bump vertex & index buffer offset
@@ -5239,6 +5255,9 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandB
             .uVertexStart = iVertexOffset
         };
 
+        PL_DRAW_STAT("draw / 3D draw calls", 1);
+        PL_DRAW_STAT("draw / 3D submitted triangles", tDrawIndex.uIndexCount / 3);
+        PL_DRAW_STAT("draw / uploaded bytes", (double)uVtxBufSzNeeded + uIdxBufSzNeeded);
         gptGfx->draw_indexed(ptCommandBuffer, 1, &tDrawIndex);
         
         // bump vertex & index buffer offset

@@ -25,6 +25,7 @@ Index of this file:
 
 // metal stuff
 #import <Metal/Metal.h>
+#include <mach/mach_time.h>
 #import <QuartzCore/CAMetalLayer.h>
 
 //-----------------------------------------------------------------------------
@@ -33,6 +34,7 @@ Index of this file:
 
 typedef struct _plCommandBuffer
 {
+    plGpuTimingCommand tTiming;
     plCommandPool*        ptPool;
     plDevice*             ptDevice;
     id<MTL4CommandBuffer> tCmdBuffer4;
@@ -80,6 +82,8 @@ typedef struct _plBindGroupPool
 
 typedef struct _plFrameContext
 {
+    plGpuTimingFrameData tTiming;
+    id<MTL4CounterHeap> tTimingHeap;
     uint32_t              uCurrentBufferIndex;
     plMetalDynamicBuffer* sbtDynamicBuffers;
     id<MTLSharedEvent>    tFrameBoundaryEvent;
@@ -156,6 +160,7 @@ typedef struct _plGraphics
 
 typedef struct _plDevice
 {
+    plGpuTimingState tTiming;
     plDeviceInit              tInit;
     plDeviceInfo              tInfo;
     plFrameGarbage*           sbtGarbage;
@@ -1573,6 +1578,11 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     plDevice* ptDevice = PL_ALLOC(sizeof(plDevice));
     memset(ptDevice, 0, sizeof(plDevice));
     ptDevice->tInit = *ptInit;
+    mach_timebase_info_data_t tTimebase;
+    mach_timebase_info(&tTimebase);
+    ptDevice->tTiming.tFrame.bSupported = true;
+    ptDevice->tTiming.ulMask = UINT64_MAX;
+    ptDevice->tTiming.dSecondsPerTick = (double)tTimebase.numer / (double)tTimebase.denom * 1e-9;
 
     pl_sb_resize(ptDevice->sbuFreeHeaps, 64);
     for(uint64_t i = 0; i < 64; i++)
@@ -1812,6 +1822,61 @@ pl_graphics_request_command_buffer(plCommandPool* ptPool, const char* pcDebugNam
     return ptCommandBuffer;
 }
 
+static void
+pl__metal_begin_timing_frame(plDevice* ptDevice, plFrameContext* ptFrame)
+{
+    if(ptFrame->tTiming.uCount)
+    {
+        NSData* ptData = [ptFrame->tTimingHeap resolveCounterRange:NSMakeRange(0, ptFrame->tTiming.uCount * 2)];
+        if(ptData.length >= ptFrame->tTiming.uCount * 2 * sizeof(MTL4TimestampHeapEntry))
+        {
+            const MTL4TimestampHeapEntry* atEntries = ptData.bytes;
+            for(uint32_t i = 0; i < ptFrame->tTiming.uCount; i++)
+            {
+                ptFrame->tTiming.aulTicks[i * 2] = atEntries[i * 2].timestamp;
+                ptFrame->tTiming.aulTicks[i * 2 + 1] = atEntries[i * 2 + 1].timestamp;
+                ptFrame->tTiming.abReady[i] = atEntries[i * 2].timestamp && atEntries[i * 2 + 1].timestamp;
+            }
+        }
+    }
+    pl__gpu_timing_begin_frame(ptDevice, &ptFrame->tTiming);
+    if(!ptFrame->tTiming.bActive)
+        return;
+    if(!ptFrame->tTimingHeap)
+    {
+        MTL4CounterHeapDescriptor* ptDesc = [MTL4CounterHeapDescriptor new];
+        ptDesc.type = MTL4CounterHeapTypeTimestamp;
+        ptDesc.count = PL_GPU_TIMING_MAX_SAMPLES * 2;
+        NSError* ptError = nil;
+        ptFrame->tTimingHeap = [ptDevice->tDevice newCounterHeapWithDescriptor:ptDesc error:&ptError];
+        [ptDesc release];
+        if(!ptFrame->tTimingHeap)
+        {
+            ptDevice->tTiming.tFrame.bSupported = false;
+            ptFrame->tTiming.bActive = false;
+            PL_LOG_WARN_API(gptLog, uLogChannelGraphics, "GPU timestamp counter heap unavailable");
+            return;
+        }
+        ptFrame->tTimingHeap.label = @"Pilot Light GPU timings";
+    }
+    [ptFrame->tTimingHeap invalidateCounterRange:NSMakeRange(0, PL_GPU_TIMING_MAX_SAMPLES * 2)];
+}
+
+static void
+pl__metal_write_timestamp(plCommandBuffer* ptCmdBuffer, uint32_t uIndex)
+{
+    if(uIndex == UINT32_MAX)
+        return;
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+    id<MTL4CounterHeap> tHeap = pl__get_frame_resources(ptDevice)->tTimingHeap;
+    if(ptDevice->tRenderEncoder)
+        [ptDevice->tRenderEncoder writeTimestampWithGranularity:MTL4TimestampGranularityPrecise afterStage:MTLRenderStageFragment intoHeap:tHeap atIndex:uIndex];
+    else if(ptDevice->tComputeEncoder)
+        [ptDevice->tComputeEncoder writeTimestampWithGranularity:MTL4TimestampGranularityPrecise intoHeap:tHeap atIndex:uIndex];
+    else
+        [ptCmdBuffer->tCmdBuffer4 writeTimestampIntoHeap:tHeap atIndex:uIndex];
+}
+
 void
 pl_graphics_begin_frame(plDevice* ptDevice)
 {
@@ -1827,6 +1892,7 @@ pl_graphics_begin_frame(plDevice* ptDevice)
         PL_LOG_WARN_API(gptLog, uLogChannelGraphics, "GPU frame wait timed out; continuing to wait before reusing resources");
     }
 
+    pl__metal_begin_timing_frame(ptDevice, ptFrame);
     pl__garbage_collect(ptDevice); 
     [ptDevice->tResidencySet requestResidency];
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
@@ -1877,6 +1943,7 @@ pl_graphics_acquire_swapchain_image(plSwapchain* ptSwapchain)
 void
 pl_graphics_begin_command_recording(plCommandBuffer* ptCommandBuffer)
 {
+    pl__gpu_timing_begin_command(ptCommandBuffer);
     plDevice* ptDevice = ptCommandBuffer->ptDevice;
     [ptDevice->tResidencySet requestResidency];
 
@@ -1917,6 +1984,7 @@ pl_graphics_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubm
         }
     }
 
+    pl__gpu_timing_submit(ptCommandBuffer);
     [ptDevice->tCmdQueue4 commit:&ptCommandBuffer->tCmdBuffer4 count:1];
     [ptDevice->tCmdQueue4 signalDrawable:ptSwaps[0]->tCurrentDrawable];
     
@@ -2117,6 +2185,7 @@ pl_graphics_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitIn
         }
     }
 
+    pl__gpu_timing_submit(ptCmdBuffer);
     [queue commit:&ptCmdBuffer->tCmdBuffer4 count:1];
 
     plFrameContext* ptFrame = pl__get_frame_resources(ptCmdBuffer->ptDevice);
@@ -2687,6 +2756,8 @@ pl_graphics_cleanup_device(plDevice* ptDevice)
     for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtFrames); i++)
     {
         plFrameContext* ptFrame = &ptDevice->sbtFrames[i];
+        [ptFrame->tTimingHeap release];
+        ptFrame->tTimingHeap = nil;
         pl_sb_free(ptFrame->sbtDynamicBuffers);
     }
     pl_sb_free(ptDevice->sbtFrames);
@@ -2702,6 +2773,7 @@ pl_graphics_insert_debug_label(plCommandBuffer* ptCmdBuffer, const char* pcLabel
 void
 pl_graphics_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
 {
+    pl__metal_write_timestamp(ptCmdBuffer, pl__gpu_timing_push(ptCmdBuffer, pcLabel));
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     if(ptDevice->tComputeEncoder)
     {
@@ -2720,6 +2792,7 @@ pl_graphics_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, 
 void
 pl_graphics_pop_debug_group(plCommandBuffer* ptCmdBuffer)
 {
+    pl__metal_write_timestamp(ptCmdBuffer, pl__gpu_timing_pop(ptCmdBuffer));
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     if(ptDevice->tComputeEncoder)
     {

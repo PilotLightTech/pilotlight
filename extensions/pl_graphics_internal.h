@@ -26,6 +26,9 @@ static const plProfileI* gptProfile = NULL;
 static const plLogI* gptLog = NULL;
 static const plIOI* gptIOI = NULL;
 static const plWindowI* gptWindows = NULL;
+#ifdef PL_CPU_BACKEND
+static const plTimerI* gptGraphicsTimer = NULL;
+#endif
 
 static plIO* gptIO = NULL;
 
@@ -55,6 +58,57 @@ typedef struct _plStackedBarrier
     plPipelineStageFlags tDstStages;
     plBarrierScope tScope;
 } plStackedBarrier;
+
+// Timing storage is bounded; no allocations occur while recording scopes.
+#define PL_GPU_TIMING_MAX_SAMPLES 512
+#define PL_GPU_TIMING_MAX_DEPTH 64
+
+typedef struct _plGpuTimingRecord
+{
+    plGpuTimingSample tSample;
+    uint64_t          ulCommand;
+    bool              bClosed;
+    bool              bSubmitted;
+} plGpuTimingRecord;
+
+typedef struct _plGpuTimingFrameData
+{
+    plGpuTimingRecord atRecords[PL_GPU_TIMING_MAX_SAMPLES];
+    uint64_t          aulTicks[PL_GPU_TIMING_MAX_SAMPLES * 2];
+    bool              abReady[PL_GPU_TIMING_MAX_SAMPLES];
+    uint64_t          ulFrameIndex;
+    uint32_t          uCount;
+    uint32_t          uDropped;
+    bool              bActive;
+    bool              bCaptured;
+} plGpuTimingFrameData;
+
+typedef struct _plGpuTimingState
+{
+    plGpuTimingFrame  tFrame;
+    plGpuTimingSample atSamples[PL_GPU_TIMING_MAX_SAMPLES];
+    uint64_t          ulNextFrame;
+    uint64_t          ulNextCommand;
+    uint64_t          ulMask;
+    double            dSecondsPerTick;
+} plGpuTimingState;
+
+typedef struct _plGpuTimingCommand
+{
+    plGpuTimingFrameData* ptFrame;
+    uint64_t              ulFrameIndex;
+    uint64_t              ulCommand;
+    uint32_t              uDepth;
+    uint32_t              auStack[PL_GPU_TIMING_MAX_DEPTH];
+} plGpuTimingCommand;
+
+static void             pl__gpu_timing_begin_frame(plDevice*, plGpuTimingFrameData*);
+static void             pl__gpu_timing_begin_command(plCommandBuffer*);
+static void             pl__gpu_timing_submit(plCommandBuffer*);
+static uint32_t         pl__gpu_timing_push(plCommandBuffer*, const char*);
+static uint32_t         pl__gpu_timing_pop(plCommandBuffer*);
+void                    pl_graphics_set_gpu_timing_enabled(plDevice*, bool);
+const plGpuTimingFrame* pl_graphics_get_gpu_timings(plDevice*);
 
 typedef struct _plFrameContext plFrameContext;
 

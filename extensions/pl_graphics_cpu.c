@@ -37,6 +37,7 @@ enum _plCpuCommandBufferItemType
     PL_CPU_COMMAND_BUFFER_ITEM_TYPE_COPY_BUFFER_TO_TEXTURE,
     PL_CPU_COMMAND_BUFFER_ITEM_TYPE_SET_VIEWPORT,
     PL_CPU_COMMAND_BUFFER_ITEM_TYPE_SET_SCISSOR,
+    PL_CPU_COMMAND_BUFFER_ITEM_TYPE_TIMESTAMP,
 };
 
 typedef struct _plInternalDeviceAllocatorData
@@ -105,6 +106,7 @@ typedef struct _plCpuComputeShader
 typedef struct _plCommandBufferItem
 {
     plCpuCommandBufferItemType eType;
+    uint32_t uTimestamp;
 
     // draw
     plRenderInfo    tRenderInfo;
@@ -134,6 +136,7 @@ typedef struct _plVertexCache
 
 typedef struct _plCommandBuffer
 {
+    plGpuTimingCommand tTiming;
     plDevice*          ptDevice; // for convience
     plCommandPool*     ptPool; // parent pool
     plCommandBuffer*   ptNext; // for linked list
@@ -169,6 +172,7 @@ typedef struct _plTimelineSemaphore
 
 typedef struct _plFrameContext
 {
+    plGpuTimingFrameData tTiming;
     // VkSemaphore    tRenderFinish;
     // VkFence        tInFlight;
     // VkFramebuffer* sbtRawFrameBuffers;
@@ -181,6 +185,7 @@ typedef struct _plFrameContext
 
 typedef struct _plDevice
 {
+    plGpuTimingState tTiming;
     // general
     plDeviceInit              tInit;
     plDeviceInfo              tInfo;
@@ -717,6 +722,7 @@ pl_graphics_get_swapchain_images(plSwapchain* ptSwap, uint32_t* puSizeOut)
 void
 pl_graphics_begin_command_recording(plCommandBuffer* ptCommandBuffer)
 {
+    pl__gpu_timing_begin_command(ptCommandBuffer);
     pl_sb_reset(ptCommandBuffer->sbtStream);
     ptCommandBuffer->uCurrentStreamItem = UINT32_MAX;
 }
@@ -847,8 +853,9 @@ pl_graphics_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMe
 void
 pl_graphics_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
-    free(ptBlock->pHostMapped);
+    PL_FREE((void*)ptBlock->uHandle);
     ptBlock->pHostMapped = NULL;
+    ptBlock->uHandle = 0;
 }
 
 plDeviceMemoryAllocation
@@ -962,6 +969,10 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     plDevice* ptDevice = PL_ALLOC(sizeof(plDevice));
     memset(ptDevice, 0, sizeof(plDevice));
     ptDevice->tInit = *ptInit;
+    ptDevice->tTiming.tFrame.bSupported = true;
+    ptDevice->tTiming.tFrame.bCpu = true;
+    ptDevice->tTiming.ulMask = UINT64_MAX;
+    ptDevice->tTiming.dSecondsPerTick = 1e-9;
 
     pl_sb_add(ptDevice->sbtShadersHot);
     pl_sb_add(ptDevice->sbtComputeShadersHot);
@@ -1065,6 +1076,7 @@ pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plS
 void
 pl_graphics_begin_frame(plDevice* ptDevice)
 {
+    pl__gpu_timing_begin_frame(ptDevice, &pl__get_frame_resources(ptDevice)->tTiming);
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     pl__garbage_collect(ptDevice);
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
@@ -1170,6 +1182,14 @@ pl_graphics_cleanup_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtSamplersHot);
     pl_sb_free(ptDevice->sbtBindGroupsHot);
     pl_sb_free(ptDevice->sbtBindGroupLayoutsHot);
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtFrames); i++)
+    {
+        plFrameContext* ptFrame = &ptDevice->sbtFrames[i];
+        for(uint32_t j = 0; j < pl_sb_size(ptFrame->sbtDynamicBuffers); j++)
+            ptDevice->ptDynamicAllocator->free(ptDevice->ptDynamicAllocator->ptInst, &ptFrame->sbtDynamicBuffers[j].tMemory);
+        pl_sb_free(ptFrame->sbtDynamicBuffers);
+    }
+    pl_sb_free(ptDevice->sbtFrames);
     pl__cleanup_common_device(ptDevice);
 }
 
@@ -1224,6 +1244,7 @@ pl_graphics_bind_graphics_bind_groups(plCommandBuffer* ptCommandBuffer, plShader
 void
 pl_graphics_submit_command_buffer(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubmitInfo)
 {
+    pl__gpu_timing_submit(ptCommandBuffer);
     plDevice* ptDevice = ptCommandBuffer->ptDevice;
     uint32_t uDrawCount = pl_sb_size(ptCommandBuffer->sbtStream);
     plRenderViewport tCurrentViewport = {0};
@@ -1232,7 +1253,18 @@ pl_graphics_submit_command_buffer(plCommandBuffer* ptCommandBuffer, const plSubm
     {
         plCommandBufferItem* ptCmdBufferItem = &ptCommandBuffer->sbtStream[uDrawIndex];
 
-        if(ptCmdBufferItem->eType == PL_CPU_COMMAND_BUFFER_ITEM_TYPE_SET_VIEWPORT)
+        if(ptCmdBufferItem->eType == PL_CPU_COMMAND_BUFFER_ITEM_TYPE_TIMESTAMP)
+        {
+            plGpuTimingFrameData* ptFrame = ptCommandBuffer->tTiming.ptFrame;
+            const uint32_t uIndex = ptCmdBufferItem->uTimestamp;
+            if(ptFrame->ulFrameIndex == ptCommandBuffer->tTiming.ulFrameIndex)
+            {
+                ptFrame->aulTicks[uIndex] = (uint64_t)(gptGraphicsTimer->get_raw_time() * 1e9);
+                if(uIndex & 1)
+                    ptFrame->abReady[uIndex / 2] = true;
+            }
+        }
+        else if(ptCmdBufferItem->eType == PL_CPU_COMMAND_BUFFER_ITEM_TYPE_SET_VIEWPORT)
         {
             tCurrentViewport = ptCmdBufferItem->tViewport;
         }
@@ -1620,6 +1652,8 @@ pl_graphics_cleanup_command_pool(plCommandPool* ptPool)
     {
         plCommandBuffer* ptNextCmdBuffer = ptCmdBuffer->ptNext;
         pl_sb_free(ptCmdBuffer->sbtStream);
+        pl_sb_free(ptCmdBuffer->sbtVertexCache);
+        PL_FREE(ptCmdBuffer->atCurrentDescriptorSets[3].atDescriptors);
         PL_FREE(ptCmdBuffer);
         ptCmdBuffer = ptNextCmdBuffer;
         
@@ -1735,11 +1769,25 @@ pl_graphics_insert_debug_label(plCommandBuffer* ptCmdBuffer, const char* pcLabel
 void
 pl_graphics_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
 {
+    const uint32_t uIndex = pl__gpu_timing_push(ptCmdBuffer, pcLabel);
+    if(uIndex != UINT32_MAX)
+    {
+        plCommandBufferItem tItem = {.eType = PL_CPU_COMMAND_BUFFER_ITEM_TYPE_TIMESTAMP, .uTimestamp = uIndex};
+        pl_sb_push(ptCmdBuffer->sbtStream, tItem);
+        ptCmdBuffer->uCurrentStreamItem++;
+    }
 }
 
 void
 pl_graphics_pop_debug_group(plCommandBuffer* ptCmdBuffer)
 {
+    const uint32_t uIndex = pl__gpu_timing_pop(ptCmdBuffer);
+    if(uIndex != UINT32_MAX)
+    {
+        plCommandBufferItem tItem = {.eType = PL_CPU_COMMAND_BUFFER_ITEM_TYPE_TIMESTAMP, .uTimestamp = uIndex};
+        pl_sb_push(ptCmdBuffer->sbtStream, tItem);
+        ptCmdBuffer->uCurrentStreamItem++;
+    }
 }
 
 void

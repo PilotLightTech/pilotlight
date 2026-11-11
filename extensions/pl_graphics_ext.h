@@ -121,7 +121,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {2, 2, 0}
+#define plGraphicsI_version {2, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -142,6 +142,10 @@ typedef struct _plGraphicsInit plGraphicsInit; // graphics extension intializati
 typedef struct _plDevice       plDevice;       // represents a single GPU
 typedef struct _plDeviceInfo   plDeviceInfo;   // device information
 typedef struct _plDeviceInit   plDeviceInit;   // device creation options
+
+// timing
+typedef struct _plGpuTimingSample plGpuTimingSample;
+typedef struct _plGpuTimingFrame  plGpuTimingFrame;
 
 // draw stream
 typedef struct _plDrawStream     plDrawStream;     // draw command for drawing stream api
@@ -529,7 +533,37 @@ typedef struct _plGraphicsI
     uint32_t     (*calculate_mip_count)(uint32_t width, uint32_t height);
     const char*  (*get_format_as_string)(plFormat);
 
+    // Optional timing of push_debug_group/pop_debug_group scopes (off by default).
+    // Changes take effect at begin_frame. Record/submit scopes within that frame,
+    // on the render thread, and submit each timed recording only once.
+    // Results are delayed by frames in flight; reads never wait for the GPU.
+    // The returned frame/samples remain valid until the next begin_frame.
+    void                    (*set_gpu_timing_enabled)(plDevice*, bool enabled);
+    const plGpuTimingFrame* (*get_gpu_timings)       (plDevice*);
 } plGraphicsI;
+
+// Times are seconds, relative to the earliest completed scope in this frame.
+// Durations include children and can overlap; their sum is not a frame time.
+// CPU backend measures stream execution, not recording or GPU execution.
+typedef struct _plGpuTimingSample
+{
+    char     acName[96];
+    double   dStartTime;
+    double   dDuration;
+    uint32_t uDepth;
+} plGpuTimingSample;
+
+typedef struct _plGpuTimingFrame
+{
+    const plGpuTimingSample* ptSamples;
+    uint64_t ulFrameIndex;
+    double   dDuration; // first scope start to last scope end, including gaps
+    uint32_t uSampleCount;
+    uint32_t uDroppedSamples; // capacity/depth overflow or unavailable results
+    bool     bSupported;
+    bool     bEnabled; // requested state; recording changes at next begin_frame
+    bool     bCpu;
+} plGpuTimingFrame;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs

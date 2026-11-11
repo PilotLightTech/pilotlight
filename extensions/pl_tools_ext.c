@@ -82,6 +82,12 @@ typedef struct _plDebugContext
     bool bShowDeviceMemoryAnalyzer;
     bool bShowMemoryAllocations;
     bool bShowProfiling;
+    bool bShowGpuProfiling;
+    bool bGpuProfileOpen;
+    bool bGpuProfilePaused;
+    plGpuTimingFrame tGpuFrame;
+    plGpuTimingSample* sbtGpuSamples;
+    plProfileCpuSample* sbtGpuGraphSamples;
     bool bShowStats;
     bool bShowLogging;
 } plDebugContext;
@@ -127,6 +133,7 @@ static plDebugContext* gptDebugCtx = NULL;
 
 static void pl__show_memory_allocations(bool* bValue);
 static void pl__show_profiling         (bool* bValue);
+static void pl__show_gpu_profiling     (bool* bValue);
 static void pl__show_statistics        (bool* bValue);
 static void pl__show_device_memory     (bool* bValue);
 static void pl__show_logging           (bool* bValue);
@@ -144,6 +151,7 @@ pl_tools_initialize(plToolsInit tInit)
         gptConsole->add_toggle_variable("t.LogTool", &gptDebugCtx->bShowLogging, "shows log tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
         gptConsole->add_toggle_variable("t.StatTool", &gptDebugCtx->bShowStats, "shows stats tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
         gptConsole->add_toggle_variable("t.ProfileTool", &gptDebugCtx->bShowProfiling, "shows profiling tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+        gptConsole->add_toggle_variable("t.GPUProfileTool", &gptDebugCtx->bShowGpuProfiling, "shows GPU timing tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
         gptConsole->add_toggle_variable("t.MemoryAllocationTool", &gptDebugCtx->bShowMemoryAllocations, "shows memory tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
         gptConsole->add_toggle_variable("t.DeviceMemoryAnalyzerTool", &gptDebugCtx->bShowDeviceMemoryAnalyzer, "shows gpu memory tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
     }
@@ -167,6 +175,17 @@ pl_tools_update(void)
         pl__show_profiling(&gptDebugCtx->bShowProfiling);
         PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     }
+
+    if(gptDebugCtx->bShowGpuProfiling && gptDebugCtx->ptDevice)
+    {
+        if(!gptDebugCtx->bGpuProfileOpen)
+            gptGfx->set_gpu_timing_enabled(gptDebugCtx->ptDevice, true);
+        gptDebugCtx->bGpuProfileOpen = true;
+        pl__show_gpu_profiling(&gptDebugCtx->bShowGpuProfiling);
+    }
+    if(gptDebugCtx->bGpuProfileOpen && !gptDebugCtx->bShowGpuProfiling)
+        gptGfx->set_gpu_timing_enabled(gptDebugCtx->ptDevice, false);
+    gptDebugCtx->bGpuProfileOpen = gptDebugCtx->bShowGpuProfiling;
 
     if(gptDebugCtx->bShowStats)
     {
@@ -358,14 +377,185 @@ pl__profile_tick_step(double dSpan, float fWidth, float fLabelWidth)
     return dStep * dMagnitude;
 }
 
+typedef struct _plProfileGraphState
+{
+    double dViewStart;
+    double dViewSpan;
+    float fDepthScroll;
+    bool bFitGraph;
+    bool bGraphDragged;
+} plProfileGraphState;
+
+static void
+pl__profile_graph(const plProfileCpuSample* ptSamples, uint32_t uSampleSize, double dFrameDuration, plProfileGraphState* ptState, const char* pcSpanLabel)
+{
+    static const plVec4 atColors[6] = {
+        {0.0f, 1.0f, 1.0f, 0.75f},
+        {1.0f, 0.5f, 0.0f, 0.75f},
+        {0.0f, 1.0f, 0.0f, 0.75f},
+        {0.0f, 0.5f, 1.0f, 0.75f},
+        {1.0f, 1.0f, 0.0f, 0.75f},
+        {1.0f, 0.0f, 1.0f, 0.75}
+    };
+    const plVec2 tWindowEnd = pl_add_vec2(gptUI->get_window_pos(), gptUI->get_window_size());
+    gptUI->layout_static(0.0f, 110.0f, 1);
+    if(gptUI->button("Fit Frame")) ptState->bFitGraph = true;
+    gptUI->layout_dynamic(0.0f, 1);
+    gptUI->text("Wheel: zoom at cursor | Drag: pan time/depth | Click sample: focus");
+    const plVec2 tParentCursorPos = gptUI->get_cursor_pos();
+    gptUI->layout_dynamic(pl_maxf(1.0f, tWindowEnd.y - tParentCursorPos.y - 15.0f), 1);
+    if(gptUI->begin_child("timeline", 0, PL_UI_WINDOW_FLAGS_NO_SCROLLBAR))
+    {
+        const plVec2 tChildPos = gptUI->get_window_pos();
+        const plVec2 tChildSize = gptUI->get_window_size();
+        const plVec2 tCursorPos = gptUI->get_cursor_pos();
+        const float fWidth = pl_maxf(1.0f, tChildPos.x + tChildSize.x - tCursorPos.x - 10.0f);
+        const float fHeight = pl_maxf(1.0f, tChildPos.y + tChildSize.y - tCursorPos.y - 10.0f);
+        const float fRowsTop = tCursorPos.y + 50.0f;
+        const float fBottom = tCursorPos.y + fHeight;
+        uint32_t uMaxDepth = 0;
+        for(uint32_t uIndex = 0; uIndex < uSampleSize; uIndex++)
+            uMaxDepth = pl_max(uMaxDepth, ptSamples[uIndex]._uDepth);
+        const float fMaxDepthScroll = pl_maxf(0.0f, (uMaxDepth + 1) * 25.0f - pl_maxf(0.0f, fHeight - 50.0f));
+        if(ptState->bFitGraph)
+        {
+            ptState->dViewStart = 0.0;
+            ptState->dViewSpan = dFrameDuration;
+            ptState->fDepthScroll = 0.0f;
+            ptState->bFitGraph = false;
+        }
+        pl__profile_clamp_view(dFrameDuration, &ptState->dViewStart, &ptState->dViewSpan);
+        ptState->fDepthScroll = pl_clampf(0.0f, ptState->fDepthScroll, fMaxDepthScroll);
+
+        gptUI->layout_static(fHeight, fWidth, 1);
+        const bool bClicked = gptUI->invisible_button("##profile_canvas", (plVec2){fWidth, fHeight});
+        const bool bHovered = gptUI->was_last_item_hovered();
+        const bool bActive = gptUI->was_last_item_active();
+        const plVec2 tMousePos = gptIOI->get_mouse_pos();
+        if(bHovered && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+            ptState->bGraphDragged = false;
+        if(bHovered && gptIOI->get_mouse_wheel() != 0.0f)
+            pl__profile_zoom_view(dFrameDuration, (tMousePos.x - tCursorPos.x) / fWidth, gptIOI->get_mouse_wheel(), &ptState->dViewStart, &ptState->dViewSpan);
+        if(bActive && gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT) && (ptState->bGraphDragged || gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 5.0f)))
+        {
+            ptState->bGraphDragged = true;
+            const plVec2 tDrag = gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 0.0f);
+            ptState->dViewStart -= (double)tDrag.x * ptState->dViewSpan / (double)fWidth;
+            ptState->fDepthScroll = pl_clampf(0.0f, ptState->fDepthScroll - tDrag.y, fMaxDepthScroll);
+            pl__profile_clamp_view(dFrameDuration, &ptState->dViewStart, &ptState->dViewSpan);
+            gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+        }
+
+        const double dPixelsPerSecond = (double)fWidth / ptState->dViewSpan;
+        const double dViewEnd = ptState->dViewStart + ptState->dViewSpan;
+        plDrawLayer2D* ptFgLayer = gptUI->get_window_fg_drawlayer();
+        plFont* ptFont = gptUI->get_default_font();
+        gptDraw->add_rect_filled(ptFgLayer, tCursorPos, (plVec2){tCursorPos.x + fWidth, pl_minf(fRowsTop, fBottom)},
+            (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.0f, 0.0f, 0.7f)});
+
+        // Choose 1/2/5 ticks from pixel spacing. Labels use stack buffers;
+        // no pointers survive resetting or growing a temporary allocator.
+        double dIncrement = pl__profile_tick_step(ptState->dViewSpan, fWidth, 100.0f);
+        double dUnit = 1.0;
+        const char* pcUnit = "s";
+        uint32_t uDecimals = 0;
+        char acLabel[96];
+        for(uint32_t uPass = 0; uPass < 2; uPass++)
+        {
+            dUnit = 1.0;
+            pcUnit = "s";
+            if(dIncrement < 1.0)  { dUnit = 1e3; pcUnit = "ms"; }
+            if(dIncrement < 1e-3) { dUnit = 1e6; pcUnit = "us"; }
+            if(dIncrement < 1e-6) { dUnit = 1e9; pcUnit = "ns"; }
+            uDecimals = (uint32_t)pl_clampd(0.0, ceil(-log10(dIncrement * dUnit)), 6.0);
+            pl_snprintf(acLabel, sizeof(acLabel), "%.*f %s", (int)uDecimals, dViewEnd * dUnit, pcUnit);
+            const float fLabelWidth = gptDraw->calculate_text_size(acLabel, (plDrawTextOptions){.ptFont = ptFont}).x + 20.0f;
+            if(uPass == 0)
+                dIncrement = pl__profile_tick_step(ptState->dViewSpan, fWidth, pl_maxf(100.0f, fLabelWidth));
+        }
+        const double dFirstTick = floor(ptState->dViewStart / dIncrement) * dIncrement;
+        const uint32_t uTickCount = (uint32_t)ceil(ptState->dViewSpan / dIncrement) + 2;
+        float fLastLabelEnd = tCursorPos.x - 8.0f;
+        for(uint32_t uTick = 0; uTick < uTickCount; uTick++)
+        {
+            const double dTime = dFirstTick + (double)uTick * dIncrement;
+            for(uint32_t uMinor = 0; uMinor < 5; uMinor++)
+            {
+                const double dTickTime = dTime + (double)uMinor * dIncrement / 5.0;
+                if(dTickTime < ptState->dViewStart || dTickTime > dViewEnd)
+                    continue;
+                const float fX = tCursorPos.x + (float)((dTickTime - ptState->dViewStart) * dPixelsPerSecond);
+                const float fTickHeight = uMinor == 0 ? 18.0f : 6.0f;
+                gptDraw->add_line(ptFgLayer, (plVec2){fX, tCursorPos.y}, (plVec2){fX, pl_minf(tCursorPos.y + fTickHeight, fBottom)}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
+                if(uMinor != 0) continue;
+                pl_snprintf(acLabel, sizeof(acLabel), "%.*f %s", (int)uDecimals, dTickTime * dUnit, pcUnit);
+                const float fTextWidth = gptDraw->calculate_text_size(acLabel, (plDrawTextOptions){.ptFont = ptFont}).x;
+                const float fTextX = pl_clampf(tCursorPos.x, fX - fTextWidth * 0.5f, tCursorPos.x + pl_maxf(0.0f, fWidth - fTextWidth));
+                if(fTextX < fLastLabelEnd + 8.0f)
+                    continue;
+                fLastLabelEnd = fTextX + fTextWidth;
+                gptDraw->add_text(ptFgLayer, (plVec2){fTextX, tCursorPos.y + 20.0f}, (plDrawTextOptions){.ptFont = ptFont, .uColor = PL_COLOR_32_WHITE, .tClipMin = tCursorPos, .tClipMax = {tCursorPos.x + fWidth, fBottom}}, "%s", acLabel);
+            }
+        }
+
+        uint32_t uHoveredSample = UINT32_MAX;
+        for(uint32_t uIndex = 0; uIndex < uSampleSize; uIndex++)
+        {
+            const plProfileCpuSample* ptSample = &ptSamples[uIndex];
+            const double dEnd = ptSample->dStartTime + pl_maxd(0.0, ptSample->dDuration);
+            if(dEnd < ptState->dViewStart || ptSample->dStartTime > dViewEnd)
+                continue;
+            const float fY = fRowsTop + (float)ptSample->_uDepth * 25.0f - ptState->fDepthScroll;
+            if(fY + 20.0f <= fRowsTop || fY >= fBottom)
+                continue;
+            const float fX = tCursorPos.x + (float)((pl_maxd(ptState->dViewStart, ptSample->dStartTime) - ptState->dViewStart) * dPixelsPerSecond);
+            const float fEndX = tCursorPos.x + (float)((pl_mind(dViewEnd, dEnd) - ptState->dViewStart) * dPixelsPerSecond);
+
+            // Very short samples remain visible/hittable without changing their times.
+            const plVec2 tMin = {pl_minf(fX, tCursorPos.x + fWidth - 1.0f), pl_maxf(fRowsTop, fY)};
+            const plVec2 tMax = {pl_minf(tCursorPos.x + fWidth, pl_maxf(fEndX, tMin.x + 1.0f)), pl_minf(fBottom, fY + 20.0f)};
+            const plRect tRect = {tMin, tMax};
+            gptDraw->add_rect_filled(ptFgLayer, tMin, tMax, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(atColors[ptSample->_uDepth % 6])});
+            if(tMax.x - tMin.x > 8.0f)
+                gptDraw->add_text(ptFgLayer, (plVec2){tMin.x + 3.0f, fY + 2.0f}, (plDrawTextOptions){.ptFont = ptFont, .uColor = PL_COLOR_32_WHITE, .tClipMin = tMin, .tClipMax = tMax}, "%s", ptSample->pcName);
+            if(bHovered && pl_rect_contains_point(&tRect, tMousePos))
+                uHoveredSample = uIndex;
+        }
+        if(bHovered)
+        {
+            const double dHoveredTime = ptState->dViewStart + (double)(tMousePos.x - tCursorPos.x) / dPixelsPerSecond;
+            gptDraw->add_line(ptFgLayer, (plVec2){tMousePos.x, tCursorPos.y}, (plVec2){tMousePos.x, fBottom}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
+            if(uHoveredSample == UINT32_MAX)
+            {
+                gptUI->begin_tooltip();
+                gptUI->text("%.3f %s", dHoveredTime * dUnit, pcUnit);
+                gptUI->end_tooltip();
+            }
+        }
+        if(uHoveredSample != UINT32_MAX)
+        {
+            const plProfileCpuSample* ptSample = &ptSamples[uHoveredSample];
+            gptUI->begin_tooltip();
+            gptUI->color_text(atColors[ptSample->_uDepth % 6], "%s", ptSample->pcName);
+            gptUI->text("Duration: %.3f us", ptSample->dDuration * 1e6);
+            gptUI->text("Start: %.3f us", ptSample->dStartTime * 1e6);
+            gptUI->text("%s: %.2f %%", pcSpanLabel, 100.0 * ptSample->dDuration / dFrameDuration);
+            gptUI->end_tooltip();
+            if(bClicked && !ptState->bGraphDragged && gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
+            {
+                ptState->dViewSpan = pl_maxd(1e-9, ptSample->dDuration * 1.2);
+                ptState->dViewStart = ptSample->dStartTime + ptSample->dDuration * 0.5 - ptState->dViewSpan * 0.5;
+                pl__profile_clamp_view(dFrameDuration, &ptState->dViewStart, &ptState->dViewSpan);
+            }
+        }
+        gptUI->end_child();
+    }
+}
+
 static void
 pl__show_profiling(bool* bValue)
 {
-    static double dViewStart = 0.0;
-    static double dViewSpan = 0.016;
-    static float fDepthScroll = 0.0f;
-    static bool bFitGraph = true;
-    static bool bGraphDragged = false;
+    static plProfileGraphState tGraph = {.dViewSpan = 0.016, .bFitGraph = true};
     static const plVec4 atColors[6] = {
         {0.0f, 1.0f, 1.0f, 0.75f},
         {1.0f, 0.5f, 0.0f, 0.75f},
@@ -378,10 +568,6 @@ pl__show_profiling(bool* bValue)
     gptUI->set_next_window_size((plVec2){750, 700}, PL_UI_COND_ONCE);
     if(gptUI->begin_window("Profiling (WIP)", bValue, 0))
     {
-        const plVec2 tWindowSize = gptUI->get_window_size();
-        const plVec2 tWindowPos = gptUI->get_window_pos();
-        const plVec2 tWindowEnd = pl_add_vec2(tWindowSize, tWindowPos);
-
         plProfileCpuSample* ptSamples = NULL;
         uint32_t uSampleSize = 0;
         if(gptDebugCtx->bProfileFirstRun && gptIO->ulFrameCount == 1)
@@ -410,7 +596,7 @@ pl__show_profiling(bool* bValue)
         {
             if(gptUI->button("Capture Frame"))
             {
-                bFitGraph = true;
+                tGraph.bFitGraph = true;
                 pl_sb_resize(gptDebugCtx->sbtSamples, uSampleSize);
                 memcpy(gptDebugCtx->sbtSamples, ptSamples, sizeof(plProfileCpuSample) * uSampleSize);
             }
@@ -419,7 +605,7 @@ pl__show_profiling(bool* bValue)
         {
             if(gptUI->button("Release Frame"))
             {
-                bFitGraph = true;
+                tGraph.bFitGraph = true;
                 pl_sb_reset(gptDebugCtx->sbtSamples);
             }
         }
@@ -485,161 +671,105 @@ pl__show_profiling(bool* bValue)
 
             if(gptUI->begin_tab("Graph", 0))
             {
-                gptUI->layout_static(0.0f, 110.0f, 1);
-                if(gptUI->button("Fit Frame")) bFitGraph = true;
-                gptUI->layout_dynamic(0.0f, 1);
-                gptUI->text("Wheel: zoom at cursor | Drag: pan time/depth | Click sample: focus");
-                const plVec2 tParentCursorPos = gptUI->get_cursor_pos();
-                gptUI->layout_dynamic(pl_maxf(1.0f, tWindowEnd.y - tParentCursorPos.y - 15.0f), 1);
-                if(gptUI->begin_child("timeline", 0, PL_UI_WINDOW_FLAGS_NO_SCROLLBAR))
-                {
-                    const plVec2 tChildPos = gptUI->get_window_pos();
-                    const plVec2 tChildSize = gptUI->get_window_size();
-                    const plVec2 tCursorPos = gptUI->get_cursor_pos();
-                    const float fWidth = pl_maxf(1.0f, tChildPos.x + tChildSize.x - tCursorPos.x - 10.0f);
-                    const float fHeight = pl_maxf(1.0f, tChildPos.y + tChildSize.y - tCursorPos.y - 10.0f);
-                    const float fRowsTop = tCursorPos.y + 50.0f;
-                    const float fBottom = tCursorPos.y + fHeight;
-                    uint32_t uMaxDepth = 0;
-                    for(uint32_t uIndex = 0; uIndex < uSampleSize; uIndex++)
-                        uMaxDepth = pl_max(uMaxDepth, ptSamples[uIndex]._uDepth);
-                    const float fMaxDepthScroll = pl_maxf(0.0f, (uMaxDepth + 1) * 25.0f - pl_maxf(0.0f, fHeight - 50.0f));
-                    if(bFitGraph)
-                    {
-                        dViewStart = 0.0;
-                        dViewSpan = dFrameDuration;
-                        fDepthScroll = 0.0f;
-                        bFitGraph = false;
-                    }
-                    pl__profile_clamp_view(dFrameDuration, &dViewStart, &dViewSpan);
-                    fDepthScroll = pl_clampf(0.0f, fDepthScroll, fMaxDepthScroll);
-
-                    gptUI->layout_static(fHeight, fWidth, 1);
-                    const bool bClicked = gptUI->invisible_button("##profile_canvas", (plVec2){fWidth, fHeight});
-                    const bool bHovered = gptUI->was_last_item_hovered();
-                    const bool bActive = gptUI->was_last_item_active();
-                    const plVec2 tMousePos = gptIOI->get_mouse_pos();
-                    if(bHovered && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-                        bGraphDragged = false;
-                    if(bHovered && gptIOI->get_mouse_wheel() != 0.0f)
-                        pl__profile_zoom_view(dFrameDuration, (tMousePos.x - tCursorPos.x) / fWidth, gptIOI->get_mouse_wheel(), &dViewStart, &dViewSpan);
-                    if(bActive && gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT) && (bGraphDragged || gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 5.0f)))
-                    {
-                        bGraphDragged = true;
-                        const plVec2 tDrag = gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 0.0f);
-                        dViewStart -= (double)tDrag.x * dViewSpan / (double)fWidth;
-                        fDepthScroll = pl_clampf(0.0f, fDepthScroll - tDrag.y, fMaxDepthScroll);
-                        pl__profile_clamp_view(dFrameDuration, &dViewStart, &dViewSpan);
-                        gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
-                    }
-
-                    const double dPixelsPerSecond = (double)fWidth / dViewSpan;
-                    const double dViewEnd = dViewStart + dViewSpan;
-                    plDrawLayer2D* ptFgLayer = gptUI->get_window_fg_drawlayer();
-                    plFont* ptFont = gptUI->get_default_font();
-                    gptDraw->add_rect_filled(ptFgLayer, tCursorPos, (plVec2){tCursorPos.x + fWidth, pl_minf(fRowsTop, fBottom)},
-                        (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.0f, 0.0f, 0.7f)});
-
-                    // Choose 1/2/5 ticks from pixel spacing. Labels use stack buffers;
-                    // no pointers survive resetting or growing a temporary allocator.
-                    double dIncrement = pl__profile_tick_step(dViewSpan, fWidth, 100.0f);
-                    double dUnit = 1.0;
-                    const char* pcUnit = "s";
-                    uint32_t uDecimals = 0;
-                    char acLabel[96];
-                    for(uint32_t uPass = 0; uPass < 2; uPass++)
-                    {
-                        dUnit = 1.0;
-                        pcUnit = "s";
-                        if(dIncrement < 1.0)  { dUnit = 1e3; pcUnit = "ms"; }
-                        if(dIncrement < 1e-3) { dUnit = 1e6; pcUnit = "us"; }
-                        if(dIncrement < 1e-6) { dUnit = 1e9; pcUnit = "ns"; }
-                        uDecimals = (uint32_t)pl_clampd(0.0, ceil(-log10(dIncrement * dUnit)), 6.0);
-                        pl_snprintf(acLabel, sizeof(acLabel), "%.*f %s", (int)uDecimals, dViewEnd * dUnit, pcUnit);
-                        const float fLabelWidth = gptDraw->calculate_text_size(acLabel, (plDrawTextOptions){.ptFont = ptFont}).x + 20.0f;
-                        if(uPass == 0)
-                            dIncrement = pl__profile_tick_step(dViewSpan, fWidth, pl_maxf(100.0f, fLabelWidth));
-                    }
-                    const double dFirstTick = floor(dViewStart / dIncrement) * dIncrement;
-                    const uint32_t uTickCount = (uint32_t)ceil(dViewSpan / dIncrement) + 2;
-                    float fLastLabelEnd = tCursorPos.x - 8.0f;
-                    for(uint32_t uTick = 0; uTick < uTickCount; uTick++)
-                    {
-                        const double dTime = dFirstTick + (double)uTick * dIncrement;
-                        for(uint32_t uMinor = 0; uMinor < 5; uMinor++)
-                        {
-                            const double dTickTime = dTime + (double)uMinor * dIncrement / 5.0;
-                            if(dTickTime < dViewStart || dTickTime > dViewEnd)
-                                continue;
-                            const float fX = tCursorPos.x + (float)((dTickTime - dViewStart) * dPixelsPerSecond);
-                            const float fTickHeight = uMinor == 0 ? 18.0f : 6.0f;
-                            gptDraw->add_line(ptFgLayer, (plVec2){fX, tCursorPos.y}, (plVec2){fX, pl_minf(tCursorPos.y + fTickHeight, fBottom)}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
-                            if(uMinor != 0) continue;
-                            pl_snprintf(acLabel, sizeof(acLabel), "%.*f %s", (int)uDecimals, dTickTime * dUnit, pcUnit);
-                            const float fTextWidth = gptDraw->calculate_text_size(acLabel, (plDrawTextOptions){.ptFont = ptFont}).x;
-                            const float fTextX = pl_clampf(tCursorPos.x, fX - fTextWidth * 0.5f, tCursorPos.x + pl_maxf(0.0f, fWidth - fTextWidth));
-                            if(fTextX < fLastLabelEnd + 8.0f)
-                                continue;
-                            fLastLabelEnd = fTextX + fTextWidth;
-                            gptDraw->add_text(ptFgLayer, (plVec2){fTextX, tCursorPos.y + 20.0f}, (plDrawTextOptions){.ptFont = ptFont, .uColor = PL_COLOR_32_WHITE, .tClipMin = tCursorPos, .tClipMax = {tCursorPos.x + fWidth, fBottom}}, "%s", acLabel);
-                        }
-                    }
-
-                    uint32_t uHoveredSample = UINT32_MAX;
-                    for(uint32_t uIndex = 0; uIndex < uSampleSize; uIndex++)
-                    {
-                        const plProfileCpuSample* ptSample = &ptSamples[uIndex];
-                        const double dEnd = ptSample->dStartTime + pl_maxd(0.0, ptSample->dDuration);
-                        if(dEnd < dViewStart || ptSample->dStartTime > dViewEnd)
-                            continue;
-                        const float fY = fRowsTop + (float)ptSample->_uDepth * 25.0f - fDepthScroll;
-                        if(fY + 20.0f <= fRowsTop || fY >= fBottom)
-                            continue;
-                        const float fX = tCursorPos.x + (float)((pl_maxd(dViewStart, ptSample->dStartTime) - dViewStart) * dPixelsPerSecond);
-                        const float fEndX = tCursorPos.x + (float)((pl_mind(dViewEnd, dEnd) - dViewStart) * dPixelsPerSecond);
-                        
-                        // Very short samples remain visible/hittable without changing their times.
-                        const plVec2 tMin = {pl_minf(fX, tCursorPos.x + fWidth - 1.0f), pl_maxf(fRowsTop, fY)};
-                        const plVec2 tMax = {pl_minf(tCursorPos.x + fWidth, pl_maxf(fEndX, tMin.x + 1.0f)), pl_minf(fBottom, fY + 20.0f)};
-                        const plRect tRect = {tMin, tMax};
-                        gptDraw->add_rect_filled(ptFgLayer, tMin, tMax, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(atColors[ptSample->_uDepth % 6])});
-                        if(tMax.x - tMin.x > 8.0f)
-                            gptDraw->add_text(ptFgLayer, (plVec2){tMin.x + 3.0f, fY + 2.0f}, (plDrawTextOptions){.ptFont = ptFont, .uColor = PL_COLOR_32_WHITE, .tClipMin = tMin, .tClipMax = tMax}, "%s", ptSample->pcName);
-                        if(bHovered && pl_rect_contains_point(&tRect, tMousePos))
-                            uHoveredSample = uIndex;
-                    }
-                    if(bHovered)
-                    {
-                        const double dHoveredTime = dViewStart + (double)(tMousePos.x - tCursorPos.x) / dPixelsPerSecond;
-                        gptDraw->add_line(ptFgLayer, (plVec2){tMousePos.x, tCursorPos.y}, (plVec2){tMousePos.x, fBottom}, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 1.0f});
-                        if(uHoveredSample == UINT32_MAX)
-                        {
-                            gptUI->begin_tooltip();
-                            gptUI->text("%.3f %s", dHoveredTime * dUnit, pcUnit);
-                            gptUI->end_tooltip();
-                        }
-                    }
-                    if(uHoveredSample != UINT32_MAX)
-                    {
-                        const plProfileCpuSample* ptSample = &ptSamples[uHoveredSample];
-                        gptUI->begin_tooltip();
-                        gptUI->color_text(atColors[ptSample->_uDepth % 6], "%s", ptSample->pcName);
-                        gptUI->text("Duration: %.3f us", ptSample->dDuration * 1e6);
-                        gptUI->text("Start: %.3f us", ptSample->dStartTime * 1e6);
-                        gptUI->text("Frame Time: %.2f %%", 100.0 * ptSample->dDuration / dFrameDuration);
-                        gptUI->end_tooltip();
-                        if(bClicked && !bGraphDragged && gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
-                        {
-                            dViewSpan = pl_maxd(1e-9, ptSample->dDuration * 1.2);
-                            dViewStart = ptSample->dStartTime + ptSample->dDuration * 0.5 - dViewSpan * 0.5;
-                            pl__profile_clamp_view(dFrameDuration, &dViewStart, &dViewSpan);
-                        }
-                    }
-                    gptUI->end_child();
-                }
+                pl__profile_graph(ptSamples, uSampleSize, dFrameDuration, &tGraph, "Frame Time");
                 gptUI->end_tab();
             }
             gptUI->end_tab_bar();
+        }
+        gptUI->end_window();
+    }
+}
+
+static void
+pl__show_gpu_profiling(bool* bValue)
+{
+    static plProfileGraphState tGraph = {.dViewSpan = 0.016, .bFitGraph = true};
+    const plGpuTimingFrame* ptLatest = gptGfx->get_gpu_timings(gptDebugCtx->ptDevice);
+    gptUI->set_next_window_size((plVec2){800, 650}, PL_UI_COND_ONCE);
+    if(gptUI->begin_window("GPU Profiling", bValue, 0))
+    {
+        gptUI->layout_dynamic(0.0f, 1);
+        bool bEnabled = ptLatest->bEnabled;
+        if(gptUI->checkbox("Collect timings", &bEnabled))
+            gptGfx->set_gpu_timing_enabled(gptDebugCtx->ptDevice, bEnabled);
+        if(!ptLatest->bSupported)
+            gptUI->text("Timestamp queries are unavailable on this device.");
+        else
+        {
+            gptUI->text("%s | Completed frames | Inclusive scope times", ptLatest->bCpu ? "CPU backend execution" : gptGfx->get_backend_string());
+            gptUI->text("Collection adds profiling overhead. Scope times can overlap.");
+            if(!gptDebugCtx->bGpuProfilePaused)
+            {
+                if(!gptDebugCtx->tGpuFrame.uSampleCount && ptLatest->uSampleCount)
+                    tGraph.bFitGraph = true;
+                gptDebugCtx->tGpuFrame = *ptLatest;
+                pl_sb_resize(gptDebugCtx->sbtGpuSamples, ptLatest->uSampleCount);
+                if(ptLatest->uSampleCount)
+                    memcpy(gptDebugCtx->sbtGpuSamples, ptLatest->ptSamples, ptLatest->uSampleCount * sizeof(plGpuTimingSample));
+                gptDebugCtx->tGpuFrame.ptSamples = gptDebugCtx->sbtGpuSamples;
+            }
+            const plGpuTimingFrame* ptFrame = &gptDebugCtx->tGpuFrame;
+            gptUI->layout_static(0.0f, 140.0f, 2);
+            if(gptUI->button(gptDebugCtx->bGpuProfilePaused ? "Release Frame" : "Capture Frame"))
+            {
+                gptDebugCtx->bGpuProfilePaused = !gptDebugCtx->bGpuProfilePaused;
+                tGraph.bFitGraph = true;
+            }
+            gptUI->text("Frame: %llu", (unsigned long long)ptFrame->ulFrameIndex);
+            gptUI->layout_dynamic(0.0f, 1);
+            gptUI->text("Scope span: %.3f ms | Samples: %u | Dropped: %u", ptFrame->dDuration * 1000.0, ptFrame->uSampleCount, ptFrame->uDroppedSamples);
+            if(!ptFrame->ulFrameIndex)
+                gptUI->text("Waiting for a completed timing frame...");
+            const double dDuration = pl_maxd(1e-9, ptFrame->dDuration);
+            if(gptUI->begin_tab_bar("GPU profiling tabs", 0))
+            {
+                if(gptUI->begin_tab("Table", 0))
+                {
+                    gptUI->layout_template_begin(0.0f);
+                    gptUI->layout_template_push_variable(280.0f);
+                    gptUI->layout_template_push_static(95.0f);
+                    gptUI->layout_template_push_static(95.0f);
+                    gptUI->layout_template_push_variable(90.0f);
+                    gptUI->layout_template_end();
+                    gptUI->text("Sample");
+                    gptUI->text("Time (ms)");
+                    gptUI->text("Start (ms)");
+                    gptUI->text("Scope span");
+                    plUiClipper tClipper = {ptFrame->uSampleCount};
+                    while(gptUI->step_clipper(&tClipper))
+                    {
+                        for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
+                        {
+                            const plGpuTimingSample* ptSample = &ptFrame->ptSamples[i];
+                            const float fIndent = 15.0f * ptSample->uDepth;
+                            gptUI->indent(fIndent);
+                            gptUI->text("%s", ptSample->acName);
+                            gptUI->unindent(fIndent);
+                            gptUI->text("%.6f", ptSample->dDuration * 1000.0);
+                            gptUI->text("%.6f", ptSample->dStartTime * 1000.0);
+                            gptUI->progress_bar((float)(ptSample->dDuration / dDuration), (plVec2){-1.0f, 0.0f}, NULL);
+                        }
+                    }
+                    gptUI->end_tab();
+                }
+                if(gptUI->begin_tab("Graph", 0))
+                {
+                    pl_sb_resize(gptDebugCtx->sbtGpuGraphSamples, ptFrame->uSampleCount);
+                    for(uint32_t i = 0; i < ptFrame->uSampleCount; i++)
+                    {
+                        const plGpuTimingSample* ptSample = &ptFrame->ptSamples[i];
+                        gptDebugCtx->sbtGpuGraphSamples[i] = (plProfileCpuSample){
+                            .pcName = ptSample->acName,
+                            .dStartTime = ptSample->dStartTime,
+                            .dDuration = ptSample->dDuration,
+                            ._uDepth = ptSample->uDepth
+                        };
+                    }
+                    pl__profile_graph(gptDebugCtx->sbtGpuGraphSamples, ptFrame->uSampleCount, dDuration, &tGraph, "Scope span");
+                    gptUI->end_tab();
+                }
+                gptUI->end_tab_bar();
+            }
         }
         gptUI->end_window();
     }
@@ -1423,6 +1553,8 @@ pl_unload_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_sb_free(gptDebugCtx->sbdRawValues);
     pl_sb_free(gptDebugCtx->sbbValues);
     pl_sb_free(gptDebugCtx->sbtSamples);
+    pl_sb_free(gptDebugCtx->sbtGpuSamples);
+    pl_sb_free(gptDebugCtx->sbtGpuGraphSamples);
     pl_sb_free(gptDebugCtx->sbtActiveAllocations);
     pl_temp_allocator_free(&gptDebugCtx->tTempAllocator);
     gptDebugCtx = NULL;

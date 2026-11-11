@@ -125,10 +125,11 @@ typedef struct _plVulkanComputeShader
 
 typedef struct _plCommandBuffer
 {
-    plDevice*        ptDevice; // for convience
-    VkCommandBuffer  tCmdBuffer;
-    plCommandPool*   ptPool; // parent pool
-    plCommandBuffer* ptNext; // for linked list
+    plGpuTimingCommand tTiming;
+    plDevice*          ptDevice; // for convience
+    VkCommandBuffer    tCmdBuffer;
+    plCommandPool*     ptPool; // parent pool
+    plCommandBuffer*   ptNext; // for linked list
 } plCommandBuffer;
 
 typedef struct _plCommandPool
@@ -156,6 +157,9 @@ typedef struct _plTimelineSemaphore
 
 typedef struct _plFrameContext
 {
+    plGpuTimingFrameData tTiming;
+    VkQueryPool tTimingPool;
+    uint64_t ulTimingValue;
     VkFence        tInFlight;
     VkFramebuffer* sbtRawFrameBuffers;
     uint64_t       uNextValue;
@@ -167,6 +171,9 @@ typedef struct _plFrameContext
 
 typedef struct _plDevice
 {
+    plGpuTimingState tTiming;
+    VkSemaphore tTimingSemaphore;
+    uint64_t ulTimingValue;
     // general
     plDeviceInit              tInit;
     plDeviceInfo              tInfo;
@@ -351,6 +358,81 @@ pl__vk_free(void* pData, void* pBuffer)
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
+
+static void
+pl__vulkan_begin_timing_frame(plDevice* ptDevice, plFrameContext* ptFrame)
+{
+    if(ptFrame->ulTimingValue)
+    {
+        uint64_t ulCompleted = 0;
+        PL_VULKAN(vkGetSemaphoreCounterValue(ptDevice->tLogicalDevice, ptDevice->tTimingSemaphore, &ulCompleted));
+        if(ulCompleted < ptFrame->ulTimingValue)
+        {
+            // Submit-only frames may still be running. Keep their storage intact
+            // and skip collection this frame instead of introducing a GPU wait.
+            ptFrame->tTiming.bActive = false;
+            return;
+        }
+    }
+    if(ptFrame->tTiming.uCount)
+    {
+        uint64_t aulResults[PL_GPU_TIMING_MAX_SAMPLES * 4] = {0};
+        const uint32_t uQueryCount = ptFrame->tTiming.uCount * 2;
+        VkResult tResult = vkGetQueryPoolResults(ptDevice->tLogicalDevice, ptFrame->tTimingPool, 0, uQueryCount,
+            sizeof(uint64_t) * uQueryCount * 2, aulResults, sizeof(uint64_t) * 2,
+            VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
+        if(tResult == VK_SUCCESS || tResult == VK_NOT_READY)
+        {
+            for(uint32_t i = 0; i < ptFrame->tTiming.uCount; i++)
+            {
+                ptFrame->tTiming.aulTicks[i * 2] = aulResults[i * 4];
+                ptFrame->tTiming.aulTicks[i * 2 + 1] = aulResults[i * 4 + 2];
+                ptFrame->tTiming.abReady[i] = aulResults[i * 4 + 1] && aulResults[i * 4 + 3];
+            }
+        }
+    }
+    pl__gpu_timing_begin_frame(ptDevice, &ptFrame->tTiming);
+    ptFrame->ulTimingValue = 0;
+    if(!ptFrame->tTiming.bActive)
+        return;
+    if(!ptFrame->tTimingPool)
+    {
+        VkQueryPoolCreateInfo tInfo = {
+            .sType      = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+            .queryType  = VK_QUERY_TYPE_TIMESTAMP,
+            .queryCount = PL_GPU_TIMING_MAX_SAMPLES * 2
+        };
+        PL_VULKAN(vkCreateQueryPool(ptDevice->tLogicalDevice, &tInfo, gptGraphics->ptAllocationCallbacks, &ptFrame->tTimingPool));
+    }
+    if(!ptDevice->tTimingSemaphore)
+    {
+        VkSemaphoreTypeCreateInfo tType = {
+            .sType         = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+            .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE
+        };
+        VkSemaphoreCreateInfo tInfo = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, .pNext = &tType};
+        PL_VULKAN(vkCreateSemaphore(ptDevice->tLogicalDevice, &tInfo, gptGraphics->ptAllocationCallbacks, &ptDevice->tTimingSemaphore));
+    }
+    vkResetQueryPool(ptDevice->tLogicalDevice, ptFrame->tTimingPool, 0, PL_GPU_TIMING_MAX_SAMPLES * 2);
+}
+
+static void
+pl__vulkan_submit_timing(plCommandBuffer* ptCmdBuffer, VkSubmitInfo* ptInfo, VkTimelineSemaphoreSubmitInfo* ptTimeline, VkSemaphore* atSignals, uint64_t* aulValues)
+{
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+    plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
+    pl__gpu_timing_submit(ptCmdBuffer);
+    if(!ptFrame->tTiming.bActive || !ptFrame->tTiming.uCount)
+        return;
+    const uint32_t uIndex = ptInfo->signalSemaphoreCount++;
+    atSignals[uIndex] = ptDevice->tTimingSemaphore;
+    ptFrame->ulTimingValue = ++ptDevice->ulTimingValue;
+    aulValues[uIndex] = ptFrame->ulTimingValue;
+    ptTimeline->signalSemaphoreValueCount = ptInfo->signalSemaphoreCount;
+    ptTimeline->pSignalSemaphoreValues = aulValues;
+    ptInfo->pSignalSemaphores = atSignals;
+    ptInfo->pNext = ptTimeline;
+}
 
 plTimelineSemaphore*
 pl_graphics_create_semaphore(plDevice* ptDevice, bool bHostVisible)
@@ -2083,6 +2165,9 @@ pl_graphics_insert_debug_label(plCommandBuffer* ptCmdBuffer, const char* pcLabel
 void
 pl_graphics_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
 {
+    const uint32_t uQuery = pl__gpu_timing_push(ptCmdBuffer, pcLabel);
+    if(uQuery != UINT32_MAX)
+        vkCmdWriteTimestamp(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, pl__get_frame_resources(ptCmdBuffer->ptDevice)->tTimingPool, uQuery);
 
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
@@ -2106,6 +2191,9 @@ pl_graphics_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, 
 void
 pl_graphics_pop_debug_group(plCommandBuffer* ptCmdBuffer)
 {
+    const uint32_t uQuery = pl__gpu_timing_pop(ptCmdBuffer);
+    if(uQuery != UINT32_MAX)
+        vkCmdWriteTimestamp(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, pl__get_frame_resources(ptCmdBuffer->ptDevice)->tTimingPool, uQuery);
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     if(ptDevice->vkCmdEndDebugUtilsLabel)
         ptDevice->vkCmdEndDebugUtilsLabel(ptCmdBuffer->tCmdBuffer);
@@ -2114,6 +2202,7 @@ pl_graphics_pop_debug_group(plCommandBuffer* ptCmdBuffer)
 void
 pl_graphics_begin_command_recording(plCommandBuffer* ptCommandBuffer)
 {
+    pl__gpu_timing_begin_command(ptCommandBuffer);
     const VkCommandBufferBeginInfo tBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = 0
@@ -3595,6 +3684,13 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     vkGetPhysicalDeviceFeatures(ptDevice->tPhysicalDevice, &tDeviceFeatures);
     vkGetPhysicalDeviceFeatures2(ptDevice->tPhysicalDevice, &tDeviceFeatures2);
 
+    VkPhysicalDeviceProperties tTimingProperties = {0};
+    vkGetPhysicalDeviceProperties(ptDevice->tPhysicalDevice, &tTimingProperties);
+    const uint32_t uTimestampBits = auQueueFamilies[ptDevice->iGraphicsQueueFamily].timestampValidBits;
+    ptDevice->tTiming.tFrame.bSupported = uTimestampBits != 0 && tDeviceFeatures12.hostQueryReset;
+    ptDevice->tTiming.ulMask = uTimestampBits == 64 ? UINT64_MAX : (UINT64_C(1) << uTimestampBits) - 1;
+    ptDevice->tTiming.dSecondsPerTick = tTimingProperties.limits.timestampPeriod * 1e-9;
+
     // re-assert after query to prevent overwrite
     tDeviceFeatures13.dynamicRendering = VK_TRUE;
     tDeviceFeatures14.dynamicRenderingLocalRead = VK_TRUE;
@@ -3934,6 +4030,7 @@ pl_graphics_begin_frame(plDevice* ptDevice)
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
     PL_VULKAN(vkWaitForFences(ptDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
+    pl__vulkan_begin_timing_frame(ptDevice, ptCurrentFrame);
     pl__garbage_collect(ptDevice);
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
@@ -4003,7 +4100,11 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
         .pNext = NULL,
     };
 
-    VkSemaphore atSignalSemaphores[PL_MAX_TIMELINE_SEMAPHORES + 1] = {0};
+    VkSemaphore atSignalSemaphores[PL_MAX_TIMELINE_SEMAPHORES + 2] = {0};
+    uint64_t aulSignalValues[PL_MAX_TIMELINE_SEMAPHORES + 2] = {0};
+    atSignalSemaphores[0] = ptSwaps[0]->sbtRenderFinish[ptSwaps[0]->uCurrentImageIndex];
+    tSubmitInfo.pSignalSemaphores = atSignalSemaphores;
+    tTimelineInfo.waitSemaphoreValueCount = uSwapchainCount;
 
     // Acquisition waits are required even without timeline submission info.
     const uint32_t uTimelineWaitCount = ptSubmitInfo ? ptSubmitInfo->uWaitSemaphoreCount : 0;
@@ -4014,6 +4115,7 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
         atWaitStages[uTimelineWaitCount + i] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
     }
     uint64_t auWaitValues[64] = {0};
+    tTimelineInfo.pWaitSemaphoreValues = auWaitValues;
 
     if(ptSubmitInfo)
     {
@@ -4037,17 +4139,19 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
         for (uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
         {
             atSignalSemaphores[i] = ptSubmitInfo->atSignalSempahores[i]->tSemaphore;
+            aulSignalValues[i] = ptSubmitInfo->auSignalSemaphoreValues[i];
         }
         
         atSignalSemaphores[ptSubmitInfo->uSignalSemaphoreCount] = ptSwaps[0]->sbtRenderFinish[ptSwaps[0]->uCurrentImageIndex];
         tTimelineInfo.signalSemaphoreValueCount = ptSubmitInfo->uSignalSemaphoreCount + 1;
-        tTimelineInfo.pSignalSemaphoreValues = ptSubmitInfo->auSignalSemaphoreValues;
+        tTimelineInfo.pSignalSemaphoreValues = aulSignalValues;
 
         tSubmitInfo.pNext = &tTimelineInfo;
         tSubmitInfo.pSignalSemaphores = atSignalSemaphores;
         tSubmitInfo.signalSemaphoreCount = ptSubmitInfo->uSignalSemaphoreCount + 1;
     }
 
+    pl__vulkan_submit_timing(ptCmdBuffer, &tSubmitInfo, &tTimelineInfo, atSignalSemaphores, aulSignalValues);
     PL_VULKAN(vkResetFences(ptDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight));
     VkResult tResult = vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, ptCurrentFrame->tInFlight);
     PL_VULKAN(tResult);
@@ -4150,6 +4254,13 @@ pl_graphics_cleanup_device(plDevice* ptDevice)
 {
 
     vkDeviceWaitIdle(ptDevice->tLogicalDevice);
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtFrames); i++)
+    {
+        if(ptDevice->sbtFrames[i].tTimingPool)
+            vkDestroyQueryPool(ptDevice->tLogicalDevice, ptDevice->sbtFrames[i].tTimingPool, gptGraphics->ptAllocationCallbacks);
+    }
+    if(ptDevice->tTimingSemaphore)
+        vkDestroySemaphore(ptDevice->tLogicalDevice, ptDevice->tTimingSemaphore, gptGraphics->ptAllocationCallbacks);
     pl_sb_free(ptDevice->sbtPassTextureStack);
 
     for (uint32_t i = 0; i < pl_sb_size(ptDevice->sbtTexturesHot); i++)
@@ -4815,7 +4926,8 @@ pl_graphics_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitIn
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
     VkSemaphore atWaitSemaphores[PL_MAX_TIMELINE_SEMAPHORES] = {0};
-    VkSemaphore atSignalSemaphores[PL_MAX_TIMELINE_SEMAPHORES] = {0};
+    VkSemaphore atSignalSemaphores[PL_MAX_TIMELINE_SEMAPHORES + 1] = {0};
+    uint64_t aulSignalValues[PL_MAX_TIMELINE_SEMAPHORES + 1] = {0};
     VkPipelineStageFlags atWaitStages[PL_MAX_TIMELINE_SEMAPHORES] = {0};
     atWaitStages[0] = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
 
@@ -4847,16 +4959,18 @@ pl_graphics_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitIn
         for (uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
         {
             atSignalSemaphores[i] = ptSubmitInfo->atSignalSempahores[i]->tSemaphore;
+            aulSignalValues[i] = ptSubmitInfo->auSignalSemaphoreValues[i];
         }
 
         tTimelineInfo.signalSemaphoreValueCount = ptSubmitInfo->uSignalSemaphoreCount;
-        tTimelineInfo.pSignalSemaphoreValues = ptSubmitInfo->auSignalSemaphoreValues;
+        tTimelineInfo.pSignalSemaphoreValues = aulSignalValues;
 
         tSubmitInfo.pNext = &tTimelineInfo;
         tSubmitInfo.pSignalSemaphores = atSignalSemaphores;
         tSubmitInfo.signalSemaphoreCount = ptSubmitInfo->uSignalSemaphoreCount;
     }
 
+    pl__vulkan_submit_timing(ptCmdBuffer, &tSubmitInfo, &tTimelineInfo, atSignalSemaphores, aulSignalValues);
     PL_VULKAN(vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
     pl_sb_push(ptCmdBuffer->ptPool->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
 }

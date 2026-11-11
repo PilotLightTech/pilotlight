@@ -12,6 +12,131 @@
 #else
 #endif
 
+
+void
+pl_graphics_set_gpu_timing_enabled(plDevice* ptDevice, bool bEnabled)
+{
+    ptDevice->tTiming.tFrame.bEnabled = bEnabled;
+}
+
+const plGpuTimingFrame*
+pl_graphics_get_gpu_timings(plDevice* ptDevice)
+{
+    return &ptDevice->tTiming.tFrame;
+}
+
+static void
+pl__gpu_timing_begin_frame(plDevice* ptDevice, plGpuTimingFrameData* ptFrame)
+{
+    plGpuTimingState* ptTiming = &ptDevice->tTiming;
+    plGpuTimingFrame* ptResult = &ptTiming->tFrame;
+    if(ptFrame->bCaptured && ptFrame->ulFrameIndex > ptResult->ulFrameIndex)
+    {
+        ptResult->ptSamples = ptTiming->atSamples;
+        ptResult->ulFrameIndex = ptFrame->ulFrameIndex;
+        ptResult->uSampleCount = 0;
+        ptResult->uDroppedSamples = ptFrame->uDropped;
+        ptResult->dDuration = 0.0;
+        uint64_t ulOrigin = 0;
+        bool bHasOrigin = false;
+        for(uint32_t i = 0; i < ptFrame->uCount; i++)
+        {
+            const plGpuTimingRecord* ptRecord = &ptFrame->atRecords[i];
+            if(!ptRecord->bClosed || !ptRecord->bSubmitted || !ptFrame->abReady[i])
+                continue;
+            const uint64_t ulStart = ptFrame->aulTicks[i * 2] & ptTiming->ulMask;
+            // Modular comparison also handles limited-width Vulkan timestamps.
+            if(!bHasOrigin || ((ulStart - ulOrigin) & ptTiming->ulMask) > ptTiming->ulMask / 2)
+                ulOrigin = ulStart;
+            bHasOrigin = true;
+        }
+        for(uint32_t i = 0; i < ptFrame->uCount; i++)
+        {
+            const plGpuTimingRecord* ptRecord = &ptFrame->atRecords[i];
+            if(!ptRecord->bSubmitted)
+                continue; // abandoned/reset recordings have no results
+            if(!ptRecord->bClosed || !ptFrame->abReady[i])
+            {
+                ptResult->uDroppedSamples++;
+                continue;
+            }
+            plGpuTimingSample* ptSample = &ptTiming->atSamples[ptResult->uSampleCount++];
+            *ptSample = ptRecord->tSample;
+            ptSample->dStartTime = (double)((ptFrame->aulTicks[i * 2] - ulOrigin) & ptTiming->ulMask) * ptTiming->dSecondsPerTick;
+            ptSample->dDuration = (double)((ptFrame->aulTicks[i * 2 + 1] - ptFrame->aulTicks[i * 2]) & ptTiming->ulMask) * ptTiming->dSecondsPerTick;
+            ptResult->dDuration = pl_maxd(ptResult->dDuration, ptSample->dStartTime + ptSample->dDuration);
+        }
+    }
+    memset(ptFrame, 0, sizeof(*ptFrame));
+    ptFrame->ulFrameIndex = ++ptTiming->ulNextFrame;
+    ptFrame->bActive = ptResult->bEnabled && ptResult->bSupported;
+    ptFrame->bCaptured = ptFrame->bActive;
+}
+
+static void
+pl__gpu_timing_begin_command(plCommandBuffer* ptCommandBuffer)
+{
+    plGpuTimingCommand* ptCommand = &ptCommandBuffer->tTiming;
+    plGpuTimingFrameData* ptFrame = &pl__get_frame_resources(ptCommandBuffer->ptDevice)->tTiming;
+    ptCommand->ptFrame = ptFrame;
+    ptCommand->ulFrameIndex = ptFrame->ulFrameIndex;
+    ptCommand->ulCommand = ++ptCommandBuffer->ptDevice->tTiming.ulNextCommand;
+    ptCommand->uDepth = 0;
+}
+
+static void
+pl__gpu_timing_submit(plCommandBuffer* ptCommandBuffer)
+{
+    plGpuTimingCommand* ptCommand = &ptCommandBuffer->tTiming;
+    plGpuTimingFrameData* ptFrame = ptCommand->ptFrame;
+    if(!ptFrame || ptFrame->ulFrameIndex != ptCommand->ulFrameIndex)
+        return;
+    for(uint32_t i = 0; i < ptFrame->uCount; i++)
+        if(ptFrame->atRecords[i].ulCommand == ptCommand->ulCommand)
+            ptFrame->atRecords[i].bSubmitted = true;
+}
+
+static uint32_t
+pl__gpu_timing_push(plCommandBuffer* ptCommandBuffer, const char* pcName)
+{
+    plGpuTimingCommand* ptCommand = &ptCommandBuffer->tTiming;
+    plGpuTimingFrameData* ptFrame = ptCommand->ptFrame;
+    if(!ptFrame || !ptFrame->bActive || ptFrame->ulFrameIndex != ptCommand->ulFrameIndex)
+        return UINT32_MAX;
+    const uint32_t uDepth = ptCommand->uDepth++;
+    if(uDepth >= PL_GPU_TIMING_MAX_DEPTH || ptFrame->uCount == PL_GPU_TIMING_MAX_SAMPLES)
+    {
+        ptFrame->uDropped++;
+        if(uDepth < PL_GPU_TIMING_MAX_DEPTH)
+            ptCommand->auStack[uDepth] = UINT32_MAX;
+        return UINT32_MAX;
+    }
+    const uint32_t uIndex = ptFrame->uCount++;
+    plGpuTimingRecord* ptRecord = &ptFrame->atRecords[uIndex];
+    ptRecord->ulCommand = ptCommand->ulCommand;
+    ptRecord->tSample.uDepth = uDepth;
+    strncpy(ptRecord->tSample.acName, pcName, sizeof(ptRecord->tSample.acName) - 1);
+    ptCommand->auStack[uDepth] = uIndex;
+    return uIndex * 2;
+}
+
+static uint32_t
+pl__gpu_timing_pop(plCommandBuffer* ptCommandBuffer)
+{
+    plGpuTimingCommand* ptCommand = &ptCommandBuffer->tTiming;
+    plGpuTimingFrameData* ptFrame = ptCommand->ptFrame;
+    if(!ptFrame || !ptFrame->bActive || ptFrame->ulFrameIndex != ptCommand->ulFrameIndex || ptCommand->uDepth == 0)
+        return UINT32_MAX;
+    const uint32_t uDepth = --ptCommand->uDepth;
+    if(uDepth >= PL_GPU_TIMING_MAX_DEPTH)
+        return UINT32_MAX;
+    const uint32_t uIndex = ptCommand->auStack[uDepth];
+    if(uIndex == UINT32_MAX)
+        return UINT32_MAX;
+    ptFrame->atRecords[uIndex].bClosed = true;
+    return uIndex * 2 + 1;
+}
+
 static size_t
 pl__get_vertex_attribute_size(plVertexFormat tFormat)
 {
@@ -1154,6 +1279,8 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .push_debug_group                       = pl_graphics_push_debug_group,
         .pop_debug_group                        = pl_graphics_pop_debug_group,
         .insert_debug_label                     = pl_graphics_insert_debug_label,
+        .set_gpu_timing_enabled                 = pl_graphics_set_gpu_timing_enabled,
+        .get_gpu_timings                        = pl_graphics_get_gpu_timings,
         .calculate_mip_count                    = pl_graphics_calculate_mip_count,
         .get_format_as_string                   = pl_graphics_get_format_as_string,
     };
@@ -1166,6 +1293,9 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptMemory       = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptIOI          = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows      = pl_get_api_latest(ptApiRegistry, plWindowI);
+#ifdef PL_CPU_BACKEND
+    gptGraphicsTimer = pl_get_api_latest(ptApiRegistry, plTimerI);
+#endif
     gptIO           = gptIOI->get_io();
 
     if(bReload)

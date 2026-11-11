@@ -3800,6 +3800,7 @@ pl__render_view_full_screen_blit(plView* ptView)
     // Finish scene writes and previous snapshot readers before overwriting it.
     gptGfx->consumer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_BLIT, PL_BARRIER_SCOPE_ALL);
     gptGfx->begin_compute_pass(ptSceneCmdBuffer, NULL);
+    gptGfx->push_debug_group(ptSceneCmdBuffer, "Transmission snapshot copies", (plVec4){0.33f, 0.20f, 0.10f, 1.0f});
 
     plImageCopy tFrameCopy = {
         .uSourceExtentX = (uint32_t)ptView->tTargetSize.x,
@@ -3810,11 +3811,14 @@ pl__render_view_full_screen_blit(plView* ptView)
     };
     gptGfx->copy_texture(ptSceneCmdBuffer, ptView->tRawOutputTexture, ptView->tTransmissionTexture, 1, &tFrameCopy);
     gptGfx->copy_texture(ptSceneCmdBuffer, ptView->tDepthTexture, ptView->tTransmissionDepthTexture, 1, &tFrameCopy);
+    gptGfx->pop_debug_group(ptSceneCmdBuffer);
+    gptGfx->push_debug_group(ptSceneCmdBuffer, "Transmission snapshot mipmaps", (plVec4){0.33f, 0.20f, 0.10f, 1.0f});
     // Mipmap generation reads the level zero written by the color copy.
     gptGfx->intra_pass_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_BLIT, PL_PIPELINE_STAGE_BLIT, PL_BARRIER_SCOPE_ALL, NULL);
     gptGfx->generate_mipmaps(ptSceneCmdBuffer, ptView->tTransmissionTexture);
     // Publish both snapshots and all color mips before water samples them.
     gptGfx->producer_barrier(ptSceneCmdBuffer, PL_PIPELINE_STAGE_BLIT, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
+    gptGfx->pop_debug_group(ptSceneCmdBuffer);
     gptGfx->end_compute_pass(ptSceneCmdBuffer);
     return ptSceneCmdBuffer;
 }
@@ -3869,6 +3873,9 @@ pl__render_view_transmission_pass(plView* ptView, plCommandBuffer* ptCommandBuff
             const plMaterial* ptMaterial = gptAsset->get_data(tMaterial);
             if(ptMaterial->eMaterialModel == PL_MATERIAL_MODEL_WATER)
             {
+                PL_RENDERER_STAT("renderer / water drawables", 1);
+                PL_RENDERER_STAT("renderer / water instances", ptDrawable->uInstanceCount);
+                PL_RENDERER_STAT("renderer / water triangles", (double)ptDrawable->uTriangleCount * ptDrawable->uInstanceCount);
                 const plMaterial tSanitized = gptMaterial->sanitize(*ptMaterial);
                 int aiWaterConstants[] = {
                     tSanitized.eFlags | PL_MATERIAL_SHADER_FLAG_WATER,
