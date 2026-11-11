@@ -95,7 +95,10 @@ typedef struct _plMeshI
     bool (*generate_uvs)      (plMesh*);
     void (*calculate_bounds)  (plMesh*);
     bool (*generate_indices)  (plMesh*);
-    void (*split)             (plMesh*, plMesh* meshesOut);
+
+    // Deep copies each submesh; output has uSubmeshCount zero-initialized meshes.
+    // Source is unchanged. Caller cleans up each output with cleanup().
+    void (*split) (plMesh*, plMesh* meshesOut);
 
     // helpers
     void (*create_sphere) (float radius, uint32_t latitudeBands, uint32_t longitudeBands, plMesh*);

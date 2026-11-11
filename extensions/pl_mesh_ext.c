@@ -1085,7 +1085,7 @@ pl_mesh_allocate(plMesh* ptMesh, const plSubmeshAllocationDesc* atAllocDesc, uin
 void
 pl_mesh_split(plMesh* ptMesh, plMesh* meshesOut)
 {
-    if(ptMesh->uSubmeshCount <= 1)
+    if(!ptMesh || !meshesOut || ptMesh == meshesOut)
         return;
     
     for(uint32_t uSubmeshIndex = 0; uSubmeshIndex < ptMesh->uSubmeshCount; uSubmeshIndex++)
@@ -1099,7 +1099,7 @@ pl_mesh_split(plMesh* ptMesh, plMesh* meshesOut)
             .szVertexCount     = ptSubmesh->szVertexCount,
             .szIndexCount      = ptSubmesh->szIndexCount
         };
-        pl_mesh_allocate(ptMesh, &tMeshAlloc, 1);
+        pl_mesh_allocate(ptNewMesh, &tMeshAlloc, 1);
 
         ptNewMesh->tAABB = ptSubmesh->tAABB;
         ptNewMesh->atSubmeshes[0].tAABB = ptSubmesh->tAABB;
