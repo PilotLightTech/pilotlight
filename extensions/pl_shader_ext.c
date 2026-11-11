@@ -178,6 +178,7 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
     };
     gptShaderCtx->uLogChannel = gptLog->add_channel("Shader", tLogInit);
     gptShaderCtx->bInitialized = true;
+    gptShaderCtx->tDefaultShaderOptions.eOptimizationLevel = ptShaderOptions->eOptimizationLevel;
     gptShaderCtx->tDefaultShaderOptions.eFlags = ptShaderOptions->eFlags;
     if(ptShaderOptions->eFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
     {
@@ -295,6 +296,7 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
     if(!gptShaderCtx->bInitialized)
         return;
 
+    gptShaderCtx->tDefaultShaderOptions.eOptimizationLevel = ptShaderOptions->eOptimizationLevel;
     gptShaderCtx->tDefaultShaderOptions.eFlags = ptShaderOptions->eFlags;
     if(ptShaderOptions->eFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
     {
@@ -547,6 +549,12 @@ pl_shader_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOp
         return tModule;
     }
         
+    // Metal argument buffers use the complete engine bind-group layout.
+    // Keep inactive bindings through SPIR-V optimization so SPIRV-Cross can
+    // retain them with MSL_FORCE_ACTIVE_ARGUMENT_BUFFER_RESOURCES below.
+    if(ptOptions->eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
+        shaderc_compile_options_set_preserve_bindings(tShaderRcOptions, true);
+
     switch(ptOptions->eOptimizationLevel)
     {
 
