@@ -15,6 +15,13 @@ pl_deferred_point(int lightIndex, vec3 worldPosition, vec3 n, vec3 v, MaterialIn
         float shadow = 1.0;
 
         vec3 pointToLight = tLightData.tPosition - tWorldPosition.xyz;
+        vec3 l = normalize(pointToLight);
+        float NdotL = clampedDot(n, l);
+        float NdotV = clampedDot(n, v);
+        // These opaque BRDFs contribute nothing outside either hemisphere.
+        // Shadow derivatives were captured by pl_shadow_surface before this call.
+        if(!(NdotL > 0.0 && NdotV > 0.0))
+            return vec3(0.0);
 
         if(bShadows && tLightData.iCastShadow > 0)
         {
@@ -56,11 +63,7 @@ pl_deferred_point(int lightIndex, vec3 worldPosition, vec3 n, vec3 v, MaterialIn
         }
 
         // BSTF
-        vec3 l = normalize(pointToLight);   // Direction from surface point to light
         vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
-        float NdotL = clampedDot(n, l);
-        float NdotV = clampedDot(n, v);
-
         vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(clampedDot(v, h)));
         vec3 metal_fresnel = pl_fresnel_schlick(materialInfo.baseColor, vec3(1.0), abs(clampedDot(v, h)));
 
@@ -101,6 +104,13 @@ pl_deferred_spot(int lightIndex, vec3 worldPosition, vec3 n, vec3 v, MaterialInf
         float shadow = 1.0;
 
         vec3 pointToLight = tLightData.tPosition - tWorldPosition.xyz;
+        vec3 l = normalize(pointToLight);
+        float NdotL = clampedDot(n, l);
+        float NdotV = clampedDot(n, v);
+        // These opaque BRDFs contribute nothing outside either hemisphere.
+        // Shadow derivatives were captured by pl_shadow_surface before this call.
+        if(!(NdotL > 0.0 && NdotV > 0.0))
+            return vec3(0.0);
 
         if(bShadows && tLightData.iCastShadow > 0)
         {
@@ -133,11 +143,7 @@ pl_deferred_spot(int lightIndex, vec3 worldPosition, vec3 n, vec3 v, MaterialInf
         }
 
         // BSTF
-        vec3 l = normalize(pointToLight);   // Direction from surface point to light
         vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
-        float NdotL = clampedDot(n, l);
-        float NdotV = clampedDot(n, v);
-
         vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(clampedDot(v, h)));
         vec3 metal_fresnel = pl_fresnel_schlick(materialInfo.baseColor, vec3(1.0), abs(clampedDot(v, h)));
 

@@ -38,6 +38,10 @@ cloudDensity(vec3 p, bool detail)
     vec3 q = p * tGpuScene.tData.tCloudNoise.x;
     float weather = cloudNoise(vec3(q.x * 0.18, 7.0, q.z * 0.18));
     float coverage = clamp(layer.x + (weather - 0.5) * 0.35, 0.0, 1.0);
+    // Shape is clamped to [0,1], so zero coverage always produces zero density.
+    // Avoid the three-octave shape noise and erosion in empty weather regions.
+    if(coverage <= 0.0)
+        return 0.0;
     float shape = clamp((cloudFbm(q) - 0.25) / 0.6, 0.0, 1.0);
     float density = clamp((shape - (1.0 - coverage)) / max(coverage, 0.01), 0.0, 1.0);
     // Flat bases, rounded tops, and fine erosion along the exposed edges.

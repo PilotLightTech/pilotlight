@@ -90,18 +90,24 @@ cloudIntegrateTransport(vec3 worldOrigin, vec3 ray, float maxDistance, float sam
             float density = cloudDensity(p, true);
             if(density <= 0.001)
                 continue;
-            float sunDepth = cloudSunDepth(p, sun);
             vec3 up = normalize(p);
             float sunElevation = dot(up, sun);
             vec2 sunPlanet = cloudSphere(p, sun, radius);
-            float daylight = cloudForwardHit(sunPlanet) ? 0.0 : 1.0;
             // Approximate atmospheric sun attenuation and low-order multiple
             // scattering. Neither approximation adds energy independent of the sun.
-            vec3 sunTransmission = exp(-tGpuScene.tData.extinctionRayleighGround * 8.0 / max(sunElevation, 0.04));
-            float scattering = dot(phase, exp(-sunDepth * vec3(1.0, 0.5, 0.25)));
+            vec3 directSun = vec3(0.0);
+            // Planet-occluded samples retain ambient light, but have no direct sun.
+            // Avoid the cached lookup or six-step light march in that case.
+            if(!cloudForwardHit(sunPlanet))
+            {
+                float sunDepth = cloudSunDepth(p, sun);
+                vec3 sunTransmission = exp(-tGpuScene.tData.extinctionRayleighGround * 8.0 / max(sunElevation, 0.04));
+                float scattering = dot(phase, exp(-sunDepth * vec3(1.0, 0.5, 0.25)));
+                directSun = sunTransmission * scattering;
+            }
             float height = clamp((length(p) - innerRadius) / tGpuScene.tData.tCloudLayer.z, 0.0, 1.0);
             vec3 ambient = vec3(0.035, 0.055, 0.09) * mix(0.35, 1.0, height) * smoothstep(-0.15, 0.2, sunElevation);
-            vec3 source = sunlight * (daylight * sunTransmission * scattering + ambient);
+            vec3 source = sunlight * (directSun + ambient);
             float segmentT = exp(-density * tGpuScene.tData.tCloudLayer.w * ds);
             cloudDistance += transmittance * (1.0 - segmentT) * distance;
             radiance += transmittance * (1.0 - segmentT) * source;

@@ -166,6 +166,9 @@ pl_water_distortion_confidence(vec2 candidate, vec2 original, float depth, vec2 
         vec3 plane = pl_water_depth_position(pixel, expected, inverseProjection, viewport);
         float error = length(position - plane);
         confidence = min(confidence, 1.0 - smoothstep(threshold * 0.25, threshold, error));
+        // Subsequent taps can only lower confidence. Zero already rejects it.
+        if(confidence <= 0.0)
+            return 0.0;
     }
     return confidence;
 }
@@ -196,6 +199,9 @@ pl_water_distort(vec2 pixel, vec2 offset, vec3 surface, vec3 interfaceNormal, ma
     for(int i = 1; i <= 4; i++)
     {
         confidence = min(confidence, pl_water_distortion_confidence(pixel + offset * (float(i) / 4.0), pixel, depth, gradient, surface, interfaceNormal, inverseProjection, viewport, threshold));
+        // Preserve the original undistorted pathLength on rejection.
+        if(confidence <= 0.0)
+            return pixel;
     }
 
     vec2 candidate = pixel + offset * confidence;
@@ -374,7 +380,7 @@ pl_water_cached_cloud(out vec4 transport)
 // of the coarse displaced triangles have discontinuous slopes at shared edges;
 // using them for filtering makes those edges visible in normals and foam.
 mat2
-pl_water_pixel_differentials(vec3 position, plGpuWater water)
+pl_water_pixel_differentials(vec3 normal)
 {
     uint camera = tObjectInfo.tData.uGlobalIndex;
     mat4 invProjection = tViewInfo.tData.tCameraProjectionInv[camera];
@@ -389,7 +395,6 @@ pl_water_pixel_differentials(vec3 position, plGpuWater water)
     vec3 ray = normalize(viewInv * (farPoint.xyz / farPoint.w - nearPoint.xyz / nearPoint.w));
     vec3 dx = viewInv * (right.xyz / right.w - center.xyz / center.w);
     vec3 dy = viewInv * (down.xyz / down.w - center.xyz / center.w);
-    vec3 normal = pl_water_surface_normal(tShaderIn.tWaterPosition, tGpuScene.tData.g_time, water);
     float denominator = dot(normal, ray);
     denominator = (denominator < 0.0 ? -1.0 : 1.0) * max(abs(denominator), 0.001);
     dx -= ray * (dot(normal, dx) / denominator);
@@ -461,9 +466,8 @@ pl_water_foam_noise(vec2 p)
 }
 
 vec3
-pl_water_foam_pattern(vec3 position, float time, plGpuWater water)
+pl_water_foam_pattern(vec3 position, float time, plGpuWater water, mat2 pixelSteps)
 {
-    mat2 pixelSteps = pl_water_pixel_differentials(position, water);
     float footprint = max(length(pixelSteps[0]), length(pixelSteps[1])) / water.tDetail.w;
     float heading = radians(water.tSwell0.w);
     vec2 direction = vec2(cos(heading), sin(heading));
@@ -506,11 +510,10 @@ pl_water_foam_pattern(vec3 position, float time, plGpuWater water)
 }
 
 float
-pl_water_whitecaps(vec3 position, float time, plGpuWater water, vec3 pattern)
+pl_water_whitecaps(vec3 position, plGpuWater water, vec3 pattern, vec3 surface)
 {
     // Artistic breaking-wave proxy: upper swell shoulders with enough slope.
     // This has no history buffer; patches form and dissolve with the crest.
-    vec3 surface = pl_water_surface(tShaderIn.tWaterPosition, time, water);
     float amplitude = water.tWaves.x == 2.0 ? water.tOcean.w : water.tSwell0.x + water.tSwell1.x;
     float crest = smoothstep(water.tCaps.y, max(water.tCaps.z, water.tCaps.y + 0.0001), surface.z / max(amplitude, 0.0001));
     float steepness = smoothstep(water.tCaps.w, max(water.tAppearance.x, water.tCaps.w + 0.0001), length(surface.xy));
@@ -567,10 +570,8 @@ pl_water_wave(vec2 position, vec2 direction, float wavelength, float amplitude, 
 }
 
 vec3
-pl_water_normal(vec2 position, float time, float strength, plGpuWater water)
+pl_water_normal(vec2 position, float time, float strength, plGpuWater water, vec3 surfaceNormal, mat2 pixelSteps)
 {
-    mat2 pixelSteps = pl_water_pixel_differentials(tShaderIn.tWorldPosition, water);
-    vec3 surfaceNormal = pl_water_surface_normal(position, time, water);
     // Preserve the original legacy slope/detail weighting.
     if(water.tWaves.x == 0.0)
         surfaceNormal /= max(surfaceNormal.y, 0.0001);

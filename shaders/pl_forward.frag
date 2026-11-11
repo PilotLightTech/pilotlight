@@ -214,14 +214,26 @@ void main()
     float waterFoam = 0.0;
     if(bWater)
     {
+        // Share the analytic frame across detail normals, filtering and foam.
+        // Keep the unnormalized cross product for the original crest slope.
+        vec3 surfaceNormal, surface;
+        {
+            vec3 displacement, dx, dz;
+            pl_water_frame(tShaderIn.tWaterPosition, tGpuScene.tData.g_time,
+                material.tWater, displacement, dx, dz);
+            vec3 normal = cross(dz, dx);
+            surfaceNormal = length(normal) > 0.00001 ? normalize(normal) : vec3(0,1,0);
+            surface = vec3(-normal.xz / max(abs(normal.y), 0.05), displacement.y);
+        }
+        mat2 pixelSteps = pl_water_pixel_differentials(surfaceNormal);
         n = pl_water_normal(tShaderIn.tWaterPosition, tGpuScene.tData.g_time,
-            material.fNormalMapStrength, material.tWater);
+            material.fNormalMapStrength, material.tWater, surfaceNormal, pixelSteps);
         vec3 foamPattern = vec3(0.5, 0.5, 0.67);
         if(v.y > 0.0 && (material.tWater.tShore.x > 0.0 || material.tWater.tCaps.x > 0.0))
-            foamPattern = pl_water_foam_pattern(tShaderIn.tWorldPosition, tGpuScene.tData.g_time, material.tWater);
+            foamPattern = pl_water_foam_pattern(tShaderIn.tWorldPosition, tGpuScene.tData.g_time, material.tWater, pixelSteps);
         if(!bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
             waterFoam = pl_water_shore_foam(tShaderIn.tWorldPosition, material.tWater, foamPattern);
-        float whitecaps = pl_water_whitecaps(tShaderIn.tWorldPosition, tGpuScene.tData.g_time, material.tWater, foamPattern);
+        float whitecaps = pl_water_whitecaps(tShaderIn.tWorldPosition, material.tWater, foamPattern, surface);
         waterFoam = 1.0 - (1.0 - waterFoam) * (1.0 - whitecaps);
         // Foam is a lit, rough surface layer, not an emissive white overlay.
         tBaseColor.rgb = material.tWater.tFoamColorDebug.rgb; // Lit foam endpoint; coverage is applied once below.
