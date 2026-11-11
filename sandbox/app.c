@@ -805,26 +805,22 @@ pl_app_update(plAppData* ptAppData)
 
         gptEcs->get_changes(ptLibrary, &atEcsChanges, &uEcsChangeCount, &atEcsTypes);
 
+        // Structural edits can remove an object and add its replacements in one batch.
+        // Remove stale drawables first so instancing never examines a removed component.
         for(uint32_t i = 0; i < uEcsChangeCount; i++)
         {
-            switch(atEcsChanges[i].eType)
-            {
-                case PL_ECS_CHANGE_ENTITY_ADDED:
-                    // gptRenderer->add_entity_to_scene(ptAppData->ptScene, atEcsChanges[i].tEntity);
-                    break;
-                case PL_ECS_CHANGE_ENTITY_REMOVED:
-                    gptRenderer->remove_entity_from_scene(ptAppData->ptScene, atEcsChanges[i].tEntity);
-                    break;
-                case PL_ECS_CHANGE_COMPONENT_ADDED:
-                    gptRenderer->add_component_to_scene(ptAppData->ptScene, atEcsChanges[i].tEntity, atEcsChanges[i].tComponentType);
-                    break;
-                case PL_ECS_CHANGE_COMPONENT_REMOVED:
-                    gptRenderer->remove_component_from_scene(ptAppData->ptScene, atEcsChanges[i].tEntity, atEcsChanges[i].tComponentType);
-                    break;
-                case PL_ECS_CHANGE_COMPONENT_CHANGED:
-                default:
-                    break;
-            }
+            const plEcsChange* ptChange = &atEcsChanges[i];
+            if(ptChange->eType == PL_ECS_CHANGE_ENTITY_REMOVED)
+                gptRenderer->remove_entity_from_scene(ptAppData->ptScene, ptChange->tEntity);
+            else if(ptChange->eType == PL_ECS_CHANGE_COMPONENT_REMOVED)
+                gptRenderer->remove_component_from_scene(ptAppData->ptScene, ptChange->tEntity, ptChange->tComponentType);
+        }
+        for(uint32_t i = 0; i < uEcsChangeCount; i++)
+        {
+            const plEcsChange* ptChange = &atEcsChanges[i];
+            if(ptChange->eType == PL_ECS_CHANGE_COMPONENT_ADDED &&
+               gptEcs->has_component(ptLibrary, ptChange->tComponentType, ptChange->tEntity))
+                gptRenderer->add_component_to_scene(ptAppData->ptScene, ptChange->tEntity, ptChange->tComponentType);
         }
 
         gptEcs->clear_changes(ptLibrary);
@@ -935,7 +931,10 @@ pl_app_update(plAppData* ptAppData)
             if(gptUI->button("Refresh"))
                 pl__refresh_files(ptAppData);
             if(gptUI->button("Clear Assets"))
+            {
+                gptAssetTools->cleanup(); // Close inspectors before their assets and libraries disappear.
                 gptAsset->clear_assets();
+            }
             if(gptUI->button("Load Assets"))
                 pl__load_assets(ptAppData);
             gptUI->checkbox("Imports", &ptAppData->bShowImportOptions);

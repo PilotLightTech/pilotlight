@@ -2239,6 +2239,8 @@ pl_asset_tools_cleanup(void)
     pl_sb_free(gptAssetToolsCtx->sbtSelectionData);
     pl_sb_free(gptAssetToolsCtx->sbuSelectionData);
     pl_hm_free(&gptAssetToolsCtx->tLibraryHashmap);
+    bool bShowTool = gptAssetToolsCtx->bShowTool;
+    *gptAssetToolsCtx = (plEcsToolsContext){ .bShowTool = bShowTool };
 }
 
 void
