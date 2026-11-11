@@ -1,6 +1,10 @@
 #ifndef LIGHTING_GLSL
 #define LIGHTING_GLSL
 
+#ifndef PL_SCENE_SHADER_FLAGS
+#define PL_SCENE_SHADER_FLAGS tGpuScene.tData.iSceneFlags
+#endif
+
 vec3
 getDiffuseLight(vec3 n, int iProbeIndex)
 {
@@ -394,13 +398,13 @@ float textureProj2(vec4 sc, vec2 offset, int textureIndex, plShadowReceiver rece
 }
 float filterPCFSimple(vec4 sc, vec2 offset, int textureIndex, plShadowReceiver receiver)
 {
-    int radius = bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS) ? 1 : 0;
+    int radius = bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_PCF_SHADOWS) ? 1 : 0;
     return pl_shadow_sample(sc.xyz, sc.w, offset, textureIndex, receiver, radius);
 }
 float filterPCF(vec4 sc, vec2 offset, int textureIndex, uint cascadeIndex, plShadowReceiver receiver)
 {
     // Also honored for the neighboring cascade in the blend region.
-    int radius = bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS) ? (cascadeIndex == 0 ? 3 : 1) : 0;
+    int radius = bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_PCF_SHADOWS) ? (cascadeIndex == 0 ? 3 : 1) : 0;
     return pl_shadow_sample(sc.xyz / sc.w, sc.w, offset, textureIndex, receiver, radius);
 }
 

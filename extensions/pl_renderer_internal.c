@@ -16,6 +16,13 @@ Index of this file:
 
 #include "pl_renderer_internal.h"
 
+// Keep development shaders unoptimized; optimize all renderer stages in release.
+#ifdef PL_CONFIG_RELEASE
+    #define PL_RENDERER_SHADER_OPTIMIZATION PL_SHADER_OPTIMIZATION_PERFORMANCE
+#else
+    #define PL_RENDERER_SHADER_OPTIMIZATION PL_SHADER_OPTIMIZATION_NONE
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] job system tasks
 //-----------------------------------------------------------------------------
@@ -3852,6 +3859,37 @@ pl__render_view_transmission_pass(plView* ptView, plCommandBuffer* ptCommandBuff
     for(uint32_t i = 0; i < uVisibleTransmissionDrawCount; i++)
     {
         plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_TRANSMISSION][i]];
+        plShaderHandle tDrawShader = tTransmissionShader;
+        if(ptScene->tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
+        {
+            plDrawableResources* ptResources = &ptScene->sbtDrawableResources[ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_TRANSMISSION][i]];
+            plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptResources->tEntity);
+            plMesh* ptMesh = gptAsset->get_data(ptObject->tMesh);
+            plAssetHandle tMaterial = ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[ptResources->uSubmeshIndex - ptObject->uFirstSubmesh] : ptMesh->atSubmeshes[ptResources->uSubmeshIndex].tMaterial;
+            const plMaterial* ptMaterial = gptAsset->get_data(tMaterial);
+            if(ptMaterial->eMaterialModel == PL_MATERIAL_MODEL_WATER)
+            {
+                const plMaterial tSanitized = gptMaterial->sanitize(*ptMaterial);
+                int aiWaterConstants[] = {
+                    tSanitized.eFlags | PL_MATERIAL_SHADER_FLAG_WATER,
+                    tSanitized.tWater.iWaveMode,
+                    (pl_sb_size(ptScene->sbtPointLights) > 0 ? 1 : 0) |
+                    (pl_sb_size(ptScene->sbtSpotLights) > 0 ? 2 : 0) |
+                    (pl_sb_size(ptScene->sbtDirectionLights) > 0 ? 4 : 0),
+                    ptScene->tSceneData.tCloudLayer.x > 0.0f && ptScene->tSceneData.tCloudLayer.w > 0.0f,
+                    tSanitized.eAlphaMode,
+                    ptScene->tSceneData.iSceneFlags
+                };
+                // The shader library caches by constants and render state. Changes
+                // to material features, lights, clouds or wireframe pick a new variant.
+                plShaderVariantDesc tVariant = {
+                    .ptGraphicsState = &gptGfx->get_shader(ptDevice, tTransmissionShader)->tDesc.tGraphicsState,
+                    .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout,
+                    .pFragmentConstants = aiWaterConstants
+                };
+                tDrawShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "water", &tVariant);
+            }
+        }
         plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynForwardData));
         plGpuDynForwardData* ptDynamicData = (plGpuDynForwardData*)tDynamicBinding.pcData;
         ptDynamicData->iDataOffset = ptDrawable->uDataOffset;
@@ -3865,7 +3903,7 @@ pl__render_view_transmission_pass(plView* ptView, plCommandBuffer* ptCommandBuff
         ptDynamicData->iObjectShaderFlags = PL_OBJECT_SHADER_FLAG_SHADOWS;
         pl_add_to_draw_stream(ptStream, (plDrawStreamData)
         {
-            .tShader        = tTransmissionShader,
+            .tShader        = tDrawShader,
             .auDynamicBuffers = {
                 tDynamicBinding.uBufferHandle
             },
@@ -7005,6 +7043,7 @@ pl__renderer_scene_create_compute_shaders(plScene* ptScene)
     plShaderOptions tOriginalOptions = *gptShader->get_options();
 
     plShaderOptions tNewDefaultShaderOptions = {
+        .eOptimizationLevel = PL_RENDERER_SHADER_OPTIMIZATION,
         .apcIncludeDirectories = {
             "../shaders/"
         },
@@ -7346,6 +7385,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
     plShaderOptions tOriginalOptions = *gptShader->get_options();
 
     plShaderOptions tNewDefaultShaderOptions = {
+        .eOptimizationLevel = PL_RENDERER_SHADER_OPTIMIZATION,
         .apcIncludeDirectories = {
             "../shaders/"
         },
@@ -7356,6 +7396,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
 
     };
     gptShader->set_options(&tNewDefaultShaderOptions);
+
 
     {
         plShaderDesc tDesc = {
@@ -7763,6 +7804,11 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
             .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "transmission", &tDesc);
+        int aiWaterConstants[] = {-1, -1, 7, -1, -1, -1};
+        for(uint32_t i = 0; i < PL_ARRAYSIZE(aiWaterConstants); i++)
+            tDesc.atFragmentConstants[i].eType = PL_DATA_TYPE_INT;
+        tDesc.pFragmentTempConstantData = aiWaterConstants;
+        gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "water", &tDesc);
     }
 
     {
@@ -10014,6 +10060,7 @@ pl__renderer_load_shaders(plScene* ptScene)
     plShaderOptions tOriginalOptions = *gptShader->get_options();
 
     plShaderOptions tNewDefaultShaderOptions = {
+        .eOptimizationLevel = PL_RENDERER_SHADER_OPTIMIZATION,
         .apcIncludeDirectories = {
             "../shaders/"
         },

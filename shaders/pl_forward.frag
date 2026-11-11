@@ -2,6 +2,10 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
+// Shared lighting helpers can use the same scene-feature specialization.
+layout(constant_id = 5) const int PL_FORWARD_SCENE_FLAGS = -1;
+#define PL_SCENE_SHADER_FLAGS (PL_FORWARD_SCENE_FLAGS < 0 ? tGpuScene.tData.iSceneFlags : PL_FORWARD_SCENE_FLAGS)
+
 #include "pl_bg_scene.inc"
 #include "pl_bg_view.inc"
 #include "pl_screen_ao.glsl"
@@ -179,15 +183,34 @@ vec3 evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFi
 // [SECTION] entry
 //-----------------------------------------------------------------------------
 
+// Negative defaults keep the generic forward path. Water variants specialize
+// only discrete features; all continuous material values remain live uniforms.
+layout(constant_id = 0) const int PL_FORWARD_MATERIAL_FLAGS = -1;
+layout(constant_id = 1) const int PL_FORWARD_WAVE_MODE = -1;
+layout(constant_id = 2) const int PL_FORWARD_LIGHT_TYPES = 7;
+layout(constant_id = 3) const int PL_FORWARD_CLOUDS = -1;
+layout(constant_id = 4) const int PL_FORWARD_ALPHA_MODE = -1;
+
+float pl_forward_cloud_sun(vec3 position)
+{
+    return PL_FORWARD_CLOUDS == 0 ? 1.0 : cloudSunTransmission(position);
+}
+
 void main() 
 {
     pl_shadow_surface(tShaderIn.tWorldPosition);
     int iClusterBase = pl_cluster_base(tShaderIn.tWorldPosition, tObjectInfo.tData.uGlobalIndex);
-    int iPointCount = pl_cluster_count(iClusterBase, 0, tObjectInfo.tData.iPointLightCount);
-    int iSpotCount = pl_cluster_count(iClusterBase, 1, tObjectInfo.tData.iSpotLightCount);
+    int iPointCount = (PL_FORWARD_LIGHT_TYPES & 1) != 0 ? pl_cluster_count(iClusterBase, 0, tObjectInfo.tData.iPointLightCount) : 0;
+    int iSpotCount = (PL_FORWARD_LIGHT_TYPES & 2) != 0 ? pl_cluster_count(iClusterBase, 1, tObjectInfo.tData.iSpotLightCount) : 0;
 
 
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    if(PL_FORWARD_MATERIAL_FLAGS >= 0)
+        material.iMaterialFlags = PL_FORWARD_MATERIAL_FLAGS;
+    if(PL_FORWARD_WAVE_MODE >= 0)
+        material.tWater.tWaves.x = float(PL_FORWARD_WAVE_MODE);
+    if(PL_FORWARD_ALPHA_MODE >= 0)
+        material.eAlphaMode = PL_FORWARD_ALPHA_MODE;
     vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.aiTextureUVSet[PL_TEXTURE_BASE_COLOR], tObjectInfo.tData.iMaterialIndex);
     tBaseColor.rgb = pl_apply_decals(tBaseColor.rgb, tShaderIn.tWorldPosition, tShaderIn.tWorldNormal);
 
@@ -197,7 +220,14 @@ void main()
     }
     vec3 color = vec3(0);
 
-    NormalInfo tNormalInfo = pl_get_normal_info(tObjectInfo.tData.iMaterialIndex);
+    bool bWater = bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_WATER);
+    NormalInfo tNormalInfo;
+    // Water replaces the base normal analytically. Only optional clearcoat and
+    // anisotropy still consume the mesh tangent frame / normal map below.
+    if(!bWater || bool(material.iMaterialFlags & (PL_MATERIAL_SHADER_FLAG_CLEARCOAT | PL_MATERIAL_SHADER_FLAG_ANISOTROPY)))
+        tNormalInfo = pl_get_normal_info(tObjectInfo.tData.iMaterialIndex);
+    else
+        tNormalInfo = NormalInfo(vec3(0,1,0), vec3(1,0,0), vec3(0,0,1), vec3(0,1,0), vec3(0,0,1));
 
     vec3 n = tNormalInfo.n;
     vec3 t = tNormalInfo.t;
@@ -206,7 +236,6 @@ void main()
     vec3 vraw = tViewInfo.tData.tCameraPos.xyz - tShaderIn.tWorldPosition.xyz;
     vec3 v = normalize(vraw);
 
-    bool bWater = bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_WATER);
     vec3 waterReflection = vec3(0.0);
     vec3 waterIllumination = vec3(0.0);
     float waterFresnel = 0.0;
@@ -228,12 +257,18 @@ void main()
         mat2 pixelSteps = pl_water_pixel_differentials(surfaceNormal);
         n = pl_water_normal(tShaderIn.tWaterPosition, tGpuScene.tData.g_time,
             material.fNormalMapStrength, material.tWater, surfaceNormal, pixelSteps);
+        vec2 shoreSupport = vec2(0.0);
+        if(material.tWater.tShore.x > 0.0 && !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
+            shoreSupport = pl_water_shore_support(tShaderIn.tWorldPosition, material.tWater);
+        // Pattern values lie in [0,1]. An all-one pattern gives a conservative
+        // coverage bound, so zero means no noise can produce a whitecap here.
+        float capSupport = pl_water_whitecaps(tShaderIn.tWorldPosition, material.tWater, vec3(1.0), surface);
         vec3 foamPattern = vec3(0.5, 0.5, 0.67);
-        if(v.y > 0.0 && (material.tWater.tShore.x > 0.0 || material.tWater.tCaps.x > 0.0))
+        if(v.y > 0.0 && (shoreSupport.y > 0.0 || capSupport > 0.0))
             foamPattern = pl_water_foam_pattern(tShaderIn.tWorldPosition, tGpuScene.tData.g_time, material.tWater, pixelSteps);
-        if(!bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
-            waterFoam = pl_water_shore_foam(tShaderIn.tWorldPosition, material.tWater, foamPattern);
-        float whitecaps = pl_water_whitecaps(tShaderIn.tWorldPosition, material.tWater, foamPattern, surface);
+        if(shoreSupport.y > 0.0)
+            waterFoam = pl_water_shore_foam(shoreSupport, material.tWater, foamPattern);
+        float whitecaps = capSupport * smoothstep(0.38, 0.72, foamPattern.x * 0.65 + foamPattern.y * 0.35) * foamPattern.z;
         waterFoam = 1.0 - (1.0 - waterFoam) * (1.0 - whitecaps);
         // Foam is a lit, rough surface layer, not an emissive white overlay.
         tBaseColor.rgb = material.tWater.tFoamColorDebug.rgb; // Lit foam endpoint; coverage is applied once below.
@@ -367,7 +402,7 @@ void main()
 
     // Only passes drawn after the background cloud composite need transport.
     // Probe captures composite clouds after all geometry instead.
-    bool bSurfaceClouds = !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE) && (bWater || material.eAlphaMode == PL_SHADER_ALPHA_MODE_BLEND || bool(material.iMaterialFlags & (PL_MATERIAL_SHADER_FLAG_TRANSMISSION | PL_MATERIAL_SHADER_FLAG_VOLUME | PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION)));
+    bool bSurfaceClouds = PL_FORWARD_CLOUDS != 0 && !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE) && (bWater || material.eAlphaMode == PL_SHADER_ALPHA_MODE_BLEND || bool(material.iMaterialFlags & (PL_MATERIAL_SHADER_FLAG_TRANSMISSION | PL_MATERIAL_SHADER_FLAG_VOLUME | PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION)));
     vec4 surfaceCloud = vec4(0.0, 0.0, 0.0, 1.0);
     if(bSurfaceClouds)
     {
@@ -403,7 +438,7 @@ void main()
 
 
     // Calculate lighting contribution from image based lighting source (IBL)
-    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_USE_IBL) && tShaderIn.tSelectedProbes.w > 0u)
+    if(bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_USE_IBL) && tShaderIn.tSelectedProbes.w > 0u)
     {
 
         // The CPU supplies up to three probes, sorted nearest first.
@@ -522,7 +557,7 @@ void main()
     vec3 f_metal_brdf = vec3(0.0);
 
     uint cascadeIndex = tGpuScene.tData.iCascadeCount - 1;
-    const bool bShadows = bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_SHADOWS) && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS) && !(bWater && material.tWater.tFoamColorDebug.w == 3.0);
+    const bool bShadows = bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_SHADOWS) && bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_SHADOWS) && !(bWater && material.tWater.tFoamColorDebug.w == 3.0);
     // Only surfaces represented in the opaque depth snapshot receive contact shadows.
     const bool bContactShadows = bShadows && !bWater && tGpuScene.tData.tContactShadow.x > 0.0 &&
         material.eAlphaMode != PL_SHADER_ALPHA_MODE_BLEND &&
@@ -534,7 +569,7 @@ void main()
         contactViewPosition = (tViewInfo.tData.tCameraView[tObjectInfo.tData.uGlobalIndex] * vec4(tShaderIn.tWorldPosition, 1.0)).xyz;
     }
 
-    const bool bPunctual = bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PUNCTUAL);
+    const bool bPunctual = bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_PUNCTUAL);
     float waterSunTransmission = 1.0;
     bool waterSunEvaluated = false;
     if(bPunctual)
@@ -550,7 +585,7 @@ void main()
                 vec3 sun = tGpuScene.tData.fIntensity * tGpuScene.tData.tColor;
                 if(bShadows && tGpuScene.tData.iCastShadow > 0)
                 {
-                    waterSunTransmission = cloudSunTransmission(tShaderIn.tWorldPosition);
+                    waterSunTransmission = pl_forward_cloud_sun(tShaderIn.tWorldPosition);
                     waterSunEvaluated = true;
                     sun *= waterSunTransmission;
                 }
@@ -608,7 +643,7 @@ void main()
                     plShadowReceiver shadowReceiver = pl_shadow_receiver((abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex]), shadowCoord, 1.0, tGpuScene.tData.fFactor);
                     // cascadeIndex = j;
                 
-                    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
+                    if(bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_PCF_SHADOWS))
                     {
                         shadow = filterPCF(
                             shadowCoord,
@@ -654,7 +689,7 @@ void main()
                 }
                 
             }
-            if(bContactShadows && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SUN_CONTACT_SHADOWS) && tGpuScene.tData.iCastShadow > 0 && shadow > 0.0)
+            if(bContactShadows && bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_SUN_CONTACT_SHADOWS) && tGpuScene.tData.iCastShadow > 0 && shadow > 0.0)
             {
                 shadow *= pl_contact_shadow(contactViewPosition, n, pointToLight, tGpuScene.tData.tContactShadow.x);
             }
@@ -680,7 +715,7 @@ void main()
                     // The volume and surface share the same receiver and sun.
                     // In particular, do not repeat an out-of-cache shadow march.
                     intensity *= waterSunEvaluated ? waterSunTransmission :
-                        cloudSunTransmission(tShaderIn.tWorldPosition);
+                        pl_forward_cloud_sun(tShaderIn.tWorldPosition);
                 }
 
 
@@ -806,7 +841,7 @@ void main()
                     shadowCoord.xyz /= shadowCoord.w;
                     // Use the same face projection that rasterized the atlas.
                     shadowCoord.xy = (shadowCoord.xy * 0.5 + 0.5) * tShadowData.fFactor;
-                    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
+                    if(bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_PCF_SHADOWS))
                     {
                         shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx, shadowReceiver);
                     }
@@ -952,7 +987,7 @@ void main()
                     shadowCoord.xy *= tShadowData.fFactor;
                     // shadow = (shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
 
-                    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
+                    if(bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_PCF_SHADOWS))
                     {
                         shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx, shadowReceiver);
                     }
@@ -1073,7 +1108,7 @@ void main()
         }
 
         // direction lights
-        for(int i = 0; i < tObjectInfo.tData.iDirectionLightCount; i++)
+        for(int i = 0; i < ((PL_FORWARD_LIGHT_TYPES & 4) != 0 ? tObjectInfo.tData.iDirectionLightCount : 0); i++)
         {
 
             plGpuDirectionLight tLightData = tDirectionLightInfo.atData[i];
@@ -1105,7 +1140,7 @@ void main()
                 vec4 shadowCoord = (abiasMat * tDirectionShadowData.atData[iShadowIndex].viewProjMat) * tWorldPos2;
                 plShadowReceiver shadowReceiver = pl_shadow_receiver((abiasMat * tDirectionShadowData.atData[iShadowIndex].viewProjMat), shadowCoord, 1.0, tDirectionShadowData.atData[iShadowIndex].fFactor);
             
-                if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_PCF_SHADOWS))
+                if(bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_PCF_SHADOWS))
                 {
                     shadow = filterPCF(
                         shadowCoord,
@@ -1266,7 +1301,7 @@ void main()
 
     vec3 waterFogScatter = vec3(0.0);
     vec3 waterFogTransmission = vec3(1.0);
-    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_HEIGHT_FOG))
+    if(bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_HEIGHT_FOG))
     {
         if(bWater)
         {
@@ -1275,7 +1310,7 @@ void main()
         }
         outColor = fog(outColor, vraw, tViewInfo.tData.tCameraPos.y);
     }
-    else if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_LINEAR_FOG))
+    else if(bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_LINEAR_FOG))
     {
         if(bWater)
         {

@@ -195,17 +195,28 @@ pl_water_distort(vec2 pixel, vec2 offset, vec3 surface, vec3 interfaceNormal, ma
         pl_water_depth_gradient(pl_water_refraction_texel(texel-ivec2(0,1)), depth, pl_water_refraction_texel(texel+ivec2(0,1))));
     float threshold = max(0.01, max(intersectionFade, pathLength * 0.05));
     float confidence = 1.0;
+    ivec2 previousCorner = ivec2(-2);
     // Validate the path as well as its endpoint: don't jump across thin objects.
     for(int i = 1; i <= 4; i++)
     {
-        confidence = min(confidence, pl_water_distortion_confidence(pixel + offset * (float(i) / 4.0), pixel, depth, gradient, surface, interfaceNormal, inverseProjection, viewport, threshold));
+        vec2 stepPixel = pixel + offset * (float(i) / 4.0);
+        if(any(lessThan(stepPixel, vec2(0.5))) || any(greaterThan(stepPixel, viewport - 0.5)))
+            return pixel;
+        ivec2 corner = ivec2(floor(stepPixel - 0.5));
+        // Confidence depends on the four texel centers, not the subpixel
+        // coordinate. Short offsets often revisit the same footprint.
+        if(any(notEqual(corner, previousCorner)))
+            confidence = min(confidence, pl_water_distortion_confidence(stepPixel, pixel, depth, gradient, surface, interfaceNormal, inverseProjection, viewport, threshold));
+        previousCorner = corner;
         // Preserve the original undistorted pathLength on rejection.
         if(confidence <= 0.0)
             return pixel;
     }
 
     vec2 candidate = pixel + offset * confidence;
-    if(confidence <= 0.0 || pl_water_distortion_confidence(candidate, pixel, depth, gradient, surface, interfaceNormal, inverseProjection, viewport, threshold) <= 0.0)
+    // Full confidence leaves the endpoint unchanged; the fourth path tap
+    // already validated its complete bilinear footprint.
+    if(confidence < 1.0 && pl_water_distortion_confidence(candidate, pixel, depth, gradient, surface, interfaceNormal, inverseProjection, viewport, threshold) <= 0.0)
         return pixel;
     
     // Use the same accepted coordinate for color and absorption. Reconstruct
@@ -387,14 +398,17 @@ pl_water_pixel_differentials(vec3 normal)
     vec2 pixel = gl_FragCoord.xy;
     vec2 viewport = tViewInfo.tData.tViewportSize.xy;
     vec4 center = invProjection * vec4(pixel / viewport * 2.0 - 1.0, gl_FragCoord.z, 1.0);
-    vec4 right = invProjection * vec4((pixel + vec2(1, 0)) / viewport * 2.0 - 1.0, gl_FragCoord.z, 1.0);
-    vec4 down = invProjection * vec4((pixel + vec2(0, 1)) / viewport * 2.0 - 1.0, gl_FragCoord.z, 1.0);
-    vec4 nearPoint = invProjection * vec4(pixel / viewport * 2.0 - 1.0, 1.0, 1.0);
-    vec4 farPoint = invProjection * vec4(pixel / viewport * 2.0 - 1.0, 0.5, 1.0);
+    // Reuse the homogeneous center for adjacent pixels. The inverse
+    // projection is linear before division; this is the same finite step
+    // without four extra matrix multiplies or near/far reconstructions.
+    vec3 centerView = center.xyz / center.w;
+    vec2 ndcStep = 2.0 / viewport;
     mat3 viewInv = mat3(tViewInfo.tData.tCameraViewInv[camera]);
-    vec3 ray = normalize(viewInv * (farPoint.xyz / farPoint.w - nearPoint.xyz / nearPoint.w));
-    vec3 dx = viewInv * (right.xyz / right.w - center.xyz / center.w);
-    vec3 dy = viewInv * (down.xyz / down.w - center.xyz / center.w);
+    vec3 ray = normalize(viewInv * (centerView * invProjection[2].w - invProjection[2].xyz));
+    vec3 dx = viewInv * ((invProjection[0].xyz - centerView * invProjection[0].w) *
+        (ndcStep.x / (center.w + ndcStep.x * invProjection[0].w)));
+    vec3 dy = viewInv * ((invProjection[1].xyz - centerView * invProjection[1].w) *
+        (ndcStep.y / (center.w + ndcStep.y * invProjection[1].w)));
     float denominator = dot(normal, ray);
     denominator = (denominator < 0.0 ? -1.0 : 1.0) * max(abs(denominator), 0.001);
     dx -= ray * (dot(normal, dx) / denominator);
@@ -469,6 +483,9 @@ vec3
 pl_water_foam_pattern(vec3 position, float time, plGpuWater water, mat2 pixelSteps)
 {
     float footprint = max(length(pixelSteps[0]), length(pixelSteps[1])) / water.tDetail.w;
+    // All three pattern channels have converged to their filtered means.
+    if(footprint >= 36.0)
+        return vec3(0.5, 0.5, 0.67);
     float heading = radians(water.tSwell0.w);
     vec2 direction = vec2(cos(heading), sin(heading));
     vec2 p = position.xz / water.tDetail.w - direction * (time * water.tDetail.z * 2.0);
@@ -478,7 +495,9 @@ pl_water_foam_pattern(vec3 position, float time, plGpuWater water, mat2 pixelSte
     p += (warp - 0.5) * 2.5;
     float coarse = pl_water_foam_noise(p / 18.0);
     vec2 flow = vec2(dot(p, direction), dot(p, vec2(-direction.y, direction.x)));
-    float fine = pl_water_foam_noise(flow / vec2(9.0, 3.0) + vec2(17.2, -9.6));
+    float fine = 0.5;
+    if(footprint < 6.0)
+        fine = pl_water_foam_noise(flow / vec2(9.0, 3.0) + vec2(17.2, -9.6));
     coarse = mix(coarse, 0.5, smoothstep(9.0, 36.0, footprint));
     fine = mix(fine, 0.5, smoothstep(1.5, 6.0, footprint));
 
@@ -523,27 +542,37 @@ pl_water_whitecaps(vec3 position, plGpuWater water, vec3 pattern, vec3 surface)
     return tViewInfo.tData.tCameraPos.y > position.y ? coverage : 0.0;
 }
 
-float
-pl_water_shore_foam(vec3 position, plGpuWater water, vec3 pattern)
+// Geometry shared by the foam support test and the final patterned coverage.
+// x = vertical depth, y = contact weight; zero contact rejects the pixel.
+vec2
+pl_water_shore_support(vec3 position, plGpuWater water)
 {
     int depthIndex = tViewInfo.tData.iTransmissionDepthIndex;
     float depth = texelFetch(sampler2D(at2DTextures[nonuniformEXT(depthIndex)], tSamplerNearestClamp), ivec2(gl_FragCoord.xy), 0).r;
     bool validDepth = depth > 0.0 && depth < gl_FragCoord.z;
+    if(!validDepth || tViewInfo.tData.tCameraPos.y <= position.y)
+        return vec2(0.0);
     // Subtract in view space before rotating: avoid subtracting large translated
     // world positions, and use raster depth consistently on both sides.
     vec3 surfaceView = pl_water_view_position(gl_FragCoord.xy, gl_FragCoord.z);
-    vec3 bedView = pl_water_view_position(gl_FragCoord.xy, validDepth ? depth : gl_FragCoord.z);
+    vec3 bedView = pl_water_view_position(gl_FragCoord.xy, depth);
     vec3 separation = mat3(tViewInfo.tData.tCameraViewInv[0]) * (bedView - surfaceView);
     float waterDepth = -separation.y;
     // No foam on sky, foreground geometry, or the underside of water.
-    if(!validDepth || tViewInfo.tData.tCameraPos.y <= position.y || waterDepth < 0.0)
-        return 0.0;
+    if(waterDepth < 0.0 || waterDepth >= water.tShore.y * 1.2)
+        return vec2(0.0);
+    float contact = 1.0 - smoothstep(water.tShore.z, max(water.tShore.w, water.tShore.z + 0.0001), length(separation));
+    return vec2(waterDepth, contact);
+}
 
+float
+pl_water_shore_foam(vec2 support, plGpuWater water, vec3 pattern)
+{
     // Vertical separation makes the band stable when the camera tilts. Also
     // limit ray separation so distant silhouettes do not create horizon foam.
     float foamDepth = water.tShore.y * mix(0.45, 1.2, pattern.x);
-    float shore = 1.0 - smoothstep(foamDepth * 0.04, foamDepth, waterDepth);
-    float contact = 1.0 - smoothstep(water.tShore.z, max(water.tShore.w, water.tShore.z + 0.0001), length(separation));
+    float shore = 1.0 - smoothstep(foamDepth * 0.04, foamDepth, support.x);
+    float contact = support.y;
     // Advected noise supplies the motion. A sine of bed depth produces parallel
     // contour stripes and makes every change in the underlying triangles visible.
     float breakup = smoothstep(0.22, 0.72, pattern.x * 0.65 + pattern.y * 0.35 + shore * 0.15);
@@ -560,12 +589,14 @@ pl_water_wave(vec2 position, vec2 direction, float wavelength, float amplitude, 
     float bendK = k / 2.9;
     float seed = wavelength * 1.731;
     float bendPhase = bendK * dot(position, across) - sqrt(9.81 * bendK) * time * 0.19 + seed;
-    float phase = k * dot(position, direction) - sqrt(9.81 * k) * time + seed + 1.2 * sin(bendPhase);
     // Differentiate the bent phase for both normals and pixel filtering.
     vec2 gradient = k * direction + 1.2 * bendK * cos(bendPhase) * across;
     // Fade waves smaller than a pixel to avoid distant specular shimmer.
     float footprint = max(abs(dot(gradient, pixelSteps[0])), abs(dot(gradient, pixelSteps[1])));
     float visibility = 1.0 - smoothstep(0.5, 3.0, footprint);
+    if(visibility <= 0.0)
+        return vec2(0.0);
+    float phase = k * dot(position, direction) - sqrt(9.81 * k) * time + seed + 1.2 * sin(bendPhase);
     return gradient * (amplitude * cos(phase) * visibility);
 }
 
