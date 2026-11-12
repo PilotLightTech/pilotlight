@@ -159,16 +159,16 @@ const plDialogI*            gptDialog           = NULL;
 static const char* gacImportFiles[] = {
     "/resources/DamagedHelmet.glb",
     "/resources/humanoid.gltf",
-    "/resources/gltf-samples/Models/Sponza/glTF/sponza.gltf",
-    "/resources/gltf-samples/Models/ABeautifulGame/glTF/ABeautifulGame.gltf",
-    "/resources/gltf-samples/Models/ClearCoatWicker/glTF/ClearCoatWicker.gltf",
-    "/resources/gltf-samples/Models/CarConcept/glTF/CarConcept.gltf",
-    "/resources/gltf-samples/Models/AlphaBLendModeTest/glTF/AlphaBLendModeTest.gltf",
-    "/resources/gltf-samples/Models/CommercialRefrigerator/glTF/CommercialRefrigerator.gltf",
-    "/resources/gltf-samples/Models/InterpolationTest/glTF/InterpolationTest.gltf",
-    "/resources/gltf-samples/Models/AnisotropyDiscTest/glTF/AnisotropyDiscTest.gltf",
-    "/resources/gltf-samples/Models/AnisotropyRotationTest/glTF/AnisotropyRotationTest.gltf",
-    "/resources/gltf-samples/Models/AnisotropyBarnLamp/glTF/AnisotropyBarnLamp.gltf",
+    // "/resources/gltf-samples/Models/Sponza/glTF/sponza.gltf",
+    // "/resources/gltf-samples/Models/ABeautifulGame/glTF/ABeautifulGame.gltf",
+    // "/resources/gltf-samples/Models/ClearCoatWicker/glTF/ClearCoatWicker.gltf",
+    // "/resources/gltf-samples/Models/CarConcept/glTF/CarConcept.gltf",
+    // "/resources/gltf-samples/Models/AlphaBLendModeTest/glTF/AlphaBLendModeTest.gltf",
+    // "/resources/gltf-samples/Models/CommercialRefrigerator/glTF/CommercialRefrigerator.gltf",
+    // "/resources/gltf-samples/Models/InterpolationTest/glTF/InterpolationTest.gltf",
+    // "/resources/gltf-samples/Models/AnisotropyDiscTest/glTF/AnisotropyDiscTest.gltf",
+    // "/resources/gltf-samples/Models/AnisotropyRotationTest/glTF/AnisotropyRotationTest.gltf",
+    // "/resources/gltf-samples/Models/AnisotropyBarnLamp/glTF/AnisotropyBarnLamp.gltf",
 };
 
 typedef struct _plSandboxSceneFile
