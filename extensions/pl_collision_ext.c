@@ -633,6 +633,22 @@ pl_collision_pen_box_sphere(const plBox* ptBox, const plSphere* ptSphere, plColl
 
     if(ptInfoOut)
     {
+        if(fDist < 1e-12f)
+        {
+            int axis = 0;
+            for(int i = 1; i < 3; i++)
+            {
+                if(tHalfSize.d[i] - fabsf(tRelCenter.d[i]) < tHalfSize.d[axis] - fabsf(tRelCenter.d[axis]))
+                    axis=i;
+            }
+            float sign = tRelCenter.d[axis] < 0 ? -1.0f : 1.0f;
+            ptInfoOut->fPenetration = ptSphere->fRadius + tHalfSize.d[axis] - fabsf(tRelCenter.d[axis]);
+            tClosestPoint = tRelCenter;
+            tClosestPoint.d[axis] = sign * tHalfSize.d[axis];
+            ptInfoOut->tNormal = pl_mul_vec3_scalarf(ptBox->tTransform.col[axis].xyz, -sign);
+            ptInfoOut->tPoint = pl_mul_mat4_vec3(&ptBox->tTransform, tClosestPoint);
+            return true;
+        }
         plVec3 tClosestPointWorld = pl_mul_mat4_vec3(&ptBox->tTransform, tClosestPoint);
         ptInfoOut->fPenetration = ptSphere->fRadius - sqrtf(fDist);
         ptInfoOut->tNormal = pl_norm_vec3(pl_sub_vec3(tClosestPointWorld, ptSphere->tCenter)),

@@ -174,9 +174,9 @@ typedef struct _plRigidBodyPhysicsComponent
     float fRadius;
 
     // box
-    plVec3 tExtents;
+    plVec3 tExtents; // full collider dimensions; independent of transform scale
 
-    uint64_t uPhysicsObject;
+    uint64_t uPhysicsObject; // runtime only; never serialize or copy this index
 } plRigidBodyPhysicsComponent;
 
 typedef struct _plForceFieldComponent

@@ -1349,6 +1349,8 @@ pl__ecs_asset_deserialize(const char* pcName, void* pLibrary)
         return false;
 
     plComponentLibrary* ptLibrary = pLibrary;
+    if(ptLibrary->_atManagers)
+        pl_ecs_cleanup_library(ptLibrary);
     pl_ecs_init_library(ptLibrary);
 
     char acTempBuffer0[1024] = {0};
