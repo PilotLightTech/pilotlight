@@ -796,8 +796,12 @@ pl_app_update(plAppData* ptAppData)
             }
         }
 
-        if(gptIO->is_key_pressed(PL_KEY_M, true))
-            gptGizmo->next_mode();
+        if(!gptUI->wants_keyboard_capture())
+        {
+            if(gptIO->is_key_pressed(PL_KEY_M, false)) gptGizmo->next_mode();
+            if(gptIO->is_key_pressed(PL_KEY_L, false))
+                gptGizmo->set_space(gptGizmo->get_space() == PL_GIZMO_SPACE_LOCAL ? PL_GIZMO_SPACE_WORLD : PL_GIZMO_SPACE_LOCAL);
+        }
 
         plEcsChange* atEcsChanges = NULL;
         uint32_t uEcsChangeCount = 0;
@@ -846,6 +850,7 @@ pl_app_update(plAppData* ptAppData)
 
         gptAsset->clear_changes();
 
+        bool bGizmoWasActive = gptGizmo->active();
         if(gptEcs->is_entity_valid(ptLibrary, ptAppData->tSelectedEntity))
         {
             plDrawList3D* ptGizmoDrawlist =  gptRenderer->get_gizmo_drawlist(ptAppData->ptView);
@@ -879,7 +884,7 @@ pl_app_update(plAppData* ptAppData)
         plBindGroupHandle tTexture = gptRenderer->get_view_color_bind_group(ptAppData->ptView, &tUV);
         gptDraw->add_image_ex(ptAppData->ptDrawLayer, tTexture.uData, tStartPos, tEndPos, (plVec2){0}, tUV, PL_COLOR_32_WHITE);
 
-        if(gptIO->is_key_pressed(PL_KEY_ESCAPE, false))
+        if(!bGizmoWasActive && gptIO->is_key_pressed(PL_KEY_ESCAPE, false))
         {
             if(!gptUI->wants_keyboard_capture())
             {
@@ -913,6 +918,7 @@ pl_app_update(plAppData* ptAppData)
     tTextOptions.uColor = PL_COLOR_32_WHITE;
 
     gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, PILOT_LIGHT_VERSION_STRING); fCurrentY += fSpacing;
+    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Gizmo: %s space (L) | Cycle operation (M)", gptGizmo->get_space() == PL_GIZMO_SPACE_LOCAL ? "Local" : "World"); fCurrentY += fSpacing;
     gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Backend: %s", gptGfx->get_backend_string()); fCurrentY += fSpacing;
 
     // ui windows

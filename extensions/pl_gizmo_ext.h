@@ -36,7 +36,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plGizmoI_version {0, 1, 0}
+#define plGizmoI_version {0, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -44,6 +44,7 @@ extern "C" {
 
 // enums
 typedef int plGizmoMode;
+typedef int plGizmoSpace;
 
 // external
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
@@ -64,15 +65,27 @@ PL_API void pl_unload_gizmo_ext(plApiRegistryI*, bool reload);
 
 typedef struct _plGizmoI
 {
-    void (*set_mode)(plGizmoMode);
-    void (*next_mode)(void);
-    bool (*active)(void);
-    void (*gizmo)(plComponentLibrary*, plEntity, plDrawList3D*, plCamera*, plVec2 viewOffset, plVec2 viewScale);
+    void         (*set_mode) (plGizmoMode);
+    void         (*next_mode)(void);
+    bool         (*active)   (void);
+    void         (*gizmo)    (plComponentLibrary*, plEntity, plDrawList3D*, plCamera*, plVec2 viewOffset, plVec2 viewScale);
+    void         (*set_space)(plGizmoSpace); // cancels an active drag
+    plGizmoSpace (*get_space)(void);
+
+    // Hold Ctrl to snap drag deltas. Defaults: 1 world unit, 15 degrees, 0.1 scale factor.
+    // Nonpositive increments disable snapping for that operation. Escape restores the starting TRS.
+    void (*set_snap)(float translation, float rotationDegrees, float scale);
 } plGizmoI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
+
+enum _plGizmoSpace
+{
+    PL_GIZMO_SPACE_WORLD = 0,
+    PL_GIZMO_SPACE_LOCAL
+};
 
 enum _plGizmoMode
 {

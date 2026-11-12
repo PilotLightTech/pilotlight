@@ -36,130 +36,87 @@ Index of this file:
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
 #else
-static const plUiI*        gptUI   = NULL;
-static const plDrawI*      gptDraw = NULL;
-static const plIOI*        gptIOI  = NULL;
+static const plUiI*        gptUI         = NULL;
+static const plDrawI*      gptDraw       = NULL;
+static const plIOI*        gptIOI        = NULL;
 static const plCollisionI* gptCollision  = NULL;
 static const plTransformI* gptTransform  = NULL;
-static const plEcsI*       gptEcs  = NULL;
+static const plEcsI*       gptEcs        = NULL;
 #endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs & enums
 //-----------------------------------------------------------------------------
 
-typedef enum _plGizmoState
-{
-    PL_GIZMO_STATE_DEFAULT,
-    PL_GIZMO_STATE_X_TRANSLATION,
-    PL_GIZMO_STATE_Y_TRANSLATION,
-    PL_GIZMO_STATE_Z_TRANSLATION,
-    PL_GIZMO_STATE_YZ_TRANSLATION,
-    PL_GIZMO_STATE_XY_TRANSLATION,
-    PL_GIZMO_STATE_XZ_TRANSLATION,
-    PL_GIZMO_STATE_X_ROTATION,
-    PL_GIZMO_STATE_Y_ROTATION,
-    PL_GIZMO_STATE_Z_ROTATION,
-    PL_GIZMO_STATE_X_SCALE,
-    PL_GIZMO_STATE_Y_SCALE,
-    PL_GIZMO_STATE_Z_SCALE,
-    PL_GIZMO_STATE_SCALE,
-} plGizmoState;
-
 typedef struct _plGizmoContext
 {
-    plGizmoMode  tSelectionMode;
-    plGizmoState tState;
-    float        fCaptureScale;
-    plVec3       tBeginPos;
-    plVec3       tOriginalPos;
-    float        fOriginalDist;
-    float        fOriginalDistX;
-    float        fOriginalDistY;
-    float        fOriginalDistZ;
-    float        fOriginalScaleX;
-    float        fOriginalScaleY;
-    float        fOriginalScaleZ;
-    plVec4       tOriginalRot;
-    bool         bActive;
+    plGizmoMode          tSelectionMode;
+    plGizmoSpace         tSpace;
+    bool                 bActive;
+    int                  iHandle; // 0..2 axes, 3..5 planes (normal axis), 6 uniform scale
+    plComponentLibrary*  ptTargetLibrary;
+    plEntity             tTargetEntity;
+    plVec3               atAxes[3];
+    plVec3               tCenter;
+    plVec3               tPlaneNormal;
+    plVec3               tStartHit;
+    plVec2               tStartMouse;
+    float                fLength;
+    float                fTranslationSnap, fRotationSnap, fScaleSnap;
+    float                fDragAngle;
+    plTransformComponent tStartTransform;
+    plMat4               tParentInverse;
 } plGizmoContext;
 
-//-----------------------------------------------------------------------------
-// [SECTION] context
-//-----------------------------------------------------------------------------
+static plGizmoContext* gptGizmoCtx;
 
-static plGizmoContext* gptGizmoCtx = NULL;
-
-//-----------------------------------------------------------------------------
-// [SECTION] internal api declarations
-//-----------------------------------------------------------------------------
-
-static bool pl__does_line_intersect_cylinder(plVec3 tP0, plVec3 tV0, plVec3 tP1, plVec3 tV1, float fRadius, float fHeight, float* pfDistance);
-static void pl__gizmo_translation           (plComponentLibrary*, plEntity, plDrawList3D*, plCamera*, plVec2 tViewOffset, plVec2 tViewScale);
-static void pl__gizmo_rotation              (plComponentLibrary*, plEntity, plDrawList3D*, plCamera*, plVec2 tViewOffset, plVec2 tViewScale);
-static void pl__gizmo_scale                 (plComponentLibrary*, plEntity, plDrawList3D*, plCamera*, plVec2 tViewOffset, plVec2 tViewScale);
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api implementation
-//-----------------------------------------------------------------------------
-
-void
-pl_gizmo_set_mode(plGizmoMode tMode)
+static inline void
+pl__gizmo_cancel_drag(void)
 {
-    gptGizmoCtx->tSelectionMode = tMode;
+    gptGizmoCtx->bActive = false;
 }
 
-bool
-pl_gizmo_active(void)
+static bool
+pl__gizmo_mouse_ray(const plCamera* ptCamera, plVec2 tMouse, plVec2 tOffset, plVec2 tSize, plVec3* ptOrigin, plVec3* ptDirection)
 {
-    return gptGizmoCtx->bActive;
+    if(tSize.x <= 0.0f || tSize.y <= 0.0f)
+        return false;
+        
+    float x = 2.0f * (tMouse.x - tOffset.x) / tSize.x - 1.0f;
+    float y = 2.0f * (tMouse.y - tOffset.y) / tSize.y - 1.0f;
+    float z = ptCamera->eDepthMode == PL_CAMERA_DEPTH_MODE_REVERSE_Z ? 1.0f : 0.0f;
+    plVec4 tNear = pl_mul_mat4_vec4(&ptCamera->tInvViewProjMat, (plVec4){ x, y, z, 1.0f});
+    plVec4 tMiddle = pl_mul_mat4_vec4(&ptCamera->tInvViewProjMat, (plVec4){ x, y, 0.5f, 1.0f});
+
+    if(fabsf(tNear.w) < 1e-8f || fabsf(tMiddle.w) < 1e-8f)
+        return false;
+
+    *ptOrigin = pl_div_vec4_scalarf(tNear, tNear.w).xyz;
+    plVec3 tDelta = pl_sub_vec3(pl_div_vec4_scalarf(tMiddle, tMiddle.w).xyz, *ptOrigin);
+    float fLength = pl_length_vec3(tDelta);
+    if(!isfinite(fLength) || fLength < 1e-8f)
+        return false;
+    *ptDirection = pl_div_vec3_scalarf(tDelta, fLength);
+
+    return isfinite(ptOrigin->x) && isfinite(ptOrigin->y) && isfinite(ptOrigin->z);
 }
 
-void
-pl_gizmo_next_mode(void)
+static inline float
+pl__gizmo_signed_angle(plVec3 tFrom, plVec3 tTo, plVec3 tAxis)
 {
-    gptGizmoCtx->tSelectionMode = (gptGizmoCtx->tSelectionMode + 1) % PL_GIZMO_MODE_COUNT;
+    return atan2f(pl_dot_vec3(tAxis, pl_cross_vec3(tFrom, tTo)), pl_dot_vec3(tFrom, tTo));
 }
 
-void
-pl_gizmo_gizmo(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plVec2 tViewOffset, plVec2 tViewScale)
+static inline float
+pl__gizmo_scale_factor(float fDistance, float fLength)
 {
-
-    if(gptEcs->has_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity))
-    {
-        plTransformComponent* ptSelectedTransform = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
-        plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
-        if(gptGizmoCtx->tState == PL_GIZMO_STATE_DEFAULT)
-        {
-            gptGizmoCtx->fCaptureScale = pl_length_vec3(pl_sub_vec3(*ptCenter, ptCamera->tPositionF)) * 0.75f;
-        }
-
-        switch(gptGizmoCtx->tSelectionMode)
-        {
-            case PL_GIZMO_MODE_TRANSLATION:
-                pl__gizmo_translation(ptLibrary, tEntity, ptGizmoDrawlist, ptCamera, tViewOffset, tViewScale);
-                break;
-            case PL_GIZMO_MODE_ROTATION:
-                pl__gizmo_rotation(ptLibrary, tEntity, ptGizmoDrawlist, ptCamera, tViewOffset, tViewScale);
-                break;
-            case PL_GIZMO_MODE_SCALE:
-                pl__gizmo_scale(ptLibrary, tEntity, ptGizmoDrawlist, ptCamera, tViewOffset, tViewScale);
-                break;
-            case PL_GIZMO_MODE_NONE:
-            default:
-                break;
-
-        }
-    }
+    return fmaxf(0.001f, 1.0f + fDistance / fmaxf(fLength, 1e-6f));
 }
-
-//-----------------------------------------------------------------------------
-// [SECTION] internal api implementation
-//-----------------------------------------------------------------------------
 
 static bool
 pl__does_line_intersect_cylinder(plVec3 tP0, plVec3 tV0, plVec3 tP1, plVec3 tV1, float fRadius, float fHeight, float* pfDistance)
 {
+    *pfDistance = NAN;
     plVec3 tDp = pl_sub_vec3(tP1, tP0);
 
     float fV12 = pl_dot_vec3(tV0, tV0);
@@ -183,998 +140,434 @@ pl__does_line_intersect_cylinder(plVec3 tP0, plVec3 tV0, plVec3 tP1, plVec3 tV1,
 
         *pfDistance = fT2;
 
-        if(fDistance < fRadius && fT2 > 0.0f && fT2 < fHeight)
+        if(fT1 >= 0.0f && fDistance < fRadius && fT2 > 0.0f && fT2 < fHeight)
             return true;
     }
     return false;
 }
 
-static void
-pl__gizmo_translation(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plVec2 tViewOffset, plVec2 tViewScale)
+
+static inline bool
+pl__gizmo_plane_hit(plVec3 tOrigin, plVec3 tDirection, plVec3 tCenter, plVec3 tNormal, plVec3* ptHit)
 {
-    plTransformComponent* ptSelectedTransform = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
-    plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
+    float fDenominator = pl_dot_vec3(tDirection, tNormal);
+    if(fabsf(fDenominator) < 1e-5f)
+        return false;
+    float fDistance = pl_dot_vec3(pl_sub_vec3(tCenter, tOrigin), tNormal) / fDenominator;
+    if(!isfinite(fDistance) || fDistance < 0)
+        return false;
+    *ptHit = pl_add_vec3(tOrigin, pl_mul_vec3_scalarf(tDirection, fDistance));
+    return true;
+}
 
-    plVec2 tMousePos = gptIOI->get_mouse_pos();
-    tMousePos = pl_sub_vec2(tMousePos, tViewOffset);
-    tMousePos = pl_div_vec2(tMousePos, tViewScale);
+// A fixed plane containing the dragged axis, facing the initial mouse ray.
+static inline bool
+pl__gizmo_axis_plane(plVec3 tAxis, plVec3 tRay, plVec3* ptNormal)
+{
+    *ptNormal = pl_sub_vec3(tRay, pl_mul_vec3_scalarf(tAxis, pl_dot_vec3(tRay, tAxis)));
+    float fLength = pl_length_vec3(*ptNormal);
+    if(fLength < 0.05f)
+        return false; // End-on axis: use another view or the center handle.
+    *ptNormal = pl_div_vec3_scalarf(*ptNormal, fLength);
+    return true;
+}
 
-    if(gptUI->wants_mouse_capture())
+static inline void
+pl__gizmo_axes(const plMat4* ptWorld, plGizmoSpace tSpace, plVec3 atAxes[3])
+{
+    for(int i = 0; i < 3; i++)
     {
-        tMousePos.x = -1.0f;
-        tMousePos.y = -1.0f;
-    }
-
-    plMat4 tTransform = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-    tTransform = pl_mat4_invert(&tTransform);
-
-    plVec4 tNDC = {-1.0f + 2.0f * tMousePos.x / gptIOI->get_io()->tMainViewportSize.x, -1.0f + 2.0f * tMousePos.y / gptIOI->get_io()->tMainViewportSize.y, 1.0f, 1.0f};
-    tNDC = pl_mul_mat4_vec4(&tTransform, tNDC);
-    tNDC = pl_div_vec4_scalarf(tNDC, tNDC.w);
-
-    const float fAxisRadius  = 0.0035f * gptGizmoCtx->fCaptureScale;
-    const float fArrowRadius = 0.0075f * gptGizmoCtx->fCaptureScale;
-    const float fArrowLength = 0.03f * gptGizmoCtx->fCaptureScale;
-    const float fLength = 0.15f * gptGizmoCtx->fCaptureScale;
-
-    if(gptGizmoCtx->tState != PL_GIZMO_STATE_DEFAULT)
-    {
-        gptDraw->add_3d_sphere_filled(ptGizmoDrawlist, (plSphere){.tCenter = gptGizmoCtx->tBeginPos, .fRadius = fAxisRadius * 2}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.5f, 0.5f, 0.5f)});
-        gptDraw->add_3d_line(ptGizmoDrawlist, gptGizmoCtx->tBeginPos, *ptCenter, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = fAxisRadius});
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.1f, ptCenter->z},
-            (plDrawTextOptions){
-                .ptFont = gptUI->get_default_font(),
-                .uColor = PL_COLOR_32_YELLOW
-            },
-            "offset: %0.3f, %0.3f, %0.3f", ptCenter->x - gptGizmoCtx->tBeginPos.x, ptCenter->y - gptGizmoCtx->tBeginPos.y, ptCenter->z - gptGizmoCtx->tBeginPos.z
-        );
-        ptSelectedTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
-    };
-
-    float fXDistanceAlong = 0.0f;
-    float fYDistanceAlong = 0.0f;
-    float fZDistanceAlong = 0.0f;
-
-    const plVec3 tDirVec = pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF));
-
-    bool bXSelected = pl__does_line_intersect_cylinder(ptCamera->tPositionF, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF)), *ptCenter, (plVec3){1.0f, 0.0f, 0.0f}, fArrowRadius, fLength, &fXDistanceAlong);
-    bool bYSelected = pl__does_line_intersect_cylinder(ptCamera->tPositionF, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF)), *ptCenter, (plVec3){0.0f, 1.0f, 0.0f}, fArrowRadius, fLength, &fYDistanceAlong);
-    bool bZSelected = pl__does_line_intersect_cylinder(ptCamera->tPositionF, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF)), *ptCenter, (plVec3){0.0f, 0.0f, 1.0f}, fArrowRadius, fLength, &fZDistanceAlong);
-    
-    plVec3 tYZIntersectionPoint = {0};
-    plVec3 tXZIntersectionPoint = {0};
-    plVec3 tXYIntersectionPoint = {0};
-
-    const plPlane tYZPlane = {
-        .tDirection = {1.0f, 0.0f, 0.0f},
-        .fOffset    = ptCenter->x
-    };
-
-    const plPlane tXZPlane = {
-        .tDirection = {0.0f, 1.0f, 0.0f},
-        .fOffset    = ptCenter->y
-    };
-
-    const plPlane tXYPlane = {
-        .tDirection = {0.0f, 0.0f, 1.0f},
-        .fOffset    = ptCenter->z
-    };
-
-    bool bYZSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tDirVec, &tYZPlane, &tYZIntersectionPoint);
-    bool bXZSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tDirVec, &tXZPlane, &tXZIntersectionPoint);
-    bool bXYSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tDirVec, &tXYPlane, &tXYIntersectionPoint);
-
-    bYZSelected = bYZSelected && 
-        (tYZIntersectionPoint.y < ptCenter->y + fLength * 0.375f) &&
-        (tYZIntersectionPoint.y > ptCenter->y + fLength * 0.125f) &&
-        (tYZIntersectionPoint.z > ptCenter->z + fLength * 0.125f) &&
-        (tYZIntersectionPoint.z < ptCenter->z + fLength * 0.375f);
-
-    bXZSelected = bXZSelected && 
-        (tXZIntersectionPoint.x < ptCenter->x + fLength * 0.375f) &&
-        (tXZIntersectionPoint.x > ptCenter->x + fLength * 0.125f) &&
-        (tXZIntersectionPoint.z > ptCenter->z + fLength * 0.125f) &&
-        (tXZIntersectionPoint.z < ptCenter->z + fLength * 0.375f);
-
-    bXYSelected = bXYSelected && 
-        (tXYIntersectionPoint.x < ptCenter->x + fLength * 0.375f) &&
-        (tXYIntersectionPoint.x > ptCenter->x + fLength * 0.125f) &&
-        (tXYIntersectionPoint.y > ptCenter->y + fLength * 0.125f) &&
-        (tXYIntersectionPoint.y < ptCenter->y + fLength * 0.375f);
-
-    if(gptGizmoCtx->tState == PL_GIZMO_STATE_DEFAULT)
-    {
-        const float apf[6] = {
-            bXSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x + fXDistanceAlong, ptCenter->y, ptCenter->z}, ptCamera->tPositionF)) : FLT_MAX,
-            bYSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x, ptCenter->y + fYDistanceAlong, ptCenter->z}, ptCamera->tPositionF)) : FLT_MAX,
-            bZSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fZDistanceAlong}, ptCamera->tPositionF)) : FLT_MAX,
-            bYZSelected ? pl_length_vec3(pl_sub_vec3(tYZIntersectionPoint, ptCamera->tPositionF)) : FLT_MAX,
-            bXZSelected ? pl_length_vec3(pl_sub_vec3(tXZIntersectionPoint, ptCamera->tPositionF)) : FLT_MAX,
-            bXYSelected ? pl_length_vec3(pl_sub_vec3(tXYIntersectionPoint, ptCamera->tPositionF)) : FLT_MAX
-        };
-
-        bool bSomethingSelected = bXSelected || bYSelected || bZSelected || bYZSelected || bXZSelected || bXYSelected;
-
-        bXSelected = false;
-        bYSelected = false;
-        bZSelected = false;
-        bYZSelected = false;
-        bXZSelected = false;
-        bXYSelected = false;
-
-
-        bool* apb[6] = {
-            &bXSelected,
-            &bYSelected,
-            &bZSelected,
-            &bYZSelected,
-            &bXZSelected,
-            &bXYSelected
-        };
-
-        uint32_t uMinIndex = 0;
-        if(bSomethingSelected)
+        atAxes[i] = (plVec3){0};
+        atAxes[i].d[i] = 1;
+        if(tSpace == PL_GIZMO_SPACE_LOCAL)
         {
-            for(uint32_t i = 0; i < 6; i++)
-            {
-                if(apf[i] <= apf[uMinIndex])
-                {
-                    uMinIndex = i;
-                    for(uint32_t j = 0; j < 6; j++)
-                    {
-                        *apb[j] = false;
-                    }
-                    *apb[uMinIndex] = true;
-                }
-            }
+            float fLength = pl_length_vec3(ptWorld->col[i].xyz);
+            if(fLength > 1e-6f)
+                atAxes[i] = pl_div_vec3_scalarf(ptWorld->col[i].xyz, fLength);
         }
     }
-    else if(gptGizmoCtx->tState == PL_GIZMO_STATE_X_TRANSLATION)
+}
+
+// Coordinates in a possibly skewed local plane (nonuniformly scaled parent).
+static inline plVec2
+pl__gizmo_plane_coordinates(plVec3 tDelta, plVec3 u, plVec3 v)
+{
+    float uu = pl_dot_vec3(u,u);
+    float uv = pl_dot_vec3(u,v);
+    float vv = pl_dot_vec3(v,v);
+    float du = pl_dot_vec3(tDelta,u);
+    float dv = pl_dot_vec3(tDelta,v);
+
+    float determinant = uu * vv - uv * uv;
+    if(fabsf(determinant) < 1e-8f)
+        return (plVec2){0};
+    return (plVec2){ (du * vv - dv * uv) / determinant, ( dv * uu - du * uv) / determinant};
+}
+
+static plVec3
+pl__gizmo_plane_normal(const plVec3 axes[3], int axis)
+{
+    plVec3 normal = pl_cross_vec3(axes[(axis + 1) % 3], axes[(axis + 2) % 3]);
+    float length = pl_length_vec3(normal);
+    return length > 1e-6f ? pl_div_vec3_scalarf(normal, length) : (plVec3){0};
+}
+
+void
+pl_gizmo_set_mode(plGizmoMode tMode)
+{
+    if(tMode < PL_GIZMO_MODE_NONE || tMode >= PL_GIZMO_MODE_COUNT)
+        tMode = PL_GIZMO_MODE_NONE;
+    if(gptGizmoCtx->tSelectionMode != tMode)
+        pl__gizmo_cancel_drag();
+    gptGizmoCtx->tSelectionMode = tMode;
+}
+
+void
+pl_gizmo_set_snap(float fTranslation, float fRotationDegrees, float fScale)
+{
+    gptGizmoCtx->fTranslationSnap = isfinite(fTranslation) && fTranslation > 0 ? fTranslation : 0;
+    gptGizmoCtx->fRotationSnap = isfinite(fRotationDegrees) && fRotationDegrees > 0 ? fRotationDegrees * (PL_PI / 180.0f) : 0;
+    gptGizmoCtx->fScaleSnap = isfinite(fScale) && fScale > 0 ? fScale : 0;
+}
+
+static inline float
+pl__gizmo_snap(float value, float step)
+{
+    return gptIOI->get_io()->bKeyCtrl && step > 0 ? roundf(value / step) * step : value;
+}
+
+void
+pl_gizmo_next_mode(void)
+{
+    pl_gizmo_set_mode((gptGizmoCtx->tSelectionMode + 1) % PL_GIZMO_MODE_COUNT);
+}
+
+void
+pl_gizmo_set_space(plGizmoSpace tSpace)
+{
+    if(tSpace != PL_GIZMO_SPACE_LOCAL)
+        tSpace = PL_GIZMO_SPACE_WORLD;
+    if(gptGizmoCtx->tSpace != tSpace)
+        pl__gizmo_cancel_drag();
+    gptGizmoCtx->tSpace = tSpace;
+}
+
+plGizmoSpace
+pl_gizmo_get_space(void)
+{
+    return gptGizmoCtx->tSpace;
+}
+
+bool
+pl_gizmo_active(void)
+{
+    if(gptGizmoCtx->bActive && !gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
+        pl__gizmo_cancel_drag();
+    return gptGizmoCtx->bActive;
+}
+
+// Every update is relative to the captured transform, never the previous frame.
+static void
+pl__gizmo_apply_drag(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tHit, plVec2 tMouse)
+{
+    plGizmoContext* c = gptGizmoCtx;
+    plTransformComponent* t = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
+    plVec3 tDelta = pl_sub_vec3(tHit, c->tStartHit);
+    int axis = c->iHandle;
+    if(c->tSelectionMode == PL_GIZMO_MODE_TRANSLATION)
     {
-        bXSelected = true;
-        bYSelected = false;
-        bZSelected = false;
-        bXZSelected = false;
-        bXYSelected = false;
-        bYZSelected = false;
-        *ptCenter = pl_add_vec3(*ptCenter, (plVec3){fXDistanceAlong - gptGizmoCtx->fOriginalDistX, 0.0f, 0.0f});
-
-        plVec4 tCurrentRot = {0};
-        plVec3 tCurrentTrans = {0};
-        plVec3 tCurrentScale = {0};
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
-        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
+        if(axis < 3)
+            tDelta = pl_mul_vec3_scalarf(c->atAxes[axis], pl__gizmo_snap(pl_dot_vec3(tDelta, c->atAxes[axis]), c->fTranslationSnap));
+        else
+        {
+            int normal = axis - 3;
+            plVec3 u = c->atAxes[(normal + 1) % 3], v = c->atAxes[(normal + 2) % 3];
+            plVec2 coordinates = pl__gizmo_plane_coordinates(tDelta,u,v);
+            tDelta = pl_add_vec3(pl_mul_vec3_scalarf(u,pl__gizmo_snap(coordinates.x,c->fTranslationSnap)), pl_mul_vec3_scalarf(v,pl__gizmo_snap(coordinates.y,c->fTranslationSnap)));
+        }
+        plVec3 tLocalDelta = pl_mul_mat4_vec4(&c->tParentInverse, (plVec4){.xyz = tDelta, .w = 0.0f}).xyz;
+        t->tTranslation = pl_add_vec3(c->tStartTransform.tTranslation, tLocalDelta);
     }
-    else if(gptGizmoCtx->tState == PL_GIZMO_STATE_Y_TRANSLATION)
+    else if(c->tSelectionMode == PL_GIZMO_MODE_SCALE)
     {
-        bYSelected = true;
-        bXSelected = false;
-        bZSelected = false;
-        bXZSelected = false;
-        bXYSelected = false;
-        bYZSelected = false;
-        *ptCenter = pl_add_vec3(*ptCenter, (plVec3){0.0f, fYDistanceAlong - gptGizmoCtx->fOriginalDistY, 0.0f});
-
-        plVec4 tCurrentRot = {0};
-        plVec3 tCurrentTrans = {0};
-        plVec3 tCurrentScale = {0};
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
-        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
-
-    }
-    else if(gptGizmoCtx->tState == PL_GIZMO_STATE_Z_TRANSLATION)
-    {
-        bZSelected = true;
-        bXSelected = false;
-        bYSelected = false;
-        bXZSelected = false;
-        bXYSelected = false;
-        bYZSelected = false;
-        *ptCenter = pl_add_vec3(*ptCenter, (plVec3){0.0f, 0.0f, fZDistanceAlong - gptGizmoCtx->fOriginalDistZ});
-
-        plVec4 tCurrentRot = {0};
-        plVec3 tCurrentTrans = {0};
-        plVec3 tCurrentScale = {0};
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
-        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
-
-
-    }
-
-    else if(gptGizmoCtx->tState == PL_GIZMO_STATE_YZ_TRANSLATION)
-    {
-        bYZSelected = true;
-        bXSelected = false;
-        bYSelected = false;
-        bZSelected = false;
-        bXZSelected = false;
-        bXYSelected = false;
-        *ptCenter = pl_add_vec3(*ptCenter, (plVec3){0.0f, tYZIntersectionPoint.y - gptGizmoCtx->tOriginalPos.y - ptCenter->y, tYZIntersectionPoint.z - gptGizmoCtx->tOriginalPos.z - ptCenter->z});
-
-        plVec4 tCurrentRot = {0};
-        plVec3 tCurrentTrans = {0};
-        plVec3 tCurrentScale = {0};
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
-        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
-    }
-
-    else if(gptGizmoCtx->tState == PL_GIZMO_STATE_XZ_TRANSLATION)
-    {
-        bXZSelected = true;
-        bXSelected = false;
-        bYSelected = false;
-        bZSelected = false;
-        bXYSelected = false;
-        bYZSelected = false;
-        *ptCenter = pl_add_vec3(*ptCenter, (plVec3){tXZIntersectionPoint.x - gptGizmoCtx->tOriginalPos.x - ptCenter->x, 0.0, tXZIntersectionPoint.z - gptGizmoCtx->tOriginalPos.z - ptCenter->z});
-
-        plVec4 tCurrentRot = {0};
-        plVec3 tCurrentTrans = {0};
-        plVec3 tCurrentScale = {0};
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
-        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
-
-    }
-
-    else if(gptGizmoCtx->tState == PL_GIZMO_STATE_XY_TRANSLATION)
-    {
-        bXYSelected = true;
-        bXSelected = false;
-        bYSelected = false;
-        bZSelected = false;
-        bXZSelected = false;
-        bYZSelected = false;
-        *ptCenter = pl_add_vec3(*ptCenter, (plVec3){tXYIntersectionPoint.x - gptGizmoCtx->tOriginalPos.x - ptCenter->x, tXYIntersectionPoint.y - gptGizmoCtx->tOriginalPos.y - ptCenter->y, 0.0f});
-
-        plVec4 tCurrentRot = {0};
-        plVec3 tCurrentTrans = {0};
-        plVec3 tCurrentScale = {0};
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, *ptCenter, tCurrentScale);
-        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
-
-    }
-
-    if(bXSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->fOriginalDistX = fXDistanceAlong;
-        gptGizmoCtx->tOriginalPos = *ptCenter;
-        gptGizmoCtx->tBeginPos = *ptCenter;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_X_TRANSLATION;
-    }
-    else if(bYSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->fOriginalDistY = fYDistanceAlong;
-        gptGizmoCtx->tOriginalPos = *ptCenter;
-        gptGizmoCtx->tBeginPos = *ptCenter;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_Y_TRANSLATION;
-    }
-    else if(bZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->fOriginalDistZ = fZDistanceAlong;
-        gptGizmoCtx->tOriginalPos = *ptCenter;
-        gptGizmoCtx->tBeginPos = *ptCenter;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_Z_TRANSLATION;
-    }
-    else if(bYZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->tBeginPos = *ptCenter;
-        gptGizmoCtx->tOriginalPos = tYZIntersectionPoint;
-        gptGizmoCtx->tOriginalPos.y -= ptCenter->y;
-        gptGizmoCtx->tOriginalPos.z -= ptCenter->z;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_YZ_TRANSLATION;
-    }
-    else if(bXZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->tBeginPos = *ptCenter;
-        gptGizmoCtx->tOriginalPos = tXZIntersectionPoint;
-        gptGizmoCtx->tOriginalPos.x -= ptCenter->x;
-        gptGizmoCtx->tOriginalPos.z -= ptCenter->z;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_XZ_TRANSLATION;
-    }
-    else if(bXYSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->tBeginPos = *ptCenter;
-        gptGizmoCtx->tOriginalPos = tXYIntersectionPoint;
-        gptGizmoCtx->tOriginalPos.x -= ptCenter->x;
-        gptGizmoCtx->tOriginalPos.y -= ptCenter->y;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_XY_TRANSLATION;
+        float fFactor = axis == 6 ? pl__gizmo_scale_factor(c->tStartMouse.y - tMouse.y, 200) : pl__gizmo_scale_factor(pl_dot_vec3(tDelta, c->atAxes[axis]), c->fLength);
+        fFactor = fmaxf(0.001f, 1.0f + pl__gizmo_snap(fFactor - 1.0f, c->fScaleSnap));
+        if(fFactor == 1.0f)
+        {
+            t->tTranslation = c->tStartTransform.tTranslation;
+            t->tRotation = c->tStartTransform.tRotation;
+            t->tScale = c->tStartTransform.tScale;
+        }
+        else if(axis == 6 || c->tSpace == PL_GIZMO_SPACE_LOCAL)
+        {
+            t->tScale = c->tStartTransform.tScale;
+            if(axis == 6)
+                t->tScale = pl_mul_vec3_scalarf(t->tScale, fFactor);
+            else
+                t->tScale.d[axis] *= fFactor;
+        }
+        else
+        {
+            plMat4 tDesired = c->tStartTransform.tWorld;
+            // Stretch the original world basis; keep its position fixed.
+            for(int col = 0; col < 3; col++)
+                tDesired.col[col].d[axis] *= fFactor;
+            gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
+        }
     }
 
-    if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
+    else if(c->tSelectionMode == PL_GIZMO_MODE_ROTATION)
     {
-        gptGizmoCtx->bActive = false;
-        gptGizmoCtx->tBeginPos = *ptCenter;
-        gptGizmoCtx->tOriginalPos = *ptCenter;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_DEFAULT;
+        plVec3 tFrom = pl_sub_vec3(c->tStartHit, c->tCenter);
+        plVec3 tTo = pl_sub_vec3(tHit, c->tCenter);
+        if(pl_length_sqr_vec3(tTo) < 1e-12f)
+            return;
+        plVec2 from = pl__gizmo_plane_coordinates(tFrom,c->atAxes[(axis + 1) % 3], c->atAxes[(axis + 2) % 3]);
+        plVec2 to = pl__gizmo_plane_coordinates(tTo,c->atAxes[(axis + 1) % 3], c->atAxes[(axis + 2) % 3]);
+        float fAngle = pl__gizmo_signed_angle((plVec3){from.x, from.y, 0},(plVec3){to.x, to.y, 0}, (plVec3){0, 0, 1});
+        fAngle = pl__gizmo_snap(fAngle,c->fRotationSnap);
+        c->fDragAngle = fAngle;
+        if(c->tSpace == PL_GIZMO_SPACE_LOCAL)
+        {
+            plVec3 tAxis = {0};
+            tAxis.d[axis] = 1;
+            t->tRotation = pl_norm_quat(pl_mul_quat(c->tStartTransform.tRotation, pl_quat_rotation(fAngle, tAxis.x, tAxis.y, tAxis.z)));
+        }
+        else
+        {
+            plMat4 tRotation = pl_rotation_translation_scale(pl_quat_rotation(fAngle, c->atAxes[axis].x, c->atAxes[axis].y, c->atAxes[axis].z), (plVec3){0}, (plVec3){1.0f , 1.0f , 1.0f});
+            plMat4 tDesired = pl_mul_mat4(&tRotation, &c->tStartTransform.tWorld);
+            tDesired.col[3] = c->tStartTransform.tWorld.col[3];
+            gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
+        }
     }
-
-    plVec4 tXColor = (plVec4){1.0f, 0.0f, 0.0f, 1.0f};
-    plVec4 tYColor = (plVec4){0.0f, 1.0f, 0.0f, 1.0f};
-    plVec4 tZColor = (plVec4){0.0f, 0.0f, 1.0f, 1.0f};
-    plVec4 tYZColor = (plVec4){1.0f, 0.0f, 0.0f, 0.5f};
-    plVec4 tXYColor = (plVec4){0.0f, 0.0f, 1.0f, 0.5f};
-    plVec4 tXZColor = (plVec4){0.0f, 1.0f, 0.0f, 0.5f};
-
-    if(bXSelected)       tXColor = (plVec4){1.0f, 1.0f, 0.0f, 1.0f};
-    else if(bYSelected)  tYColor = (plVec4){1.0f, 1.0f, 0.0f, 1.0f};
-    else if(bZSelected)  tZColor = (plVec4){1.0f, 1.0f, 0.0f, 1.0f};
-    else if(bYZSelected) tYZColor = (plVec4){1.0f, 1.0f, 0.0f, 0.5f};
-    else if(bXZSelected) tXZColor = (plVec4){1.0f, 1.0f, 0.0f, 0.5f};
-    else if(bXYSelected) tXYColor = (plVec4){1.0f, 1.0f, 0.0f, 0.5f};
-
-    // x arrow head
-    plCone tDrawDesc0 = {0};
-    tDrawDesc0.tBasePos = (plVec3){ptCenter->x + fLength - fArrowLength, ptCenter->y, ptCenter->z};
-    tDrawDesc0.tTipPos = (plVec3){ptCenter->x + fLength, ptCenter->y, ptCenter->z};
-    tDrawDesc0.fRadius = fArrowRadius;
-    gptDraw->add_3d_cone_filled(ptGizmoDrawlist, tDrawDesc0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXColor)});
-
-    // y arrow head
-    plCone tDrawDesc1 = {0};
-    tDrawDesc1.tBasePos = (plVec3){ptCenter->x, ptCenter->y + fLength - fArrowLength, ptCenter->z};
-    tDrawDesc1.tTipPos = (plVec3){ptCenter->x, ptCenter->y + fLength, ptCenter->z};
-    tDrawDesc1.fRadius = fArrowRadius;
-    gptDraw->add_3d_cone_filled(ptGizmoDrawlist, tDrawDesc1, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tYColor)});
-
-    // z arrow head
-    plCone tDrawDesc2 = {0};
-    tDrawDesc2.tBasePos = (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength - fArrowLength};
-    tDrawDesc2.tTipPos = (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength};
-    tDrawDesc2.fRadius = fArrowRadius;
-    gptDraw->add_3d_cone_filled(ptGizmoDrawlist, tDrawDesc2, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tZColor)});
-
-    // x axis
-    plCylinder tDrawDesc3 = {0};
-    tDrawDesc3.tBasePos = *ptCenter;
-    tDrawDesc3.tTipPos = (plVec3){ptCenter->x + fLength - fArrowLength, ptCenter->y, ptCenter->z};
-    tDrawDesc3.fRadius = fAxisRadius;
-    gptDraw->add_3d_cylinder_filled(ptGizmoDrawlist, tDrawDesc3, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXColor)});
-
-    // y axis
-    plCylinder tDrawDesc4 = {0};
-    tDrawDesc4.tBasePos = *ptCenter;
-    tDrawDesc4.tTipPos = (plVec3){ptCenter->x, ptCenter->y + fLength - fArrowLength, ptCenter->z};
-    tDrawDesc4.fRadius = fAxisRadius;
-    gptDraw->add_3d_cylinder_filled(ptGizmoDrawlist, tDrawDesc4, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tYColor)});
-
-    // z axis
-    plCylinder tDrawDesc5 = {0};
-    tDrawDesc5.tBasePos = *ptCenter;
-    tDrawDesc5.tTipPos = (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength - fArrowLength};
-    tDrawDesc5.fRadius = fAxisRadius;
-    gptDraw->add_3d_cylinder_filled(ptGizmoDrawlist, tDrawDesc5, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tZColor)});
-
-    // origin
-    gptDraw->add_3d_centered_box_filled(ptGizmoDrawlist,
-        *ptCenter,
-        fAxisRadius * 4,
-        fAxisRadius * 4,
-        fAxisRadius * 4,
-        (plDrawSolidOptions){.uColor = PL_COLOR_32_RGB(0.5f, 0.5f, 0.5f)});
-
-    // PLANES
-    gptDraw->add_3d_plane_xy_filled(ptGizmoDrawlist, (plVec3){ptCenter->x + fLength * 0.25f, ptCenter->y + fLength * 0.25f, ptCenter->z}, fLength * 0.25f, fLength * 0.25f, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXYColor)});
-    gptDraw->add_3d_plane_yz_filled(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fLength * 0.25f, ptCenter->z + fLength * 0.25f}, fLength * 0.25f, fLength * 0.25f, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tYZColor)});
-    gptDraw->add_3d_plane_xz_filled(ptGizmoDrawlist, (plVec3){ptCenter->x + fLength * 0.25f, ptCenter->y, ptCenter->z + fLength * 0.25f}, fLength * 0.25f, fLength * 0.25f, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXZColor)}); 
+    t->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
 }
 
 static void
-pl__gizmo_rotation(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plVec2 tViewOffset, plVec2 tViewScale)
+pl__gizmo_draw(plDrawList3D* ptList, plVec3 tCenter, const plVec3 atAxes[3], float fLength, int iHover)
 {
-
-    plTransformComponent* ptSelectedTransform = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
-    plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
-
-    plVec2 tMousePos = gptIOI->get_mouse_pos();
-    tMousePos = pl_sub_vec2(tMousePos, tViewOffset);
-    tMousePos = pl_div_vec2(tMousePos, tViewScale);
-
-    if(gptUI->wants_mouse_capture())
+    const uint32_t auColors[3] = {PL_COLOR_32_RED, PL_COLOR_32_GREEN, PL_COLOR_32_BLUE};
+    const float fRadius = fLength * (0.0035f / 0.15f);
+    for(int i = 0; i < 3; i++)
     {
-        tMousePos.x = -1.0f;
-        tMousePos.y = -1.0f;
-    }
-
-    plMat4 tTransform = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-    tTransform = pl_mat4_invert(&tTransform);
-
-    plVec4 tNDC = {-1.0f + 2.0f * tMousePos.x / gptIOI->get_io()->tMainViewportSize.x, -1.0f + 2.0f * tMousePos.y / gptIOI->get_io()->tMainViewportSize.y, 1.0f, 1.0f};
-    tNDC = pl_mul_mat4_vec4(&tTransform, tNDC);
-    tNDC = pl_div_vec4_scalarf(tNDC, tNDC.w);
-
-    const float fOuterRadius = 0.15f * gptGizmoCtx->fCaptureScale;
-    const float fInnerRadius = fOuterRadius - 0.03f * gptGizmoCtx->fCaptureScale;
-
-    plVec4 tCurrentRot = {0};
-    plVec3 tCurrentTrans = {0};
-    plVec3 tCurrentScale = {0};
-    pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-    plVec3 tXIntersectionPoint = {0};
-    plVec3 tYIntersectionPoint = {0};
-    plVec3 tZIntersectionPoint = {0};
-
-    const plPlane tYZPlane = {
-        .tDirection = {1.0f, 0.0f, 0.0f},
-        .fOffset    = ptCenter->x
-    };
-
-    const plPlane tXZPlane = {
-        .tDirection = {0.0f, 1.0f, 0.0f},
-        .fOffset    = ptCenter->y
-    };
-
-    const plPlane tXYPlane = {
-        .tDirection = {0.0f, 0.0f, 1.0f},
-        .fOffset    = ptCenter->z
-    };
-
-    const plVec3 tDirVec = pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF));
-
-    bool bXSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tDirVec, &tYZPlane, &tXIntersectionPoint);
-    bool bYSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tDirVec, &tXZPlane, &tYIntersectionPoint);
-    bool bZSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tDirVec, &tXYPlane, &tZIntersectionPoint);
-
-    plVec4 tXColor = (plVec4){1.0f, 0.0f, 0.0f, 1.0f};
-    plVec4 tYColor = (plVec4){0.0f, 1.0f, 0.0f, 1.0f};
-    plVec4 tZColor = (plVec4){0.0f, 0.0f, 1.0f, 1.0f};
-    if(gptGizmoCtx->tState == PL_GIZMO_STATE_DEFAULT)
-    {
-
-        const float fXDistance = pl_length_vec3(pl_sub_vec3(tXIntersectionPoint, *ptCenter));
-        const float fYDistance = pl_length_vec3(pl_sub_vec3(tYIntersectionPoint, *ptCenter));
-        const float fZDistance = pl_length_vec3(pl_sub_vec3(tZIntersectionPoint, *ptCenter));
-
-        bXSelected = bXSelected && fXDistance < fOuterRadius && fXDistance > fInnerRadius;
-        bYSelected = bYSelected && fYDistance < fOuterRadius && fYDistance > fInnerRadius;
-        bZSelected = bZSelected && fZDistance < fOuterRadius && fZDistance > fInnerRadius;
-
-        bool bSomethingSelected = bXSelected || bYSelected || bZSelected;
-        const float apf[3] = {
-            bXSelected ? pl_length_vec3(pl_sub_vec3(tXIntersectionPoint, ptCamera->tPositionF)) : FLT_MAX,
-            bYSelected ? pl_length_vec3(pl_sub_vec3(tYIntersectionPoint, ptCamera->tPositionF)) : FLT_MAX,
-            bZSelected ? pl_length_vec3(pl_sub_vec3(tZIntersectionPoint, ptCamera->tPositionF)) : FLT_MAX
-        };
-
-        bXSelected = false;
-        bYSelected = false;
-        bZSelected = false;
-
-        bool* apb[3] = {
-            &bXSelected,
-            &bYSelected,
-            &bZSelected
-        };
-
-        uint32_t uMinIndex = 0;
-        if(bSomethingSelected)
+        uint32_t color = iHover == i ? PL_COLOR_32_YELLOW : auColors[i];
+        if(gptGizmoCtx->tSelectionMode == PL_GIZMO_MODE_ROTATION)
         {
-            for(uint32_t i = 0; i < 3; i++)
+            plVec3 u = atAxes[(i + 1) % 3], v = atAxes[(i + 2) % 3];
+            // Original filled rotation bands, expressed in the selected basis.
+            for(int j = 0; j < 36; j++)
             {
-                if(apf[i] <= apf[uMinIndex])
-                {
-                    uMinIndex = i;
-                    for(uint32_t j = 0; j < 3; j++)
-                    {
-                        *apb[j] = false;
-                    }
-                    *apb[uMinIndex] = true;
-                }
+                float a = 2 * PL_PI * j / 36, b = 2 * PL_PI * (j + 1) / 36;
+                plVec3 p = pl_mul_vec3_scalarf(pl_add_vec3(pl_mul_vec3_scalarf(u, cosf(a)), pl_mul_vec3_scalarf(v, sinf(a))), fLength);
+                plVec3 q = pl_mul_vec3_scalarf(pl_add_vec3(pl_mul_vec3_scalarf(u, cosf(b)), pl_mul_vec3_scalarf(v, sinf(b))), fLength);
+                plVec3 innerP = pl_add_vec3(tCenter, pl_mul_vec3_scalarf(p, 0.8f));
+                plVec3 innerQ = pl_add_vec3(tCenter, pl_mul_vec3_scalarf(q, 0.8f));
+                p = pl_add_vec3(tCenter,p);
+                q = pl_add_vec3(tCenter,q);
+                gptDraw->add_3d_triangle_filled(ptList, innerP, p, q, (plDrawSolidOptions){.uColor=color});
+                gptDraw->add_3d_triangle_filled(ptList, innerP, q, innerQ, (plDrawSolidOptions){.uColor=color});
             }
         }
+        else
+        {
+            plVec3 tip = pl_add_vec3(tCenter,pl_mul_vec3_scalarf(atAxes[i],fLength));
+            plVec3 shaftTip = gptGizmoCtx->tSelectionMode == PL_GIZMO_MODE_TRANSLATION ? pl_sub_vec3(tip,pl_mul_vec3_scalarf(atAxes[i], fLength * 0.2f)) : tip;
+            gptDraw->add_3d_cylinder_filled(ptList,(plCylinder){.tBasePos = tCenter, .tTipPos = shaftTip,.fRadius = fRadius}, 0, (plDrawSolidOptions){.uColor = color});
+            if(gptGizmoCtx->tSelectionMode == PL_GIZMO_MODE_TRANSLATION)
+                gptDraw->add_3d_cone_filled(ptList, (plCone){.tBasePos = shaftTip, .tTipPos = tip, .fRadius = fLength * 0.05f}, 0, (plDrawSolidOptions){.uColor = color});
+            else
+                gptDraw->add_3d_centered_box_filled(ptList, tip, fRadius * 4, fRadius * 4, fRadius * 4, (plDrawSolidOptions){.uColor = color});
+        }
+        if(gptGizmoCtx->tSelectionMode == PL_GIZMO_MODE_TRANSLATION)
+        {
+            plVec3 u = atAxes[(i + 1) % 3];
+            plVec3 v = atAxes[(i + 2) % 3];
+            plVec3 p[4] = {0};
+
+            const float x[4] = { 0.125f, 0.375f, 0.375f, 0.125f};
+            const float y[4] = { 0.125f, 0.125f, 0.375f, 0.375f};
+            for(int j = 0; j < 4; j++)
+                p[j]=pl_add_vec3(tCenter, pl_mul_vec3_scalarf(pl_add_vec3(pl_mul_vec3_scalarf(u, x[j]), pl_mul_vec3_scalarf(v, y[j])), fLength));
+            color = (iHover==i + 3 ? PL_COLOR_32_YELLOW : auColors[i]) & 0x00ffffffu;
+            color |= PL_COLOR_32_RGBA(0, 0, 0, 0.5f);
+            gptDraw->add_3d_triangle_filled(ptList, p[0], p[1], p[2], (plDrawSolidOptions){.uColor = color});
+            gptDraw->add_3d_triangle_filled(ptList, p[0], p[2], p[3], (plDrawSolidOptions){.uColor = color});
+        }
+    }
+    if(gptGizmoCtx->tSelectionMode != PL_GIZMO_MODE_ROTATION)
+        gptDraw->add_3d_centered_box_filled(ptList, tCenter, fRadius * 4, fRadius * 4, fRadius * 4, (plDrawSolidOptions){.uColor = iHover==6 ? PL_COLOR_32_YELLOW : PL_COLOR_32_RGB(0.5f, 0.5f, 0.5f)});
+}
+
+static void
+pl__gizmo_draw_feedback(plDrawList3D* ptList, const plTransformComponent* t, plVec3 tHit)
+{
+    const plGizmoContext* c = gptGizmoCtx;
+    const float radius = c->fLength * (0.0035f / 0.15f);
+    plVec3 center = t->tWorld.col[3].xyz;
+    plVec3 label = pl_add_vec3(center,(plVec3){0,c->fLength*1.1f,0});
+    plDrawTextOptions options = {.ptFont = gptUI->get_default_font(), .uColor = PL_COLOR_32_YELLOW};
+    if(c->tSelectionMode == PL_GIZMO_MODE_TRANSLATION)
+    {
+        plVec3 offset = pl_sub_vec3(center,c->tCenter);
+        gptDraw->add_3d_sphere_filled(ptList, (plSphere){.tCenter = c->tCenter, .fRadius = radius * 2}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.5f, 0.5f, 0.5f)});
+        gptDraw->add_3d_line(ptList, c->tCenter, center,(plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = radius});
+        gptDraw->add_3d_text(ptList, label, options,"offset: %0.3f, %0.3f, %0.3f", offset.x, offset.y, offset.z);
+    }
+    else if(c->tSelectionMode == PL_GIZMO_MODE_SCALE)
+    {
+        label.y = center.y + c->fLength * 1.2f;
+        gptDraw->add_3d_text(ptList, label, options,"scaling: %0.3f, %0.3f, %0.3f", t->tScale.x, t->tScale.y, t->tScale.z);
     }
     else
     {
-        ptSelectedTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
+        plVec3 from = pl_norm_vec3(pl_sub_vec3(c->tStartHit,c->tCenter));
+        plVec3 u = c->atAxes[(c->iHandle + 1) % 3], v = c->atAxes[(c->iHandle + 2) % 3];
+        plVec2 start = pl__gizmo_plane_coordinates(pl_sub_vec3(c->tStartHit, c->tCenter), u, v);
+        float angle = c->fDragAngle;
+        float end = atan2f(start.y, start.x) + angle;
+        plVec3 to = pl_norm_vec3(pl_add_vec3(pl_mul_vec3_scalarf(u, cosf(end)), pl_mul_vec3_scalarf(v, sinf(end))));
+        gptDraw->add_3d_text(ptList, label, options, "%c-axis rotation: %0.0f degrees",'x' + c->iHandle, angle * 180.0f / PL_PI);
+        gptDraw->add_3d_line(ptList, center, pl_add_vec3(center, pl_mul_vec3_scalarf(from, c->fLength * 0.8f)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.7f, 0.7f, 0.7f), .fThickness = radius});
+        gptDraw->add_3d_line(ptList, center, pl_add_vec3(center, pl_mul_vec3_scalarf(to, c->fLength * 0.8f)), (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = radius});
     }
-
-    if(gptGizmoCtx->tState == PL_GIZMO_STATE_X_ROTATION)
-    {
-        bXSelected = true;
-        bYSelected = false;
-        bZSelected = false;
-
-        plVec3 tUpDir = {0.0f, 1.0f, 0.0f};
-        plVec3 tDir0 = pl_norm_vec3(pl_sub_vec3(gptGizmoCtx->tOriginalPos, *ptCenter));
-        plVec3 tDir1 = pl_norm_vec3(pl_sub_vec3(tXIntersectionPoint, *ptCenter));
-        const float fAngleBetweenVec0 = acosf(pl_dot_vec3(tDir0, tUpDir));
-        const float fAngleBetweenVec1 = acosf(pl_dot_vec3(tDir1, tUpDir));
-        // float fAngle = atan2f(pl_dot_vec3(tUpDir, pl_cross_vec3(tDir0, tDir1)), pl_dot_vec3(tDir0, tDir1));
-        float fAngleBetweenVecs = fAngleBetweenVec1 - fAngleBetweenVec0;
-        // float fAngleBetweenVecs = fAngle;
-
-        if(gptGizmoCtx->tOriginalPos.z < ptCenter->z && tXIntersectionPoint.z < ptCenter->z)
-            fAngleBetweenVecs *= -1.0f;
-        else if(gptGizmoCtx->tOriginalPos.z < ptCenter->z && tXIntersectionPoint.z > ptCenter->z)
-            fAngleBetweenVecs = fAngleBetweenVec1 + fAngleBetweenVec0;
-        else if(gptGizmoCtx->tOriginalPos.z > ptCenter->z && tXIntersectionPoint.z < ptCenter->z)
-            fAngleBetweenVecs = -(fAngleBetweenVec1 + fAngleBetweenVec0);
-
-        char acTextBuffer[256] = {0};
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z},
-            (plDrawTextOptions){
-                .ptFont = gptUI->get_default_font(),
-                .uColor = PL_COLOR_32_YELLOW
-            },
-            "x-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI
-        );
-        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(0.7f, 0.7f, 0.7f, 1.0f), .fThickness = 0.0035f * gptGizmoCtx->fCaptureScale});
-        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 1.0f), .fThickness = 0.0035f * gptGizmoCtx->fCaptureScale});
-
-        if(fAngleBetweenVecs != 0.0f)
-        {
-            tCurrentRot = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 1.0f, 0.0f, 0.0f), gptGizmoCtx->tOriginalRot);
-
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-            gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
-        }
-    }
-    else if(gptGizmoCtx->tState == PL_GIZMO_STATE_Y_ROTATION)
-    {
-        bYSelected = true;
-        bXSelected = false;
-        bZSelected = false;
-
-        plVec3 tUpDir = {0.0f, 0.0f, 1.0f};
-        plVec3 tDir0 = pl_norm_vec3(pl_sub_vec3(gptGizmoCtx->tOriginalPos, *ptCenter));
-        plVec3 tDir1 = pl_norm_vec3(pl_sub_vec3(tYIntersectionPoint, *ptCenter));
-        const float fAngleBetweenVec0 = acosf(pl_dot_vec3(tDir0, tUpDir));
-        const float fAngleBetweenVec1 = acosf(pl_dot_vec3(tDir1, tUpDir));
-        float fAngleBetweenVecs = fAngleBetweenVec1 - fAngleBetweenVec0;
-
-        if(gptGizmoCtx->tOriginalPos.x < ptCenter->x && tYIntersectionPoint.x < ptCenter->x)
-            fAngleBetweenVecs *= -1.0f;
-        else if(gptGizmoCtx->tOriginalPos.x < ptCenter->x && tYIntersectionPoint.x > ptCenter->x)
-            fAngleBetweenVecs = fAngleBetweenVec1 + fAngleBetweenVec0;
-        else if(gptGizmoCtx->tOriginalPos.x > ptCenter->x && tYIntersectionPoint.x < ptCenter->x)
-            fAngleBetweenVecs = -(fAngleBetweenVec1 + fAngleBetweenVec0);
-
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z},
-            (plDrawTextOptions){
-                .ptFont = gptUI->get_default_font(),
-                .uColor = PL_COLOR_32_YELLOW
-            }, "y-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
-        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.7f, 0.7f, 0.7f), .fThickness = 0.0035f * gptGizmoCtx->fCaptureScale});
-        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 0.0035f * gptGizmoCtx->fCaptureScale});
-
-        if(fAngleBetweenVecs != 0.0f)
-        {
-            tCurrentRot = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 0.0f, 1.0f, 0.0f), gptGizmoCtx->tOriginalRot);
-
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-            gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
-        }
-    }
-    else if(gptGizmoCtx->tState == PL_GIZMO_STATE_Z_ROTATION)
-    {
-        bXSelected = false;
-        bYSelected = false;
-        bZSelected = true;
-
-        plVec3 tUpDir = {0.0f, 1.0f, 0.0f};
-        plVec3 tDir0 = pl_norm_vec3(pl_sub_vec3(gptGizmoCtx->tOriginalPos, *ptCenter));
-        plVec3 tDir1 = pl_norm_vec3(pl_sub_vec3(tZIntersectionPoint, *ptCenter));
-        const float fAngleBetweenVec0 = acosf(pl_dot_vec3(tDir0, tUpDir));
-        const float fAngleBetweenVec1 = acosf(pl_dot_vec3(tDir1, tUpDir));
-        float fAngleBetweenVecs = fAngleBetweenVec1 - fAngleBetweenVec0;
-
-        if(gptGizmoCtx->tOriginalPos.x < ptCenter->x && tZIntersectionPoint.x < ptCenter->x)
-            fAngleBetweenVecs *= -1.0f;
-        else if(gptGizmoCtx->tOriginalPos.x < ptCenter->x && tZIntersectionPoint.x > ptCenter->x)
-            fAngleBetweenVecs = fAngleBetweenVec1 + fAngleBetweenVec0;
-        else if(gptGizmoCtx->tOriginalPos.x > ptCenter->x && tZIntersectionPoint.x < ptCenter->x)
-            fAngleBetweenVecs = -(fAngleBetweenVec1 + fAngleBetweenVec0);
-
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z},
-            (plDrawTextOptions){
-                .ptFont = gptUI->get_default_font(),
-                .uColor = PL_COLOR_32_YELLOW
-            }, "z-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
-        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.7f, 0.7f, 0.7f), .fThickness = 0.0035f * gptGizmoCtx->fCaptureScale});
-        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 0.0035f * gptGizmoCtx->fCaptureScale});
-
-        if(fAngleBetweenVecs != 0.0f)
-        {
-            tCurrentRot = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 0.0f, 0.0f, -1.0f), gptGizmoCtx->tOriginalRot);
-
-            plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-            gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
-        }
-    }
-
-    if(bXSelected)
-    {
-        tXColor = (plVec4){1.0f, 1.0f, 0.0f, 1.0f};
-    }
-    else if(bYSelected)
-    {
-        tYColor = (plVec4){1.0f, 1.0f, 0.0f, 1.0f};
-    }
-    else if(bZSelected)
-    {
-        tZColor = (plVec4){1.0f, 1.0f, 0.0f, 1.0f};
-    }
-
-    if(bXSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->tOriginalPos = tXIntersectionPoint;
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &gptGizmoCtx->tOriginalRot, &tCurrentTrans);
-        gptGizmoCtx->tState = PL_GIZMO_STATE_X_ROTATION;
-    }
-    else if(bYSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->tOriginalPos = tYIntersectionPoint;
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &gptGizmoCtx->tOriginalRot, &tCurrentTrans);
-        gptGizmoCtx->tState = PL_GIZMO_STATE_Y_ROTATION;
-    }
-    else if(bZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->tOriginalPos = tZIntersectionPoint;
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &gptGizmoCtx->tOriginalRot, &tCurrentTrans);
-        gptGizmoCtx->tState = PL_GIZMO_STATE_Z_ROTATION;
-    }
-
-    if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
-    {
-        gptGizmoCtx->bActive = false;
-        gptGizmoCtx->tOriginalPos = *ptCenter;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_DEFAULT;
-    }
-
-    gptDraw->add_3d_band_yz_filled(ptGizmoDrawlist, *ptCenter, fInnerRadius, fOuterRadius, 36, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXColor)});
-    gptDraw->add_3d_band_xz_filled(ptGizmoDrawlist, *ptCenter, fInnerRadius, fOuterRadius, 36, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tYColor)});
-    gptDraw->add_3d_band_xy_filled(ptGizmoDrawlist, *ptCenter, fInnerRadius, fOuterRadius, 36, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tZColor)});
 }
 
-static void
-pl__gizmo_scale(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plVec2 tViewOffset, plVec2 tViewScale)
+void
+pl_gizmo_gizmo(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D* ptList, plCamera* ptCamera, plVec2 tOffset, plVec2 tScale)
 {
-    plTransformComponent* ptSelectedTransform = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
-    plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
-
-    plVec2 tMousePos = gptIOI->get_mouse_pos();
-    tMousePos = pl_sub_vec2(tMousePos, tViewOffset);
-    tMousePos = pl_div_vec2(tMousePos, tViewScale);
-
-    if(gptUI->wants_mouse_capture())
+    plGizmoContext* c=gptGizmoCtx;
+    if(c->ptTargetLibrary != ptLibrary || c->tTargetEntity.uData != tEntity.uData || (c->bActive && !gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT)))
+        pl__gizmo_cancel_drag();
+    c->ptTargetLibrary = ptLibrary;
+    c->tTargetEntity = tEntity;
+    if(!ptLibrary || !ptCamera || !ptList || !gptEcs->has_component(ptLibrary,gptTransform->get_ecs_type_key_transform(), tEntity))
     {
-        tMousePos.x = -1.0f;
-        tMousePos.y = -1.0f;
+        pl__gizmo_cancel_drag();
+        return;
     }
 
-    plMat4 tTransform = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-    tTransform = pl_mat4_invert(&tTransform);
+    if(c->tSelectionMode == PL_GIZMO_MODE_NONE)
+        return;
 
-    plVec4 tNDC = {-1.0f + 2.0f * tMousePos.x / gptIOI->get_io()->tMainViewportSize.x, -1.0f + 2.0f * tMousePos.y / gptIOI->get_io()->tMainViewportSize.y, 1.0f, 1.0f};
-    tNDC = pl_mul_mat4_vec4(&tTransform, tNDC);
-    tNDC = pl_div_vec4_scalarf(tNDC, tNDC.w);
-
-    const float fAxisRadius  = 0.0035f * gptGizmoCtx->fCaptureScale;
-    const float fArrowRadius = 0.0075f * gptGizmoCtx->fCaptureScale;
-    const float fLength = 0.15f * gptGizmoCtx->fCaptureScale;
-
-    float fXDistanceAlong = 0.0f;
-    float fYDistanceAlong = 0.0f;
-    float fZDistanceAlong = 0.0f;
-    plVec3 tXYZIntersectionPoint = {0};
-
-    bool bXSelected = pl__does_line_intersect_cylinder(ptCamera->tPositionF, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF)), *ptCenter, (plVec3){1.0f, 0.0f, 0.0f}, fArrowRadius, fLength, &fXDistanceAlong);
-    bool bYSelected = pl__does_line_intersect_cylinder(ptCamera->tPositionF, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF)), *ptCenter, (plVec3){0.0f, 1.0f, 0.0f}, fArrowRadius, fLength, &fYDistanceAlong);
-    bool bZSelected = pl__does_line_intersect_cylinder(ptCamera->tPositionF, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF)), *ptCenter, (plVec3){0.0f, 0.0f, 1.0f}, fArrowRadius, fLength, &fZDistanceAlong);
-    
-    plVec3 tCameraDir = pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF));
-
-    const plPlane tPlane = {
-        .tDirection = tCameraDir,
-        .fOffset    = pl_dot_vec3(tCameraDir, *ptCenter)
-    };
-    bool bXYZSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tCameraDir, &tPlane, &tXYZIntersectionPoint);
-
-    if(gptGizmoCtx->tState != PL_GIZMO_STATE_DEFAULT)
+    plTransformComponent* t = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
+    if(c->bActive && gptIOI->is_key_pressed(PL_KEY_ESCAPE,false))
     {
-        float fDeltaX = (fXDistanceAlong - gptGizmoCtx->fOriginalDistX) / fLength;
-        float fDeltaY = (fYDistanceAlong - gptGizmoCtx->fOriginalDistY) / fLength;
-        float fDeltaZ = (fZDistanceAlong - gptGizmoCtx->fOriginalDistZ) / fLength;
-        float fScaleX = gptGizmoCtx->fOriginalScaleX * (1.0f + fDeltaX);
-        float fScaleY = gptGizmoCtx->fOriginalScaleY * (1.0f + fDeltaY);
-        float fScaleZ = gptGizmoCtx->fOriginalScaleZ * (1.0f + fDeltaZ);
-        // float fScaleX = gptGizmoCtx->tState == PL_GIZMO_STATE_X_SCALE ? gptGizmoCtx->fOriginalScaleX + (fXDistanceAlong - gptGizmoCtx->fOriginalDistX) * gptGizmoCtx->fOriginalScaleX : gptGizmoCtx->fOriginalScaleX;
-        // float fScaleY = gptGizmoCtx->tState == PL_GIZMO_STATE_Y_SCALE ? gptGizmoCtx->fOriginalScaleY + (fYDistanceAlong - gptGizmoCtx->fOriginalDistY) * gptGizmoCtx->fOriginalScaleY : gptGizmoCtx->fOriginalScaleY;
-        // float fScaleZ = gptGizmoCtx->tState == PL_GIZMO_STATE_Z_SCALE ? gptGizmoCtx->fOriginalScaleZ + (fZDistanceAlong - gptGizmoCtx->fOriginalDistZ) * gptGizmoCtx->fOriginalScaleZ : gptGizmoCtx->fOriginalScaleZ;
-        if(gptGizmoCtx->tState == PL_GIZMO_STATE_SCALE)
-        {
-            // float fScale = gptGizmoCtx->fOriginalScaleX + gptGizmoCtx->fOriginalScaleX * pl_length_vec3((plVec3){fXDistanceAlong - gptGizmoCtx->fOriginalDistX, fYDistanceAlong - gptGizmoCtx->fOriginalDistY, fZDistanceAlong - gptGizmoCtx->fOriginalDistZ});
-            // fScaleX = fScale;
-            // fScaleY = fScale;
-            // fScaleZ = fScale;
-            float fDelta = (fXDistanceAlong - gptGizmoCtx->fOriginalDistX) / fLength;
-            float fScale = gptGizmoCtx->fOriginalScaleX * (1.0f + fDelta);
-            fScaleX = fScale;
-            fScaleY = fScale;
-            fScaleZ = fScale;
-        }
-
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.2f, ptCenter->z},
-            (plDrawTextOptions){
-                .ptFont = gptUI->get_default_font(),
-                .uColor = PL_COLOR_32_YELLOW
-            }, "scaling: %0.3f, %0.3f, %0.3f", fScaleX, fScaleY, fScaleZ);
-        ptSelectedTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
+        t->tTranslation = c->tStartTransform.tTranslation;
+        t->tRotation = c->tStartTransform.tRotation;
+        t->tScale = c->tStartTransform.tScale;
+        t->tWorld = c->tStartTransform.tWorld;
+        t->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
+        pl__gizmo_cancel_drag();
+        pl__gizmo_draw(ptList, t->tWorld.col[3].xyz, c->atAxes, c->fLength, -1);
+        return;
     }
+    plVec3 center=t->tWorld.col[3].xyz;
+    plVec3 axes[3];
+    pl__gizmo_axes(&t->tWorld,c->tSpace,axes);
+    float length = fmaxf(0.001f, 0.1125f * (ptCamera->eProjectionType==PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC ? ptCamera->fHeight : pl_length_vec3(pl_sub_vec3(center,ptCamera->tPositionF))));
+    plVec2 mouse=gptIOI->get_mouse_pos();
+    plVec2 size = pl_mul_vec2(gptIOI->get_io()->tMainViewportSize, tScale);
+    plVec3 origin = {0};
+    plVec3 dir = {0};
+    plVec3 hit = c->tStartHit;
 
-    if(gptGizmoCtx->tState == PL_GIZMO_STATE_DEFAULT)
+    if(!pl__gizmo_mouse_ray(ptCamera, mouse, tOffset, size, &origin, &dir))
     {
-
-        const float fXYZDistance = pl_length_vec3(pl_sub_vec3(tXYZIntersectionPoint, *ptCenter));
-        bXYZSelected = bXYZSelected && fXYZDistance < fAxisRadius * 4;
-
-        const float apf[4] = {
-            bXSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x + fXDistanceAlong, ptCenter->y, ptCenter->z}, ptCamera->tPositionF)) : FLT_MAX,
-            bYSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x, ptCenter->y + fYDistanceAlong, ptCenter->z}, ptCamera->tPositionF)) : FLT_MAX,
-            bZSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fZDistanceAlong}, ptCamera->tPositionF)) : FLT_MAX,
-            bXYZSelected ? pl_length_vec3(pl_sub_vec3(*ptCenter, ptCamera->tPositionF)) - fAxisRadius * 4: FLT_MAX
-        };
-
-        bool bSomethingSelected = bXSelected || bYSelected || bZSelected || bXYZSelected;
-
-        bXSelected = false;
-        bYSelected = false;
-        bZSelected = false;
-        bXYZSelected = false;
-
-
-        bool* apb[4] = {
-            &bXSelected,
-            &bYSelected,
-            &bZSelected,
-            &bXYZSelected
-        };
-
-        uint32_t uMinIndex = 0;
-        if(bSomethingSelected)
+        pl__gizmo_cancel_drag();
+        return;
+    }
+    if(c->bActive)
+    {
+        if(c->iHandle==6 || pl__gizmo_plane_hit(origin, dir, c->tCenter, c->tPlaneNormal,&hit))
+            pl__gizmo_apply_drag(ptLibrary, tEntity, c->iHandle == 6 ? c->tStartHit : hit, mouse);
+        center=t->tWorld.col[3].xyz;
+        pl__gizmo_draw_feedback(ptList, t, hit);
+        pl__gizmo_draw(ptList, center, c->atAxes, c->fLength, c->iHandle);
+        return;
+    }
+    int hover =- 1;
+    float nearest = FLT_MAX;
+    bool canPick = !gptUI->wants_mouse_capture() && mouse.x >= tOffset.x && mouse.y >= tOffset.y && mouse.x < tOffset.x + size.x && mouse.y < tOffset.y + size.y;
+    if(canPick)
+    {
+        for(int i = 0; i < 3; i++)
         {
-            for(uint32_t i = 0; i < 4; i++)
+            float along = 0;
+            hit = center;
+            bool selected = false;
+            if(c->tSelectionMode == PL_GIZMO_MODE_ROTATION)
             {
-                if(apf[i] <= apf[uMinIndex])
+                selected = pl__gizmo_plane_hit(origin, dir, center, pl__gizmo_plane_normal(axes, i), &hit);
+                plVec2 coordinates = pl__gizmo_plane_coordinates(pl_sub_vec3(hit, center), axes[(i + 1) % 3], axes[(i + 2) % 3]);
+                float radius = pl_length_vec2(coordinates);
+                selected = selected && radius > length * 0.8f && radius < length;
+            }
+            else
+            {
+                selected = pl__does_line_intersect_cylinder(origin, dir, center, axes[i], length * 0.075f, length * 1.075f, &along);
+                hit = pl_add_vec3(center, pl_mul_vec3_scalarf(axes[i], along));
+            }
+            float distance = pl_length_vec3(pl_sub_vec3(hit, origin));
+            if(selected && distance<nearest)
+            {
+                nearest=distance;
+                hover=i;
+            }
+            
+            if(c->tSelectionMode == PL_GIZMO_MODE_TRANSLATION && pl__gizmo_plane_hit(origin, dir, center, pl__gizmo_plane_normal(axes, i), &hit))
+            {
+                plVec3 delta = pl_sub_vec3(hit, center);
+                plVec2 coordinates = pl__gizmo_plane_coordinates(delta, axes[(i + 1) % 3], axes[(i + 2) % 3]);
+                float u = coordinates.x / length;
+                float v = coordinates.y / length;
+                distance = pl_length_vec3(pl_sub_vec3(hit, origin));
+                if(u > 0.125f && u < 0.375f && v > 0.125f && v < 0.375f && distance < nearest)
                 {
-                    uMinIndex = i;
-                    for(uint32_t j = 0; j < 4; j++)
-                    {
-                        *apb[j] = false;
-                    }
-                    *apb[uMinIndex] = true;
+                    nearest = distance;
+                    hover = i + 3;
                 }
             }
         }
+        if(c->tSelectionMode == PL_GIZMO_MODE_SCALE && pl__gizmo_plane_hit(origin, dir, center, dir, &hit) && pl_length_vec3(pl_sub_vec3(hit, center)) < length * 0.10f)
+            hover = 6;
     }
-
-    if(gptGizmoCtx->tState == PL_GIZMO_STATE_X_SCALE)
+    if(hover>=0 && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT,false))
     {
-        bXSelected = true;
-        bYSelected = false;
-        bZSelected = false;
-        bXYZSelected = false;
-
-        plVec4 tCurrentRot = {0};
-        plVec3 tCurrentTrans = {0};
-        plVec3 tCurrentScale = {0};
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-        tCurrentScale.x = gptGizmoCtx->fOriginalScaleX + (fXDistanceAlong - gptGizmoCtx->fOriginalDistX) * gptGizmoCtx->fOriginalScaleX;
-
-        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
+        plVec3 normal = dir;
+        bool valid = true;
+        if(hover<3)
+        {
+            if(c->tSelectionMode == PL_GIZMO_MODE_ROTATION)
+                normal = pl__gizmo_plane_normal(axes, hover);
+            else
+                valid = pl__gizmo_axis_plane(axes[hover], dir, &normal);
+        }
+        else if(hover < 6)
+            normal = pl__gizmo_plane_normal(axes, hover - 3);
+        if(valid && pl__gizmo_plane_hit(origin, dir, center, normal, &hit))
+        {
+            c->fDragAngle = 0;
+            c->iHandle = hover;
+            c->tStartHit = hit;
+            c->tPlaneNormal = normal;
+            c->tCenter = center;
+            c->tStartTransform =* t;
+            c->fLength = length;
+            c->tStartMouse = mouse;
+            for(int i = 0; i < 3; i++)
+                c->atAxes[i] = axes[i];
+            plMat4 parent = gptTransform->compute_parent_transform(ptLibrary, tEntity);
+            float determinant = pl_dot_vec3(parent.col[0].xyz, pl_cross_vec3(parent.col[1].xyz, parent.col[2].xyz));
+            if(isfinite(determinant) && fabsf(determinant) > 1e-8f)
+            {
+                c->tParentInverse = pl_mat4_invert(&parent);
+                c->bActive = true;
+            }
+        }
     }
-
-
-    else if(gptGizmoCtx->tState == PL_GIZMO_STATE_Y_SCALE)
-    {
-        bXSelected = false;
-        bYSelected = true;
-        bZSelected = false;
-        bXYZSelected = false;
-
-        plVec4 tCurrentRot = {0};
-        plVec3 tCurrentTrans = {0};
-        plVec3 tCurrentScale = {0};
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-
-        tCurrentScale.y = gptGizmoCtx->fOriginalScaleY + (fYDistanceAlong - gptGizmoCtx->fOriginalDistY) * gptGizmoCtx->fOriginalScaleY;
-
-        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
-    }
-
-    else if(gptGizmoCtx->tState == PL_GIZMO_STATE_Z_SCALE)
-    {
-        bXSelected = false;
-        bYSelected = false;
-        bZSelected = true;
-        bXYZSelected = false;
-
-        plVec4 tCurrentRot = {0};
-        plVec3 tCurrentTrans = {0};
-        plVec3 tCurrentScale = {0};
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-
-        tCurrentScale.z = gptGizmoCtx->fOriginalScaleZ + (fZDistanceAlong - gptGizmoCtx->fOriginalDistZ) * gptGizmoCtx->fOriginalScaleZ;
-
-        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
-    }
-
-    else if(gptGizmoCtx->tState == PL_GIZMO_STATE_SCALE)
-    {
-        bXSelected = false;
-        bYSelected = false;
-        bZSelected = false;
-        bXYZSelected = true;
-
-        plVec4 tCurrentRot = {0};
-        plVec3 tCurrentTrans = {0};
-        plVec3 tCurrentScale = {0};
-        pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-        if(fYDistanceAlong - gptGizmoCtx->fOriginalDistY > 0)
-            tCurrentScale.x = gptGizmoCtx->fOriginalScaleX + pl_length_vec3(pl_sub_vec3(tXYZIntersectionPoint, gptGizmoCtx->tOriginalPos)) * gptGizmoCtx->fOriginalScaleX;
-        else
-            tCurrentScale.x = gptGizmoCtx->fOriginalScaleX - pl_length_vec3(pl_sub_vec3(tXYZIntersectionPoint, gptGizmoCtx->tOriginalPos)) * gptGizmoCtx->fOriginalScaleX;
-        tCurrentScale.y = tCurrentScale.x;
-        tCurrentScale.z = tCurrentScale.x;
-
-        plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
-        gptTransform->set_world_transform(ptLibrary, tEntity, &tDesired);
-    }
-
-    plVec4 tCurrentRot = {0};
-    plVec3 tCurrentTrans = {0};
-    plVec3 tCurrentScale = ptSelectedTransform->tScale;
-    // pl_decompose_matrix(&ptSelectedTransform->tWorld, &tCurrentScale, &tCurrentRot, &tCurrentTrans);
-
-
-    if(bXSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->fOriginalScaleX = tCurrentScale.x;
-        gptGizmoCtx->fOriginalScaleY = tCurrentScale.y;
-        gptGizmoCtx->fOriginalScaleZ = tCurrentScale.z;
-        gptGizmoCtx->fOriginalDistX = fXDistanceAlong;
-        gptGizmoCtx->fOriginalDistY = fYDistanceAlong;
-        gptGizmoCtx->fOriginalDistZ = fZDistanceAlong;
-        gptGizmoCtx->tOriginalPos = tXYZIntersectionPoint;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_X_SCALE;
-    }
-    else if(bYSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->fOriginalScaleX = tCurrentScale.x;
-        gptGizmoCtx->fOriginalScaleY = tCurrentScale.y;
-        gptGizmoCtx->fOriginalScaleZ = tCurrentScale.z;
-        gptGizmoCtx->fOriginalDistX = fXDistanceAlong;
-        gptGizmoCtx->fOriginalDistY = fYDistanceAlong;
-        gptGizmoCtx->fOriginalDistZ = fZDistanceAlong;
-        gptGizmoCtx->tOriginalPos = tXYZIntersectionPoint;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_Y_SCALE;
-    }
-    else if(bZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->fOriginalScaleX = tCurrentScale.x;
-        gptGizmoCtx->fOriginalScaleY = tCurrentScale.y;
-        gptGizmoCtx->fOriginalScaleZ = tCurrentScale.z;
-        gptGizmoCtx->fOriginalDistX = fXDistanceAlong;
-        gptGizmoCtx->fOriginalDistY = fYDistanceAlong;
-        gptGizmoCtx->fOriginalDistZ = fZDistanceAlong;
-        gptGizmoCtx->tOriginalPos = tXYZIntersectionPoint;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_Z_SCALE;
-    }
-    else if(bXYZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptGizmoCtx->bActive = true;
-        gptGizmoCtx->fOriginalScaleX = tCurrentScale.x;
-        gptGizmoCtx->fOriginalScaleY = tCurrentScale.y;
-        gptGizmoCtx->fOriginalScaleZ = tCurrentScale.z;
-        gptGizmoCtx->tOriginalPos = tXYZIntersectionPoint;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_SCALE;
-    }
-
-    if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
-    {
-        gptGizmoCtx->bActive = false;
-        gptGizmoCtx->tOriginalPos = tXYZIntersectionPoint;
-        gptGizmoCtx->tState = PL_GIZMO_STATE_DEFAULT;
-    }
-
-    plVec4 tXColor   = (plVec4){1.0f, 0.0f, 0.0f, 1.0f};
-    plVec4 tYColor   = (plVec4){0.0f, 1.0f, 0.0f, 1.0f};
-    plVec4 tZColor   = (plVec4){0.0f, 0.0f, 1.0f, 1.0f};
-    plVec4 tXYZColor = (plVec4){0.5f, 0.5f, 0.5f, 1.0f};
-
-    if(bXSelected)        tXColor = (plVec4){1.0f, 1.0f, 0.0f, 1.0f};
-    else if(bYSelected)   tYColor = (plVec4){1.0f, 1.0f, 0.0f, 1.0f};
-    else if(bZSelected)   tZColor = (plVec4){1.0f, 1.0f, 0.0f, 1.0f};
-    else if(bXYZSelected) tXYZColor = (plVec4){1.0f, 1.0f, 0.0f, 1.0f};
-
-    // x axis
-    plCylinder tDrawDesc3 = {0};
-    tDrawDesc3.tBasePos = *ptCenter;
-    tDrawDesc3.tTipPos = (plVec3){ptCenter->x + fLength, ptCenter->y, ptCenter->z};
-    tDrawDesc3.fRadius = fAxisRadius;
-    gptDraw->add_3d_cylinder_filled(ptGizmoDrawlist, tDrawDesc3, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXColor)});
-
-    // y axis
-    plCylinder tDrawDesc4 = {0};
-    tDrawDesc4.tBasePos = *ptCenter;
-    tDrawDesc4.tTipPos = (plVec3){ptCenter->x, ptCenter->y + fLength, ptCenter->z};
-    tDrawDesc4.fRadius = fAxisRadius;
-    gptDraw->add_3d_cylinder_filled(ptGizmoDrawlist, tDrawDesc4, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tYColor)});
-
-    // z axis
-    plCylinder tDrawDesc5 = {0};
-    tDrawDesc5.tBasePos = *ptCenter;
-    tDrawDesc5.tTipPos = (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength};
-    tDrawDesc5.fRadius = fAxisRadius;
-    gptDraw->add_3d_cylinder_filled(ptGizmoDrawlist, tDrawDesc5, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tZColor)});
-
-    // x end
-    gptDraw->add_3d_centered_box_filled(ptGizmoDrawlist,
-        (plVec3){ptCenter->x + fLength, ptCenter->y, ptCenter->z},
-        fAxisRadius * 4,
-        fAxisRadius * 4,
-        fAxisRadius * 4,
-        (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXColor)});
-
-    // y end
-    gptDraw->add_3d_centered_box_filled(ptGizmoDrawlist,
-        (plVec3){ptCenter->x, ptCenter->y + fLength, ptCenter->z},
-        fAxisRadius * 4,
-        fAxisRadius * 4,
-        fAxisRadius * 4,
-        (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tYColor)});
-
-    // z end
-    gptDraw->add_3d_centered_box_filled(ptGizmoDrawlist,
-        (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength},
-        fAxisRadius * 4,
-        fAxisRadius * 4,
-        fAxisRadius * 4,
-        (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tZColor)});
-
-    // origin
-    gptDraw->add_3d_centered_box_filled(ptGizmoDrawlist,
-        *ptCenter,
-        fAxisRadius * 4,
-        fAxisRadius * 4,
-        fAxisRadius * 4,
-        (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXYZColor)});
+    pl__gizmo_draw(ptList, center, axes, length, hover);
 }
-
-//-----------------------------------------------------------------------------
-// [SECTION] extension loading
-//-----------------------------------------------------------------------------
 
 void
 pl_load_gizmo_ext(plApiRegistryI* ptApiRegistry, bool bReload)
@@ -1183,7 +576,10 @@ pl_load_gizmo_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .set_mode  = pl_gizmo_set_mode,
         .next_mode = pl_gizmo_next_mode,
         .active    = pl_gizmo_active,
-        .gizmo     = pl_gizmo_gizmo
+        .gizmo     = pl_gizmo_gizmo,
+        .set_space = pl_gizmo_set_space,
+        .get_space = pl_gizmo_get_space,
+        .set_snap  = pl_gizmo_set_snap
     };
     pl_set_api(ptApiRegistry, plGizmoI, &tApi);
 
@@ -1202,7 +598,10 @@ pl_load_gizmo_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     else
     {
         static plGizmoContext gtGizmoCtx = {
-            .tSelectionMode = PL_GIZMO_MODE_TRANSLATION
+            .tSelectionMode   = PL_GIZMO_MODE_TRANSLATION,
+            .fTranslationSnap = 1.0f,
+            .fRotationSnap    = PL_PI / 12.0f,
+            .fScaleSnap       = 0.1f
         };
         gptGizmoCtx = &gtGizmoCtx;
         ptDataRegistry->set_data("plGizmoContext", gptGizmoCtx);
