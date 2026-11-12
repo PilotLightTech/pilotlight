@@ -4360,8 +4360,11 @@ pl__render_view_jfa_pass(plView* ptView)
     }
 
     float fJumpDistance = (float)uHalfWidth;
-    if(pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE]) + pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE]) + pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE_TRANSMISSION]) == 0)
+    if(pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE]) + pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE_DOUBLE_SIDED]) +
+       pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FOLIAGE_OUTLINE]) + pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE_TRANSMISSION]) == 0)
+    {
         uJumpSteps = 1;
+    }
 
     const plDispatch tDispach = {
         .uGroupCountX     = (uint32_t)ceilf(tDimensions.x / 8.0f),
@@ -9682,64 +9685,6 @@ pl__renderer_initialize(void)
     return true;
 };
 
-static void
-pl__renderer_remove_instance(plScene* ptScene, plEntity tBaseEntity, plEntity tInstanceEntity)
-{
-    const plDrawableKey tKey = {
-        .uEntity  = tBaseEntity.uData,
-        .uSubmesh = PL_DRAWABLE_OBJECT_KEY
-    };
-
-    uint64_t uFirstDrawHash = pl_hm_hash(&tKey, sizeof(plDrawableKey), 0);
-    if(pl_hm_has_key(&ptScene->tDrawableHashmap, uFirstDrawHash))
-    {
-        uint32_t uFirstSubmeshIndex = (uint32_t)pl_hm_lookup(&ptScene->tDrawableHashmap, uFirstDrawHash);
-
-        const plDrawableKey tFirstKey = {
-            .uEntity  = tBaseEntity.uData,
-            .uSubmesh = uFirstSubmeshIndex
-        };
-
-        uint64_t uMainDrawHash = pl_hm_hash(&tFirstKey, sizeof(plDrawableKey), 0);
-        uint64_t uMainDrawableIndex = pl_hm_lookup(&ptScene->tDrawableHashmap, uMainDrawHash);
-        plDrawableResources* ptMainDrawableResources = &ptScene->sbtDrawableResources[uMainDrawableIndex];
-
-        uint32_t uSubmeshCount = ptMainDrawableResources->uSubmeshCount;
-        uint32_t uFirstSubmesh = ptMainDrawableResources->uSubmeshIndex;
-    
-        for(uint32_t uSubmeshIndex = 0; uSubmeshIndex < uSubmeshCount; uSubmeshIndex++)
-        {
-            const plDrawableKey tKey2 = {
-                .uEntity  = tBaseEntity.uData,
-                .uSubmesh = uFirstSubmesh + uSubmeshIndex
-            };
-            uint64_t uDrawHash = pl_hm_hash(&tKey2, sizeof(plDrawableKey), 0);
-            if(pl_hm_has_key(&ptScene->tDrawableHashmap, uDrawHash))
-            {
-                uint64_t uDrawableIndex = pl_hm_lookup(&ptScene->tDrawableHashmap, uDrawHash);
-                plDrawable* ptDrawable = &ptScene->sbtDrawables[uDrawableIndex];
-                plDrawableResources* ptDrawableResources = &ptScene->sbtDrawableResources[uDrawableIndex];
-                ptDrawable->uInstanceCount--;
-                for(uint32_t i = 0; i < pl_sb_size(ptDrawableResources->sbtEntities); i++)
-                {
-                    if(ptDrawableResources->sbtEntities[i].uData == tInstanceEntity.uData)
-                    {
-                        pl_sb_del_swap(ptDrawableResources->sbtEntities, i);
-                        break;
-                    }
-                }
-
-                gptFreeList->return_node(&ptScene->tTransformFreelist, ptDrawableResources->ptTransformNode);
-                gptFreeList->return_node(&ptScene->tInstanceFreelist, ptDrawableResources->ptInstanceNode);
-                ptDrawableResources->ptTransformNode = gptFreeList->get_node(&ptScene->tTransformFreelist, ptDrawable->uInstanceCount);
-                ptDrawableResources->ptInstanceNode = gptFreeList->get_node(&ptScene->tInstanceFreelist, ptDrawable->uInstanceCount * 6);
-            }
-        }
-    }
-
-    pl_hm_remove(&ptScene->tInstanceHashmap, tInstanceEntity.uData);
-}
-
 static bool
 pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCount, const plEntity* atObjects)
 {
@@ -9756,6 +9701,15 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
     for(uint32_t i = 0; i < uObjectCount; i++)
     {
         plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, atObjects[i]);
+        
+        // A removed group can contain entities deleted in the same ECS change batch.
+        if(!ptObject)
+            continue;
+
+        const plDrawableKey tExistingKey = { .uEntity = atObjects[i].uData, .uSubmesh = PL_DRAWABLE_OBJECT_KEY };
+        if(pl_hm_has_key(&ptScene->tInstanceHashmap, atObjects[i].uData) || pl_hm_has_key(&ptScene->tDrawableHashmap, pl_hm_hash(&tExistingKey, sizeof(tExistingKey), 0)))
+            continue;
+
         plMesh* ptMainMesh = gptAsset->get_data(ptObject->tMesh);
 
         bool bAssetModified = gptMesh->generate_indices(ptMainMesh);
@@ -9781,6 +9735,9 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
                 plDrawableResources* ptDrawableResources = &ptScene->sbtDrawableResources[ptScene->sbuActiveDrawables[uDrawableIndex]];
                 plObjectComponent* ptExistingObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->tEntity);
 
+                if(!ptExistingObject || ptExistingObject->atMaterialOverrides || gptEcs->has_component(ptScene->ptComponentLibrary, gptSkeleton->get_ecs_type_key_skin(), ptDrawableResources->tEntity))
+                    continue;
+
                 if(ptExistingObject->tMesh.uData != ptObject->tMesh.uData)
                     continue;
 
@@ -9790,7 +9747,7 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
                 if(ptExistingObject->uSubmeshCount != ptObject->uSubmeshCount)
                     continue;
 
-                if(ptExistingObject->tFlags != ptObject->tFlags)
+                if((ptExistingObject->tFlags & ~PL_OBJECT_FLAGS_DIRTY) != (ptObject->tFlags & ~PL_OBJECT_FLAGS_DIRTY))
                     continue;
 
                 if(ptDrawable->uInstanceCount >= PL_MAX_INSTANCES_PER_DRAWABLE)
@@ -9915,6 +9872,40 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;
+}
+
+// Regroup before walking drawables: removal can swap slots and addition can grow arrays.
+static void
+pl__renderer_update_object_groups(plScene* ptScene)
+{
+    plObjectComponent* atObjects = NULL;
+    const plEntity* atEntities = NULL;
+    uint32_t uCount = gptEcs->get_components(ptScene->ptComponentLibrary, gptData->tObjectComponentType, (void**)&atObjects, &atEntities);
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        plEntity tEntity = atEntities[i];
+        plObjectComponent* ptObject = &atObjects[i];
+        bool bInstance = pl_hm_has_key(&ptScene->tInstanceHashmap, tEntity.uData);
+        const plDrawableKey tKey = {
+            .uEntity = tEntity.uData,
+            .uSubmesh = PL_DRAWABLE_OBJECT_KEY
+        };
+        if(!bInstance && !pl_hm_has_key(&ptScene->tDrawableHashmap, pl_hm_hash(&tKey, sizeof(tKey), 0)))
+            continue;
+        bool bRebuild = (ptObject->tFlags & PL_OBJECT_FLAGS_DIRTY) != 0;
+        if(bInstance)
+        {
+            plEntity tBase = { .uData = pl_hm_lookup(&ptScene->tInstanceHashmap, tEntity.uData) };
+            plObjectComponent* ptBase = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tBase);
+            bRebuild |= !ptBase || (ptBase->tFlags & ~PL_OBJECT_FLAGS_DIRTY) != (ptObject->tFlags & ~PL_OBJECT_FLAGS_DIRTY);
+        }
+        if(bRebuild)
+        {
+            ptObject->tFlags &= ~PL_OBJECT_FLAGS_DIRTY;
+            pl_renderer_remove_component_from_scene(ptScene, tEntity, gptData->tObjectComponentType);
+            pl__renderer_add_drawable_objects_to_scene(ptScene, 1, &tEntity);
+        }
+    }
 }
 
 static void

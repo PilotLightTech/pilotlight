@@ -852,6 +852,7 @@ static plRendererData* gptData = NULL;
 // misc.
 static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice, uint32_t uSize){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock, uSize);}
 static bool pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex, uint32_t uSubmeshIndex);
+static void pl__renderer_update_object_groups(plScene*);
 
 // drawable index management
 static uint32_t pl__renderer_get_drawable_slot   (plScene*);
@@ -937,6 +938,7 @@ plBindGroupHandle pl_renderer_get_view_color_bind_group  (plView* ptView, plVec2
 void              pl_renderer_editor_reload_scene_shaders(plScene*);
 void              pl_renderer_editor_rebuild_scene_bvh   (plScene*);
 void              pl_renderer_update_scene_asset         (plScene*, plAssetHandle);
+bool              pl_renderer_remove_component_from_scene(plScene*, plEntity, plEcsTypeKey);
 
 // probe selection
 static void                pl_probe_selection_table_reset     (plProbeSelectionTable*, bool bSkyAvailable);

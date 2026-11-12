@@ -305,12 +305,127 @@ pl__asset_tools_blah(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, 
     return bResult;
 }
 
+static bool
+pl__asset_tools_split_object(plComponentLibrary* ptLibrary, plEntity tEntity, plEntity* atEntitiesOut, uint32_t* puCount)
+{
+    if(!puCount)
+        return false;
+
+    uint32_t uCapacity = atEntitiesOut ? *puCount : 0;
+    *puCount = 0;
+    if(!ptLibrary || !gptEcs->is_entity_valid(ptLibrary, tEntity))
+        return false;
+
+    plEcsTypeKey tObjectType = gptRenderer->get_ecs_type_key_object();
+    plObjectComponent* ptSource = gptEcs->get_component(ptLibrary, tObjectType, tEntity);
+    if(!ptSource || !gptAsset->is_valid(ptSource->tMesh) || gptAsset->get_type_key(ptSource->tMesh) != gptMesh->get_asset_type_key() || gptEcs->has_component(ptLibrary, gptSkeleton->get_ecs_type_key_skin(), tEntity))
+        return false;
+
+    const plMesh* ptMesh = gptAsset->get_data(ptSource->tMesh);
+    uint32_t uCount = ptSource->uSubmeshCount;
+    uint32_t uFirst = ptSource->uFirstSubmesh;
+    plEntity tParent = gptEcs->get_entity_by_id(ptLibrary, ptSource->tTransformId);
+    if(!ptMesh || uCount < 2 || uFirst >= ptMesh->uSubmeshCount || uCount > ptMesh->uSubmeshCount - uFirst || !gptEcs->has_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tParent))
+        return false;
+
+    *puCount = uCount;
+    if(!atEntitiesOut)
+        return true;
+    if(uCapacity < uCount)
+        return false;
+
+    const plEcsTypeKey tTransformType = gptTransform->get_ecs_type_key_transform();
+    const plEcsTypeKey tHierarchyType = gptTransform->get_ecs_type_key_hierarchy();
+    const plEntityId tSourceId = gptEcs->get_entity_id(ptLibrary, tEntity);
+
+    // Each piece replaces the source at the same hierarchy level. Copying local
+    // transforms preserves nonuniform scale/rotation without decomposing a world matrix.
+    // Names are interned; save the string, not a pointer into the movable tag array.
+    const plTagComponent* ptTag = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), tEntity);
+    const char* pcName = ptTag && ptTag->pcName ? ptTag->pcName : "Object";
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        char acName[256];
+        pl_snprintf(acName, sizeof(acName), "%s / submesh %u", pcName, uFirst + i);
+        plEntity tPiece = gptTransform->create_transform(ptLibrary, acName, NULL);
+        gptEcs->copy_component(ptLibrary, tTransformType, tParent, tPiece);
+        if(gptEcs->has_component(ptLibrary, tHierarchyType, tParent))
+            gptEcs->copy_component(ptLibrary, tHierarchyType, tParent, tPiece);
+        gptEcs->copy_component(ptLibrary, tObjectType, tEntity, tPiece);
+        plObjectComponent* ptPiece = gptEcs->get_component(ptLibrary, tObjectType, tPiece);
+        if(ptPiece->atMaterialOverrides)
+        {
+            ptPiece->atMaterialOverrides[0] = ptPiece->atMaterialOverrides[i];
+            ptPiece->atMaterialOverrides = PL_REALLOC(ptPiece->atMaterialOverrides, sizeof(plAssetHandle));
+        }
+        ptPiece->uFirstSubmesh = uFirst + i;
+        ptPiece->uSubmeshCount = 1;
+        ptPiece->tTransform = tPiece;
+        ptPiece->tTransformId = gptEcs->get_entity_id(ptLibrary, tPiece);
+        ptPiece->tFlags = (ptPiece->tFlags & ~PL_OBJECT_FLAGS_OUTLINE) | PL_OBJECT_FLAGS_DIRTY;
+        atEntitiesOut[i] = tPiece;
+    }
+
+    // The first piece replaces the deleted transform for existing children and
+    // objects that referenced it. The other pieces remain independent siblings.
+    plEntity tReplacement = atEntitiesOut[0];
+    plHierarchyComponent* ptHierarchy = NULL;
+    const plEntity* atHierarchyEntities = NULL;
+    uint32_t uHierarchyCount = gptEcs->get_components(ptLibrary, tHierarchyType, (void**)&ptHierarchy, &atHierarchyEntities);
+
+    // An object can render using a different entity's transform. If its own
+    // transform also has dependents, preserve that distinct transform on a new
+    // transform-only entity rather than moving those dependents to the mesh.
+    if(tParent.uData != tEntity.uData && gptEcs->has_component(ptLibrary, tTransformType, tEntity))
+    {
+        bool bReferenced = false;
+        for(uint32_t i = 0; i < uHierarchyCount; i++)
+            bReferenced |= ptHierarchy[i].tParent.uData == tEntity.uData;
+        plObjectComponent* ptReferences = NULL;
+        uint32_t uReferenceCount = gptEcs->get_components(ptLibrary, tObjectType, (void**)&ptReferences, NULL);
+        for(uint32_t i = 0; i < uReferenceCount; i++)
+            bReferenced |= ptReferences[i].tTransformId == tSourceId;
+        if(bReferenced)
+        {
+            tReplacement = gptTransform->create_transform(ptLibrary, "Split reference transform", NULL);
+            gptEcs->copy_component(ptLibrary, tTransformType, tEntity, tReplacement);
+            if(gptEcs->has_component(ptLibrary, tHierarchyType, tEntity))
+                gptEcs->copy_component(ptLibrary, tHierarchyType, tEntity, tReplacement);
+            uHierarchyCount = gptEcs->get_components(ptLibrary, tHierarchyType, (void**)&ptHierarchy, &atHierarchyEntities);
+        }
+    }
+    for(uint32_t i = 0; i < uHierarchyCount; i++)
+    {
+        if(ptHierarchy[i].tParent.uData == tEntity.uData)
+        {
+            gptTransform->attach_component(ptLibrary, atHierarchyEntities[i], tReplacement);
+            gptEcs->mark_component_changed(ptLibrary, atHierarchyEntities[i], tHierarchyType);
+        }
+    }
+    plObjectComponent* ptObjects = NULL;
+    const plEntity* atObjectEntities = NULL;
+    uint32_t uObjectCount = gptEcs->get_components(ptLibrary, tObjectType, (void**)&ptObjects, &atObjectEntities);
+    for(uint32_t i = 0; i < uObjectCount; i++)
+    {
+        if(atObjectEntities[i].uData != tEntity.uData && ptObjects[i].tTransformId == tSourceId)
+        {
+            ptObjects[i].tTransform = tReplacement;
+            ptObjects[i].tTransformId = gptEcs->get_entity_id(ptLibrary, tReplacement);
+            ptObjects[i].tFlags |= PL_OBJECT_FLAGS_DIRTY;
+            gptEcs->mark_component_changed(ptLibrary, atObjectEntities[i], tObjectType);
+        }
+    }
+    gptEcs->remove_entity(ptLibrary, tEntity);
+    return true;
+}
+
 bool
 pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity, bool* pbShowWindow)
 {
 
     plComponentLibrary* ptLibrary = gptAsset->get_data(tAssetHandle);
     const char* pcLibraryName = gptAsset->get_path(tAssetHandle);
+    bool bSplitObject = false;
 
     bool bResult = false;
 
@@ -874,6 +989,9 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         gptUI->text("Mesh Asset:       %s", gptAsset->get_path(ptObjectComp->tMesh));
                         gptUI->text("First Submesh:    %u", ptObjectComp->uFirstSubmesh);
                         gptUI->text("Submeshes:       %u", ptObjectComp->uSubmeshCount);
+                        uint32_t uSplitCount = 0;
+                        if(pl__asset_tools_split_object(ptLibrary, *ptSelectedEntity, NULL, &uSplitCount))
+                            bSplitObject = gptUI->button("Split into objects");
                         gptUI->text("Transform Entity: %s, %u", ptTransformTagComp->pcName, ptObjectComp->tTransform.uIndex);
 
                         if(gptUI->checkbox_flags("Renderable", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RENDERABLE)) ptObjectComp->tFlags |= PL_OBJECT_FLAGS_DIRTY;
@@ -1149,6 +1267,21 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
         gptUI->end_window();
     }
 
+    // Defer structural edits until all inspector pointers and tree iterators are finished.
+    if(bSplitObject)
+    {
+        uint32_t uCount = 0;
+        if(pl__asset_tools_split_object(ptLibrary, *ptSelectedEntity, NULL, &uCount))
+        {
+            plEntity* atPieces = PL_ALLOC(sizeof(plEntity) * uCount);
+            if(pl__asset_tools_split_object(ptLibrary, *ptSelectedEntity, atPieces, &uCount))
+            {
+                *ptSelectedEntity = atPieces[0];
+                bResult = true;
+            }
+            PL_FREE(atPieces);
+        }
+    }
     return bResult;
 }
 

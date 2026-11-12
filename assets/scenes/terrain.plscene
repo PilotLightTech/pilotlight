@@ -7,7 +7,7 @@
                 "name": "settings"
             }, 
             "environment": {                
-                "environment": "/assets/environments/realistic.plenvironment"
+                "environment": "/assets/environments/cloudy.plenvironment"
             }, 
             "renderer": {                
                 "renderer": "/assets/settings/terrain.plrenderer"

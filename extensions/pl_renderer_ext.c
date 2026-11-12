@@ -1093,20 +1093,24 @@ pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEc
 
                     if(bChildInstance)
                     {
-                        ptDrawable->uInstanceCount--;
                         for(uint32_t i = 0; i < pl_sb_size(ptDrawableResources->sbtEntities); i++)
                         {
                             if(ptDrawableResources->sbtEntities[i].uData == tEntity.uData)
                             {
                                 pl_sb_del_swap(ptDrawableResources->sbtEntities, i);
+                                ptDrawable->uInstanceCount--;
+
+                                // Reclaim unused slots and refresh offsets if the smaller blocks move.
+                                gptFreeList->return_node(&ptScene->tTransformFreelist, ptDrawableResources->ptTransformNode);
+                                gptFreeList->return_node(&ptScene->tInstanceFreelist, ptDrawableResources->ptInstanceNode);
+                                ptDrawableResources->ptTransformNode = gptFreeList->get_node(&ptScene->tTransformFreelist, ptDrawable->uInstanceCount);
+                                ptDrawableResources->ptInstanceNode = gptFreeList->get_node(&ptScene->tInstanceFreelist, ptDrawable->uInstanceCount * 6);
+                                ptDrawable->uTransformIndex = (uint32_t)ptDrawableResources->ptTransformNode->uOffset;
+                                ptDrawable->uInstanceIndex = (uint32_t)ptDrawableResources->ptInstanceNode->uOffset;
                                 break;
                             }
                         }
 
-                        gptFreeList->return_node(&ptScene->tTransformFreelist, ptDrawableResources->ptTransformNode);
-                        gptFreeList->return_node(&ptScene->tInstanceFreelist, ptDrawableResources->ptInstanceNode);
-                        ptDrawableResources->ptTransformNode = gptFreeList->get_node(&ptScene->tTransformFreelist, ptDrawable->uInstanceCount);
-                        ptDrawableResources->ptInstanceNode = gptFreeList->get_node(&ptScene->tInstanceFreelist, ptDrawable->uInstanceCount * 6);
                         ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_INSTANCE_BUFFER_DIRTY;
                     }
                     else
@@ -1246,7 +1250,8 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
-    ptScene->tInternalFlags = PL_SCENE_INTERNAL_FLAG_ACTIVE;
+    ptScene->tInternalFlags = PL_SCENE_INTERNAL_FLAG_ACTIVE | (ptScene->tInternalFlags & (PL_SCENE_INTERNAL_FLAG_INSTANCE_BUFFER_DIRTY | PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY));
+    pl__renderer_update_object_groups(ptScene);
     pl__renderer_prepare_decals(ptScene);
 
     uint32_t uDrawableCount = pl_sb_size(ptScene->sbuActiveDrawables);
@@ -1259,49 +1264,10 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
         plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tEntity);
         plMesh* ptMainMesh = gptAsset->get_data(ptObject->tMesh);
-        plSubmesh* ptMesh = &ptMainMesh->atSubmeshes[ptObject->uFirstSubmesh];
+        plSubmesh* ptMesh = &ptMainMesh->atSubmeshes[ptDrawableResources->uSubmeshIndex];
 
         plAssetHandle tMaterial = ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[ptDrawableResources->uSubmeshIndex - ptObject->uFirstSubmesh] : ptMesh->tMaterial;
         plMaterial* ptMaterial = gptAsset->get_data(tMaterial);
-
-        uint32_t uInstances = pl_sb_size(ptDrawableResources->sbtEntities);
-        for(uint32_t j = 0; j < uInstances; j++)
-        {
-            
-            plEntity tInstancedEntity = ptDrawableResources->sbtEntities[j];
-            plObjectComponent* ptInstancedObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tInstancedEntity);
-            if(ptInstancedObject->tFlags != ptObject->tFlags) // check if it needs to be uninstanced
-            {
-                pl__renderer_remove_instance(ptScene, tEntity, tInstancedEntity);
-                pl__renderer_add_drawable_objects_to_scene(ptScene, 1, &tInstancedEntity);
-                j--;
-                uInstances--;
-                ptDrawableResources = &ptScene->sbtDrawableResources[uDrawableIndex];
-                ptDrawable = &ptScene->sbtDrawables[uDrawableIndex];
-            }
-        }
-
-        if(ptObject->tFlags & PL_OBJECT_FLAGS_DIRTY)
-        {
-            ptObject->tFlags &= ~PL_OBJECT_FLAGS_DIRTY;
-            pl_renderer_remove_component_from_scene(ptScene, tEntity, gptData->tObjectComponentType);
-            pl__renderer_add_drawable_objects_to_scene(ptScene, 1, &tEntity);
-            ptDrawableResources = &ptScene->sbtDrawableResources[uDrawableIndex];
-            ptDrawable = &ptScene->sbtDrawables[uDrawableIndex];
-            uDrawableCount--;
-            i--;
-        }
-    
-
-        // if(ptObject->tFlags & PL_OBJECT_FLAGS_OUTLINE) // check if it needs to be uninstanced
-        // {
-        //     if(pl_hm_has_key(&ptScene->tInstanceHashmap, tEntity.uData))
-        //     {
-
-        //     }
-        // }
-
-        // 
 
         if(gptEcs->has_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, tEntity))
         {
@@ -1315,6 +1281,8 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
             ptDrawable->tFlags |= PL_DRAWABLE_FLAG_CASTS_SHADOW;
         else
             ptDrawable->tFlags &= ~PL_DRAWABLE_FLAG_CASTS_SHADOW;
+
+        ptDrawable->tFlags &= ~(PL_DRAWABLE_FLAG_HAS_ALPHA | PL_DRAWABLE_FLAG_PATH_FOLIAGE | PL_DRAWABLE_FLAG_PATH_TRANSMISSION | PL_DRAWABLE_FLAG_PATH_FORWARD | PL_DRAWABLE_FLAG_PATH_DEFERRED);
 
         bool bForward = ptMaterial->eMaterialModel == PL_MATERIAL_MODEL_WATER;
         bool bFoliage = ptMaterial->eMaterialModel == PL_MATERIAL_MODEL_PBR_METALLIC_ROUGHNESS_FOLIAGE;

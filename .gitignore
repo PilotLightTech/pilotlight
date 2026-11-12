@@ -16,10 +16,6 @@ shaders-temp/
 assets/development
 assets/gltf-samples
 
-assets/environments/*
-!assets/environments/realistic.plenvironment
-!assets/environments/skybox.plenvironment
-
 assets/materials/*
 !assets/materials/default.plmaterial
 !assets/materials/probe.plmaterial
