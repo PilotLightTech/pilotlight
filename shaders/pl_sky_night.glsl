@@ -115,7 +115,10 @@ pl_night_moon(vec3 direction, vec3 moonDirection, vec3 sunDirection, float radiu
             vec2 center = cell + mix(vec2(0.2), vec2(0.8), random.xy);
             float craterRadius = mix(0.10, 0.28, random.z);
             float d = length(craterUV - center) / craterRadius;
-            albedo += 0.07 * exp(-pow((d - 1.0) * 8.0, 2.0)) - 0.06 * exp(-d * d * 3.0);
+            // The rim offset is negative inside the crater. GLSL pow is
+            // undefined for negative bases (and becomes powr on Metal).
+            float rimOffset = (d - 1.0) * 8.0;
+            albedo += 0.07 * exp(-rimOffset * rimOffset) - 0.06 * exp(-d * d * 3.0);
         }
     }
     return vec4(vec3(1.0, 0.97, 0.92) * albedo * (lit + earthshine) * coverage, coverage);
