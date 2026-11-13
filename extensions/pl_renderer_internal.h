@@ -386,6 +386,10 @@ typedef struct _plEnvironmentProbeData
     // intervals
     uint32_t uCurrentFace;
     uint32_t uDirtyFaces;
+    uint32_t uFilterStep;
+    bool     bFiltering;
+    bool     bInitialized;
+    bool     bRefreshPending;
     int iMips;
 } plEnvironmentProbeData;
 
@@ -693,6 +697,13 @@ typedef struct _plScene
 
     // CPU-side data for GPU buffers
     plGpuSceneData       tSceneData;
+    plRenderEnvironment  tProbeEnvironment;
+    double               dProbeRefreshQueuedTime;
+    double               dProbeEnvironmentChangeTime;
+    bool                 bProbeEnvironmentValid;
+    bool                 bProbeRefreshPending;
+    uint32_t             uProbeUpdateIndex;
+    uint32_t             uScheduledProbe;
     plGpuPointLight*     sbtPointLightData;
     plGpuSpotLight*      sbtSpotLightData;
     plGpuDirectionLight* sbtDirectionLightData;
@@ -923,7 +934,7 @@ static void     pl__renderer_probe_update_bindgroups     (plScene*, plEnvironmen
 static uint32_t pl__renderer_probe_data_pack_index       (plScene*, uint32_t res);
 static void     pl__renderer_probe_update_all            (plScene*);
 static void     pl__renderer_update_sky_probe            (plScene*);
-static void     pl__renderer_probe_create_environment_map(plScene*, plEnvironmentProbeData*, uint32_t uSampleCount);
+static void     pl__renderer_probe_create_environment_map(plScene*, plEnvironmentProbeData*, uint32_t uSampleCount, bool bIncremental);
 
 // ecs helpers
 static bool pl__renderer_add_drawable_objects_to_scene(plScene*, uint32_t count, const plEntity* objects);

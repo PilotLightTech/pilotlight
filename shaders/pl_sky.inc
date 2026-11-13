@@ -322,6 +322,26 @@ pl_compute_lut_uv(float height, float atmoshphereHeight, vec3 up, vec3 direction
     return lutUV;
 }
 
+// The transmission and multiple-scattering LUTs encode altitude/light zenith,
+// not a particular sun position. The moon can reuse them without another pass.
+vec3
+pl_atmosphere_light_source(vec3 position, vec3 toLight, vec3 radiance, vec2 phase, float directVisibility, plAtmosphereCoefficients coefficients, plGpuSceneData atmosphere, texture2D transmission, texture2D multiscatter, sampler linearSampler)
+{
+    float radialDistance = length(position);
+    vec3 up = position / max(radialDistance, 1e-20);
+    float altitude = clamp(radialDistance - atmosphere.planetRadius, 0.0, atmosphere.atmosphereHeight);
+    vec2 uv = pl_compute_lut_uv(altitude, atmosphere.atmosphereHeight, up, toLight);
+    vec2 transmissionSize = vec2(textureSize(sampler2D(transmission, linearSampler), 0));
+    vec2 multiscatterSize = vec2(textureSize(sampler2D(multiscatter, linearSampler), 0));
+    vec2 transmissionUV = (clamp(uv, vec2(0.0), vec2(1.0)) * (transmissionSize - 1.0) + 0.5) / transmissionSize;
+    vec2 multiscatterUV = (clamp(uv, vec2(0.0), vec2(1.0)) * (multiscatterSize - 1.0) + 0.5) / multiscatterSize;
+    vec3 transmittance = textureLod(sampler2D(transmission, linearSampler), transmissionUV, 0.0).rgb;
+    vec3 multiple = atmosphere.bMultiScatter != 0 ? textureLod(sampler2D(multiscatter, linearSampler), multiscatterUV, 0.0).rgb : vec3(0.0);
+    float visibility = pl_planet_visibility(position, toLight, vec3(0.0), atmosphere.planetRadius);
+    vec3 directSource = coefficients.tScatterRayleigh * phase.x + coefficients.tScatterMie * phase.y;
+    return radiance * (directVisibility * visibility * transmittance * directSource + multiple * (coefficients.tScatterRayleigh + coefficients.tScatterMie));
+}
+
 vec3
 pl_integrate_inscattering(vec3 inscattering, vec3 extinctionCoefficients, float length)
 {

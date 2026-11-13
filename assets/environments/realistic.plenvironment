@@ -26,6 +26,18 @@
 
             "multiscatter": true,
 
+            "night": {
+                "enabled": true,
+                "star_intensity": 1.0,
+                "star_rotation": 0.0,
+                "moon_phase": 0.5,
+                "moon_intensity": 1.0,
+                "moon_radius": 0.01356,
+                "moonlight_enabled": true,
+                "moonlight_intensity": 0.03,
+                "moonlight_color": [0.9, 0.93, 1.0]
+            },
+
             "clouds": {
                 "enabled": false
             },

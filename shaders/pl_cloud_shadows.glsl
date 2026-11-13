@@ -4,15 +4,15 @@
 #include "pl_cloud_math.glsl"
 #include "pl_cloud_density.glsl"
 
-// Attenuate direct sunlight only. Trace from the receiver rather than projecting
+// Attenuate direct celestial light. Trace from the receiver rather than projecting
 // a camera-centered mask, so terrain, meshes and foliage share world-fixed shadows.
-float cloudSunTransmissionTrace(vec3 worldPosition)
+float cloudLightTransmissionTrace(vec3 worldPosition, vec3 sun)
 {
     vec4 layer = tGpuScene.tData.tCloudLayer;
     if(layer.x <= 0.0 || layer.w <= 0.0) return 1.0;
-    float directionLength = length(tGpuScene.tData.tDirection);
+    float directionLength = length(sun);
     if(directionLength < 1e-6) return 1.0;
-    vec3 sun = -tGpuScene.tData.tDirection / directionLength;
+    sun /= directionLength;
     float radius = tGpuScene.tData.planetRadius;
     vec3 origin = worldPosition * max(tGpuScene.tData.fAtmosphereConversion, 1e-7) + vec3(0.0, radius, 0.0);
     // No artificial camera-distance cutoff: a high layer still shadows ground.
@@ -80,7 +80,7 @@ cloudSunTransmission(vec3 worldPosition)
         return 1.0;
     float depth = cloudCachedOpticalDepth(worldPosition * max(tGpuScene.tData.fAtmosphereConversion, 1e-7));
     // Distant probes/receivers retain correct shadows outside the main-view cache.
-    return depth >= 0.0 ? exp(-depth) : cloudSunTransmissionTrace(worldPosition);
+    return depth >= 0.0 ? exp(-depth) : cloudLightTransmissionTrace(worldPosition, -tGpuScene.tData.tDirection);
 }
 
 #endif

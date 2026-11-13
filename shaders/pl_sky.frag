@@ -10,7 +10,6 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] bind groups
 // [SECTION] input/output
-// [SECTION] helpers
 // [SECTION] camera ray
 // [SECTION] sky-view LUT mapping
 // [SECTION] transmission LUT
@@ -23,7 +22,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl_sky.inc"
-#include "pl_noise.inc"
+#include "pl_sky_night.glsl"
 #include "pl_bg_scene.inc"
 #include "pl_bg_view.inc"
 
@@ -55,20 +54,6 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 
 layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outColor;
-
-//-----------------------------------------------------------------------------
-// [SECTION] helpers
-//-----------------------------------------------------------------------------
-
-vec3
-ditherRGB8(vec3 c, ivec2 uv, float g_time)
-{
-    vec3 noise = hash32(uvec2(uv * g_time));
-    noise += hash32(uvec2((uv + vec2(165, 1292))*g_time));
-    noise -= 1.f;
-    noise /= 255.f; //least significant of 8 bits
-    return c + noise;
-}
 
 //-----------------------------------------------------------------------------
 // [SECTION] camera ray
@@ -117,13 +102,13 @@ pl__sample_transmission_at_pos(vec3 atmospherePosition, vec3 rayDirection, float
 
     vec2 uv = pl_compute_lut_uv(altitude, atmosphereHeight, localUp, normalize(rayDirection));
 
-    ivec2 lutSize = textureSize(sampler2D(transmissionLut, tSamplerNearestClamp), 0);
+    ivec2 lutSize = textureSize(sampler2D(transmissionLut, tSamplerLinearClamp), 0);
 
-    // The bound sampler repeats, but keeping the coordinates inside the
-    // texel-center range prevents filtering across either LUT boundary.
-    uv = pl_clamp_lut_uv(uv, lutSize);
+    // The LUT generator places altitude/direction endpoints at texel centers.
+    // Linear filtering avoids visible steps as the small disk crosses rows.
+    uv = vec2(skyLutUnitToSubUv(uv.x, float(lutSize.x)), skyLutUnitToSubUv(uv.y, float(lutSize.y)));
 
-    return textureLod(sampler2D(transmissionLut, tSamplerNearestClamp), uv, 0.0).rgb;
+    return textureLod(sampler2D(transmissionLut, tSamplerLinearClamp), uv, 0.0).rgb;
 }
 
 vec3
@@ -169,12 +154,26 @@ pl__sample_sun_transmission(vec3 atmosphereCameraPosition, vec3 rayDirection, fl
 float
 pl_sun_disk(vec3 viewDirection, vec3 sunDirection, float angularRadius)
 {
-    float viewSunCos = dot(normalize(viewDirection), normalize(sunDirection));
-    float radiusCos = cos(angularRadius);
+    if(angularRadius <= 0.0)
+        return 0.0;
 
-    // antialias the very small cosine-space edge
-    float edgeWidth = max(fwidth(viewSunCos) * 1.5, 1e-7);
-    return smoothstep(radiusCos - edgeWidth, radiusCos + edgeWidth, viewSunCos);
+    viewDirection = normalize(viewDirection);
+    sunDirection = normalize(sunDirection);
+
+    // Chord distance retains precision for a small disk, unlike a cosine
+    // comparison very close to 1. Keep the silhouette about one pixel wide.
+    float diskRadius = 2.0 * sin(0.5 * angularRadius);
+    float diskDistance = length(viewDirection - sunDirection);
+    float edgeWidth = max(fwidth(diskDistance), 1e-7);
+    float coverage = 1.0 - smoothstep(diskRadius - 0.5 * edgeWidth, diskRadius + 0.5 * edgeWidth, diskDistance);
+
+    // Approximate visible-light limb darkening: the photosphere is brighter
+    // at the center. Normalize the profile to preserve the existing average
+    // disk intensity (the small-angle disk average of mu is 2/3).
+    float radialFraction = length(cross(viewDirection, sunDirection)) / max(sin(angularRadius), 1e-7);
+    float mu = sqrt(max(1.0 - radialFraction * radialFraction, 0.0));
+    float limbDarkening = (1.0 - 0.6 * (1.0 - mu)) / (1.0 - 0.6 / 3.0);
+    return coverage * limbDarkening;
 }
 
 //-----------------------------------------------------------------------------
@@ -189,17 +188,18 @@ void main()
 
     float cameraAltitude = max(tViewInfo.tData.tCameraPos.y * worldToAtmosphereScale, 0.0);
 
-    float viewHeight = planetRadius + cameraAltitude;
+    // Match the sky-view LUT origin and avoid a zero-distance planet hit
+    // when the camera is exactly at sea level.
+    float cameraSurfaceOffset = max(planetRadius * 1e-7, 1e-6);
+    float viewHeight = planetRadius + cameraAltitude + cameraSurfaceOffset;
 
     // reconstruct view direction
     //-----------------------------------------------------------------------------
 
     vec3 worldViewDirection = getPerspectiveSkyDirection(inUV);
 
-    // World space uses positive Y as up. The atmosphere model places the
-    // camera on the negative Y axis, so atmosphere-local up is negative Y.
-    vec3 atmosphereViewDirection = normalize(vec3(worldViewDirection.x, worldViewDirection.y, worldViewDirection.z));
-    // atmosphereViewDirection.y *= -1.0;
+    // Both world space and the atmosphere's camera origin use positive Y up.
+    vec3 atmosphereViewDirection = worldViewDirection;
 
     // sample atmospheric sky
     vec3 color = pl__sample_sky_lut(atmosphereViewDirection, viewHeight, planetRadius);
@@ -207,8 +207,7 @@ void main()
     // add attenuated Sun disk
     //-----------------------------------------------------------------------------
 
-    vec3 atmosphereSunDirection = -normalize(tGpuScene.tData.tDirection);
-    // atmosphereSunDirection.y *= -1.0;
+    vec3 atmosphereSunDirection = -normalize(tGpuScene.tData.tSunDirection.xyz);
 
     float sunAngularRadius = tGpuScene.tData.fSunRadius;
 
@@ -216,27 +215,61 @@ void main()
 
     vec3 atmosphereCameraPosition = vec3(0.0, viewHeight, 0.0);
 
-    // hide the Sun when the planet blocks this pixel's ray.
-    float planetHit = pl_final_ray_sphere_nearest(atmosphereCameraPosition, atmosphereViewDirection, planetRadius);
+    // Clip against the geometric horizon, including its dip at altitude.
+    // Smooth the horizon by one pixel so a setting Sun does not stair-step.
+    float horizonCos = -sqrt(max((viewHeight - planetRadius) * (viewHeight + planetRadius), 0.0)) / viewHeight;
+    float horizonWidth = max(fwidth(atmosphereViewDirection.y), 1e-7);
+    float horizonVisibility = smoothstep(horizonCos - 0.5 * horizonWidth, horizonCos + 0.5 * horizonWidth, atmosphereViewDirection.y);
+    disk *= horizonVisibility;
 
-    if(planetHit >= 0.0)
-        disk = 0.0;
+    // Derivatives must be evaluated before the per-pixel visibility branches.
+    float pixelWidth = max(max(length(dFdx(atmosphereViewDirection)), length(dFdy(atmosphereViewDirection))), 1e-6);
+    if((tGpuScene.tData.tNightSky.x > 0.0 || tGpuScene.tData.tNightSky.z > 0.0) && horizonVisibility > 0.0)
+    {
+        vec3 transmission = pl__sample_sun_transmission(atmosphereCameraPosition, atmosphereViewDirection, planetRadius, atmosphereHeight);
+        // Bright stars begin to appear during twilight; the full field emerges
+        // by astronomical night. The existing atmosphere LUT supplies twilight.
+        float night = 1.0 - smoothstep(sin(radians(-18.0)), sin(radians(-4.0)), atmosphereSunDirection.y);
+        vec3 moonDirection = normalize(tGpuScene.tData.tMoonDirection.xyz);
+        float moonFraction = tGpuScene.tData.tMoonDirection.w;
+        float moonIntensity = tGpuScene.tData.tNightSky.z;
+        vec4 moon = vec4(0.0);
+        if(moonIntensity > 0.0)
+            moon = pl_night_moon(atmosphereViewDirection, moonDirection, atmosphereSunDirection, tGpuScene.tData.tNightSky.w, pixelWidth, moonFraction);
+
+        // Moonlight scattering now comes from the sky LUT. Retain the faint
+        // airglow floor and use the visual moon only for star-contrast suppression.
+        float moonAboveHorizon = smoothstep(horizonCos, horizonCos + 0.05, moonDirection.y);
+        float moonlight = moonIntensity * moonFraction * moonFraction * moonAboveHorizon;
+        float moonHaze = exp(-6.0 * length(atmosphereViewDirection - moonDirection)) * moonlight;
+        vec3 nightBackground = night * vec3(0.00015, 0.00022, 0.00035);
+        vec3 stars = vec3(0.0);
+        if(night > 0.0 && tGpuScene.tData.tNightSky.x > 0.0)
+        {
+            float skyLuminance = dot(max(color, vec3(0.0)), vec3(0.2126, 0.7152, 0.0722));
+            float visibility = night / (1.0 + 80.0 * skyLuminance + 2.0 * moonlight + 12.0 * moonHaze);
+            stars = pl_night_stars(atmosphereViewDirection, pixelWidth, tGpuScene.tData.tNightSky.y) * tGpuScene.tData.tNightSky.x * visibility;
+        }
+        // The complete lunar silhouette occludes stars, including its dark side.
+        // Foreground atmosphere stays visible; clouds composite over this pass.
+        color += horizonVisibility * (nightBackground + transmission * (stars * (1.0 - moon.a) + moon.rgb * moonIntensity));
+    }
 
     if(disk > 0.0)
     {
         // Use the pixel direction rather than only the center direction.
         // This permits differential attenuation across the solar disk near
         // the horizon.
-        // vec3 transmissionToSun = pl__sample_sun_transmission(atmosphereCameraPosition, atmosphereViewDirection, planetRadius, atmosphereHeight);
+        vec3 transmissionToSun = pl__sample_sun_transmission(atmosphereCameraPosition, atmosphereViewDirection, planetRadius, atmosphereHeight);
 
-        vec3 sunRadiance = tGpuScene.tData.tColor* tGpuScene.tData.tAerialInfo.w;
-        // color += disk * sunRadiance * transmissionToSun;
-        color += disk * sunRadiance;
+        vec3 sunRadiance = tGpuScene.tData.tSunRadiance.rgb;
+        color += disk * sunRadiance * transmissionToSun;
     }
 
     // final output
     //-----------------------------------------------------------------------------
 
-    outColor = vec4(color, 1.0);
-    outColor.rgb = ditherRGB8(outColor.rgb, ivec2(gl_FragCoord.xy), tGpuScene.tData.g_time);
+    // Display-space dithering already happens after tonemapping. Adding 8-bit
+    // noise here would overwhelm faint stars and introduce negative HDR values.
+    outColor = vec4(max(color, vec3(0.0)), 1.0);
 }

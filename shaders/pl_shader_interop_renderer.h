@@ -261,7 +261,7 @@ PL_END_STRUCT(plGpuDecal)
 
 PL_BEGIN_STRUCT(plGpuSceneData)
 
-    vec3 tDirection; // sun direction
+    vec3 tDirection; // main shadow-casting light direction (sun by day, moon by night)
     int iCascadeCount;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
@@ -341,6 +341,12 @@ PL_BEGIN_STRUCT(plGpuSceneData)
     int _iDecalPadding1;
     int _iDecalPadding2;
     plGpuDecal atDecals[PL_MAX_DECALS];
+
+    vec4 tNightSky; // star intensity, star rotation, moon intensity, moon angular radius
+    vec4 tMoonDirection; // direction toward moon; w = illuminated fraction
+    vec4 tSunDirection; // actual solar light travel direction; w = 1 when main shadows belong to moon
+    vec4 tSunRadiance; // actual solar color * intensity, independent of the main-light handoff
+    vec4 tMoonlight; // lunar color * phase/horizon/twilight-adjusted intensity; w = moonlight enabled
 
     // mat4 tCameraProjectionInv; // camera
     // mat4 tInvViewMatNoTranslation; // camera
@@ -515,8 +521,8 @@ PL_BEGIN_STRUCT(plGpuDynFilterSpec)
 
     float fLodBias;
     int   iCurrentMipLevel;
-    int   iUnused0;
-    int   iUnused1;
+    int   iFaceOffset;
+    int   iFaceCount;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     // ~~~~~~~~~~~~~~~~32 bytes~~~~~~~~~~~~~~~~

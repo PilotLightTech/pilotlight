@@ -149,13 +149,16 @@ void main()
 
     vec3 viewDirection = pl_get_aerial_view_direction(froxelXY, volumeSize.xy);
 
-    vec3 sunDirection = -pl_safe_normalize(tGpuScene.tData.tDirection.xyz);
+    vec3 sunDirection = -pl_safe_normalize(tGpuScene.tData.tSunDirection.xyz);
 
     float viewSunCos = clamp(dot(viewDirection, sunDirection), -1.0, 1.0);
 
     float rayleighPhase = pl_phase_rayleigh(viewSunCos);
 
     float miePhase = pl_phase_cornette_shanks(viewSunCos, tGpuScene.tData.mieScatteringExponent);
+    float moonCos = clamp(dot(viewDirection, tGpuScene.tData.tMoonDirection.xyz), -1.0, 1.0);
+    vec2 moonPhase = vec2(pl_phase_rayleigh(moonCos), pl_phase_cornette_shanks(moonCos, tGpuScene.tData.mieScatteringExponent));
+    bool moonShadows = tGpuScene.tData.tSunDirection.w > 0.5;
 
     ivec2 transmissionSize = textureSize(sampler2D(transmissionLut, tSamplerLinearClamp), 0);
 
@@ -266,8 +269,10 @@ void main()
 
             // Cloud visibility modulates only single-scattered sunlight; ambient
             // multiple scattering still fills the shadowed shafts.
-            float cloudVisibility = bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS) ? cloudSunTransmission(worldSamplePosition) : 1.0;
-            vec3 directSource = shadow * cloudVisibility * planetVisibility * transmittanceToSun * phaseTimesScattering;
+            float cloudVisibility = 1.0;
+            if(planetVisibility > 0.0 && bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS))
+                cloudVisibility = moonShadows ? cloudLightTransmissionTrace(worldSamplePosition, sunDirection) : cloudSunTransmission(worldSamplePosition);
+            vec3 directSource = (moonShadows ? 1.0 : shadow) * cloudVisibility * planetVisibility * transmittanceToSun * phaseTimesScattering;
 
             vec3 totalScattering = coefficients.tScatterRayleigh + coefficients.tScatterMie;
 
@@ -278,9 +283,16 @@ void main()
                 multipleSource = vec3(0);
             }
 
-            vec3 sunRadiance = max(tGpuScene.tData.tColor, vec3(0.0)) * max(tGpuScene.tData.tAerialInfo.w, 0.0);
+            vec3 sunRadiance = tGpuScene.tData.tSunRadiance.rgb;
 
             vec3 source = sunRadiance * (directSource + multipleSource);
+            if(any(greaterThan(tGpuScene.tData.tMoonlight.rgb, vec3(0.0))))
+            {
+                float moonVisibility = moonShadows ? shadow : 1.0;
+                if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_SHADOWS))
+                    moonVisibility *= moonShadows ? cloudSunTransmission(worldSamplePosition) : cloudLightTransmissionTrace(worldSamplePosition, tGpuScene.tData.tMoonDirection.xyz);
+                source += pl_atmosphere_light_source(position, tGpuScene.tData.tMoonDirection.xyz, tGpuScene.tData.tMoonlight.rgb, moonPhase, moonVisibility, coefficients, tGpuScene.tData, transmissionLut, multiscatterLut, tSamplerLinearClamp);
+            }
 
             vec3 segmentLuminance = pl_integrate_source(source, coefficients.tExtinction, segmentLength);
 

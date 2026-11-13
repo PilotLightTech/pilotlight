@@ -255,6 +255,15 @@ typedef struct _plRenderEnvironment
     plVec2   tCloudWind;
     uint32_t uCloudSteps; // 16..128
     uint32_t uCloudResolutionDivisor; // 1 = full, 2 = half (default); probes use full
+
+    // Night sky (PL_RENDERER_SKY_FLAGS_NIGHT_SKY). Intensities are appearance controls.
+    float  fStarIntensity; // 0 disables stars; default 1
+    float  fStarRotation;  // rotation about world up, radians
+    float  fMoonPhase;     // cycle: 0/1 new, 0.25 first quarter, 0.5 full, 0.75 last quarter
+    float  fMoonIntensity; // 0 disables the moon; default 1
+    float  fMoonRadius;    // angular radius in radians; default 0.01356
+    float  fMoonlightIntensity; // full-moon scene illumination, independent of disk brightness; default 0.03
+    plVec3 tMoonlightColor; // linear color; default (0.9, 0.93, 1)
 } plRenderEnvironment;
 
 typedef struct _plRendererSkyOptions
@@ -405,12 +414,14 @@ enum _plRendererSkyFlags
     PL_RENDERER_SKY_FLAGS_SHADOWS            = 1 << 1,
     PL_RENDERER_SKY_FLAGS_SHOW_VISUALIZER    = 1 << 3,
     PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES     = 1 << 4,
-    PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS = 1 << 7, // sun opt-out
+    PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS = 1 << 7, // main celestial light opt-out
 
     // realistic options
     PL_RENDERER_SKY_FLAGS_MULTISCATTER       = 1 << 5,
     PL_RENDERER_SKY_FLAGS_AERIAL_PERSPECTIVE = 1 << 6,
     PL_RENDERER_SKY_FLAGS_CLOUDS             = 1 << 8,
+    PL_RENDERER_SKY_FLAGS_NIGHT_SKY          = 1 << 9,
+    PL_RENDERER_SKY_FLAGS_MOONLIGHT          = 1 << 10,
 };
 
 enum _plRendererShadowFlags
@@ -519,7 +530,7 @@ typedef struct _plEnvironmentProbeComponent
     plEnvironmentProbeFlags tFlags;
     uint32_t                uResolution; // default: 128 (must be power of two)
     uint32_t                uSamples;    // default: 128
-    uint32_t                uInterval;   // default: 1 (1 to 6 for realtime probe)
+    uint32_t                uInterval;   // default: 1 (1 to 6 capture faces per scheduled turn)
     float                   fRange;
 } plEnvironmentProbeComponent;
 

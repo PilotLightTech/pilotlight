@@ -918,7 +918,7 @@ pl_asset_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntit
                         gptUI->radio_button("4096", &iSelection, 7);
                         ptProbeComp->uSamples = auSamples[iSelection];
 
-                        gptUI->separator_text("Intervals");
+                        gptUI->separator_text("Capture Faces per Scheduled Turn");
 
                         int iSelection0 = (int)ptProbeComp->uInterval;
                         gptUI->radio_button("1", &iSelection0, 1);
@@ -2163,7 +2163,7 @@ pl_asset_tools_show_assets(bool* bValue)
 
                         gptUI->checkbox_flags("Shadow Mapping", &ptEnvironment->eFlags, PL_RENDERER_SKY_FLAGS_SHADOWS);
                         bool bSunContactShadows = !(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS);
-                        if(gptUI->checkbox("Sun Contact Shadows", &bSunContactShadows))
+                        if(gptUI->checkbox("Main Light Contact Shadows", &bSunContactShadows))
                         {
                             if(bSunContactShadows) ptEnvironment->eFlags &= ~PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS;
                             else ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS;
@@ -2191,6 +2191,33 @@ pl_asset_tools_show_assets(bool* bValue)
                         gptUI->input_float("Mie Scattering", &ptEnvironment->fScatteringMieGround, "%0.6f", 0);
                         gptUI->input_float("Mie Absorption", &ptEnvironment->fExtinctionMieGround, "%0.6f", 0);
                         gptUI->input_float("Mie Scatter Asymmetry", &ptEnvironment->fMieScatteringExponent, "%0.6f", 0);
+
+                        gptUI->checkbox_flags("Feature: Night Sky", &ptEnvironment->eFlags, PL_RENDERER_SKY_FLAGS_NIGHT_SKY);
+                        if(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_NIGHT_SKY)
+                        {
+                            gptUI->separator_text("Stars and Moon");
+                            gptUI->slider_float("Star Intensity", &ptEnvironment->fStarIntensity, 0.0f, 5.0f, 0);
+                            gptUI->slider_angle("Star Rotation", &ptEnvironment->fStarRotation, -180.0f, 180.0f, NULL, 0);
+                            gptUI->slider_float("Moon Phase", &ptEnvironment->fMoonPhase, 0.0f, 1.0f, 0);
+                            gptUI->text("0/1 New | 0.25 First quarter | 0.5 Full | 0.75 Last quarter");
+                            gptUI->text("Moon position follows phase relative to the sun.");
+                            float fMoonAngle = 2.0f * PL_PI * pl_clampf(0.0f, ptEnvironment->fMoonPhase, 1.0f);
+                            float fMoonIllumination = 0.5f * (1.0f - cosf(fMoonAngle));
+                            gptUI->labeled_text("Moon Illumination", "%.1f%%", 100.0f * fMoonIllumination);
+                            if(fMoonIllumination < 0.01f)
+                                gptUI->text("New moon: near the sun, below the horizon at night.");
+                            if(gptUI->button("Use Full Moon"))
+                                ptEnvironment->fMoonPhase = 0.5f;
+                            gptUI->slider_float("Moon Intensity", &ptEnvironment->fMoonIntensity, 0.0f, 5.0f, 0);
+                            gptUI->slider_angle("Moon Angular Radius", &ptEnvironment->fMoonRadius, 0.05f, 2.0f, "%.3f deg", 0);
+                            gptUI->checkbox_flags("Moonlight Illuminates Scene", &ptEnvironment->eFlags, PL_RENDERER_SKY_FLAGS_MOONLIGHT);
+                            if(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_MOONLIGHT)
+                            {
+                                gptUI->slider_float_f("Full Moonlight Intensity", &ptEnvironment->fMoonlightIntensity, 0.0f, 1.0f, "%.4f", 0);
+                                gptUI->color_edit3("Moonlight Color", ptEnvironment->tMoonlightColor.d, PL_UI_COLOR_EDIT_FLAGS_NONE, ptEnvironment->tMoonlightColor.d);
+                                gptUI->text("Scene lighting follows phase and horizon; disk brightness is independent.");
+                            }
+                        }
 
                         gptUI->checkbox_flags("Feature: Volumetric Clouds", &ptEnvironment->eFlags, PL_RENDERER_SKY_FLAGS_CLOUDS);
                         if(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_CLOUDS)

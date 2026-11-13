@@ -1649,6 +1649,19 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     ptScene->tSceneData.tDirection = ptEnvironment->tSunDirection;
     ptScene->tSceneData.iCascadeCount = (int)ptSettings->tShadows.uShadowCascadeCount;
 
+    pl__renderer_update_celestial_lighting(&ptScene->tSceneData, ptEnvironment);
+
+    // Queue changes rather than rebuilding probes while dragging environment controls.
+    if(!ptScene->bProbeEnvironmentValid || memcmp(&ptScene->tProbeEnvironment, ptEnvironment, sizeof(*ptEnvironment)) != 0)
+    {
+        if(!ptScene->bProbeRefreshPending)
+            ptScene->dProbeRefreshQueuedTime = gptIO->dTime;
+        ptScene->bProbeRefreshPending = true;
+        ptScene->dProbeEnvironmentChangeTime = gptIO->dTime;
+        ptScene->tProbeEnvironment = *ptEnvironment;
+        ptScene->bProbeEnvironmentValid = true;
+    }
+
     ptScene->tSceneData.g_time = (float)gptIO->dTime;
     ptScene->tSceneData.fFogDensity = ptSettings->tFog.fDensity;
     ptScene->tSceneData.fFogHeight = ptSettings->tFog.fHeight;
@@ -3598,6 +3611,17 @@ pl__renderer_serialize_environment(const char* pcName, const void* pEnvironment,
         gptJson->add_float_array(ptRealistic, "ozone_extinction", ptEnvironment->tOzoneExtinction.d, 3);
         gptJson->add_bool_member(ptRealistic, "multiscatter", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_MULTISCATTER);
 
+        plJsonObject* ptNight = gptJson->add_member(ptRealistic, "night");
+        gptJson->add_bool_member(ptNight, "enabled", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_NIGHT_SKY);
+        gptJson->add_float_member(ptNight, "star_intensity", ptEnvironment->fStarIntensity);
+        gptJson->add_float_member(ptNight, "star_rotation", ptEnvironment->fStarRotation);
+        gptJson->add_float_member(ptNight, "moon_phase", ptEnvironment->fMoonPhase);
+        gptJson->add_float_member(ptNight, "moon_intensity", ptEnvironment->fMoonIntensity);
+        gptJson->add_float_member(ptNight, "moon_radius", ptEnvironment->fMoonRadius);
+        gptJson->add_bool_member(ptNight, "moonlight_enabled", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_MOONLIGHT);
+        gptJson->add_float_member(ptNight, "moonlight_intensity", ptEnvironment->fMoonlightIntensity);
+        gptJson->add_float_array(ptNight, "moonlight_color", ptEnvironment->tMoonlightColor.d, 3);
+
         plJsonObject* ptClouds = gptJson->add_member(ptRealistic, "clouds");
         gptJson->add_bool_member(ptClouds, "enabled", ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_CLOUDS);
         gptJson->add_float_member(ptClouds, "multiple_scattering", ptEnvironment->fCloudMultiScatter);
@@ -3652,6 +3676,17 @@ pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
     ptEnvironment->tCloudWind = (plVec2){0.01f, 0.003f};
     ptEnvironment->uCloudSteps = 64;
     ptEnvironment->uCloudResolutionDivisor = 2;
+
+    // Existing realistic environments gain a night sky without asset migration.
+    ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_NIGHT_SKY;
+    ptEnvironment->fStarIntensity = 1.0f;
+    ptEnvironment->fStarRotation = 0.0f;
+    ptEnvironment->fMoonPhase = 0.5f;
+    ptEnvironment->fMoonIntensity = 1.0f;
+    ptEnvironment->fMoonRadius = 0.01356f;
+    ptEnvironment->eFlags |= PL_RENDERER_SKY_FLAGS_MOONLIGHT;
+    ptEnvironment->fMoonlightIntensity = 0.03f;
+    ptEnvironment->tMoonlightColor = (plVec3){0.9f, 0.93f, 1.0f};
 
 
     if(!gptVfs->does_file_exist(pcName))
@@ -3748,6 +3783,22 @@ pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
                         ptEnvironment->eFlags &= ~PL_RENDERER_SKY_FLAGS_MULTISCATTER;
                     }
                     
+                    plJsonObject* ptJsonNight = gptJson->member(ptJsonRealistic, "night");
+                    if(ptJsonNight)
+                    {
+                        if(!gptJson->bool_member(ptJsonNight, "enabled", true))
+                            ptEnvironment->eFlags &= ~PL_RENDERER_SKY_FLAGS_NIGHT_SKY;
+                        ptEnvironment->fStarIntensity = gptJson->float_member(ptJsonNight, "star_intensity", 1.0f);
+                        ptEnvironment->fStarRotation = gptJson->float_member(ptJsonNight, "star_rotation", 0.0f);
+                        ptEnvironment->fMoonPhase = gptJson->float_member(ptJsonNight, "moon_phase", 0.5f);
+                        ptEnvironment->fMoonIntensity = gptJson->float_member(ptJsonNight, "moon_intensity", 1.0f);
+                        ptEnvironment->fMoonRadius = gptJson->float_member(ptJsonNight, "moon_radius", 0.01356f);
+                        if(!gptJson->bool_member(ptJsonNight, "moonlight_enabled", true))
+                            ptEnvironment->eFlags &= ~PL_RENDERER_SKY_FLAGS_MOONLIGHT;
+                        ptEnvironment->fMoonlightIntensity = gptJson->float_member(ptJsonNight, "moonlight_intensity", 0.03f);
+                        gptJson->float_array_member(ptJsonNight, "moonlight_color", ptEnvironment->tMoonlightColor.d, NULL);
+                    }
+
                     plJsonObject* ptJsonClouds = gptJson->member(ptJsonRealistic, "clouds");
                     if(ptJsonClouds)
                     {

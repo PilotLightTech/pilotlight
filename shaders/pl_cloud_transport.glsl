@@ -12,9 +12,9 @@ cloudPhase(float mu, float g)
 }
 
 float
-cloudSunDepth(vec3 p, vec3 sun)
+cloudLightDepth(vec3 p, vec3 sun, bool useCache)
 {
-    float cachedDepth = cloudCachedOpticalDepth(p - vec3(0.0, tGpuScene.tData.planetRadius, 0.0));
+    float cachedDepth = useCache ? cloudCachedOpticalDepth(p - vec3(0.0, tGpuScene.tData.planetRadius, 0.0)) : -1.0;
     if(cachedDepth >= 0.0)
         return cachedDepth;
     float outer = tGpuScene.tData.planetRadius + tGpuScene.tData.tCloudLayer.y + tGpuScene.tData.tCloudLayer.z;
@@ -55,18 +55,20 @@ cloudIntegrateTransport(vec3 worldOrigin, vec3 ray, float maxDistance, float sam
     vec2 ranges[2];
     if(!cloudShellIntervals(origin, ray, innerRadius, innerRadius + tGpuScene.tData.tCloudLayer.z, maxDistance, ranges))
         return vec4(0.0, 0.0, 0.0, 1.0);
-    vec3 sun = -tGpuScene.tData.tDirection * inversesqrt(max(dot(tGpuScene.tData.tDirection, tGpuScene.tData.tDirection), 1e-20));
-    float mu = dot(ray, sun);
-    // Three effective scattering orders. Higher orders lose energy, use lower
-    // effective optical depth, and become less directional. All reuse one sun
-    // depth lookup: no additional light marches. This is an artistic closure,
-    // not an energy-conserving solution of the full scattering integral.
-    vec3 phase = vec3(
-        mix(cloudPhase(mu, -0.2), cloudPhase(mu, 0.65), 0.85),
-        mix(cloudPhase(mu, -0.1), cloudPhase(mu, 0.325), 0.85),
-        mix(cloudPhase(mu, -0.05), cloudPhase(mu, 0.1625), 0.85));
-    phase.yz *= tGpuScene.tData.tCloudProfile.y * vec2(0.5, 0.25);
-    vec3 sunlight = max(tGpuScene.tData.tColor, vec3(0.0)) * max(tGpuScene.tData.fIntensity, 0.0);
+    vec3 directions[2] = vec3[2](-tGpuScene.tData.tSunDirection.xyz, tGpuScene.tData.tMoonDirection.xyz);
+    vec3 lightRadiance[2] = vec3[2](tGpuScene.tData.tSunRadiance.rgb, tGpuScene.tData.tMoonlight.rgb);
+    vec3 phases[2];
+    for(int light = 0; light < 2; light++)
+    {
+        float mu = dot(ray, directions[light]);
+        // Three effective scattering orders share one optical-depth lookup.
+        phases[light] = vec3(
+            mix(cloudPhase(mu, -0.2), cloudPhase(mu, 0.65), 0.85),
+            mix(cloudPhase(mu, -0.1), cloudPhase(mu, 0.325), 0.85),
+            mix(cloudPhase(mu, -0.05), cloudPhase(mu, 0.1625), 0.85));
+        phases[light].yz *= tGpuScene.tData.tCloudProfile.y * vec2(0.5, 0.25);
+    }
+    int shadowLight = tGpuScene.tData.tSunDirection.w > 0.5 ? 1 : 0;
     vec3 radiance = vec3(0.0);
     float transmittance = 1.0;
     for(int interval = 0; interval < 2; interval++)
@@ -91,23 +93,27 @@ cloudIntegrateTransport(vec3 worldOrigin, vec3 ray, float maxDistance, float sam
             if(density <= 0.001)
                 continue;
             vec3 up = normalize(p);
-            float sunElevation = dot(up, sun);
-            vec2 sunPlanet = cloudSphere(p, sun, radius);
-            // Approximate atmospheric sun attenuation and low-order multiple
-            // scattering. Neither approximation adds energy independent of the sun.
-            vec3 directSun = vec3(0.0);
-            // Planet-occluded samples retain ambient light, but have no direct sun.
-            // Avoid the cached lookup or six-step light march in that case.
-            if(!cloudForwardHit(sunPlanet))
-            {
-                float sunDepth = cloudSunDepth(p, sun);
-                vec3 sunTransmission = exp(-tGpuScene.tData.extinctionRayleighGround * 8.0 / max(sunElevation, 0.04));
-                float scattering = dot(phase, exp(-sunDepth * vec3(1.0, 0.5, 0.25)));
-                directSun = sunTransmission * scattering;
-            }
             float height = clamp((length(p) - innerRadius) / tGpuScene.tData.tCloudLayer.z, 0.0, 1.0);
-            vec3 ambient = vec3(0.035, 0.055, 0.09) * mix(0.35, 1.0, height) * smoothstep(-0.15, 0.2, sunElevation);
-            vec3 source = sunlight * (directSun + ambient);
+            vec3 source = vec3(0.0);
+            for(int light = 0; light < 2; light++)
+            {
+                if(!any(greaterThan(lightRadiance[light], vec3(0.0))))
+                    continue;
+                vec3 toLight = directions[light];
+                float elevation = dot(up, toLight);
+                vec2 planetHit = cloudSphere(p, toLight, radius);
+                vec3 direct = vec3(0.0);
+                if(!cloudForwardHit(planetHit))
+                {
+                    // The shared cache belongs only to the main light. During
+                    // twilight, trace the other source rather than reuse wrong shadows.
+                    float depth = cloudLightDepth(p, toLight, light == shadowLight);
+                    vec3 transmission = exp(-tGpuScene.tData.extinctionRayleighGround * 8.0 / max(elevation, 0.04));
+                    direct = transmission * dot(phases[light], exp(-depth * vec3(1.0, 0.5, 0.25)));
+                }
+                vec3 ambient = vec3(0.035, 0.055, 0.09) * mix(0.35, 1.0, height) * smoothstep(-0.15, 0.2, elevation);
+                source += lightRadiance[light] * (direct + ambient);
+            }
             float segmentT = exp(-density * tGpuScene.tData.tCloudLayer.w * ds);
             cloudDistance += transmittance * (1.0 - segmentT) * distance;
             radiance += transmittance * (1.0 - segmentT) * source;

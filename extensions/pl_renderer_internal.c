@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] celestial lighting
 // [SECTION] job system tasks
 // [SECTION] scene render helpers
 // [SECTION] water simulation
@@ -22,6 +23,70 @@ Index of this file:
 #else
     #define PL_RENDERER_SHADER_OPTIMIZATION PL_SHADER_OPTIMIZATION_NONE
 #endif
+
+//-----------------------------------------------------------------------------
+// [SECTION] celestial lighting
+//-----------------------------------------------------------------------------
+
+static float
+pl__renderer_light_fade(float fLow, float fHigh, float fValue)
+{
+    float fT = pl_clampf(0.0f, (fValue - fLow) / (fHigh - fLow), 1.0f);
+    return fT * fT * (3.0f - 2.0f * fT);
+}
+
+static void
+pl__renderer_update_celestial_lighting(plGpuSceneData* ptData, const plRenderEnvironment* ptEnvironment)
+{
+    bool bNightSky = ptEnvironment->eMode == PL_RENDERER_SKY_MODE_REALISTIC && (ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_NIGHT_SKY);
+    ptData->tNightSky = (plVec4){
+        bNightSky ? pl_maxf(0.0f, ptEnvironment->fStarIntensity) : 0.0f,
+        ptEnvironment->fStarRotation,
+        bNightSky ? pl_maxf(0.0f, ptEnvironment->fMoonIntensity) : 0.0f,
+        pl_clampf(0.0001f, ptEnvironment->fMoonRadius, 0.1f)
+    };
+    // A simple orbit tied to the authored sun, not a date/location ephemeris.
+    // Waxing quarters are above the evening horizon; a full moon opposes the sun.
+    float fMoonAngle = 2.0f * PL_PI * pl_clampf(0.0f, ptEnvironment->fMoonPhase, 1.0f);
+    plVec3 tToSun = pl_mul_vec3_scalarf(ptEnvironment->tSunDirection, -1.0f);
+    if(pl_dot_vec3(tToSun, tToSun) < 1e-12f)
+        tToSun = (plVec3){0.0f, 1.0f, 0.0f};
+    tToSun = pl_norm_vec3(tToSun);
+    plVec3 tOrbitAxis = pl_cross_vec3(tToSun, (plVec3){0.0f, 1.0f, 0.0f});
+    if(pl_dot_vec3(tOrbitAxis, tOrbitAxis) < 1e-8f)
+        tOrbitAxis = (plVec3){1.0f, 0.0f, 0.0f};
+    tOrbitAxis = pl_norm_vec3(tOrbitAxis);
+    plVec3 tToMoon = pl_add_vec3(pl_mul_vec3_scalarf(tToSun, cosf(fMoonAngle)), pl_mul_vec3_scalarf(pl_cross_vec3(tOrbitAxis, tToSun), sinf(fMoonAngle)));
+    ptData->tMoonDirection = (plVec4){tToMoon.x, tToMoon.y, tToMoon.z, 0.5f * (1.0f - cosf(fMoonAngle))};
+
+    ptData->tSunDirection = (plVec4){-tToSun.x, -tToSun.y, -tToSun.z, 0.0f};
+    ptData->tSunRadiance = (plVec4){.rgb = pl_mul_vec3_scalarf(ptEnvironment->tSunColor, pl_maxf(0.0f, ptEnvironment->fSunIntensity))};
+    ptData->tDirection = ptData->tSunDirection.xyz;
+    ptData->tColor = ptEnvironment->tSunColor;
+    ptData->fIntensity = ptEnvironment->fSunIntensity;
+    ptData->tMoonlight = (plVec4){0};
+    if(ptEnvironment->eMode != PL_RENDERER_SKY_MODE_REALISTIC)
+        return;
+
+    // The sun reaches zero before changing shadow direction. Moonlight ramps
+    // up after that point; never rotate a lit shadow map across the sky.
+    float fSunVisibility = pl__renderer_light_fade(-0.01f, 0.035f, tToSun.y);
+    float fNight = 1.0f - pl__renderer_light_fade(-0.105f, -0.01f, tToSun.y);
+    float fMoonVisibility = pl__renderer_light_fade(0.0f, 0.05f, tToMoon.y);
+    float fPhase = ptData->tMoonDirection.w;
+    bool bMoonlight = bNightSky && (ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_MOONLIGHT);
+    float fMoonIntensity = bMoonlight ? pl_maxf(0.0f, ptEnvironment->fMoonlightIntensity) * fPhase * fPhase * fMoonVisibility * fNight : 0.0f;
+    plVec3 tMoonColor = {pl_maxf(0.0f, ptEnvironment->tMoonlightColor.r), pl_maxf(0.0f, ptEnvironment->tMoonlightColor.g), pl_maxf(0.0f, ptEnvironment->tMoonlightColor.b)};
+    ptData->tMoonlight = (plVec4){.rgb = pl_mul_vec3_scalarf(tMoonColor, fMoonIntensity), .a = bMoonlight ? 1.0f : 0.0f};
+    ptData->fIntensity *= fSunVisibility;
+    if(bMoonlight && tToSun.y <= -0.01f)
+    {
+        ptData->tDirection = pl_mul_vec3_scalarf(tToMoon, -1.0f);
+        ptData->tColor = tMoonColor;
+        ptData->fIntensity = fMoonIntensity;
+        ptData->tSunDirection.w = 1.0f;
+    }
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] job system tasks
@@ -3030,7 +3095,7 @@ pl__renderer_return_bindless_cube_texture_index(plScene* ptScene, plTextureHandl
 }
 
 static void
-pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeData* ptProbe, uint32_t uSampleCount)
+pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeData* ptProbe, uint32_t uSampleCount, bool bIncremental)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
@@ -3047,7 +3112,18 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
     const int iResolution = (int)(ptTexture->tDesc.tDimensions.x);
     const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
 
-    // copy to cube
+    // Step 0 builds source mips; then filter six diffuse faces, followed by
+    // one GGX/sheen face per mip per turn. Initial creation still fills everything.
+    const uint32_t uMipCount = gptGfx->get_texture(ptDevice, ptProbe->tGGXEnvTexture)->tDesc.uMips;
+    const uint32_t uStep = ptProbe->uFilterStep;
+    const uint32_t uFaceStart = bIncremental && uStep > 0 ? (uStep - 1) % 6 : 0;
+    const uint32_t uFaceCount = bIncremental ? 1 : 6;
+    const uint32_t uSpecularStart = 7;
+    const uint32_t uSheenStart = uSpecularStart + 6 * uMipCount;
+    const uint32_t uSheenMips = (ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) ? gptGfx->get_texture(ptDevice, ptProbe->tSheenEnvTexture)->tDesc.uMips : 0;
+
+    // Keep the existing seam-aware CPU mip generation, in its own scheduled turn.
+    if(!bIncremental || uStep == 0)
     {
 
         #if 1
@@ -3164,7 +3240,13 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         #endif
     }
 
-    // gptGfx->generate_mipmaps_old(gptData->ptDevice, ptProbe->tRawOutputTexture);
+    if(bIncremental && uStep == 0)
+    {
+        ptProbe->uFilterStep++;
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        return;
+    }
+
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~common bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -3220,12 +3302,13 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
     
     plBindGroupHandle atFullBindGroupHandles[2] = {tCubeFilterBGSet0, tCubeFilterBGSet1};
 
+    if(!bIncremental || uStep < uSpecularStart)
     {
 
         const plDispatch tDispach = {
             .uGroupCountX     = (uint32_t)iResolution / 16,
             .uGroupCountY     = (uint32_t)iResolution / 16,
-            .uGroupCountZ     = 3,
+            .uGroupCountZ     = (uFaceCount + 1) / 2,
             .uThreadPerGroupX = 16,
             .uThreadPerGroupY = 16,
             .uThreadPerGroupZ = 2
@@ -3255,6 +3338,8 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         ptDynamicData->iWidth = iResolution;
         ptDynamicData->fLodBias = 0.0f;
         ptDynamicData->iCurrentMipLevel = 0;
+        ptDynamicData->iFaceOffset = (int)uFaceStart;
+        ptDynamicData->iFaceCount = (int)uFaceCount;
 
         gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
 
@@ -3281,7 +3366,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         gptGfx->begin_command_recording(ptCommandBuffer);
         gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
 
-        for(uint32_t i = 0; i < 6; i++)
+        for(uint32_t i = uFaceStart; i < uFaceStart + uFaceCount; i++)
         {
             const plBufferImageCopy tBufferImageCopy = {
                 .uImageWidth = iResolution,
@@ -3308,6 +3393,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
     }
 
 
+    if(!bIncremental || (uStep >= uSpecularStart && uStep < uSheenStart))
     {
 
         const size_t uMaxFaceSize = (size_t)iResolution * (size_t)iResolution * 4 * sizeof(float);
@@ -3327,6 +3413,8 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         plTexture* ptEnvTexture = gptGfx->get_texture(ptDevice, ptProbe->tGGXEnvTexture);
         for(int i = ptEnvTexture->tDesc.uMips - 1; i != -1; i--)
         {
+            if(bIncremental && i != (int)ptEnvTexture->tDesc.uMips - 1 - (int)((uStep - uSpecularStart) / 6))
+                continue;
             int currentWidth = iResolution >> i;
 
             if(currentWidth < 16)
@@ -3337,7 +3425,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
             const plDispatch tDispach = {
                 .uGroupCountX     = (uint32_t)currentWidth / 16,
                 .uGroupCountY     = (uint32_t)currentWidth / 16,
-                .uGroupCountZ     = 3,
+                .uGroupCountZ     = (uFaceCount + 1) / 2,
                 .uThreadPerGroupX = 16,
                 .uThreadPerGroupY = 16,
                 .uThreadPerGroupZ = 2
@@ -3354,6 +3442,8 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
             ptDynamicData->iWidth = currentWidth;
             ptDynamicData->fLodBias = 0.0f;
             ptDynamicData->iCurrentMipLevel = i;
+            ptDynamicData->iFaceOffset = (int)uFaceStart;
+            ptDynamicData->iFaceCount = (int)uFaceCount;
 
             gptGfx->begin_compute_pass(ptCommandBuffer, &tInnerPassResources);
             gptGfx->bind_compute_bind_groups(ptCommandBuffer, tCubeFilterSpecularShader, 0, 2, atFullBindGroupHandles, 1, &tDynamicBinding);
@@ -3376,7 +3466,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
             gptGfx->begin_command_recording(ptCommandBuffer);
             gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
 
-            for(uint32_t j = 0; j < 6; j++)
+            for(uint32_t j = uFaceStart; j < uFaceStart + uFaceCount; j++)
             {
                 const plBufferImageCopy tBufferImageCopy = {
                     .uImageWidth = currentWidth,
@@ -3407,7 +3497,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
     }
 
     // sheen
-    if(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED)
+    if((ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && (!bIncremental || uStep >= uSheenStart))
     {
 
         const size_t uMaxFaceSize = (size_t)iResolution * (size_t)iResolution * 4 * sizeof(float);
@@ -3427,6 +3517,8 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         plTexture* ptEnvTexture = gptGfx->get_texture(ptDevice, ptProbe->tSheenEnvTexture);
         for(int i = ptEnvTexture->tDesc.uMips - 1; i != -1; i--)
         {
+            if(bIncremental && i != (int)ptEnvTexture->tDesc.uMips - 1 - (int)((uStep - uSheenStart) / 6))
+                continue;
             int currentWidth = iResolution >> i;
 
             if(currentWidth < 16)
@@ -3437,7 +3529,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
             const plDispatch tDispach = {
                 .uGroupCountX     = (uint32_t)currentWidth / 16,
                 .uGroupCountY     = (uint32_t)currentWidth / 16,
-                .uGroupCountZ     = 3,
+                .uGroupCountZ     = (uFaceCount + 1) / 2,
                 .uThreadPerGroupX = 16,
                 .uThreadPerGroupY = 16,
                 .uThreadPerGroupZ = 2
@@ -3454,6 +3546,8 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
             ptDynamicData->iWidth = currentWidth;
             ptDynamicData->fLodBias = 0.0f;
             ptDynamicData->iCurrentMipLevel = i;
+            ptDynamicData->iFaceOffset = (int)uFaceStart;
+            ptDynamicData->iFaceCount = (int)uFaceCount;
 
             gptGfx->begin_compute_pass(ptCommandBuffer, &tInnerPassResources);
             gptGfx->bind_compute_bind_groups(ptCommandBuffer, tCubeFilterSheenShader, 0, 2, atFullBindGroupHandles, 1, &tDynamicBinding);
@@ -3476,7 +3570,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
             gptGfx->begin_command_recording(ptCommandBuffer);
             gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
 
-            for(uint32_t j = 0; j < 6; j++)
+            for(uint32_t j = uFaceStart; j < uFaceStart + uFaceCount; j++)
             {
                 const plBufferImageCopy tBufferImageCopy = {
                     .uImageWidth = currentWidth,
@@ -3505,6 +3599,11 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         }
     }
 
+    if(!bIncremental || ++ptProbe->uFilterStep >= uSheenStart + 6 * uSheenMips)
+    {
+        ptProbe->bFiltering = false;
+        ptProbe->bInitialized = true;
+    }
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
@@ -5953,6 +6052,20 @@ pl__renderer_probe_update_all(plScene* ptScene)
     plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
 
     const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
+    if(ptScene->tFlags & PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY)
+    {
+        if(!ptScene->bProbeRefreshPending)
+        {
+            ptScene->dProbeRefreshQueuedTime = gptIO->dTime;
+            ptScene->dProbeEnvironmentChangeTime = gptIO->dTime;
+        }
+        ptScene->bProbeRefreshPending = true;
+    }
+    bool bRefresh = !ptScene->tDefaultProbeData.bInitialized || (ptScene->bProbeRefreshPending && (gptIO->dTime - ptScene->dProbeEnvironmentChangeTime >= 0.5 || gptIO->dTime - ptScene->dProbeRefreshQueuedTime >= 2.0));
+    if(bRefresh)
+        ptScene->bProbeRefreshPending = false;
+    ptScene->uScheduledProbe = UINT32_MAX;
+
     for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
     {
         // The sky probe also participates in sheen filtering, but has no ECS component.
@@ -5977,7 +6090,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
             if(ptProbeComp)
                 ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
             else
-                ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
+                ptProbe->bRefreshPending = true;
         }
         else if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
         {
@@ -5987,18 +6100,38 @@ pl__renderer_probe_update_all(plScene* ptScene)
             ptProbe->uSheenEnvSampler = 0;
         }
 
+        if(bRefresh || !ptProbe->bInitialized || (ptProbeComp && (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY)))
+            ptProbe->bRefreshPending = true;
+        if(ptProbeComp)
+            ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+
         if(uProbeIndex == 0)
         {
             // Scene teardown owns the sky probe's resources through this array entry.
             ptScene->sbtProbeData[0].tSheenEnvTexture = ptProbe->tSheenEnvTexture;
             ptScene->sbtProbeData[0].uSheenEnvSampler = ptProbe->uSheenEnvSampler;
-            continue;
         }
+    }
 
-        if(ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME || ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY || ptScene->tFlags & PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY)
+    // A single probe gets a turn. Repeated invalidations queue another cycle;
+    // they never rewind an in-progress capture or starve later probes.
+    for(uint32_t i = 0; i < uProbeCount; i++)
+    {
+        uint32_t uIndex = (ptScene->uProbeUpdateIndex + i) % uProbeCount;
+        plEnvironmentProbeData* ptProbe = uIndex == 0 ? &ptScene->tDefaultProbeData : &ptScene->sbtProbeData[uIndex];
+        plEnvironmentProbeComponent* ptComp = uIndex == 0 ? NULL : gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
+        bool bRealtime = ptComp && (ptComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME);
+        if(!ptProbe->bFiltering && ptProbe->uDirtyFaces == 0 && (ptProbe->bRefreshPending || bRealtime))
         {
-            if(ptProbe->uDirtyFaces == 0 && (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY))
-                ptProbe->uDirtyFaces = 6;
+            ptProbe->uCurrentFace = 0;
+            ptProbe->uDirtyFaces = 6;
+            ptProbe->bRefreshPending = false;
+        }
+        if(ptProbe->bFiltering || ptProbe->uDirtyFaces > 0)
+        {
+            ptScene->uScheduledProbe = uIndex;
+            ptScene->uProbeUpdateIndex = (uIndex + 1) % uProbeCount;
+            break;
         }
     }
 
@@ -6057,10 +6190,14 @@ pl__renderer_probe_update_all(plScene* ptScene)
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
         plEnvironmentProbeComponent* ptProbeComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
 
-        if(!((ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME) || (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY) || (ptScene->tFlags & PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY)))
+        if(ptProbe->bInitialized && ptScene->uScheduledProbe != uProbeIndex)
+            continue;
+        if(ptProbe->bFiltering)
         {
+            pl__renderer_probe_create_environment_map(ptScene, ptProbe, ptProbeComp->uSamples, true);
             continue;
         }
+        const uint32_t uFaceCount = ptProbe->bInitialized ? pl_min(ptProbe->uDirtyFaces, pl_max(1u, pl_min(6u, ptProbeComp->uInterval))) : 6;
 
         plTransformComponent* ptProbeTransform = gptEcs->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptProbe->tEntity);
 
@@ -6121,10 +6258,9 @@ pl__renderer_probe_update_all(plScene* ptScene)
         plBuffer* ptProbeGlobalBuffer = gptGfx->get_buffer(ptDevice, ptProbe->tViewBuffer);
         memcpy(ptProbeGlobalBuffer->tMemoryAllocation.pHostMapped, &ptProbe->tViewData, sizeof(plGpuViewData));
 
-        for(uint32_t uFaceIndex = 0; uFaceIndex < 6; uFaceIndex++)
+        for(uint32_t uFaceIndex = 0; uFaceIndex < uFaceCount; uFaceIndex++)
         {
-
-
+            uint32_t uFace = (ptProbe->uCurrentFace + uFaceIndex) % 6;
             plCommandBuffer* ptCSMCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "probe csm");
             gptGfx->begin_command_recording(ptCSMCommandBuffer);
 
@@ -6145,7 +6281,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
             gptGfx->begin_render_pass(ptCSMCommandBuffer, &tShadowRenderInfo, NULL);
             gptGfx->push_debug_group(ptCSMCommandBuffer, "Probe CSM", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
 
-            pl__renderer_generate_sun_shadow_map(ptCSMCommandBuffer, ptScene, &ptProbe->tViewData, ptProbe->tViewBuffer, ptProbe->tSunCameraBuffers, &atEnvironmentCamera[uFaceIndex], ptProbe->tSunCameraBG, true);
+            pl__renderer_generate_sun_shadow_map(ptCSMCommandBuffer, ptScene, &ptProbe->tViewData, ptProbe->tViewBuffer, ptProbe->tSunCameraBuffers, &atEnvironmentCamera[uFace], ptProbe->tSunCameraBG, true);
 
             plCSMInfo tCSMInfo = {
                 .tBindGroup = ptProbe->tDShadowBG,
@@ -6153,7 +6289,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
                 .tDLightShadowDataBuffer = ptProbe->tDLightShadowDataBuffer,
                 .sbtDLightShadowData = ptProbe->sbtDLightShadowData
             };
-            pl__renderer_generate_direction_view_map(ptCSMCommandBuffer, ptScene, &atEnvironmentCamera[uFaceIndex], tCSMInfo);
+            pl__renderer_generate_direction_view_map(ptCSMCommandBuffer, ptScene, &atEnvironmentCamera[uFace], tCSMInfo);
             gptGfx->pop_debug_group(ptCSMCommandBuffer);
             gptGfx->end_render_pass(ptCSMCommandBuffer);
             gptGfx->end_command_recording(ptCSMCommandBuffer);
@@ -6236,9 +6372,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
             plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "probe");
             gptGfx->begin_command_recording(ptCmdBuffer);
 
-            uint32_t uFace = ptProbe->uCurrentFace + uFaceIndex;
             PL_RENDERER_STAT("renderer / reflection probe faces rendered", 1);
-            uFace = uFace % 6;
 
             //~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 0 - g buffer fill~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -6615,18 +6749,21 @@ pl__renderer_probe_update_all(plScene* ptScene)
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submission~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-        pl__renderer_probe_create_environment_map(ptScene, ptProbe, ptProbeComp->uSamples);
-
-        ptProbe->uCurrentFace = (ptProbe->uCurrentFace + ptProbeComp->uInterval) % 6;
-
-        if(ptProbe->uDirtyFaces == 0)
-            ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+        ptProbe->uCurrentFace = (ptProbe->uCurrentFace + uFaceCount) % 6;
+        if(!ptProbe->bInitialized)
+        {
+            pl__renderer_probe_create_environment_map(ptScene, ptProbe, ptProbeComp->uSamples, false);
+            ptProbe->uDirtyFaces = 0;
+            ptProbe->bRefreshPending = false;
+        }
         else
         {
-            uint32_t uMaxDirty = pl_min(ptProbe->uDirtyFaces, ptProbeComp->uInterval);
-            ptProbe->uDirtyFaces -= uMaxDirty;
+            ptProbe->uDirtyFaces -= uFaceCount;
             if(ptProbe->uDirtyFaces == 0)
-                ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+            {
+                ptProbe->bFiltering = true;
+                ptProbe->uFilterStep = 0;
+            }
         }
     }
 
@@ -10789,12 +10926,15 @@ pl__renderer_update_sky_probe(plScene* ptScene)
     };
     pl_sb_push(ptScene->sbtGPUProbeData, tProbeData);
 
-    if(ptScene->tFlags & PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY)
-    {
-
-    }
-    else
+    plEnvironmentProbeData* ptProbe = &ptScene->tDefaultProbeData;
+    if(ptProbe->bInitialized && ptScene->uScheduledProbe != 0)
         return;
+    if(ptProbe->bFiltering)
+    {
+        pl__renderer_probe_create_environment_map(ptScene, ptProbe, 512, true);
+        return;
+    }
+    const uint32_t uFaceCount = ptProbe->bInitialized ? 1 : 6;
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~common data~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -10869,7 +11009,7 @@ pl__renderer_update_sky_probe(plScene* ptScene)
         plBuffer* ptProbeGlobalBuffer = gptGfx->get_buffer(ptDevice, ptScene->tDefaultProbeData.tViewBuffer);
         memcpy(ptProbeGlobalBuffer->tMemoryAllocation.pHostMapped, &ptScene->tDefaultProbeData.tViewData, sizeof(plGpuViewData));
 
-        for(uint32_t uFaceIndex = 0; uFaceIndex < 6; uFaceIndex++)
+        for(uint32_t uFaceIndex = 0; uFaceIndex < uFaceCount; uFaceIndex++)
         {
 
             if(ptEnvironment->eMode & PL_RENDERER_SKY_MODE_REALISTIC)
@@ -11016,7 +11156,18 @@ pl__renderer_update_sky_probe(plScene* ptScene)
             gptGfx->return_command_buffer(ptCmdBuffer);
         }
         
-        pl__renderer_probe_create_environment_map(ptScene, &ptScene->tDefaultProbeData, 512);
+        ptProbe->uCurrentFace = (ptProbe->uCurrentFace + uFaceCount) % 6;
+        if(!ptProbe->bInitialized)
+        {
+            pl__renderer_probe_create_environment_map(ptScene, ptProbe, 512, false);
+            ptProbe->uDirtyFaces = 0;
+            ptProbe->bRefreshPending = false;
+        }
+        else if(--ptProbe->uDirtyFaces == 0)
+        {
+            ptProbe->bFiltering = true;
+            ptProbe->uFilterStep = 0;
+        }
     }
 }
 

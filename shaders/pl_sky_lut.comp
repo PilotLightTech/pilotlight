@@ -109,7 +109,7 @@ void main()
         return;
     }
 
-    vec3 tDirectionToSun = -pl_safe_normalize(tGpuScene.tData.tDirection);
+    vec3 tDirectionToSun = -pl_safe_normalize(tGpuScene.tData.tSunDirection.xyz);
 
     float fViewDotLight = clamp(dot(viewDirection, tDirectionToSun), -1.0, 1.0);
 
@@ -117,7 +117,9 @@ void main()
 
     float fMiePhaseValue = pl_phase_cornette_shanks(fViewDotLight, tGpuScene.tData.mieScatteringExponent);
 
-    vec3 tSunRadiance = tGpuScene.tData.tColor * tGpuScene.tData.tAerialInfo.w;
+    vec3 tSunRadiance = tGpuScene.tData.tSunRadiance.rgb;
+    float moonCos = clamp(dot(viewDirection, tGpuScene.tData.tMoonDirection.xyz), -1.0, 1.0);
+    vec2 moonPhase = vec2(pl_phase_rayleigh(moonCos), pl_phase_cornette_shanks(moonCos, tGpuScene.tData.mieScatteringExponent));
 
     vec3 tAccumulatedTransmittance = vec3(1.0); // light survival factor
     vec3 tAccumulatedLuminance = vec3(0.0); // light scattered toward camera
@@ -221,6 +223,8 @@ void main()
         }
 
         vec3 source = tSunRadiance * (directSource + multipleScatteringSource);
+        if(any(greaterThan(tGpuScene.tData.tMoonlight.rgb, vec3(0.0))))
+            source += pl_atmosphere_light_source(tCurrentPosition, tGpuScene.tData.tMoonDirection.xyz, tGpuScene.tData.tMoonlight.rgb, moonPhase, 1.0, coefficients, tGpuScene.tData, transmissionLut, multiscatterLut, tSamplerLinearClamp);
 
         vec3 segmentLuminance = pl__integrate_source(source, coefficients.tExtinction, fSegmentLength);
 

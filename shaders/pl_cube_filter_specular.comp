@@ -34,7 +34,10 @@ main()
     const float fXCoord = gl_WorkGroupID.x * 16 + gl_LocalInvocationID.x;
     const float fYCoord = gl_WorkGroupID.y * 16 + gl_LocalInvocationID.y;
 
-    const int iFace = int(gl_WorkGroupID.z * 2 + gl_LocalInvocationID.z);
+    const int iLocalFace = int(gl_GlobalInvocationID.z);
+    if(iLocalFace >= tDynamicData.tData.iFaceCount)
+        return;
+    const int iFace = tDynamicData.tData.iFaceOffset + iLocalFace;
     const float fXinc = 1.0 / tDynamicData.tData.iResolution;
     const float fYinc = 1.0 / tDynamicData.tData.iResolution;
     const vec2 tInUV = vec2(fXCoord * fXinc, fYCoord * fYinc);
