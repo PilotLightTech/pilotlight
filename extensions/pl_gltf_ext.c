@@ -18,6 +18,7 @@ Index of this file:
 
 #include <float.h> // FLT_MAX
 #include <stddef.h> // ptrdiff_t
+#include <limits.h> // INT_MAX
 #include "pl.h"
 #include "pl_gltf_ext.h"
 #include "pl_string.h"
@@ -94,6 +95,8 @@ typedef struct _plGltfContext
     plHashMap64        tNewNodeHashmap;
     char*              sbcPathBuffer;
     const cgltf_node** sbptTempPath;
+    uint64_t           ulSourceHash;
+    bool               bImportFailed;
 } plGltfContext;
 
 static plGltfContext* gptGltfCtx = NULL;
@@ -112,6 +115,88 @@ static plAssetHandle pl__import_gltf_animation(cgltf_data*, const char* pcFileNa
 
 // internal gltf helpers
 static void pl__import_attributes(plSubmesh* ptMesh, const cgltf_primitive* ptPrimitive);
+
+// cgltf's file callbacks must use the same VFS namespace as the source glTF.
+static cgltf_result
+pl__gltf_read_file(const cgltf_memory_options* ptMemoryOptions, const cgltf_file_options* ptFileOptions, const char* pcPath, cgltf_size* pszSize, void** ppData)
+{
+    (void)ptMemoryOptions;
+    (void)ptFileOptions;
+    *ppData = NULL;
+    if(!gptVfs->does_file_exist(pcPath))
+        return cgltf_result_file_not_found;
+    size_t szSize = gptVfs->get_file_size_str(pcPath);
+    if(szSize == 0 || (pszSize && *pszSize > szSize))
+        return cgltf_result_data_too_short;
+    void* pData = PL_ALLOC(szSize);
+    if(!pData)
+        return cgltf_result_out_of_memory;
+    plVfsFileHandle tFile = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
+    if(!gptVfs->is_file_open(tFile))
+    {
+        PL_FREE(pData);
+        return cgltf_result_io_error;
+    }
+    size_t szRead = szSize;
+    plVfsResult tResult = gptVfs->read_file(tFile, pData, &szRead);
+    gptVfs->close_file(tFile);
+    if(tResult != PL_VFS_RESULT_SUCCESS || szRead != szSize)
+    {
+        PL_FREE(pData);
+        return cgltf_result_io_error;
+    }
+    if(pszSize)
+        *pszSize = szSize;
+    *ppData = pData;
+    return cgltf_result_success;
+}
+
+static void
+pl__gltf_release_file(const cgltf_memory_options* ptMemoryOptions, const cgltf_file_options* ptFileOptions, void* pData)
+{
+    (void)ptMemoryOptions;
+    (void)ptFileOptions;
+    if(pData)
+    {
+        PL_FREE(pData);
+    }
+}
+
+// Validate the complete payload before asking cgltf to decode it. Its buffer
+// decoder takes a decoded byte count, not the length of the input string.
+static bool
+pl__gltf_decode_data_uri(const char* pcUri, void** ppData, size_t* pszSize)
+{
+    *ppData = NULL;
+    *pszSize = 0;
+    if(!pcUri || strncmp(pcUri, "data:", 5) != 0)
+        return false;
+    const char* pcComma = strchr(pcUri, ',');
+    if(!pcComma || pcComma - pcUri < 12 || memcmp(pcComma - 7, ";base64", 7) != 0)
+        return false;
+    const char* pcBase64 = pcComma + 1;
+    size_t szLength = strlen(pcBase64);
+    if(szLength == 0 || szLength % 4 != 0)
+        return false;
+    size_t szPadding = (pcBase64[szLength - 1] == '=') + (pcBase64[szLength - 2] == '=');
+    for(size_t i = 0; i < szLength - szPadding; i++)
+    {
+        char c = pcBase64[i];
+        if(!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '+' || c == '/'))
+            return false;
+    }
+    for(size_t i = szLength - szPadding; i < szLength; i++)
+    {
+        if(pcBase64[i] != '=')
+            return false;
+    }
+    size_t szSize = szLength / 4 * 3 - szPadding;
+    cgltf_options tOptions = {0};
+    if(cgltf_load_buffer_base64(&tOptions, szSize, pcBase64, ppData) != cgltf_result_success)
+        return false;
+    *pszSize = szSize;
+    return true;
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] implementation
@@ -259,8 +344,16 @@ pl__gltf_blah(const char* pcPath, const cgltf_node* ptNode)
 bool
 pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGltfImportResult* ptResults)
 {
-    if(!gptVfs->does_file_exist(pcPath))
+    if(ptResults)
+        memset(ptResults, 0, sizeof(*ptResults));
+
+    if(!pcPath || !gptVfs->does_file_exist(pcPath))
         return false;
+
+    gptGltfCtx->bImportFailed = false;
+    gptGltfCtx->ulSourceHash = pl_hm_hash_str(pcPath, 0);
+    pl_hm_free(&gptGltfCtx->tAssetHashmap);
+    pl_hm_free(&gptGltfCtx->tNewNodeHashmap);
 
     static const plGltfImportOptions tDefaultOptions = {
         .eFlags = PL_GLTF_IMPORT_FLAGS_IMPORT_ALL_ASSETS
@@ -269,15 +362,15 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
         ptOptions = &tDefaultOptions;
 
     cgltf_options tGltfOptions = {0};
+    tGltfOptions.file.read = pl__gltf_read_file;
+    tGltfOptions.file.release = pl__gltf_release_file;
     cgltf_data* ptGltfData = NULL;
 
     // read in file
-    size_t szFileSize = gptVfs->get_file_size_str(pcPath);
-    uint8_t* pcBuffer = PL_ALLOC(szFileSize);
-    memset(pcBuffer, 0, szFileSize);
-    plVfsFileHandle tFileHandle = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
-    gptVfs->read_file(tFileHandle, pcBuffer, &szFileSize);
-    gptVfs->close_file(tFileHandle);
+    size_t szFileSize = 0;
+    void* pcBuffer = NULL;
+    if(pl__gltf_read_file(&tGltfOptions.memory, &tGltfOptions.file, pcPath, &szFileSize, &pcBuffer) != cgltf_result_success)
+        return false;
 
     char acDirectory[1024] = {0};
     pl_str_get_directory(pcPath, acDirectory, 1024);
@@ -291,11 +384,40 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
 
     cgltf_result tGltfResult = cgltf_parse(&tGltfOptions, pcBuffer, szFileSize, &ptGltfData);
     if(tGltfResult != cgltf_result_success)
+    {
+        PL_FREE(pcBuffer);
         return false;
+    }
 
-    tGltfResult = cgltf_load_buffers(&tGltfOptions, ptGltfData, gptVfs->get_real_path(tFileHandle));
+    for(size_t i = 0; i < ptGltfData->buffers_count; i++)
+    {
+        cgltf_buffer* ptBuffer = &ptGltfData->buffers[i];
+        if(ptBuffer->uri && strncmp(ptBuffer->uri, "data:", 5) == 0)
+        {
+            size_t szDecoded = 0;
+            ptBuffer->data_free_method = cgltf_data_free_method_memory_free;
+            if(!pl__gltf_decode_data_uri(ptBuffer->uri, &ptBuffer->data, &szDecoded) || szDecoded != ptBuffer->size)
+            {
+                cgltf_free(ptGltfData);
+                PL_FREE(pcBuffer);
+                return false;
+            }
+        }
+    }
+    tGltfResult = cgltf_load_buffers(&tGltfOptions, ptGltfData, pcPath);
+    if(tGltfResult == cgltf_result_success)
+    {
+        for(size_t i = 0; i < ptGltfData->buffers_count; i++)
+            if(!ptGltfData->buffers[i].data) tGltfResult = cgltf_result_data_too_short;
+    }
+    if(tGltfResult == cgltf_result_success)
+        tGltfResult = cgltf_validate(ptGltfData);
     if(tGltfResult != cgltf_result_success)
+    {
+        cgltf_free(ptGltfData);
+        PL_FREE(pcBuffer);
         return false;
+    }
 
     for(size_t i = 0; i < ptGltfData->nodes_count; i++)
     {
@@ -305,7 +427,8 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
     uint32_t uCurrentAsset = 0;
     uint32_t uAssetCount = 0;
 
-    if(ptOptions->eFlags & PL_GLTF_IMPORT_FLAGS_IMPORT_TEXTURES)   uAssetCount += (uint32_t)ptGltfData->textures_count;
+    // One glTF texture can be used in both sRGB and linear material slots.
+    if(ptOptions->eFlags & PL_GLTF_IMPORT_FLAGS_IMPORT_TEXTURES)   uAssetCount += 2 * (uint32_t)ptGltfData->textures_count;
     if(ptOptions->eFlags & PL_GLTF_IMPORT_FLAGS_IMPORT_MATERIALS)  uAssetCount += (uint32_t)ptGltfData->materials_count;
     if(ptOptions->eFlags & PL_GLTF_IMPORT_FLAGS_IMPORT_MESHES)     uAssetCount += (uint32_t)ptGltfData->meshes_count;
     if(ptOptions->eFlags & PL_GLTF_IMPORT_FLAGS_IMPORT_ANIMATIONS) uAssetCount += (uint32_t)ptGltfData->animations_count;
@@ -342,6 +465,8 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
             // only allow unique textures
             for(uint32_t i = 0; i < uTextureCount; i++)
             {
+                if(sbtHandles[i].uData == UINT64_MAX)
+                    continue;
                 if(!pl_hm_has_key(&gptGltfCtx->tAssetHashmap, sbtHandles[i].uData))
                 {
                     pl_hm_insert(&gptGltfCtx->tAssetHashmap, sbtHandles[i].uData, uCurrentTexture);
@@ -486,21 +611,22 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
             {
                 const cgltf_node* ptParent = ptSkin->joints[i]->parent;
 
-                while(ptParent)
+                bool bParentFound = false;
+                while(ptParent && !bParentFound)
                 {
                     for(uint32_t j = 0; j < ptSkin->joints_count; j++)
                     {
                         if(ptSkin->joints[j] == ptParent)
                         {
                             tSkeleton.atJoints[i].uParent = j;
-                            goto parent_found;
+                            bParentFound = true;
+                            break;
                         }
                     }
 
                     ptParent = ptParent->parent;
                 }
 
-            parent_found:;
             }
 
             if(ptSkin->name)
@@ -721,6 +847,7 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
 
 
     pl_hm_free(&gptGltfCtx->tNewNodeHashmap);
+    pl_hm_free(&gptGltfCtx->tAssetHashmap);
     pl_sb_free(sbtHandles);
     sbtHandles = NULL;
 
@@ -730,142 +857,110 @@ pl_gltf_import_ex(const char* pcPath, const plGltfImportOptions* ptOptions, plGl
     {
         PL_FREE(atAnimationAssets);
     }
-    return true;
+    if(ptResults)
+        ptResults->uAssetCount = uCurrentAsset;
+    return !gptGltfCtx->bImportFailed;
 }
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal API implementation
 //-----------------------------------------------------------------------------
 
+// Release decoded image ownership consistently on every texture import failure.
+static plAssetHandle
+pl__gltf_texture_failure(void* pOwnedData)
+{
+    if(pOwnedData) PL_FREE(pOwnedData);
+    gptGltfCtx->bImportFailed = true;
+    return (plAssetHandle){.uData = UINT64_MAX};
+}
+
 static plAssetHandle
 pl__import_gltf_texture(const char* pcFileNameOnly, bool bSrgb, const cgltf_texture* ptGltfTexture, const char* pcDirectory, uint32_t uTextureIndex)
 {
-    char acTempBuffer[256] = {0};
+    (void)pcFileNameOnly;
+    char acAssetPath[256] = {0};
     char acFilepath[1024] = {0};
+    void* pOwnedData = NULL;
+    const unsigned char* pucData = NULL;
+    size_t szData = 0;
+    const cgltf_image* ptImage = ptGltfTexture ? ptGltfTexture->image : NULL;
+    plImageInfo tImageInfo = {0};
+    if(!ptImage) return pl__gltf_texture_failure(pOwnedData);
 
-    if(ptGltfTexture->name)
+    // Names are independent of optional glTF display names (which can contain
+    // slashes or be duplicated), and of the texture's color-space use.
+    snprintf(acAssetPath, sizeof(acAssetPath), "/assets/textures/gltf_%016llx_%u_%s.pltexture", (unsigned long long)gptGltfCtx->ulSourceHash, uTextureIndex, bSrgb ? "srgb" : "linear");
+
+    if(ptImage->buffer_view)
     {
-        pl_sprintf(acTempBuffer, "/assets/textures/%s.pltexture", ptGltfTexture->name);
+        const cgltf_buffer_view* ptView = ptImage->buffer_view;
+        if(!ptView->buffer || !ptView->buffer->data || ptView->offset > ptView->buffer->size || ptView->size > ptView->buffer->size - ptView->offset)
+            return pl__gltf_texture_failure(pOwnedData);
+        pucData = (const unsigned char*)ptView->buffer->data + ptView->offset;
+        szData = ptView->size;
+    }
+    else if(ptImage->uri && strncmp(ptImage->uri, "data:", 5) == 0)
+    {
+        if(!pl__gltf_decode_data_uri(ptImage->uri, &pOwnedData, &szData))
+            return pl__gltf_texture_failure(pOwnedData);
+        pucData = pOwnedData;
+    }
+    else if(ptImage->uri)
+    {
+        size_t szDirectory = strlen(pcDirectory);
+        size_t szUri = strlen(ptImage->uri);
+        if(szDirectory + szUri >= sizeof(acFilepath) || strstr(ptImage->uri, "://"))
+            return pl__gltf_texture_failure(pOwnedData);
+        memcpy(acFilepath, pcDirectory, szDirectory);
+        memcpy(acFilepath + szDirectory, ptImage->uri, szUri + 1);
+        cgltf_decode_uri(acFilepath + szDirectory);
+        if(!gptVfs->does_file_exist(acFilepath) || !gptImage->get_info_from_file(acFilepath, &tImageInfo))
+            return pl__gltf_texture_failure(pOwnedData);
     }
     else
+        return pl__gltf_texture_failure(pOwnedData);
+
+    if(pucData)
     {
-        pl_sprintf(acTempBuffer, "/assets/textures/%s_%u.pltexture", pcFileNameOnly, uTextureIndex);
+        // Preserve the encoded image exactly: re-encoding changes JPEG quality,
+        // mishandles 16-bit PNGs, and requires pixel/channel stride bookkeeping.
+        const char* pcExtension = NULL;
+        if(szData >= 8 && memcmp(pucData, "\x89PNG\r\n\x1a\n", 8) == 0)
+            pcExtension = "png";
+        else if(szData >= 3 && pucData[0] == 0xff && pucData[1] == 0xd8 && pucData[2] == 0xff)
+            pcExtension = "jpg";
+        if(!pcExtension || szData > INT_MAX || !gptImage->get_info(pucData, (int)szData, &tImageInfo))
+            return pl__gltf_texture_failure(pOwnedData);
+        // Persistent source beside the imported texture, not an evictable cache.
+        // /assets/textures must exist, as it does for other texture imports.
+        snprintf(acFilepath, sizeof(acFilepath), "/assets/textures/gltf_%016llx_%u.%s", (unsigned long long)gptGltfCtx->ulSourceHash, uTextureIndex, pcExtension);
+        plVfsFileHandle tFile = gptVfs->open_file(acFilepath, PL_VFS_FILE_MODE_WRITE);
+        if(!gptVfs->is_file_open(tFile))
+            return pl__gltf_texture_failure(pOwnedData);
+        size_t szWritten = gptVfs->write_file(tFile, pucData, szData);
+        gptVfs->close_file(tFile);
+        if(szWritten != szData) return pl__gltf_texture_failure(pOwnedData);
     }
 
     plTextureAsset tTextureAsset = {
         .bGenerateMips = true,
-        .bCompress = true,
-        .bSRGB = bSrgb
+        .bCompress     = true,
+        .bSRGB         = bSrgb,
+        .eFormat       = tImageInfo.bHDR ? PL_FORMAT_R32G32B32A32_FLOAT : (tImageInfo.b16Bit ? PL_FORMAT_R16G16B16A16_UNORM : PL_FORMAT_BC3_UNORM),
+        .pcSourceFile = gptString->intern(acFilepath)
     };
-
-    if(ptGltfTexture->image->buffer_view)
-    {
-        char* pucBufferData = ptGltfTexture->image->buffer_view->buffer->data;
-        char* pucActualBuffer = &pucBufferData[ptGltfTexture->image->buffer_view->offset];
-
-        int iOffset = 0;
-
-        if(ptGltfTexture->name)
-        {
-            iOffset = pl_sprintf(acFilepath, "/cache/imports/%s.", ptGltfTexture->name);
-        }
-        else
-        {
-            iOffset = pl_sprintf(acFilepath, "/cache/imports/%s_%u.", pcFileNameOnly, uTextureIndex);
-        }
-
-        char* pcNext = acFilepath;
-        pcNext += iOffset;
-        
-        pl_str_get_file_name_only(ptGltfTexture->image->mime_type, pcNext, 4);
-
-        plImageInfo tImageInfo = {0};
-        plImageWriteInfo tImageWrite = {0};
-        if(gptImage->get_info((unsigned char*)pucActualBuffer, (int)ptGltfTexture->image->buffer_view->size, &tImageInfo))
-        {
-            tImageWrite.iWidth = tImageInfo.iWidth;
-            tImageWrite.iHeight = tImageInfo.iHeight;
-            tImageWrite.iComponents = tImageInfo.iChannels;
-
-            char* pucBuffer = NULL;
-            
-            if(tImageInfo.bHDR)
-            {
-                tTextureAsset.eFormat = PL_FORMAT_R32G32B32A32_FLOAT;
-                tImageWrite.iByteStride = sizeof(float) * tImageInfo.iWidth;
-                pucBuffer = (char*)gptImage->load_hdr((const unsigned char*)pucActualBuffer, (int)ptGltfTexture->image->buffer_view->size, &tImageInfo.iWidth, &tImageInfo.iHeight, &tImageInfo.iChannels, tImageInfo.iChannels);
-            }
-            else if(tImageInfo.b16Bit)
-            {
-                tTextureAsset.eFormat = PL_FORMAT_R16G16B16A16_UNORM;
-                tImageWrite.iByteStride = sizeof(short) * tImageInfo.iWidth;
-                pucBuffer = (char*)gptImage->load_16bit((const unsigned char*)pucActualBuffer, (int)ptGltfTexture->image->buffer_view->size, &tImageInfo.iWidth, &tImageInfo.iHeight, &tImageInfo.iChannels, tImageInfo.iChannels);
-            }
-            else
-            {
-                tTextureAsset.eFormat = PL_FORMAT_BC3_UNORM;
-                tImageWrite.iByteStride = tImageInfo.iWidth;
-                pucBuffer = (char*)gptImage->load((const unsigned char*)pucActualBuffer, (int)ptGltfTexture->image->buffer_view->size, &tImageInfo.iWidth, &tImageInfo.iHeight, &tImageInfo.iChannels, tImageInfo.iChannels);
-            }
-            gptImage->write(acFilepath, pucBuffer, &tImageWrite);
-            gptImage->free(pucBuffer);
-        }
-    }
-    else if(strncmp(ptGltfTexture->image->uri, "data:", 5) == 0)
-    {
-        PL_ASSERT(false && "currently don't support gltf with embedded data");
-        // const char* comma = strchr(ptTexture->texture->image->uri, ',');
-
-        // if (comma && comma - ptTexture->texture->image->uri >= 7 && strncmp(comma - 7, ";base64", 7) == 0)
-        // {
-        //     cgltf_options tOptions = {0};
-        //     ptMaterial->atTextureMaps[tSlot].acName[0] = (char)tSlot + 1;
-        //     strcpy(&ptMaterial->atTextureMaps[tSlot].acName[1], ptGltfMaterial->name);
-            
-        //     void* outData = NULL;
-        //     const char *base64 = comma + 1;
-        //     const size_t szBufferLength = strlen(base64);
-        //     size_t szSize = szBufferLength - szBufferLength / 4;
-        //     if(szBufferLength >= 2)
-        //     {
-        //         szSize -= base64[szBufferLength - 2] == '=';
-        //         szSize -= base64[szBufferLength - 1] == '=';
-        //     }
-        //     cgltf_result res = cgltf_load_buffer_base64(&tOptions, szSize, base64, &outData);
-        //     PL_ASSERT(res == cgltf_result_success);
-        //     ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_resource(ptMaterial->atTextureMaps[tSlot].acName, PL_RESOURCE_LOAD_FLAG_RETAIN_DATA, outData, szSize);
-        // }
-    }
-    else
-    {
-        strcpy(acFilepath, pcDirectory);
-        pl_str_concatenate(acFilepath, ptGltfTexture->image->uri, acFilepath, 1024);
-
-        plImageInfo tImageInfo = {0};
-        if(gptImage->get_info_from_file(acFilepath, &tImageInfo))
-        {
-            if(tImageInfo.bHDR)
-            {
-                tTextureAsset.eFormat = PL_FORMAT_R32G32B32A32_FLOAT;
-            }
-            else if(tImageInfo.b16Bit)
-            {
-                tTextureAsset.eFormat = PL_FORMAT_R16G16B16A16_UNORM;
-            }
-            else
-            {
-                tTextureAsset.eFormat = PL_FORMAT_BC3_UNORM;
-            }
-        }
-    }
-
-    tTextureAsset.pcSourceFile = gptString->intern(acFilepath);
     plAssetDesc tAssetDesc = {
         .tType = gptTexture->get_asset_type_key(),
-        .pcPath = acTempBuffer
+        .pcPath = acAssetPath
     };
     plAssetHandle tAsset = gptAsset->create(&tAssetDesc, &tTextureAsset);
-    gptAsset->save(tAsset, PL_ASSET_ENCODING_TEXT);
+    if(tAsset.uData == UINT64_MAX || !gptAsset->save(tAsset, PL_ASSET_ENCODING_TEXT))
+        return pl__gltf_texture_failure(pOwnedData);
+    if(pOwnedData)
+    {
+        PL_FREE(pOwnedData);
+    }
     return tAsset;
 }
 

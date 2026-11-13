@@ -55,7 +55,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plGltfI_version {0, 1, 0}
+#define plGltfI_version {0, 1, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -81,6 +81,9 @@ PL_API void pl_unload_gltf_ext(plApiRegistryI*, bool reload);
 
 typedef struct _plGltfI
 {
+    // Supports .gltf/.glb, base64 data URI buffers/images and PNG/JPEG images
+    // in buffer views. Embedded image sources are saved under /assets/textures.
+    // Returns false on parse/read/decode/write failures; imports are not atomic.
     bool (*import)(const char* path, const plGltfImportOptions*);
 } plGltfI;
 
