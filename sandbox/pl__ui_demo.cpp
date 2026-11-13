@@ -212,15 +212,8 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                 gptUI->slider_int("int slider 2", &iValue2, -5, 10, 0);
                 gptUI->slider_uint("uint slider 0", &uValue0, 0, 1, 0);
                 gptUI->drag_float("float drag", &fValue2, 1.0f, -100.0f, 100.0f, 0);
-                static int aiIntArray[4] = {0};
-                gptUI->input_int2("input int 2", aiIntArray, 0);
-                gptUI->input_int3("input int 3", aiIntArray, 0);
-                gptUI->input_int4("input int 4", aiIntArray, 0);
-
-                static float afFloatArray[4] = {0};
-                gptUI->input_float2("input float 2", afFloatArray, "%0.3f", 0);
-                gptUI->input_float3("input float 3", afFloatArray, "%0.3f", 0);
-                gptUI->input_float4("input float 4", afFloatArray, "%0.3f", 0);
+                gptUI->drag_int("int drag", &iValue1, 1.0f, -100, 100, 0);
+                gptUI->drag_uint("uint drag", &uValue0, 1.0f, 0, 100, 0);
 
                 static plVec4 tColor = {1.0f, 0.0f, 1.0f, 0.75f};
                 gptUI->color_edit3("Color Edit 3", tColor.d, 0, tColor.d);
@@ -312,6 +305,53 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                 }
                 gptUI->button("Just a button");
 
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("Multi Widgets", 0))
+            {
+                gptUI->layout_dynamic(0.0f, 1);
+                gptUI->separator_text("Inputs");
+                static float afInputs[4] = {0};
+                static int aiInputs[4] = {0};
+                static uint32_t auInputs[4] = {0};
+                gptUI->input_float2("input float 2", afInputs, "%.3f", 0);
+                gptUI->input_float3("input float 3", afInputs, "%.3f", 0);
+                gptUI->input_float4("input float 4", afInputs, "%.3f", 0);
+                gptUI->input_int2("input int 2", aiInputs, 0);
+                gptUI->input_int3("input int 3", aiInputs, 0);
+                gptUI->input_int4("input int 4", aiInputs, 0);
+                gptUI->input_uint2("input uint 2", auInputs, 0);
+                gptUI->input_uint3("input uint 3", auInputs, 0);
+                gptUI->input_uint4("input uint 4", auInputs, 0);
+
+                gptUI->separator_text("Sliders");
+                static float afSliders[4] = {10.0f, 25.0f, 50.0f, 75.0f};
+                static int aiSliders[4] = {-5, 0, 5, 10};
+                static uint32_t auSliders[4] = {0, 3, 6, 10};
+                gptUI->slider_float2("float slider 2", afSliders, 0.0f, 100.0f, 0);
+                gptUI->slider_float3("float slider 3", afSliders, 0.0f, 100.0f, 0);
+                gptUI->slider_float4_f("float slider 4", afSliders, 0.0f, 100.0f, "%.1f", 0);
+                gptUI->slider_int2("int slider 2", aiSliders, -10, 10, 0);
+                gptUI->slider_int3("int slider 3", aiSliders, -10, 10, 0);
+                gptUI->slider_int4_f("int slider 4", aiSliders, -10, 10, "%+d", 0);
+                gptUI->slider_uint2("uint slider 2", auSliders, 0, 10, 0);
+                gptUI->slider_uint3("uint slider 3", auSliders, 0, 10, 0);
+                gptUI->slider_uint4_f("uint slider 4", auSliders, 0, 10, "%02u", 0);
+
+                gptUI->separator_text("Drags");
+                static float afDrags[4] = {0};
+                static int aiDrags[4] = {0};
+                static uint32_t auDrags[4] = {0};
+                gptUI->drag_float2("float drag 2", afDrags, 1.0f, -100.0f, 100.0f, 0);
+                gptUI->drag_float3("float drag 3", afDrags, 1.0f, -100.0f, 100.0f, 0);
+                gptUI->drag_float4_f("float drag 4", afDrags, 1.0f, -100.0f, 100.0f, "%.1f", 0);
+                gptUI->drag_int2("int drag 2", aiDrags, 1.0f, -100, 100, 0);
+                gptUI->drag_int3("int drag 3", aiDrags, 1.0f, -100, 100, 0);
+                gptUI->drag_int4_f("int drag 4", aiDrags, 1.0f, -100, 100, "%+d", 0);
+                gptUI->drag_uint2("uint drag 2", auDrags, 1.0f, 0, 100, 0);
+                gptUI->drag_uint3("uint drag 3", auDrags, 1.0f, 0, 100, 0);
+                gptUI->drag_uint4_f("uint drag 4", auDrags, 1.0f, 0, 100, "%03u", 0);
                 gptUI->tree_pop();
             }
 

@@ -3264,14 +3264,12 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         return bValueChanged;
 }
 
-bool
-pl_ui_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
+static bool
+pl__slider_float_ex(const char* pcLabel, float* pfValue, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags, plVec2 tWidgetSize, plVec2 tStartPos, bool bComponent)
 {
     if(pcFormat == NULL)
         pcFormat = "%0.3f";
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
-    const plVec2 tStartPos   = pl__get_cursor_pos();
 
     const float fOriginalValue = *pfValue;
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
@@ -3300,9 +3298,9 @@ pl_ui_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
         const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
 
-        const plVec2 tSize = { 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
+        const plVec2 tSize = {bComponent ? tWidgetSize.x : 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
         const plVec2 tTextStartPos = { 
-            tFrameStartPos.x + tFrameStartPos.x + (2.0f * (tWidgetSize.x / 3.0f)) / 2.0f - tTextActualCenter.x, 
+            tFrameStartPos.x + tFrameStartPos.x + tSize.x / 2.0f - tTextActualCenter.x,
             tFrameStartPos.y + tFrameStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
         };
 
@@ -3328,10 +3326,13 @@ pl_ui_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax
         else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
 
         gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tStyle.fGrabRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tSliderCol)});
-        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
-            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
-            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        if(!bComponent)
+        {
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+                (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+                tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+                PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        }
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
             tTextStartPos,
             tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
@@ -3355,8 +3356,89 @@ pl_ui_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax
         }
         pl__add_widget(uHash);
     }
-    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return fOriginalValue != *pfValue;
+}
+
+bool
+pl_ui_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const bool bChanged = pl__slider_float_ex(pcLabel, pfValue, fMin, fMax, pcFormat, tFlags, tWidgetSize, tStartPos, false);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    return bChanged;
+}
+
+static bool
+pl__slider_float_n(const char* pcLabel, float* afValues, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags, uint32_t uCount)
+{
+    if(pcFormat == NULL)
+        pcFormat = "%0.3f";
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const plVec2 tSubWidgetSize = {2.0f * tWidgetSize.x / (3.0f * (float)uCount), tWidgetSize.y};
+    plVec2 tSubStartPos = tStartPos;
+    bool bChanged = false;
+    pl_ui_push_id_string(pcLabel);
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        pl_ui_push_id_uint(i);
+        bChanged |= pl__slider_float_ex("", afValues + i, fMin, fMax, pcFormat, tFlags, tSubWidgetSize, tSubStartPos, true);
+        pl_ui_pop_id();
+        tSubStartPos.x += tSubWidgetSize.x;
+    }
+
+    const plRect tTextBounding = gptDraw->calculate_text_bb(tSubStartPos, pcLabel,
+        (plDrawTextOptions){
+            .ptFont = gptCtx->tFont,
+            .fSize = gptCtx->tStyle.fFontSize,
+            .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+            .fWrap = -1.0f});
+    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl_ui_pop_id();
+    return bChanged;
+}
+
+bool
+pl_ui_slider_float2_f(const char* pcLabel, float* afValues, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__slider_float_n(pcLabel, afValues, fMin, fMax, pcFormat, tFlags, 2);
+}
+
+bool
+pl_ui_slider_float2(const char* pcLabel, float* afValues, float fMin, float fMax, plUiSliderFlags tFlags)
+{
+    return pl__slider_float_n(pcLabel, afValues, fMin, fMax, "%0.3f", tFlags, 2);
+}
+
+bool
+pl_ui_slider_float3_f(const char* pcLabel, float* afValues, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__slider_float_n(pcLabel, afValues, fMin, fMax, pcFormat, tFlags, 3);
+}
+
+bool
+pl_ui_slider_float3(const char* pcLabel, float* afValues, float fMin, float fMax, plUiSliderFlags tFlags)
+{
+    return pl__slider_float_n(pcLabel, afValues, fMin, fMax, "%0.3f", tFlags, 3);
+}
+
+bool
+pl_ui_slider_float4_f(const char* pcLabel, float* afValues, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__slider_float_n(pcLabel, afValues, fMin, fMax, pcFormat, tFlags, 4);
+}
+
+bool
+pl_ui_slider_float4(const char* pcLabel, float* afValues, float fMin, float fMax, plUiSliderFlags tFlags)
+{
+    return pl__slider_float_n(pcLabel, afValues, fMin, fMax, "%0.3f", tFlags, 4);
 }
 
 bool
@@ -3377,12 +3459,10 @@ pl_ui_slider_angle(const char* pcLabel, float* fRadians, float fDegreesMin, floa
     return value_changed;
 }
 
-bool
-pl_ui_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags)
+static bool
+pl__slider_int_ex(const char* pcLabel, int* piValue, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags, plVec2 tWidgetSize, plVec2 tStartPos, bool bComponent)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
-    const plVec2 tStartPos   = pl__get_cursor_pos();
 
     const int iOriginalValue = *piValue;
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
@@ -3414,9 +3494,9 @@ pl_ui_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const 
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
         const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
 
-        const plVec2 tSize = { 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
+        const plVec2 tSize = {bComponent ? tWidgetSize.x : 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
         const plVec2 tTextStartPos = { 
-            tFrameStartPos.x + tFrameStartPos.x + (2.0f * (tWidgetSize.x / 3.0f)) / 2.0f - tTextActualCenter.x, 
+            tFrameStartPos.x + tFrameStartPos.x + tSize.x / 2.0f - tTextActualCenter.x,
             tFrameStartPos.y + tFrameStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
         };
         const float fBlockLength = tSize.x / (float)iBlocks;
@@ -3440,10 +3520,13 @@ pl_ui_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const 
         else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
 
         gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tStyle.fGrabRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tSliderCol)});
-        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
-            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
-            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        if(!bComponent)
+        {
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+                (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+                tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+                PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        }
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
             tTextStartPos,
             tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
@@ -3467,8 +3550,89 @@ pl_ui_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const 
         }
         pl__add_widget(uHash);
     }
-    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return iOriginalValue != *piValue;
+}
+
+bool
+pl_ui_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const bool bChanged = pl__slider_int_ex(pcLabel, piValue, iMin, iMax, pcFormat, tFlags, tWidgetSize, tStartPos, false);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    return bChanged;
+}
+
+static bool
+pl__slider_int_n(const char* pcLabel, int* aiValues, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags, uint32_t uCount)
+{
+    if(pcFormat == NULL)
+        pcFormat = "%d";
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const plVec2 tSubWidgetSize = {2.0f * tWidgetSize.x / (3.0f * (float)uCount), tWidgetSize.y};
+    plVec2 tSubStartPos = tStartPos;
+    bool bChanged = false;
+    pl_ui_push_id_string(pcLabel);
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        pl_ui_push_id_uint(i);
+        bChanged |= pl__slider_int_ex("", aiValues + i, iMin, iMax, pcFormat, tFlags, tSubWidgetSize, tSubStartPos, true);
+        pl_ui_pop_id();
+        tSubStartPos.x += tSubWidgetSize.x;
+    }
+
+    const plRect tTextBounding = gptDraw->calculate_text_bb(tSubStartPos, pcLabel,
+        (plDrawTextOptions){
+            .ptFont = gptCtx->tFont,
+            .fSize = gptCtx->tStyle.fFontSize,
+            .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+            .fWrap = -1.0f});
+    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl_ui_pop_id();
+    return bChanged;
+}
+
+bool
+pl_ui_slider_int2_f(const char* pcLabel, int* aiValues, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__slider_int_n(pcLabel, aiValues, iMin, iMax, pcFormat, tFlags, 2);
+}
+
+bool
+pl_ui_slider_int2(const char* pcLabel, int* aiValues, int iMin, int iMax, plUiSliderFlags tFlags)
+{
+    return pl__slider_int_n(pcLabel, aiValues, iMin, iMax, "%d", tFlags, 2);
+}
+
+bool
+pl_ui_slider_int3_f(const char* pcLabel, int* aiValues, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__slider_int_n(pcLabel, aiValues, iMin, iMax, pcFormat, tFlags, 3);
+}
+
+bool
+pl_ui_slider_int3(const char* pcLabel, int* aiValues, int iMin, int iMax, plUiSliderFlags tFlags)
+{
+    return pl__slider_int_n(pcLabel, aiValues, iMin, iMax, "%d", tFlags, 3);
+}
+
+bool
+pl_ui_slider_int4_f(const char* pcLabel, int* aiValues, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__slider_int_n(pcLabel, aiValues, iMin, iMax, pcFormat, tFlags, 4);
+}
+
+bool
+pl_ui_slider_int4(const char* pcLabel, int* aiValues, int iMin, int iMax, plUiSliderFlags tFlags)
+{
+    return pl__slider_int_n(pcLabel, aiValues, iMin, iMax, "%d", tFlags, 4);
 }
 
 bool
@@ -3477,12 +3641,10 @@ pl_ui_slider_int(const char* pcLabel, int* piValue, int iMin, int iMax, plUiSlid
     return pl_ui_slider_int_f(pcLabel, piValue, iMin, iMax, "%d", tFlags);
 }
 
-bool
-pl_ui_slider_uint_f(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags)
+static bool
+pl__slider_uint_ex(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags, plVec2 tWidgetSize, plVec2 tStartPos, bool bComponent)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
-    const plVec2 tStartPos   = pl__get_cursor_pos();
 
     const uint32_t uOriginalValue = *puValue;
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
@@ -3514,9 +3676,9 @@ pl_ui_slider_uint_f(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint3
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
         const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
 
-        const plVec2 tSize = { 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
+        const plVec2 tSize = {bComponent ? tWidgetSize.x : 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
         const plVec2 tTextStartPos = { 
-            tFrameStartPos.x + tFrameStartPos.x + (2.0f * (tWidgetSize.x / 3.0f)) / 2.0f - tTextActualCenter.x, 
+            tFrameStartPos.x + tFrameStartPos.x + tSize.x / 2.0f - tTextActualCenter.x,
             tFrameStartPos.y + tFrameStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
         };
         const float fBlockLength = tSize.x / (float)uBlocks;
@@ -3540,10 +3702,13 @@ pl_ui_slider_uint_f(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint3
         else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
 
         gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tStyle.fGrabRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tSliderCol)});
-        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
-            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
-            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        if(!bComponent)
+        {
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+                (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+                tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+                PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        }
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
             tTextStartPos,
             tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
@@ -3567,8 +3732,89 @@ pl_ui_slider_uint_f(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint3
         }
         pl__add_widget(uHash);
     }
-    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return uOriginalValue != *puValue;
+}
+
+bool
+pl_ui_slider_uint_f(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const bool bChanged = pl__slider_uint_ex(pcLabel, puValue, uMin, uMax, pcFormat, tFlags, tWidgetSize, tStartPos, false);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    return bChanged;
+}
+
+static bool
+pl__slider_uint_n(const char* pcLabel, uint32_t* auValues, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags, uint32_t uCount)
+{
+    if(pcFormat == NULL)
+        pcFormat = "%u";
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const plVec2 tSubWidgetSize = {2.0f * tWidgetSize.x / (3.0f * (float)uCount), tWidgetSize.y};
+    plVec2 tSubStartPos = tStartPos;
+    bool bChanged = false;
+    pl_ui_push_id_string(pcLabel);
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        pl_ui_push_id_uint(i);
+        bChanged |= pl__slider_uint_ex("", auValues + i, uMin, uMax, pcFormat, tFlags, tSubWidgetSize, tSubStartPos, true);
+        pl_ui_pop_id();
+        tSubStartPos.x += tSubWidgetSize.x;
+    }
+
+    const plRect tTextBounding = gptDraw->calculate_text_bb(tSubStartPos, pcLabel,
+        (plDrawTextOptions){
+            .ptFont = gptCtx->tFont,
+            .fSize = gptCtx->tStyle.fFontSize,
+            .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+            .fWrap = -1.0f});
+    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl_ui_pop_id();
+    return bChanged;
+}
+
+bool
+pl_ui_slider_uint2_f(const char* pcLabel, uint32_t* auValues, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__slider_uint_n(pcLabel, auValues, uMin, uMax, pcFormat, tFlags, 2);
+}
+
+bool
+pl_ui_slider_uint2(const char* pcLabel, uint32_t* auValues, uint32_t uMin, uint32_t uMax, plUiSliderFlags tFlags)
+{
+    return pl__slider_uint_n(pcLabel, auValues, uMin, uMax, "%u", tFlags, 2);
+}
+
+bool
+pl_ui_slider_uint3_f(const char* pcLabel, uint32_t* auValues, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__slider_uint_n(pcLabel, auValues, uMin, uMax, pcFormat, tFlags, 3);
+}
+
+bool
+pl_ui_slider_uint3(const char* pcLabel, uint32_t* auValues, uint32_t uMin, uint32_t uMax, plUiSliderFlags tFlags)
+{
+    return pl__slider_uint_n(pcLabel, auValues, uMin, uMax, "%u", tFlags, 3);
+}
+
+bool
+pl_ui_slider_uint4_f(const char* pcLabel, uint32_t* auValues, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__slider_uint_n(pcLabel, auValues, uMin, uMax, pcFormat, tFlags, 4);
+}
+
+bool
+pl_ui_slider_uint4(const char* pcLabel, uint32_t* auValues, uint32_t uMin, uint32_t uMax, plUiSliderFlags tFlags)
+{
+    return pl__slider_uint_n(pcLabel, auValues, uMin, uMax, "%u", tFlags, 4);
 }
 
 bool
@@ -3577,15 +3823,13 @@ pl_ui_slider_uint(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint32_
     return pl_ui_slider_uint_f(pcLabel, puValue, uMin, uMax, "%u", tFlags);
 }
 
-bool
-pl_ui_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
+static bool
+pl__drag_float_ex(const char* pcLabel, float* pfValue, float fSpeed, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags, plVec2 tWidgetSize, plVec2 tStartPos, bool bComponent)
 {
     if(pcFormat == NULL)
         pcFormat = "%0.3f";
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
-    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
-    const plVec2 tStartPos   = pl__get_cursor_pos();
     const float fOriginalValue = *pfValue;
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
@@ -3614,9 +3858,9 @@ pl_ui_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
         const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
 
-        const plVec2 tSize = { 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
+        const plVec2 tSize = {bComponent ? tWidgetSize.x : 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
         const plVec2 tTextStartPos = { 
-            tFrameStartPos.x + tFrameStartPos.x + (2.0f * (tWidgetSize.x / 3.0f)) / 2.0f - tTextActualCenter.x, 
+            tFrameStartPos.x + tFrameStartPos.x + tSize.x / 2.0f - tTextActualCenter.x,
             tFrameStartPos.y + tFrameStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
         };
         plRect tBoundingBox = pl_calculate_rect(tFrameStartPos, tSize);
@@ -3631,10 +3875,13 @@ pl_ui_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin
         else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgHoveredCol)});
         else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
 
-        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
-            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
-            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        if(!bComponent)
+        {
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+                (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+                tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+                PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        }
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
             tTextStartPos,
             tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
@@ -3655,8 +3902,89 @@ pl_ui_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin
         }
         pl__add_widget(uHash);
     }
-    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return fOriginalValue != *pfValue;    
+}
+
+bool
+pl_ui_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const bool bChanged = pl__drag_float_ex(pcLabel, pfValue, fSpeed, fMin, fMax, pcFormat, tFlags, tWidgetSize, tStartPos, false);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    return bChanged;
+}
+
+static bool
+pl__drag_float_n(const char* pcLabel, float* afValues, float fSpeed, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags, uint32_t uCount)
+{
+    if(pcFormat == NULL)
+        pcFormat = "%.3f";
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const plVec2 tSubWidgetSize = {2.0f * tWidgetSize.x / (3.0f * (float)uCount), tWidgetSize.y};
+    plVec2 tSubStartPos = tStartPos;
+    bool bChanged = false;
+    pl_ui_push_id_string(pcLabel);
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        pl_ui_push_id_uint(i);
+        bChanged |= pl__drag_float_ex("", afValues + i, fSpeed, fMin, fMax, pcFormat, tFlags, tSubWidgetSize, tSubStartPos, true);
+        pl_ui_pop_id();
+        tSubStartPos.x += tSubWidgetSize.x;
+    }
+
+    const plRect tTextBounding = gptDraw->calculate_text_bb(tSubStartPos, pcLabel,
+        (plDrawTextOptions){
+            .ptFont = gptCtx->tFont,
+            .fSize = gptCtx->tStyle.fFontSize,
+            .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+            .fWrap = -1.0f});
+    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl_ui_pop_id();
+    return bChanged;
+}
+
+bool
+pl_ui_drag_float2_f(const char* pcLabel, float* afValues, float fSpeed, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__drag_float_n(pcLabel, afValues, fSpeed, fMin, fMax, pcFormat, tFlags, 2);
+}
+
+bool
+pl_ui_drag_float2(const char* pcLabel, float* afValues, float fSpeed, float fMin, float fMax, plUiSliderFlags tFlags)
+{
+    return pl__drag_float_n(pcLabel, afValues, fSpeed, fMin, fMax, "%.3f", tFlags, 2);
+}
+
+bool
+pl_ui_drag_float3_f(const char* pcLabel, float* afValues, float fSpeed, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__drag_float_n(pcLabel, afValues, fSpeed, fMin, fMax, pcFormat, tFlags, 3);
+}
+
+bool
+pl_ui_drag_float3(const char* pcLabel, float* afValues, float fSpeed, float fMin, float fMax, plUiSliderFlags tFlags)
+{
+    return pl__drag_float_n(pcLabel, afValues, fSpeed, fMin, fMax, "%.3f", tFlags, 3);
+}
+
+bool
+pl_ui_drag_float4_f(const char* pcLabel, float* afValues, float fSpeed, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__drag_float_n(pcLabel, afValues, fSpeed, fMin, fMax, pcFormat, tFlags, 4);
+}
+
+bool
+pl_ui_drag_float4(const char* pcLabel, float* afValues, float fSpeed, float fMin, float fMax, plUiSliderFlags tFlags)
+{
+    return pl__drag_float_n(pcLabel, afValues, fSpeed, fMin, fMax, "%.3f", tFlags, 4);
 }
 
 bool
@@ -3664,6 +3992,350 @@ pl_ui_drag_float(const char* pcLabel, float* pfValue, float fSpeed, float fMin, 
 {
     return pl_ui_drag_float_f(pcLabel, pfValue, fSpeed, fMin, fMax, "%.3f", tFlags);
 }
+
+static bool
+pl__drag_int_ex(const char* pcLabel, int* piValue, float fSpeed, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags, plVec2 tWidgetSize, plVec2 tStartPos, bool bComponent)
+{
+    if(pcFormat == NULL)
+        pcFormat = "%d";
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const int iOriginalValue = *piValue;
+    if(pl__ui_should_render(&tStartPos, &tWidgetSize))
+    {
+        const plVec2 tFrameStartPos = {tStartPos.x, tStartPos.y };
+
+        *piValue = pl_clampi(iMin, *piValue, iMax);
+        const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+
+        char acTextBuffer[64] = {0};
+        pl_sprintf(acTextBuffer, pcFormat, *piValue);
+
+        const plRect tTextBounding = gptDraw->calculate_text_bb(tFrameStartPos, acTextBuffer,
+            (plDrawTextOptions){
+                .ptFont = gptCtx->tFont,
+                .fSize = gptCtx->tStyle.fFontSize,
+                .pcTextEnd = pl__find_renderered_text_end(acTextBuffer, NULL),
+                .fWrap = -1.0f});
+
+        const plRect tLabelTextBounding = gptDraw->calculate_text_bb(tFrameStartPos, pcLabel,
+            (plDrawTextOptions){
+                .ptFont = gptCtx->tFont,
+                .fSize = gptCtx->tStyle.fFontSize,
+                .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+                .fWrap = -1.0f});
+
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+        const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
+
+        const plVec2 tSize = {bComponent ? tWidgetSize.x : 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
+        const plVec2 tTextStartPos = {
+            tFrameStartPos.x + tFrameStartPos.x + tSize.x / 2.0f - tTextActualCenter.x,
+            tFrameStartPos.y + tFrameStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
+        };
+        plRect tBoundingBox = pl_calculate_rect(tFrameStartPos, tSize);
+        const plRect* ptClipRect = gptDraw->get_clip_rect(ptWindow->ptDrawlist);
+        tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
+
+        bool bHovered = false;
+        bool bHeld = false;
+        const bool bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgActiveCol)});
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgHoveredCol)});
+        else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
+
+        if(!bComponent)
+        {
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+                (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+                tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+                PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        }
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            tTextStartPos,
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTextBuffer, -1.0f);
+
+        if(gptCtx->uActiveId == uHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+        {
+            // Clamp before converting so negative unsigned drags and values at
+            // the 32-bit limits cannot wrap or invoke an out-of-range cast.
+            const double dValue = (double)gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * (double)fSpeed;
+            if(!isnan(dValue))
+                *piValue = dValue <= (double)iMin ? iMin : dValue >= (double)iMax ? iMax : (int)dValue;
+
+            pl__set_active_id(uHash, ptWindow);
+            pl__set_nav_id(uHash, ptWindow);
+            if(gptCtx->bActiveIdJustActivated)
+            {
+                pl__focus_window(ptWindow);
+            }
+        }
+        pl__add_widget(uHash);
+    }
+    return iOriginalValue != *piValue;
+}
+
+bool
+pl_ui_drag_int_f(const char* pcLabel, int* piValue, float fSpeed, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const bool bChanged = pl__drag_int_ex(pcLabel, piValue, fSpeed, iMin, iMax, pcFormat, tFlags, tWidgetSize, tStartPos, false);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    return bChanged;
+}
+
+static bool
+pl__drag_int_n(const char* pcLabel, int* aiValues, float fSpeed, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags, uint32_t uCount)
+{
+    if(pcFormat == NULL)
+        pcFormat = "%d";
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const plVec2 tSubWidgetSize = {2.0f * tWidgetSize.x / (3.0f * (float)uCount), tWidgetSize.y};
+    plVec2 tSubStartPos = tStartPos;
+    bool bChanged = false;
+    pl_ui_push_id_string(pcLabel);
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        pl_ui_push_id_uint(i);
+        bChanged |= pl__drag_int_ex("", aiValues + i, fSpeed, iMin, iMax, pcFormat, tFlags, tSubWidgetSize, tSubStartPos, true);
+        pl_ui_pop_id();
+        tSubStartPos.x += tSubWidgetSize.x;
+    }
+
+    const plRect tTextBounding = gptDraw->calculate_text_bb(tSubStartPos, pcLabel,
+        (plDrawTextOptions){
+            .ptFont = gptCtx->tFont,
+            .fSize = gptCtx->tStyle.fFontSize,
+            .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+            .fWrap = -1.0f});
+    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl_ui_pop_id();
+    return bChanged;
+}
+
+bool
+pl_ui_drag_int2_f(const char* pcLabel, int* aiValues, float fSpeed, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__drag_int_n(pcLabel, aiValues, fSpeed, iMin, iMax, pcFormat, tFlags, 2);
+}
+
+bool
+pl_ui_drag_int2(const char* pcLabel, int* aiValues, float fSpeed, int iMin, int iMax, plUiSliderFlags tFlags)
+{
+    return pl__drag_int_n(pcLabel, aiValues, fSpeed, iMin, iMax, "%d", tFlags, 2);
+}
+
+bool
+pl_ui_drag_int3_f(const char* pcLabel, int* aiValues, float fSpeed, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__drag_int_n(pcLabel, aiValues, fSpeed, iMin, iMax, pcFormat, tFlags, 3);
+}
+
+bool
+pl_ui_drag_int3(const char* pcLabel, int* aiValues, float fSpeed, int iMin, int iMax, plUiSliderFlags tFlags)
+{
+    return pl__drag_int_n(pcLabel, aiValues, fSpeed, iMin, iMax, "%d", tFlags, 3);
+}
+
+bool
+pl_ui_drag_int4_f(const char* pcLabel, int* aiValues, float fSpeed, int iMin, int iMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__drag_int_n(pcLabel, aiValues, fSpeed, iMin, iMax, pcFormat, tFlags, 4);
+}
+
+bool
+pl_ui_drag_int4(const char* pcLabel, int* aiValues, float fSpeed, int iMin, int iMax, plUiSliderFlags tFlags)
+{
+    return pl__drag_int_n(pcLabel, aiValues, fSpeed, iMin, iMax, "%d", tFlags, 4);
+}
+
+bool
+pl_ui_drag_int(const char* pcLabel, int* piValue, float fSpeed, int iMin, int iMax, plUiSliderFlags tFlags)
+{
+    return pl_ui_drag_int_f(pcLabel, piValue, fSpeed, iMin, iMax, "%d", tFlags);
+}
+
+
+static bool
+pl__drag_uint_ex(const char* pcLabel, uint32_t* puValue, float fSpeed, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags, plVec2 tWidgetSize, plVec2 tStartPos, bool bComponent)
+{
+    if(pcFormat == NULL)
+        pcFormat = "%u";
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const uint32_t uOriginalValue = *puValue;
+    if(pl__ui_should_render(&tStartPos, &tWidgetSize))
+    {
+        const plVec2 tFrameStartPos = {tStartPos.x, tStartPos.y };
+
+        *puValue = pl_clampu(uMin, *puValue, uMax);
+        const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+
+        char acTextBuffer[64] = {0};
+        pl_sprintf(acTextBuffer, pcFormat, *puValue);
+
+        const plRect tTextBounding = gptDraw->calculate_text_bb(tFrameStartPos, acTextBuffer,
+            (plDrawTextOptions){
+                .ptFont = gptCtx->tFont,
+                .fSize = gptCtx->tStyle.fFontSize,
+                .pcTextEnd = pl__find_renderered_text_end(acTextBuffer, NULL),
+                .fWrap = -1.0f});
+
+        const plRect tLabelTextBounding = gptDraw->calculate_text_bb(tFrameStartPos, pcLabel,
+            (plDrawTextOptions){
+                .ptFont = gptCtx->tFont,
+                .fSize = gptCtx->tStyle.fFontSize,
+                .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+                .fWrap = -1.0f});
+
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+        const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
+
+        const plVec2 tSize = {bComponent ? tWidgetSize.x : 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
+        const plVec2 tTextStartPos = {
+            tFrameStartPos.x + tFrameStartPos.x + tSize.x / 2.0f - tTextActualCenter.x,
+            tFrameStartPos.y + tFrameStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
+        };
+        plRect tBoundingBox = pl_calculate_rect(tFrameStartPos, tSize);
+        const plRect* ptClipRect = gptDraw->get_clip_rect(ptWindow->ptDrawlist);
+        tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
+
+        bool bHovered = false;
+        bool bHeld = false;
+        const bool bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgActiveCol)});
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgHoveredCol)});
+        else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
+
+        if(!bComponent)
+        {
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+                (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+                tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+                PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        }
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            tTextStartPos,
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTextBuffer, -1.0f);
+
+        if(gptCtx->uActiveId == uHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+        {
+            // Clamp before converting so negative unsigned drags and values at
+            // the 32-bit limits cannot wrap or invoke an out-of-range cast.
+            const double dValue = (double)gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * (double)fSpeed;
+            if(!isnan(dValue))
+                *puValue = dValue <= (double)uMin ? uMin : dValue >= (double)uMax ? uMax : (uint32_t)dValue;
+
+            pl__set_active_id(uHash, ptWindow);
+            pl__set_nav_id(uHash, ptWindow);
+            if(gptCtx->bActiveIdJustActivated)
+            {
+                pl__focus_window(ptWindow);
+            }
+        }
+        pl__add_widget(uHash);
+    }
+    return uOriginalValue != *puValue;
+}
+
+bool
+pl_ui_drag_uint_f(const char* pcLabel, uint32_t* puValue, float fSpeed, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const bool bChanged = pl__drag_uint_ex(pcLabel, puValue, fSpeed, uMin, uMax, pcFormat, tFlags, tWidgetSize, tStartPos, false);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    return bChanged;
+}
+
+static bool
+pl__drag_uint_n(const char* pcLabel, uint32_t* auValues, float fSpeed, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags, uint32_t uCount)
+{
+    if(pcFormat == NULL)
+        pcFormat = "%u";
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const plVec2 tSubWidgetSize = {2.0f * tWidgetSize.x / (3.0f * (float)uCount), tWidgetSize.y};
+    plVec2 tSubStartPos = tStartPos;
+    bool bChanged = false;
+    pl_ui_push_id_string(pcLabel);
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        pl_ui_push_id_uint(i);
+        bChanged |= pl__drag_uint_ex("", auValues + i, fSpeed, uMin, uMax, pcFormat, tFlags, tSubWidgetSize, tSubStartPos, true);
+        pl_ui_pop_id();
+        tSubStartPos.x += tSubWidgetSize.x;
+    }
+
+    const plRect tTextBounding = gptDraw->calculate_text_bb(tSubStartPos, pcLabel,
+        (plDrawTextOptions){
+            .ptFont = gptCtx->tFont,
+            .fSize = gptCtx->tStyle.fFontSize,
+            .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+            .fWrap = -1.0f});
+    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl_ui_pop_id();
+    return bChanged;
+}
+
+bool
+pl_ui_drag_uint2_f(const char* pcLabel, uint32_t* auValues, float fSpeed, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__drag_uint_n(pcLabel, auValues, fSpeed, uMin, uMax, pcFormat, tFlags, 2);
+}
+
+bool
+pl_ui_drag_uint2(const char* pcLabel, uint32_t* auValues, float fSpeed, uint32_t uMin, uint32_t uMax, plUiSliderFlags tFlags)
+{
+    return pl__drag_uint_n(pcLabel, auValues, fSpeed, uMin, uMax, "%u", tFlags, 2);
+}
+
+bool
+pl_ui_drag_uint3_f(const char* pcLabel, uint32_t* auValues, float fSpeed, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__drag_uint_n(pcLabel, auValues, fSpeed, uMin, uMax, pcFormat, tFlags, 3);
+}
+
+bool
+pl_ui_drag_uint3(const char* pcLabel, uint32_t* auValues, float fSpeed, uint32_t uMin, uint32_t uMax, plUiSliderFlags tFlags)
+{
+    return pl__drag_uint_n(pcLabel, auValues, fSpeed, uMin, uMax, "%u", tFlags, 3);
+}
+
+bool
+pl_ui_drag_uint4_f(const char* pcLabel, uint32_t* auValues, float fSpeed, uint32_t uMin, uint32_t uMax, const char* pcFormat, plUiSliderFlags tFlags)
+{
+    return pl__drag_uint_n(pcLabel, auValues, fSpeed, uMin, uMax, pcFormat, tFlags, 4);
+}
+
+bool
+pl_ui_drag_uint4(const char* pcLabel, uint32_t* auValues, float fSpeed, uint32_t uMin, uint32_t uMax, plUiSliderFlags tFlags)
+{
+    return pl__drag_uint_n(pcLabel, auValues, fSpeed, uMin, uMax, "%u", tFlags, 4);
+}
+
+bool
+pl_ui_drag_uint(const char* pcLabel, uint32_t* puValue, float fSpeed, uint32_t uMin, uint32_t uMax, plUiSliderFlags tFlags)
+{
+    return pl_ui_drag_uint_f(pcLabel, puValue, fSpeed, uMin, uMax, "%u", tFlags);
+}
+
 
 bool
 pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tFlags, const float* refColRGBA)
@@ -4034,7 +4706,7 @@ pl_ui_color_edit3(const char* pcLabel, float colRGBA[3], plUiColorEditFlags tFla
             const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
             const plVec2 tTextStartPos = { 
-                tSubStartPos.x + tSubStartPos.x + tSubWidgetSize.x / 2.0f - tTextActualCenter.x, 
+                tSubStartPos.x + tSubStartPos.x + tSubWidgetSize.x / 2.0f - tTextActualCenter.x,
                 tSubStartPos.y + tSubStartPos.y + tSubWidgetSize.y / 2.0f - tTextActualCenter.y
             };
             plRect tBoundingBox = pl_calculate_rect(tSubStartPos, tSubWidgetSize);
@@ -4176,7 +4848,7 @@ pl_ui_color_edit4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tFla
             const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
             const plVec2 tTextStartPos = { 
-                tSubStartPos.x + tSubStartPos.x + tSubWidgetSize.x / 2.0f - tTextActualCenter.x, 
+                tSubStartPos.x + tSubStartPos.x + tSubWidgetSize.x / 2.0f - tTextActualCenter.x,
                 tSubStartPos.y + tSubStartPos.y + tSubWidgetSize.y / 2.0f - tTextActualCenter.y
             };
             plRect tBoundingBox = pl_calculate_rect(tSubStartPos, tSubWidgetSize);

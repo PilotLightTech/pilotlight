@@ -248,9 +248,53 @@ typedef struct _plUiI
     bool (*slider_uint_f) (const char* label, uint32_t* value, uint32_t minValue, uint32_t maxValue, const char* fmt, plUiSliderFlags);
     bool (*slider_angle)  (const char* label, float* v_rad, float v_degrees_min, float v_degrees_max, const char* format, plUiSliderFlags);
 
+    // Multi-value sliders: 2/3/4 components share one label.
+    bool (*slider_float2_f)(const char* label, float* values, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
+    bool (*slider_float2)  (const char* label, float* values, float minValue, float maxValue, plUiSliderFlags);
+    bool (*slider_float3_f)(const char* label, float* values, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
+    bool (*slider_float3)  (const char* label, float* values, float minValue, float maxValue, plUiSliderFlags);
+    bool (*slider_float4_f)(const char* label, float* values, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
+    bool (*slider_float4)  (const char* label, float* values, float minValue, float maxValue, plUiSliderFlags);
+    bool (*slider_int2_f)  (const char* label, int* values, int minValue, int maxValue, const char* fmt, plUiSliderFlags);
+    bool (*slider_int2)    (const char* label, int* values, int minValue, int maxValue, plUiSliderFlags);
+    bool (*slider_int3_f)  (const char* label, int* values, int minValue, int maxValue, const char* fmt, plUiSliderFlags);
+    bool (*slider_int3)    (const char* label, int* values, int minValue, int maxValue, plUiSliderFlags);
+    bool (*slider_int4_f)  (const char* label, int* values, int minValue, int maxValue, const char* fmt, plUiSliderFlags);
+    bool (*slider_int4)    (const char* label, int* values, int minValue, int maxValue, plUiSliderFlags);
+    bool (*slider_uint2_f) (const char* label, uint32_t* values, uint32_t minValue, uint32_t maxValue, const char* fmt, plUiSliderFlags);
+    bool (*slider_uint2)   (const char* label, uint32_t* values, uint32_t minValue, uint32_t maxValue, plUiSliderFlags);
+    bool (*slider_uint3_f) (const char* label, uint32_t* values, uint32_t minValue, uint32_t maxValue, const char* fmt, plUiSliderFlags);
+    bool (*slider_uint3)   (const char* label, uint32_t* values, uint32_t minValue, uint32_t maxValue, plUiSliderFlags);
+    bool (*slider_uint4_f) (const char* label, uint32_t* values, uint32_t minValue, uint32_t maxValue, const char* fmt, plUiSliderFlags);
+    bool (*slider_uint4)   (const char* label, uint32_t* values, uint32_t minValue, uint32_t maxValue, plUiSliderFlags);
+
     // drag sliders
-    bool (*drag_float)  (const char* label, float* value, float speed, float minValue, float maxValue, plUiSliderFlags);
-    bool (*drag_float_f)(const char* label, float* value, float speed, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
+    bool (*drag_float)   (const char* label, float* value, float speed, float minValue, float maxValue, plUiSliderFlags);
+    bool (*drag_float_f) (const char* label, float* value, float speed, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
+    bool (*drag_int)      (const char* label, int* value, float speed, int minValue, int maxValue, plUiSliderFlags);
+    bool (*drag_int_f)    (const char* label, int* value, float speed, int minValue, int maxValue, const char* fmt, plUiSliderFlags);
+    bool (*drag_uint)     (const char* label, uint32_t* value, float speed, uint32_t minValue, uint32_t maxValue, plUiSliderFlags);
+    bool (*drag_uint_f)   (const char* label, uint32_t* value, float speed, uint32_t minValue, uint32_t maxValue, const char* fmt, plUiSliderFlags);
+
+    // Multi-value drags: 2/3/4 components share one label.
+    bool (*drag_float2_f) (const char* label, float* values, float speed, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
+    bool (*drag_float2)   (const char* label, float* values, float speed, float minValue, float maxValue, plUiSliderFlags);
+    bool (*drag_float3_f) (const char* label, float* values, float speed, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
+    bool (*drag_float3)   (const char* label, float* values, float speed, float minValue, float maxValue, plUiSliderFlags);
+    bool (*drag_float4_f) (const char* label, float* values, float speed, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
+    bool (*drag_float4)   (const char* label, float* values, float speed, float minValue, float maxValue, plUiSliderFlags);
+    bool (*drag_int2)     (const char* label, int* values, float speed, int minValue, int maxValue, plUiSliderFlags);
+    bool (*drag_int2_f)   (const char* label, int* values, float speed, int minValue, int maxValue, const char* fmt, plUiSliderFlags);
+    bool (*drag_int3)     (const char* label, int* values, float speed, int minValue, int maxValue, plUiSliderFlags);
+    bool (*drag_int3_f)   (const char* label, int* values, float speed, int minValue, int maxValue, const char* fmt, plUiSliderFlags);
+    bool (*drag_int4)     (const char* label, int* values, float speed, int minValue, int maxValue, plUiSliderFlags);
+    bool (*drag_int4_f)   (const char* label, int* values, float speed, int minValue, int maxValue, const char* fmt, plUiSliderFlags);
+    bool (*drag_uint2)    (const char* label, uint32_t* values, float speed, uint32_t minValue, uint32_t maxValue, plUiSliderFlags);
+    bool (*drag_uint2_f)  (const char* label, uint32_t* values, float speed, uint32_t minValue, uint32_t maxValue, const char* fmt, plUiSliderFlags);
+    bool (*drag_uint3)    (const char* label, uint32_t* values, float speed, uint32_t minValue, uint32_t maxValue, plUiSliderFlags);
+    bool (*drag_uint3_f)  (const char* label, uint32_t* values, float speed, uint32_t minValue, uint32_t maxValue, const char* fmt, plUiSliderFlags);
+    bool (*drag_uint4)    (const char* label, uint32_t* values, float speed, uint32_t minValue, uint32_t maxValue, plUiSliderFlags);
+    bool (*drag_uint4_f)  (const char* label, uint32_t* values, float speed, uint32_t minValue, uint32_t maxValue, const char* fmt, plUiSliderFlags);
 
     // colors
     bool (*color_picker3)(const char* label, float colRGB[3], plUiColorEditFlags);
