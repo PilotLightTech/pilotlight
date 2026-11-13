@@ -3475,6 +3475,8 @@ pl__submit_window(plUiWindow* ptWindow)
 static void
 pl__set_active_id(uint32_t uHash, plUiWindow* ptWindow)
 {
+    if(gptCtx->uScalarInputId != uHash)
+        gptCtx->uScalarInputId = 0;
     gptCtx->bActiveIdJustActivated = gptCtx->uActiveId != uHash;
     gptCtx->uActiveId = uHash;
 

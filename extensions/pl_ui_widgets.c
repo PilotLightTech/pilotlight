@@ -3264,6 +3264,93 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         return bValueChanged;
 }
 
+typedef enum _plUiScalarInputType
+{
+    PL_UI_SCALAR_INPUT_FLOAT,
+    PL_UI_SCALAR_INPUT_INT,
+    PL_UI_SCALAR_INPUT_UINT
+} plUiScalarInputType;
+
+static bool
+pl__scalar_input(const char* pcLabel, void* pValue, plUiScalarInputType tType, double dMin, double dMax, plVec2 tWidgetSize, plVec2 tStartPos, bool bComponent)
+{
+    const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+    bool bEditing = gptCtx->uScalarInputId == uHash && gptCtx->uActiveId == uHash;
+    bool bStarted = false;
+    if(!bEditing && gptIO->bKeyCtrl && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+    {
+        const plVec2 tFrameSize = {bComponent ? tWidgetSize.x : 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
+        plRect tBox = pl_calculate_rect(tStartPos, tFrameSize);
+        tBox = pl_rect_clip_full(&tBox, gptDraw->get_clip_rect(gptCtx->ptCurrentWindow->ptDrawlist));
+        if(pl__is_item_hoverable(&tBox, uHash))
+        {
+            // Reinitialize the input editor even if this widget was previously dragged.
+            pl__set_active_id(0, gptCtx->ptCurrentWindow);
+            gptCtx->uScalarInputId = uHash;
+            if(tType == PL_UI_SCALAR_INPUT_FLOAT)
+            {
+                gptCtx->dScalarInputInitialValue = *(float*)pValue;
+                snprintf(gptCtx->acScalarInputBuffer, sizeof(gptCtx->acScalarInputBuffer), "%.9g", (double)*(float*)pValue);
+            }
+            else if(tType == PL_UI_SCALAR_INPUT_INT)
+            {
+                gptCtx->dScalarInputInitialValue = *(int*)pValue;
+                snprintf(gptCtx->acScalarInputBuffer, sizeof(gptCtx->acScalarInputBuffer), "%d", *(int*)pValue);
+            }
+            else
+            {
+                gptCtx->dScalarInputInitialValue = *(uint32_t*)pValue;
+                snprintf(gptCtx->acScalarInputBuffer, sizeof(gptCtx->acScalarInputBuffer), "%u", *(uint32_t*)pValue);
+            }
+            bStarted = bEditing = true;
+        }
+    }
+    if(!bEditing)
+        return false;
+
+    const bool bCancel = !bStarted && gptIOI->is_key_pressed(PL_KEY_ESCAPE, false);
+    plUiInputTextFlags tInputFlags = PL_UI_INPUT_TEXT_FLAGS_AUTO_SELECT_ALL;
+    tInputFlags |= tType == PL_UI_SCALAR_INPUT_FLOAT ? PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC : PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL;
+    // Hidden scalar labels still reserve the usual label area. Components use their full width.
+    plVec2 tInputSize = tWidgetSize;
+    if(!bComponent && pl__find_renderered_text_end(pcLabel, NULL) == pcLabel)
+        tInputSize.x = 2.0f * (tWidgetSize.x / 3.0f);
+    const bool bEdited = pl__input_text_ex(pcLabel, NULL, gptCtx->acScalarInputBuffer, sizeof(gptCtx->acScalarInputBuffer), tInputFlags, &tInputSize, &tStartPos);
+    if(bCancel)
+    {
+        if(tType == PL_UI_SCALAR_INPUT_FLOAT)
+            *(float*)pValue = (float)gptCtx->dScalarInputInitialValue;
+        else if(tType == PL_UI_SCALAR_INPUT_INT)
+            *(int*)pValue = (int)gptCtx->dScalarInputInitialValue;
+        else
+            *(uint32_t*)pValue = (uint32_t)gptCtx->dScalarInputInitialValue;
+    }
+    else if(bEdited)
+    {
+        char* pcEnd = NULL;
+        const char* pcBuffer = gptCtx->acScalarInputBuffer;
+        const double dValue = tType == PL_UI_SCALAR_INPUT_FLOAT ? strtod(pcBuffer, &pcEnd) : (double)strtoll(pcBuffer, &pcEnd, 10);
+        const bool bHasValue = pcEnd != pcBuffer;
+        while(*pcEnd == ' ' || *pcEnd == '\t')
+            pcEnd++;
+        // Incomplete text (such as a minus sign) must not replace the current value.
+        if(bHasValue && !*pcEnd && isfinite(dValue))
+        {
+            const double dClamped = dValue < dMin ? dMin : dValue > dMax ? dMax : dValue;
+            if(tType == PL_UI_SCALAR_INPUT_FLOAT)
+                *(float*)pValue = (float)dClamped;
+            else if(tType == PL_UI_SCALAR_INPUT_INT)
+                *(int*)pValue = (int)dClamped;
+            else
+                *(uint32_t*)pValue = (uint32_t)dClamped;
+        }
+    }
+    if(gptCtx->uActiveId != uHash)
+        gptCtx->uScalarInputId = 0;
+    pl__add_widget(uHash);
+    return true;
+}
+
 static bool
 pl__slider_float_ex(const char* pcLabel, float* pfValue, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags, plVec2 tWidgetSize, plVec2 tStartPos, bool bComponent)
 {
@@ -3274,6 +3361,8 @@ pl__slider_float_ex(const char* pcLabel, float* pfValue, float fMin, float fMax,
     const float fOriginalValue = *pfValue;
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
+        if(pl__scalar_input(pcLabel, pfValue, PL_UI_SCALAR_INPUT_FLOAT, (double)fMin, (double)fMax, tWidgetSize, tStartPos, bComponent))
+            return fOriginalValue != *pfValue;
         const plVec2 tFrameStartPos = {tStartPos.x, tStartPos.y };
         *pfValue = pl_clampf(fMin, *pfValue, fMax);
         const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
@@ -3467,6 +3556,8 @@ pl__slider_int_ex(const char* pcLabel, int* piValue, int iMin, int iMax, const c
     const int iOriginalValue = *piValue;
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
+        if(pl__scalar_input(pcLabel, piValue, PL_UI_SCALAR_INPUT_INT, (double)iMin, (double)iMax, tWidgetSize, tStartPos, bComponent))
+            return iOriginalValue != *piValue;
         const plVec2 tFrameStartPos = {tStartPos.x, tStartPos.y };
 
         *piValue = pl_clampi(iMin, *piValue, iMax);
@@ -3649,6 +3740,8 @@ pl__slider_uint_ex(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint32
     const uint32_t uOriginalValue = *puValue;
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
+        if(pl__scalar_input(pcLabel, puValue, PL_UI_SCALAR_INPUT_UINT, (double)uMin, (double)uMax, tWidgetSize, tStartPos, bComponent))
+            return uOriginalValue != *puValue;
         const plVec2 tFrameStartPos = {tStartPos.x, tStartPos.y };
 
         *puValue = pl_clampu(uMin, *puValue, uMax);
@@ -3833,6 +3926,8 @@ pl__drag_float_ex(const char* pcLabel, float* pfValue, float fSpeed, float fMin,
     const float fOriginalValue = *pfValue;
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
+        if(pl__scalar_input(pcLabel, pfValue, PL_UI_SCALAR_INPUT_FLOAT, (double)fMin, (double)fMax, tWidgetSize, tStartPos, bComponent))
+            return fOriginalValue != *pfValue;
         const plVec2 tFrameStartPos = {tStartPos.x, tStartPos.y };
 
         *pfValue = pl_clampf(fMin, *pfValue, fMax);
@@ -4002,6 +4097,8 @@ pl__drag_int_ex(const char* pcLabel, int* piValue, float fSpeed, int iMin, int i
     const int iOriginalValue = *piValue;
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
+        if(pl__scalar_input(pcLabel, piValue, PL_UI_SCALAR_INPUT_INT, (double)iMin, (double)iMax, tWidgetSize, tStartPos, bComponent))
+            return iOriginalValue != *piValue;
         const plVec2 tFrameStartPos = {tStartPos.x, tStartPos.y };
 
         *piValue = pl_clampi(iMin, *piValue, iMax);
@@ -4174,6 +4271,8 @@ pl__drag_uint_ex(const char* pcLabel, uint32_t* puValue, float fSpeed, uint32_t 
     const uint32_t uOriginalValue = *puValue;
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
+        if(pl__scalar_input(pcLabel, puValue, PL_UI_SCALAR_INPUT_UINT, (double)uMin, (double)uMax, tWidgetSize, tStartPos, bComponent))
+            return uOriginalValue != *puValue;
         const plVec2 tFrameStartPos = {tStartPos.x, tStartPos.y };
 
         *puValue = pl_clampu(uMin, *puValue, uMax);

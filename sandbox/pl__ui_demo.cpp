@@ -311,6 +311,7 @@ pl__show_ui_demo_window(plAppData* ptAppData)
             if(gptUI->tree_node("Multi Widgets", 0))
             {
                 gptUI->layout_dynamic(0.0f, 1);
+                gptUI->text("Ctrl+click a slider or drag component to type a value.");
                 gptUI->separator_text("Inputs");
                 static float afInputs[4] = {0};
                 static int aiInputs[4] = {0};

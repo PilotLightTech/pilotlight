@@ -240,6 +240,8 @@ typedef struct _plUiI
     bool (*input_uint4)    (const char* label, uint32_t* values, plUiInputTextFlags);
 
     // sliders
+    // - Ctrl+click sliders/drags (including components) to type a value within their limits.
+    // - Enter or clicking away finishes editing; Escape restores the starting value.
     bool (*slider_float)  (const char* label, float* value, float minValue, float maxValue, plUiSliderFlags);
     bool (*slider_float_f)(const char* label, float* value, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
     bool (*slider_int)    (const char* label, int* value, int minValue, int maxValue, plUiSliderFlags);

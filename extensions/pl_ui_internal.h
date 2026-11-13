@@ -528,6 +528,9 @@ typedef struct _plUiContext
 
     // widget state
     plUiInputTextState tInputTextState;
+    uint32_t           uScalarInputId;
+    double             dScalarInputInitialValue;
+    char               acScalarInputBuffer[64];
     uint32_t           uHoveredId;             // set at the end of the previous frame from uNextHoveredId
     uint32_t           uActiveId;              // set by pl__set_active_id(...) function
     uint32_t           uActiveIdIsAlive;       // id of active item if seen this frame
