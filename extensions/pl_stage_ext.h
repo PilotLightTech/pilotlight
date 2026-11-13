@@ -36,7 +36,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plStageI_version {0, 2, 0}
+#define plStageI_version {0, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -74,6 +74,12 @@ typedef struct _plStageI
     void (*stage_texture_upload)(plTextureHandle, const plBufferImageCopy*, const void* data, uint64_t size, bool generateMips);
     void (*flush)               (void);
 
+    // Synchronous, preserves existing bytes. Call between submissions, never
+    // while recording commands using the buffer. Rebind descriptors afterwards.
+    // Requires a valid TRANSFER buffer; never shrinks. Invalid requests return
+    // false. Allocation failures follow the backend's existing policy (may assert).
+    bool (*grow_buffer)(plBufferHandle*, uint64_t capacity);
+
 
 } plStageI;
 
@@ -84,6 +90,7 @@ typedef struct _plStageI
 typedef struct _plStageInit
 {
     plDevice* ptDevice;
+    uint64_t  uInitialBlockSize; // default: 1 MiB; additional blocks grow on demand
 } plStageInit;
 
 #ifdef __cplusplus

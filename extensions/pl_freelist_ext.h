@@ -27,7 +27,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plFreeListI_version {0, 1, 0}
+#define plFreeListI_version {0, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -63,6 +63,7 @@ typedef struct _plFreeListI
     void            (*cleanup)    (plFreeList* freelistOut);
     plFreeListNode* (*get_node)   (plFreeList*, uint64_t size);
     void            (*return_node)(plFreeList*, plFreeListNode*);
+    bool            (*grow)       (plFreeList*, uint64_t size); // Extend the address space without moving any live allocation or node.
 } plFreeListI;
 
 //-----------------------------------------------------------------------------

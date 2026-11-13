@@ -286,6 +286,34 @@ pl_freelist_return_node(plFreeList* ptFreeList, plFreeListNode* ptNode)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
+bool
+pl_freelist_grow(plFreeList* ptFreeList, uint64_t uSize)
+{
+    if(uSize <= ptFreeList->uSize)
+        return true;
+
+    plFreeListNode* ptTail = &ptFreeList->_tFreeList;
+    while(ptTail->_ptNext)
+        ptTail = ptTail->_ptNext;
+
+    if(ptTail != &ptFreeList->_tFreeList && ptTail->uOffset + ptTail->uSize == ptFreeList->uSize)
+        ptTail->uSize += uSize - ptFreeList->uSize;
+    else
+    {
+        plFreeListNode* ptNew = pl__freelist_acquire_node(ptFreeList);
+        if(!ptNew)
+            return false;
+        ptNew->uOffset = ptFreeList->uSize;
+        ptNew->uSize = uSize - ptFreeList->uSize;
+        ptNew->_bAllocated = false;
+        ptNew->_ptPrev = ptTail;
+        ptNew->_ptNext = NULL;
+        ptTail->_ptNext = ptNew;
+    }
+    ptFreeList->uSize = uSize;
+    return true;
+}
+
 void
 pl_load_freelist_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
@@ -293,7 +321,8 @@ pl_load_freelist_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create      = pl_freelist_create,
         .cleanup     = pl_freelist_cleanup,
         .get_node    = pl_freelist_get_node,
-        .return_node = pl_freelist_return_node
+        .return_node = pl_freelist_return_node,
+        .grow        = pl_freelist_grow
     };
     pl_set_api(ptApiRegistry, plFreeListI, &tApi);
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
