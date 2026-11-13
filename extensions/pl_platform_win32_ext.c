@@ -1,3 +1,8 @@
+#ifndef _WIN32
+#ifndef _FILE_OFFSET_BITS
+#define _FILE_OFFSET_BITS 64
+#endif
+#endif
 /*
    pl_platform_win32_ext.c
 */
@@ -40,6 +45,8 @@ Index of this file:
 #include <windowsx.h>   // GET_X_LPARAM(), GET_Y_LPARAM()
 #include <wchar.h>    // mbsrtowcs, wcsrtombs
 #pragma comment(lib, "ws2_32.lib")
+
+#include "pl_platform_internal.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data
@@ -845,63 +852,6 @@ pl_file_remove(const char* pcFile)
     BOOL bResult = DeleteFile(pcFile);
     if(bResult)
         return PL_FILE_RESULT_SUCCESS;
-    return PL_FILE_RESULT_FAIL;
-}
-
-plFileResult
-pl_file_binary_read(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
-{
-
-    if(pszSizeIn == NULL)
-        return PL_FILE_RESULT_FAIL;
-
-    FILE* ptDataFile = fopen(pcFile, "rb");
-    size_t uSize = 0u;
-
-    if (ptDataFile == NULL)
-    {
-        *pszSizeIn = 0u;
-        return PL_FILE_RESULT_FAIL;
-    }
-
-    // obtain file size
-    fseek(ptDataFile, 0, SEEK_END);
-    uSize = ftell(ptDataFile);
-    
-    if(pcBuffer == NULL)
-    {
-        *pszSizeIn = uSize;
-        fclose(ptDataFile);
-        return PL_FILE_RESULT_SUCCESS;
-    }
-    fseek(ptDataFile, 0, SEEK_SET);
-
-    // copy the file into the buffer:
-    size_t szResult = fread(pcBuffer, sizeof(char), uSize, ptDataFile);
-    if (szResult != uSize)
-    {
-        if (feof(ptDataFile))
-            printf("Error reading test.bin: unexpected end of file\n");
-        else if (ferror(ptDataFile)) {
-            perror("Error reading test.bin");
-        }
-        return PL_FILE_RESULT_FAIL;
-    }
-
-    fclose(ptDataFile);
-    return PL_FILE_RESULT_SUCCESS;
-}
-
-plFileResult
-pl_file_binary_write(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
-{
-    FILE* ptDataFile = fopen(pcFile, "wb");
-    if (ptDataFile)
-    {
-        fwrite(pcBuffer, 1, szSize, ptDataFile);
-        fclose(ptDataFile);
-        return PL_FILE_RESULT_SUCCESS;
-    }
     return PL_FILE_RESULT_FAIL;
 }
 

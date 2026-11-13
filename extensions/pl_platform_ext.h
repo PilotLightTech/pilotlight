@@ -41,7 +41,7 @@ extern "C" {
 
 #define plTimerI_version         {1, 1, 0}
 #define plAtomicsI_version       {2, 0, 0}
-#define plFileI_version          {2, 0, 0}
+#define plFileI_version          {2, 1, 0}
 #define plNetworkI_version       {1, 0, 0}
 #define plThreadsI_version       {1, 0, 1}
 #define plVirtualMemoryI_version {2, 0, 0}
@@ -76,6 +76,7 @@ typedef struct _plAtomicCounter plAtomicCounter; // opaque type
 // basic types (file)
 typedef struct _plDirectoryEntry plDirectoryEntry;
 typedef struct _plDirectoryInfo  plDirectoryInfo;
+typedef struct _plFileStream     plFileStream; // opaque, close before unloading platform
 
 // basic types (network)
 typedef struct _plSocket             plSocket;         // opaque type (used by platform backends)
@@ -111,6 +112,8 @@ typedef int plAtomicsResult; // -> enum _plAtomicsResult // Enum:
 // enums (file)
 typedef int plFileResult;         // -> enum _plFileResult // Enum:
 typedef int plDirectoryEntryType; // -> enum _plDirectoryEntryType // Enum:
+typedef int plFileMode;
+typedef int plFileSeekOrigin;
 
 // enums (network)
 typedef int plNetworkAddressFlags; // -> enum _plNetworkAddressFlags // Flags:
@@ -207,6 +210,19 @@ typedef struct _plFileI
     plFileResult (*get_directory_info)    (const char* path, plDirectoryInfo* infoOut);
     void         (*reset_directory_info)  (plDirectoryInfo* info);
     void         (*cleanup_directory_info)(plDirectoryInfo* infoOut);
+
+    // Binary streams. Read/write return bytes transferred, including short reads.
+    // Offsets are independent of size_t; seek supports signed relative movement.
+    plFileStream* (*open_stream)     (const char* path, plFileMode);
+    plFileResult  (*close_stream)    (plFileStream*);
+    size_t        (*read_stream)     (plFileStream*, void* buffer, size_t bytes);
+    size_t        (*write_stream)    (plFileStream*, const void* buffer, size_t bytes);
+    plFileResult  (*seek_stream)     (plFileStream*, int64_t offset, plFileSeekOrigin);
+    plFileResult  (*tell_stream)     (plFileStream*, uint64_t* positionOut);
+    plFileResult  (*size_stream)     (plFileStream*, uint64_t* sizeOut); // preserves position
+    plFileResult  (*flush_stream)    (plFileStream*);
+    plFileStream* (*open_temp_stream)(const char* destination, char* pathOut, size_t capacity); // Exclusive temporary file beside destination; caller closes/removes or replaces it.
+    plFileResult  (*replace_file)    (const char* source, const char* destination);             // Same-filesystem atomic replacement. Failure preserves the existing destination.
 
 } plFileI;
 
@@ -412,6 +428,23 @@ enum _plFileResult
     
     PL_FILE_DIRECTORY_NOT_EMPTY     = 2,
     PL_FILE_DIRECTORY_ALREADY_EXIST = 3
+};
+
+enum _plFileMode
+{
+    PL_FILE_MODE_READ,
+    PL_FILE_MODE_WRITE,        // creates/truncates
+    PL_FILE_MODE_APPEND,
+    PL_FILE_MODE_READ_WRITE,   // existing file, no truncation
+    PL_FILE_MODE_WRITE_READ,   // creates/truncates
+    PL_FILE_MODE_APPEND_READ
+};
+
+enum _plFileSeekOrigin
+{
+    PL_FILE_SEEK_START,
+    PL_FILE_SEEK_CURRENT,
+    PL_FILE_SEEK_END
 };
 
 enum _plDirectoryEntryType

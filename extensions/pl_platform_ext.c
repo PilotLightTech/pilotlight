@@ -38,6 +38,16 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_directory_info     = pl_file_get_directory_info,
         .reset_directory_info   = pl_file_reset_directory_info,
         .cleanup_directory_info = pl_file_cleanup_directory_info,
+        .open_stream            = pl_file_open_stream,
+        .close_stream           = pl_file_close_stream,
+        .read_stream            = pl_file_read_stream,
+        .write_stream           = pl_file_write_stream,
+        .seek_stream            = pl_file_seek_stream,
+        .tell_stream            = pl_file_tell_stream,
+        .size_stream            = pl_file_size_stream,
+        .flush_stream           = pl_file_flush_stream,
+        .open_temp_stream       = pl_file_open_temp_stream,
+        .replace_file           = pl_file_replace_file,
     };
 
     const plNetworkI tNetworkApi = {
