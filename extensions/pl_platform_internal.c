@@ -62,7 +62,7 @@ pl_file_open_temp_stream(const char* pcDestination, char* pcPathOut, size_t szCa
 #ifdef _WIN32
         int fd = _open(pcPathOut, _O_CREAT | _O_EXCL | _O_RDWR | _O_BINARY, _S_IREAD | _S_IWRITE);
 #else
-        int fd = open(pcPathOut, O_CREAT | O_EXCL | O_RDWR, 0600);
+        int fd = open(pcPathOut, O_CREAT | O_EXCL | O_RDWR, 0666);
 #endif
         if(fd < 0)
         {
@@ -91,6 +91,16 @@ pl_file_replace_file(const char* pcSource, const char* pcDestination)
 #ifdef _WIN32
     return MoveFileExA(pcSource, pcDestination, MOVEFILE_REPLACE_EXISTING) ? PL_FILE_RESULT_SUCCESS : PL_FILE_RESULT_FAIL;
 #else
+    // Replacement should retain the destination's access permissions. A new
+    // destination keeps the creation permissions already filtered by umask.
+    struct stat tDestination;
+    if(stat(pcDestination, &tDestination) == 0)
+    {
+        if(chmod(pcSource, tDestination.st_mode & 0777) != 0)
+            return PL_FILE_RESULT_FAIL;
+    }
+    else if(errno != ENOENT)
+        return PL_FILE_RESULT_FAIL;
     return rename(pcSource, pcDestination) == 0 ? PL_FILE_RESULT_SUCCESS : PL_FILE_RESULT_FAIL;
 #endif
 }
