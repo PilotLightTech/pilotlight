@@ -89,18 +89,19 @@ typedef struct _plVfsMemoryFile
     char     acName[PL_VFS_MAX_PATH_LENGTH];
     size_t   szSize;
     uint8_t* puData;
-    size_t   szOffsetPointer;
 } plVfsMemoryFile;
 
 typedef struct _plVfsFile
 {
     bool            bActive;
     bool            bOpen;
+    size_t          szOffsetPointer; // per-open cursor for memory files
+    plVfsFileMode   tMode;
     uint32_t        uFileSystemIndex;
     uint32_t        uGeneration;
     char            acPath[PL_VFS_MAX_PATH_LENGTH]; // actually used to retrieve file
     char            acRealPath[PL_VFS_MAX_PATH_LENGTH];
-    FILE*           ptFile;
+    plFileStream*   ptFile;
     plPakChildFile* ptChildFile;
 } plVfsFile;
 
@@ -215,9 +216,9 @@ pl__vfs_get_memory_file_index(plVfsFileSystem* ptSystem, const char* pcFile)
 static inline plVfsFile*
 pl__vfs_get_file(plVfsFileHandle tHandle)
 {
-    if(tHandle.uData == UINT64_MAX)
+    if(tHandle.uData == UINT64_MAX || tHandle.uIndex >= pl_sb_size(gptVfsCtx->sbtFiles))
         return NULL;
-    if(gptVfsCtx->sbtFiles[tHandle.uIndex].uGeneration != tHandle.uGeneration)
+    if(!gptVfsCtx->sbtFiles[tHandle.uIndex].bActive || gptVfsCtx->sbtFiles[tHandle.uIndex].uGeneration != tHandle.uGeneration)
         return NULL;
     return &gptVfsCtx->sbtFiles[tHandle.uIndex];
 }
@@ -243,14 +244,39 @@ pl__vfs_get_system(const char* pcFile)
     return &gptVfsCtx->sbtFileSystems[0];
 }
 
+// Registered paths and open streams occupy distinct slots. Reuse preserves generation.
+static plVfsFileHandle
+pl__vfs_allocate_file(plVfsFile tFile)
+{
+    (void)pl_hm32_get_free_index(&gptVfsCtx->tFileHashmap);
+    uint32_t uIndex = 0;
+    while(uIndex < pl_sb_size(gptVfsCtx->sbtFiles) && gptVfsCtx->sbtFiles[uIndex].bActive)
+        uIndex++;
+    if(uIndex == pl_sb_size(gptVfsCtx->sbtFiles))
+    {
+        plVfsFile tEmpty = {0};
+        pl_sb_push(gptVfsCtx->sbtFiles, tEmpty);
+    }
+    tFile.uGeneration = gptVfsCtx->sbtFiles[uIndex].uGeneration;
+    tFile.bActive = true;
+    gptVfsCtx->sbtFiles[uIndex] = tFile;
+    return (plVfsFileHandle){.uIndex = uIndex, .uGeneration = tFile.uGeneration};
+}
+
+bool pl_vfs_does_file_exist(const char* pcFile);
+
 plVfsFileHandle
 pl_vfs_register_file(const char* pcFile, bool bMustExist)
 {
+    if(!pcFile || !pcFile[0] || strlen(pcFile) >= PL_VFS_MAX_PATH_LENGTH)
+        return (plVfsFileHandle){.uData = UINT64_MAX};
 
     // check if file has already been registered
     uint32_t uKey = PL_DS_HASH32_INVALID;
     if(pl_hm32_has_key_str_ex(&gptVfsCtx->tFileHashmap, pcFile, &uKey))
     {
+        if(bMustExist && !pl_vfs_does_file_exist(pcFile))
+            return (plVfsFileHandle){.uData = UINT64_MAX};
         plVfsFileHandle tResult = {0};
         tResult.uIndex = uKey;
         tResult.uGeneration = gptVfsCtx->sbtFiles[uKey].uGeneration;
@@ -318,17 +344,9 @@ pl_vfs_register_file(const char* pcFile, bool bMustExist)
             break;
     }
 
-    // find available slot
-    uint32_t uNewKey = pl_hm32_get_free_index(&gptVfsCtx->tFileHashmap);
-    if(uNewKey == PL_DS_HASH32_INVALID)
-    {
-        uNewKey = pl_sb_size(gptVfsCtx->sbtFiles);
-        pl_sb_add(gptVfsCtx->sbtFiles);
-    }
-    pl_hm32_insert_str(&gptVfsCtx->tFileHashmap, pcFile, uNewKey);
-    gptVfsCtx->sbtFiles[uNewKey] = tFile;
-    gptVfsCtx->sbtFiles[uNewKey].bActive = true;
-    return (plVfsFileHandle){.uIndex = uNewKey, .uGeneration = gptVfsCtx->sbtFiles[uNewKey].uGeneration};
+    plVfsFileHandle tHandle = pl__vfs_allocate_file(tFile);
+    pl_hm32_insert_str(&gptVfsCtx->tFileHashmap, pcFile, tHandle.uIndex);
+    return tHandle;
 }
 
 //-----------------------------------------------------------------------------
@@ -377,13 +395,17 @@ pl_vfs_mount_directory(const char* pcDirectory, const char* pcPhysicalDirectory,
 plVfsResult
 pl_vfs_mount_pak(const char* pcDirectory, const char* pcPakFilePath, plVfsMountFlags tFlags)
 {
+    if(!pcDirectory || !pcPakFilePath || !pcDirectory[0] || strlen(pcDirectory) > PL_VFS_MAX_PATH_LENGTH - 2 || strlen(pcPakFilePath) >= PL_VFS_MAX_PATH_LENGTH)
+        return PL_VFS_RESULT_FAIL;
+    char acMount[PL_VFS_MAX_PATH_LENGTH] = {0};
+    snprintf(acMount, sizeof(acMount), "%s%s", pcDirectory, pcDirectory[strlen(pcDirectory) - 1] == '/' ? "" : "/");
 
     const uint32_t uFileSystemIndexCount = pl_sb_size(gptVfsCtx->sbtFileSystems);
     for(uint32_t i = 1; i < uFileSystemIndexCount; i++)
     {
         plVfsFileSystem* ptFileSystem = &gptVfsCtx->sbtFileSystems[i];
 
-        if(pl_str_equal(pcDirectory, ptFileSystem->acMountDirectory))
+        if(pl_str_equal(acMount, ptFileSystem->acMountDirectory))
         {
             return PL_VFS_RESULT_FAIL;
         }
@@ -415,7 +437,10 @@ pl_vfs_mount_pak(const char* pcDirectory, const char* pcPakFilePath, plVfsMountF
         // pre-register files
         for(uint32_t i = 0; i < tPakInfo.uEntryCount; i++)
         {
-            pl_vfs_register_file(tPakInfo.atEntries[i].pcFilePath, false);
+            char acMountedPath[PL_VFS_MAX_PATH_LENGTH];
+            int iLength = snprintf(acMountedPath, sizeof(acMountedPath), "%s%s", tSystem.acMountDirectory, tPakInfo.atEntries[i].pcFilePath);
+            if(iLength >= 0 && (size_t)iLength < sizeof(acMountedPath))
+                pl_vfs_register_file(acMountedPath, false);
         }
         return PL_VFS_RESULT_SUCCESS;
     }
@@ -463,14 +488,12 @@ pl_vfs_delete_file(plVfsFileHandle tHandle)
     if(ptFile == NULL)
         return PL_VFS_RESULT_FAIL;
 
-    ptFile->bActive = false;
-    ptFile->uGeneration++;
-
-    const char* pcFileName = ptFile->acRealPath;
+    // Do not invalidate shared metadata or remove storage while a stream uses it.
+    for(uint32_t i = 0; i < pl_sb_size(gptVfsCtx->sbtFiles); i++)
+        if(gptVfsCtx->sbtFiles[i].bActive && gptVfsCtx->sbtFiles[i].bOpen &&
+           strcmp(gptVfsCtx->sbtFiles[i].acPath, ptFile->acPath) == 0)
+            return PL_VFS_RESULT_FAIL;
     plVfsFileSystem* ptTargetFileSystem = &gptVfsCtx->sbtFileSystems[ptFile->uFileSystemIndex];
-    
-    // unregister file for vfs
-    pl_hm32_remove_str(&gptVfsCtx->tFileHashmap, ptFile->acPath);
 
     // attempt to actually delete file if possible
     plVfsResult tResult = PL_VFS_RESULT_FAIL;
@@ -507,25 +530,26 @@ pl_vfs_delete_file(plVfsFileHandle tHandle)
         }
 
         case PL_FILE_SYSTEM_TYPE_PAK:
-            PL_ASSERT(false && "can't remove file within pak file");
             break;
         
         default:
             break;
     }
 
+    if(tResult == PL_VFS_RESULT_SUCCESS)
+    {
+        pl_hm32_remove_str(&gptVfsCtx->tFileHashmap, ptFile->acPath);
+        ptFile->bActive = false;
+        ptFile->uGeneration++;
+    }
     return tResult;
 }
 
 bool
 pl_vfs_does_file_exist(const char* pcFile)
 {
-    // check if file already managed by vfs system
-    uint32_t uKey = PL_DS_HASH32_INVALID;
-    if(pl_hm32_has_key_str_ex(&gptVfsCtx->tFileHashmap, pcFile, &uKey))
-    {
-        return true;
-    }
+    if(!pcFile || !pcFile[0] || strlen(pcFile) >= PL_VFS_MAX_PATH_LENGTH)
+        return false;
 
     // retrieve root directory in order to find expected file system
     char acDirectory[PL_VFS_MAX_PATH_LENGTH] = {0};
@@ -583,69 +607,66 @@ pl_vfs_is_file_open(plVfsFileHandle tHandle)
 plVfsFileHandle
 pl_vfs_open_file(const char* pcFile, plVfsFileMode tMode)
 {
+    static const plFileMode atModes[] = {
+        PL_FILE_MODE_READ,
+        PL_FILE_MODE_WRITE,
+        PL_FILE_MODE_APPEND,
+        PL_FILE_MODE_WRITE_READ,
+        PL_FILE_MODE_APPEND_READ
+    };
 
-    plVfsFileHandle tHandle = pl_vfs_register_file(pcFile, false);
-
-    // get file mode
-    const char* pcFileMode = NULL;
-    switch (tMode)
-    {
-        case PL_VFS_FILE_MODE_READ:        pcFileMode = "rb"; break;
-        case PL_VFS_FILE_MODE_WRITE:       pcFileMode = "wb"; break;
-        case PL_VFS_FILE_MODE_APPEND:      pcFileMode = "ab"; break;
-        case PL_VFS_FILE_MODE_READ_WRITE:  pcFileMode = "wb+"; break;
-        case PL_VFS_FILE_MODE_READ_APPEND: pcFileMode = "ab+"; break;
-        
-        default:
-            break;
-    }
-
-    plVfsFile* ptFile = pl__vfs_get_file(tHandle);
-    if(ptFile == NULL)
-        return (plVfsFileHandle){.uData = UINT64_MAX};
-
-    plVfsFileSystem* ptTargetFileSystem = &gptVfsCtx->sbtFileSystems[ptFile->uFileSystemIndex];
-
-    switch (ptTargetFileSystem->tType)
+    const plVfsFileHandle tInvalid = {.uData = UINT64_MAX};
+    if(tMode < PL_VFS_FILE_MODE_READ || tMode > PL_VFS_FILE_MODE_READ_APPEND)
+        return tInvalid;
+    plVfsFileHandle tRegistered = pl_vfs_register_file(pcFile, false);
+    plVfsFile* ptRegistered = pl__vfs_get_file(tRegistered);
+    if(!ptRegistered) return tInvalid;
+    plVfsFile tFile = *ptRegistered;
+    tFile.tMode = tMode;
+    tFile.szOffsetPointer = 0;
+    plVfsFileSystem* ptSystem = &gptVfsCtx->sbtFileSystems[tFile.uFileSystemIndex];
+    switch(ptSystem->tType)
     {
         case PL_FILE_SYSTEM_TYPE_DIRECTORY:
         case PL_FILE_SYSTEM_TYPE_PHYSICAL:
-            ptFile->ptFile = fopen(ptFile->acRealPath, pcFileMode);
-            ptFile->bOpen = ptFile->ptFile != NULL;
+            tFile.ptFile = gptFile->open_stream(tFile.acRealPath, atModes[tMode]);
+            if(!tFile.ptFile)
+                return tInvalid;
             break;
-
         case PL_FILE_SYSTEM_TYPE_PAK:
-            ptFile->ptChildFile = gptPak->open_file(ptTargetFileSystem->ptPakFile, ptFile->acRealPath);
-            ptFile->bOpen = ptFile->ptChildFile != NULL;
+            if(tMode != PL_VFS_FILE_MODE_READ) return tInvalid;
+            tFile.ptChildFile = gptPak->open_file(ptSystem->ptPakFile, tFile.acRealPath);
+            if(!tFile.ptChildFile)
+                return tInvalid;
             break;
-
         case PL_FILE_SYSTEM_TYPE_MEMORY:
         {
-
-            plVfsMemoryFile* ptMemoryFile = pl__vfs_get_memory_file(ptTargetFileSystem, ptFile->acRealPath);
-            
-            ptFile->bOpen = false;
-            if(ptMemoryFile)
+            plVfsMemoryFile* ptMemory = pl__vfs_get_memory_file(ptSystem, tFile.acRealPath);
+            if(!ptMemory)
             {
-                ptFile->bOpen = true;
+                if(tMode == PL_VFS_FILE_MODE_READ) return tInvalid;
+                plVfsMemoryFile tMemory = {0};
+                strcpy(tMemory.acName, pcFile);
+                pl_sb_push(ptSystem->sbtMemoryFiles, tMemory);
+                ptMemory = &pl_sb_top(ptSystem->sbtMemoryFiles);
             }
-            else if(tMode > 0)
+            if(tMode == PL_VFS_FILE_MODE_WRITE || tMode == PL_VFS_FILE_MODE_READ_WRITE)
             {
-                pl_sb_add(ptTargetFileSystem->sbtMemoryFiles);
-                strncpy(pl_sb_top(ptTargetFileSystem->sbtMemoryFiles).acName, pcFile, PL_VFS_MAX_PATH_LENGTH);
-                ptFile->bOpen = true;
+                if(ptMemory->puData)
+                {
+                    PL_FREE(ptMemory->puData);
+                }
+                ptMemory->puData = NULL;
+                ptMemory->szSize = 0;
             }
+            if(tMode == PL_VFS_FILE_MODE_APPEND || tMode == PL_VFS_FILE_MODE_READ_APPEND)
+                tFile.szOffsetPointer = ptMemory->szSize;
             break;
         }
-
-
-        default:
-            break;
+        default: return tInvalid;
     }
-
-    if(ptFile->bOpen)
-        return tHandle;
-    return (plVfsFileHandle){.uData = UINT64_MAX};
+    tFile.bOpen = true;
+    return pl__vfs_allocate_file(tFile);
 }
 
 void
@@ -655,7 +676,7 @@ pl_vfs_close_file(plVfsFileHandle tHandle)
     if(ptFile == NULL)
         return;
 
-    PL_ASSERT(ptFile->bOpen && "file was never open");
+    if(!ptFile->bOpen) return;
 
     plVfsFileSystem* ptTargetFileSystem = &gptVfsCtx->sbtFileSystems[ptFile->uFileSystemIndex];
 
@@ -664,18 +685,21 @@ pl_vfs_close_file(plVfsFileHandle tHandle)
         case PL_FILE_SYSTEM_TYPE_DIRECTORY:
         case PL_FILE_SYSTEM_TYPE_PHYSICAL:
             PL_ASSERT(ptFile->ptFile);
-            fclose(ptFile->ptFile);
+            gptFile->close_stream(ptFile->ptFile);
             ptFile->ptFile = NULL;
             break;
 
         case PL_FILE_SYSTEM_TYPE_PAK:
             gptPak->close_file(ptFile->ptChildFile);
+            ptFile->ptChildFile = NULL;
             break;
 
         default:
             break;
     }
     ptFile->bOpen = false;
+    ptFile->bActive = false;
+    ptFile->uGeneration++;
 }
 
 size_t
@@ -686,7 +710,11 @@ pl_vfs_write_file(plVfsFileHandle tHandle, const void* pData, size_t szSize)
     if(ptFile == NULL)
         return 0;
 
-    PL_ASSERT(ptFile->bOpen && "file not open");
+    if(!ptFile->bOpen)
+        return 0;
+
+    if(ptFile->tMode == PL_VFS_FILE_MODE_READ || (szSize && !pData))
+        return 0;
 
     plVfsFileSystem* ptTargetFileSystem = &gptVfsCtx->sbtFileSystems[ptFile->uFileSystemIndex];
     
@@ -695,7 +723,7 @@ pl_vfs_write_file(plVfsFileHandle tHandle, const void* pData, size_t szSize)
         case PL_FILE_SYSTEM_TYPE_DIRECTORY:
         case PL_FILE_SYSTEM_TYPE_PHYSICAL:
             PL_ASSERT(ptFile->ptFile);
-            return fwrite(pData, 1, szSize, ptFile->ptFile);
+            return gptFile->write_stream(ptFile->ptFile, pData, szSize);
 
         case PL_FILE_SYSTEM_TYPE_PAK:
             PL_ASSERT(false && "can not write to pak file in this version");
@@ -706,13 +734,16 @@ pl_vfs_write_file(plVfsFileHandle tHandle, const void* pData, size_t szSize)
             plVfsMemoryFile* ptMemoryFile = pl__vfs_get_memory_file(ptTargetFileSystem, ptFile->acRealPath);
             if(ptMemoryFile)
             {
+                uint8_t* puNew = szSize ? PL_ALLOC(szSize) : NULL;
+                if(szSize && !puNew)
+                    return 0;
+                if(szSize)
+                    memcpy(puNew, pData, szSize);
                 if(ptMemoryFile->puData)
                 {
                     PL_FREE(ptMemoryFile->puData);
                 }
-                ptMemoryFile->puData = PL_ALLOC(szSize);
-                memset(ptMemoryFile->puData, 0, szSize);
-                memcpy(ptMemoryFile->puData, pData, szSize);
+                ptMemoryFile->puData = puNew;
                 ptMemoryFile->szSize = szSize;
                 return szSize;
             }
@@ -732,7 +763,11 @@ pl_vfs_read_file(plVfsFileHandle tHandle, void* pData, size_t* pszSizeOut)
     if(ptFile == NULL)
         return PL_VFS_RESULT_FAIL;
 
-    PL_ASSERT(ptFile->bOpen && "file not open");
+    if(!ptFile->bOpen)
+        return 0;
+
+    if(pData && (ptFile->tMode == PL_VFS_FILE_MODE_WRITE || ptFile->tMode == PL_VFS_FILE_MODE_APPEND))
+        return PL_VFS_RESULT_FAIL;
 
     plVfsFileSystem* ptTargetFileSystem = &gptVfsCtx->sbtFileSystems[ptFile->uFileSystemIndex];
     
@@ -742,32 +777,16 @@ pl_vfs_read_file(plVfsFileHandle tHandle, void* pData, size_t* pszSizeOut)
         case PL_FILE_SYSTEM_TYPE_PHYSICAL:
         {
 
-            size_t uSize = 0;
-
-            // obtain file size
-            fseek(ptFile->ptFile, 0, SEEK_END);
-            uSize = ftell(ptFile->ptFile);
-
-            if(pszSizeOut)
-                *pszSizeOut = uSize;
-
-            if(pData == NULL)
-            {
-                return PL_VFS_RESULT_SUCCESS;
-            }
-            fseek(ptFile->ptFile, 0, SEEK_SET);
-
-            size_t szResult = fread(pData, sizeof(char), uSize, ptFile->ptFile);
-            if (szResult != uSize)
-            {
-                if (feof(ptFile->ptFile))
-                    printf("Error reading %s: unexpected end of file\n", ptFile->acPath);
-                else if (ferror(ptFile->ptFile)) {
-                    printf("Error reading t%s\n", ptFile->acPath);
-                }
+            uint64_t uSize = 0;
+            if(!gptFile->size_stream(ptFile->ptFile, &uSize) || uSize > SIZE_MAX)
                 return PL_VFS_RESULT_FAIL;
-            }
-            return PL_VFS_RESULT_SUCCESS;
+            if(pszSizeOut)
+                *pszSizeOut = (size_t)uSize;
+            if(!pData)
+                return PL_VFS_RESULT_SUCCESS;
+            if(!gptFile->seek_stream(ptFile->ptFile, 0, PL_FILE_SEEK_START))
+                return PL_VFS_RESULT_FAIL;
+            return gptFile->read_stream(ptFile->ptFile, pData, (size_t)uSize) == uSize ? PL_VFS_RESULT_SUCCESS : PL_VFS_RESULT_FAIL;
         }
 
         case PL_FILE_SYSTEM_TYPE_PAK:
@@ -781,13 +800,11 @@ pl_vfs_read_file(plVfsFileHandle tHandle, void* pData, size_t* pszSizeOut)
             plVfsMemoryFile* ptMemoryFile = pl__vfs_get_memory_file(ptTargetFileSystem, ptFile->acRealPath);
             if(ptMemoryFile)
             {
-                if(pData && *pszSizeOut >= ptMemoryFile->szSize)
-                {
-                    memcpy(pData, ptMemoryFile->puData, ptMemoryFile->szSize);
-                    return PL_VFS_RESULT_SUCCESS;
-                }
                 if(pszSizeOut)
                     *pszSizeOut = ptMemoryFile->szSize;
+                if(pData && ptMemoryFile->szSize)
+                    memcpy(pData, ptMemoryFile->puData, ptMemoryFile->szSize);
+                return PL_VFS_RESULT_SUCCESS;
             }
             return PL_VFS_RESULT_FAIL;
         }
@@ -873,7 +890,10 @@ pl_vfs_get_file_stream_position(plVfsFileHandle tHandle)
     {
         case PL_FILE_SYSTEM_TYPE_DIRECTORY:
         case PL_FILE_SYSTEM_TYPE_PHYSICAL:
-            return (size_t)ftell(ptFile->ptFile);
+        {
+            uint64_t uPosition = 0;
+            return gptFile->tell_stream(ptFile->ptFile, &uPosition) && uPosition <= SIZE_MAX ? (size_t)uPosition : 0;
+        }
 
 
         case PL_FILE_SYSTEM_TYPE_PAK:
@@ -883,7 +903,7 @@ pl_vfs_get_file_stream_position(plVfsFileHandle tHandle)
         {
             plVfsMemoryFile* ptMemoryFile = pl__vfs_get_memory_file(ptTargetFileSystem, ptFile->acRealPath);
             if(ptMemoryFile)
-                return ptMemoryFile->szOffsetPointer;
+                return ptFile->szOffsetPointer;
         }
 
         default:
@@ -908,7 +928,7 @@ pl_vfs_reset_file_stream_position(plVfsFileHandle tHandle)
     {
         case PL_FILE_SYSTEM_TYPE_DIRECTORY:
         case PL_FILE_SYSTEM_TYPE_PHYSICAL:
-            fseek(ptFile->ptFile, 0, SEEK_SET);
+            gptFile->seek_stream(ptFile->ptFile, 0, PL_FILE_SEEK_START);
             break;
 
         case PL_FILE_SYSTEM_TYPE_PAK:
@@ -919,7 +939,7 @@ pl_vfs_reset_file_stream_position(plVfsFileHandle tHandle)
         {
             plVfsMemoryFile* ptMemoryFile = pl__vfs_get_memory_file(ptTargetFileSystem, ptFile->acRealPath);
             if(ptMemoryFile)
-                ptMemoryFile->szOffsetPointer = 0;
+                ptFile->szOffsetPointer = 0;
             break;
         }
 
@@ -928,81 +948,58 @@ pl_vfs_reset_file_stream_position(plVfsFileHandle tHandle)
     }
 }
 
-void
+bool
 pl_vfs_set_file_stream_position(plVfsFileHandle tHandle, size_t szPosition)
 {
     plVfsFile* ptFile = pl__vfs_get_file(tHandle);
-    if(ptFile == NULL)
-        return;
-
-    if(!ptFile->bOpen)
-        return;
-
-    plVfsFileSystem* ptTargetFileSystem = &gptVfsCtx->sbtFileSystems[ptFile->uFileSystemIndex];
-    
-    switch (ptTargetFileSystem->tType)
+    if(!ptFile || !ptFile->bOpen)
+        return false;
+    plVfsFileSystem* ptSystem = &gptVfsCtx->sbtFileSystems[ptFile->uFileSystemIndex];
+    switch(ptSystem->tType)
     {
         case PL_FILE_SYSTEM_TYPE_DIRECTORY:
         case PL_FILE_SYSTEM_TYPE_PHYSICAL:
-            fseek(ptFile->ptFile, (long)szPosition, SEEK_SET);
-            break;
-
+            return szPosition <= INT64_MAX && gptFile->seek_stream(ptFile->ptFile, (int64_t)szPosition, PL_FILE_SEEK_START) == PL_FILE_RESULT_SUCCESS;
         case PL_FILE_SYSTEM_TYPE_PAK:
-            gptPak->set_file_stream_position(ptFile->ptChildFile, szPosition);
-            break;
-
+            return gptPak->set_file_stream_position(ptFile->ptChildFile, szPosition);
         case PL_FILE_SYSTEM_TYPE_MEMORY:
         {
-            plVfsMemoryFile* ptMemoryFile = pl__vfs_get_memory_file(ptTargetFileSystem, ptFile->acRealPath);
-            if(ptMemoryFile)
-                ptMemoryFile->szOffsetPointer = szPosition;
-            break;
+            plVfsMemoryFile* ptMemory = pl__vfs_get_memory_file(ptSystem, ptFile->acRealPath);
+            if(!ptMemory || szPosition > ptMemory->szSize)
+                return false;
+            ptFile->szOffsetPointer = szPosition;
+            return true;
         }
-
-        default:
-            break;
+        default: return false;
     }
 }
 
-void
+bool
 pl_vfs_increment_file_stream_position(plVfsFileHandle tHandle, size_t szDelta)
 {
     plVfsFile* ptFile = pl__vfs_get_file(tHandle);
-    if(ptFile == NULL)
-        return;
-
-    if(!ptFile->bOpen)
-        return;
-
-    plVfsFileSystem* ptTargetFileSystem = &gptVfsCtx->sbtFileSystems[ptFile->uFileSystemIndex];
-    
-    switch (ptTargetFileSystem->tType)
+    if(!ptFile || !ptFile->bOpen)
+        return false;
+    plVfsFileSystem* ptSystem = &gptVfsCtx->sbtFileSystems[ptFile->uFileSystemIndex];
+    if(ptSystem->tType == PL_FILE_SYSTEM_TYPE_DIRECTORY || ptSystem->tType == PL_FILE_SYSTEM_TYPE_PHYSICAL)
     {
-        case PL_FILE_SYSTEM_TYPE_DIRECTORY:
-        case PL_FILE_SYSTEM_TYPE_PHYSICAL:
-            fseek(ptFile->ptFile, (long)szDelta, SEEK_CUR);
-            break;
-
-        case PL_FILE_SYSTEM_TYPE_PAK:
-            gptPak->increment_file_stream_position(ptFile->ptChildFile, szDelta);
-            break;
-
-        case PL_FILE_SYSTEM_TYPE_MEMORY:
-        {
-            plVfsMemoryFile* ptMemoryFile = pl__vfs_get_memory_file(ptTargetFileSystem, ptFile->acRealPath);
-            if(ptMemoryFile)
-                ptMemoryFile->szOffsetPointer = szDelta;
-            break;
-        }
-
-        default:
-            break;
+        uint64_t uPosition = 0;
+        if(!gptFile->tell_stream(ptFile->ptFile, &uPosition) || uPosition > INT64_MAX || szDelta > (uint64_t)INT64_MAX - uPosition)
+           return false;
+        return gptFile->seek_stream(ptFile->ptFile, (int64_t)(uPosition + szDelta), PL_FILE_SEEK_START) == PL_FILE_RESULT_SUCCESS;
     }
+    if(ptSystem->tType == PL_FILE_SYSTEM_TYPE_PAK)
+        return gptPak->increment_file_stream_position(ptFile->ptChildFile, szDelta);
+    if(szDelta > SIZE_MAX - ptFile->szOffsetPointer)
+        return false;
+    return pl_vfs_set_file_stream_position(tHandle, ptFile->szOffsetPointer + szDelta);
 }
 
 size_t
 pl_vfs_read_file_stream(plVfsFileHandle tHandle, size_t szElementSize, size_t szElementCount, void* pBufferOut)
 {
+    if(!pBufferOut || !szElementSize || szElementCount > SIZE_MAX / szElementSize)
+        return 0;
     plVfsFile* ptFile = pl__vfs_get_file(tHandle);
     if(ptFile == NULL)
         return 0;
@@ -1010,13 +1007,15 @@ pl_vfs_read_file_stream(plVfsFileHandle tHandle, size_t szElementSize, size_t sz
     if(!ptFile->bOpen)
         return 0;
 
+    if(ptFile->tMode == PL_VFS_FILE_MODE_WRITE || ptFile->tMode == PL_VFS_FILE_MODE_APPEND) return 0;
+
     plVfsFileSystem* ptTargetFileSystem = &gptVfsCtx->sbtFileSystems[ptFile->uFileSystemIndex];
     
     switch (ptTargetFileSystem->tType)
     {
         case PL_FILE_SYSTEM_TYPE_DIRECTORY:
         case PL_FILE_SYSTEM_TYPE_PHYSICAL:
-            return fread(pBufferOut, szElementSize, szElementCount, ptFile->ptFile);
+            return gptFile->read_stream(ptFile->ptFile, pBufferOut, szElementSize * szElementCount) / szElementSize;
 
         case PL_FILE_SYSTEM_TYPE_PAK:
         {
@@ -1028,9 +1027,16 @@ pl_vfs_read_file_stream(plVfsFileHandle tHandle, size_t szElementSize, size_t sz
             plVfsMemoryFile* ptMemoryFile = pl__vfs_get_memory_file(ptTargetFileSystem, ptFile->acRealPath);
             if(ptMemoryFile)
             {
-                memcpy(pBufferOut, &ptMemoryFile->puData[ptMemoryFile->szOffsetPointer], szElementCount * szElementSize);
-                ptMemoryFile->szOffsetPointer += szElementCount * szElementSize;
-                return szElementCount * szElementSize;
+                if(ptFile->szOffsetPointer > ptMemoryFile->szSize)
+                    return 0;
+                size_t szAvailable = (ptMemoryFile->szSize - ptFile->szOffsetPointer) / szElementSize;
+                if(szElementCount > szAvailable)
+                    szElementCount = szAvailable;
+                if(!szElementCount)
+                    return 0;
+                memcpy(pBufferOut, ptMemoryFile->puData + ptFile->szOffsetPointer, szElementCount * szElementSize);
+                ptFile->szOffsetPointer += szElementCount * szElementSize;
+                return szElementCount;
             }
             break;
         }
@@ -1044,11 +1050,16 @@ pl_vfs_read_file_stream(plVfsFileHandle tHandle, size_t szElementSize, size_t sz
 size_t
 pl_vfs_write_file_stream(plVfsFileHandle tHandle, size_t szElementSize, size_t szElementCount, void* pBuffer)
 {
+    if(!pBuffer || !szElementSize || szElementCount > SIZE_MAX / szElementSize)
+        return 0;
     plVfsFile* ptFile = pl__vfs_get_file(tHandle);
     if(ptFile == NULL)
         return 0;
 
     if(!ptFile->bOpen)
+        return 0;
+
+    if(ptFile->tMode == PL_VFS_FILE_MODE_READ)
         return 0;
 
     plVfsFileSystem* ptTargetFileSystem = &gptVfsCtx->sbtFileSystems[ptFile->uFileSystemIndex];
@@ -1057,7 +1068,7 @@ pl_vfs_write_file_stream(plVfsFileHandle tHandle, size_t szElementSize, size_t s
     {
         case PL_FILE_SYSTEM_TYPE_DIRECTORY:
         case PL_FILE_SYSTEM_TYPE_PHYSICAL:
-            return fwrite(pBuffer, szElementSize, szElementCount, ptFile->ptFile);
+            return gptFile->write_stream(ptFile->ptFile, pBuffer, szElementSize * szElementCount) / szElementSize;
 
         case PL_FILE_SYSTEM_TYPE_PAK:
         {
@@ -1070,9 +1081,24 @@ pl_vfs_write_file_stream(plVfsFileHandle tHandle, size_t szElementSize, size_t s
             plVfsMemoryFile* ptMemoryFile = pl__vfs_get_memory_file(ptTargetFileSystem, ptFile->acRealPath);
             if(ptMemoryFile)
             {
-                memcpy(&ptMemoryFile->puData[ptMemoryFile->szOffsetPointer], pBuffer, szElementCount * szElementSize);
-                ptMemoryFile->szOffsetPointer += szElementCount * szElementSize;
-                return szElementCount * szElementSize;
+                if(ptFile->tMode == PL_VFS_FILE_MODE_APPEND || ptFile->tMode == PL_VFS_FILE_MODE_READ_APPEND)
+                    ptFile->szOffsetPointer = ptMemoryFile->szSize;
+                size_t szBytes = szElementCount * szElementSize;
+                if(!szBytes || szBytes > SIZE_MAX - ptFile->szOffsetPointer)
+                    return 0;
+                size_t szEnd = ptFile->szOffsetPointer + szBytes;
+                if(szEnd > ptMemoryFile->szSize)
+                {
+                    uint8_t* puNew = PL_REALLOC(ptMemoryFile->puData, szEnd);
+                    if(!puNew)
+                        return 0;
+                    memset(puNew + ptMemoryFile->szSize, 0, szEnd - ptMemoryFile->szSize);
+                    ptMemoryFile->puData = puNew;
+                    ptMemoryFile->szSize = szEnd;
+                }
+                memcpy(ptMemoryFile->puData + ptFile->szOffsetPointer, pBuffer, szBytes);
+                ptFile->szOffsetPointer = szEnd;
+                return szElementCount;
             }
         }
 
@@ -1145,6 +1171,12 @@ pl_unload_vfs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
+    for(uint32_t i = 0; i < pl_sb_size(gptVfsCtx->sbtFiles); i++)
+    {
+        if(gptVfsCtx->sbtFiles[i].bOpen)
+            pl_vfs_close_file((plVfsFileHandle){.uIndex = i, .uGeneration = gptVfsCtx->sbtFiles[i].uGeneration});
+    }
+
     const uint32_t uFileSystemIndexCount = pl_sb_size(gptVfsCtx->sbtFileSystems);
     for(uint32_t i = 0; i < uFileSystemIndexCount; i++)
     {

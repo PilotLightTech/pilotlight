@@ -59,7 +59,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plVfsI_version {2, 1, 0}
+#define plVfsI_version {3, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -128,11 +128,14 @@ typedef struct _plVfsI
     plVfsResult     (*read_file)        (plVfsFileHandle, void*, size_t*);
     size_t          (*write_file)       (plVfsFileHandle, const void*, size_t);
 
-    // stream usage
+    // stream usage: read/write return complete elements, matching fread/fwrite.
+    // Each open owns an independent cursor; closing invalidates that handle.
+    // Registered path handles remain separate metadata handles. Delete fails while any stream is open.
+    // Positions are size_t (64-bit on supported 64-bit hosts); platform streams use explicit uint64_t.
     size_t (*get_file_stream_position)      (plVfsFileHandle);
     void   (*reset_file_stream_position)    (plVfsFileHandle);
-    void   (*set_file_stream_position)      (plVfsFileHandle, size_t);
-    void   (*increment_file_stream_position)(plVfsFileHandle, size_t);
+    bool   (*set_file_stream_position)      (plVfsFileHandle, size_t);
+    bool   (*increment_file_stream_position)(plVfsFileHandle, size_t);
     size_t (*read_file_stream)              (plVfsFileHandle, size_t elementSize, size_t elementCount, void*);
     size_t (*write_file_stream)             (plVfsFileHandle, size_t elementSize, size_t elementCount, void*);
 } plVfsI;
