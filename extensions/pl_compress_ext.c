@@ -56,7 +56,6 @@ static int      gpiWindow           = 0x40000; // 256K
 static uint32_t guHashSize          = 32768;
 static uint32_t guRunningAdler      = 0;
 static uint8_t* gpuBarrier          = NULL;
-static uint8_t* gpuBarrier2         = NULL;
 static uint8_t* gpuBarrier3         = NULL;
 static uint8_t* gpuBarrier4         = NULL;
 static uint8_t* gpuDOut             = NULL;
@@ -354,72 +353,58 @@ pl__compress_inner(uint8_t* puInput, uint32_t uLength)
 static inline uint32_t
 pl__decompress_length(const uint8_t* puInput)
 {
-    return (puInput[8] << 24) + (puInput[9] << 16) + (puInput[10] << 8) + puInput[11];
+    return ((uint32_t)puInput[8] << 24) + (puInput[9] << 16) + (puInput[10] << 8) + puInput[11];
 }
 
-static void
-pl__match(const uint8_t* puData, uint32_t uLength)
+static bool
+pl__match(uint32_t uDistance, uint32_t uLength)
 {
+    // Validate distance before forming a pointer before the output buffer.
+    if(uDistance > (size_t)(gpuDOut - gpuBarrier4) || uLength > (size_t)(gpuBarrier - gpuDOut))
+        return false;
+    const uint8_t* puData = gpuDOut - uDistance;
     // INVERSE of memmove... write each byte before copying the next...
-    PL_ASSERT(gpuDOut + uLength <= gpuBarrier);
-    if(gpuDOut + uLength > gpuBarrier)
-    {
-        gpuDOut += uLength;
-        return;
-    }
-
-    if(puData < gpuBarrier4)
-    {
-        gpuDOut = gpuBarrier + 1;
-        return;
-    }
-    
     while(uLength--)
         *gpuDOut++ = *puData++;
+    return true;
 }
 
-static void
+static bool
 pl__lit(const uint8_t* puData, uint32_t uLength)
 {
-    PL_ASSERT(gpuDOut + uLength <= gpuBarrier);
-    if(gpuDOut + uLength > gpuBarrier)
-    {
-        gpuDOut += uLength;
-        return;
-    }
-
-    if(puData < gpuBarrier2)
-    {
-        gpuDOut = gpuBarrier + 1;
-        return;
-    }
-
+    if(uLength > (size_t)(gpuBarrier - gpuDOut) || uLength > (size_t)(gpuBarrier3 - puData))
+        return false;
     memcpy(gpuDOut, puData, uLength);
     gpuDOut += uLength;
+    return true;
 }
 
 #define pl__in2(x) ((puI[x] << 8) + puI[(x)+1])
 #define pl__in3(x) ((puI[x] << 16) + pl__in2((x)+1))
-#define pl__in4(x) ((puI[x] << 24) + pl__in3((x)+1))
+#define pl__in4(x) (((uint32_t)puI[x] << 24) + pl__in3((x)+1))
 
 static uint8_t*
 pl__decompress_token(uint8_t* puI)
 {
+    if(puI == gpuBarrier3) return NULL;
     if (*puI >= 0x20) // use fewer if's for cases that expand small
     { 
         if (*puI >= 0x80)
         {
-            pl__match(gpuDOut - puI[1] - 1, puI[0] - 0x80 + 1);
+            if((size_t)(gpuBarrier3 - puI) < 2) return NULL;
+            if(!pl__match(puI[1] + 1, puI[0] - 0x80 + 1)) return NULL;
             puI += 2;
         }
         else if (*puI >= 0x40) 
         {
-            pl__match(gpuDOut - (pl__in2(0) - 0x4000 + 1), puI[2] + 1);
+            if((size_t)(gpuBarrier3 - puI) < 3) return NULL;
+            if(!pl__match((pl__in2(0) - 0x4000 + 1), puI[2] + 1)) return NULL;
             puI += 3;
         }
         else /* *i >= 0x20 */
         {
-            pl__lit(puI + 1, puI[0] - 0x20 + 1);
+            if((size_t)(gpuBarrier3 - puI) < 1) return NULL;
+            if(!pl__lit(puI + 1, puI[0] - 0x20 + 1)) return NULL;
             puI += 1 + (puI[0] - 0x20 + 1);
         }
     }
@@ -427,37 +412,44 @@ pl__decompress_token(uint8_t* puI)
     { 
         if (*puI >= 0x18)
         {
-            pl__match(gpuDOut - (pl__in3(0) - 0x180000 + 1), puI[3] + 1);
+            if((size_t)(gpuBarrier3 - puI) < 4) return NULL;
+            if(!pl__match((pl__in3(0) - 0x180000 + 1), puI[3] + 1)) return NULL;
             puI += 4;
         }
         else if (*puI >= 0x10)
         {
-            pl__match(gpuDOut - (pl__in3(0) - 0x100000 + 1), pl__in2(3) + 1);
+            if((size_t)(gpuBarrier3 - puI) < 5) return NULL;
+            if(!pl__match((pl__in3(0) - 0x100000 + 1), pl__in2(3) + 1)) return NULL;
             puI += 5;
         }
         else if (*puI >= 0x08)
         {
-            pl__lit(puI + 2, pl__in2(0) - 0x0800 + 1);
+            if((size_t)(gpuBarrier3 - puI) < 2) return NULL;
+            if(!pl__lit(puI + 2, pl__in2(0) - 0x0800 + 1)) return NULL;
             puI += 2 + (pl__in2(0) - 0x0800 + 1);
         }
         else if (*puI == 0x07)
         {
-            pl__lit(puI + 3, pl__in2(1) + 1);
+            if((size_t)(gpuBarrier3 - puI) < 3) return NULL;
+            if(!pl__lit(puI + 3, pl__in2(1) + 1)) return NULL;
             puI += 3 + (pl__in2(1) + 1);
         }
         else if (*puI == 0x06)
         {
-            pl__match(gpuDOut - (pl__in3(1) + 1), puI[4] + 1);
+            if((size_t)(gpuBarrier3 - puI) < 5) return NULL;
+            if(!pl__match((pl__in3(1) + 1), puI[4] + 1)) return NULL;
             puI += 5;
         }
         else if (*puI == 0x04)
         {
-            pl__match(gpuDOut - (pl__in3(1) + 1), pl__in2(4) + 1);
+            if((size_t)(gpuBarrier3 - puI) < 6) return NULL;
+            if(!pl__match((pl__in3(1) + 1), pl__in2(4) + 1)) return NULL;
             puI += 6;
         }
     }
     return puI;
 }
+
 
 static uint32_t
 pl__decompress(uint8_t* puOutput, uint8_t* puI, uint32_t uLength)
@@ -468,7 +460,6 @@ pl__decompress(uint8_t* puOutput, uint8_t* puI, uint32_t uLength)
     if (pl__in4(4) != 0) // error! stream is > 4GB
         return 0; 
     uOLen = pl__decompress_length(puI);
-    gpuBarrier2 = puI;
     gpuBarrier3 = puI + uLength;
     gpuBarrier = puOutput + uOLen;
     gpuBarrier4 = puOutput;
@@ -479,11 +470,12 @@ pl__decompress(uint8_t* puOutput, uint8_t* puI, uint32_t uLength)
     {
         uint8_t* puOldI = puI;
         puI = pl__decompress_token(puI);
+        if(!puI)
+            return 0;
         if (puI == puOldI)
         {
-            if (*puI == 0x05 && puI[1] == 0xfa)
+            if ((size_t)(gpuBarrier3 - puI) >= 6 && *puI == 0x05 && puI[1] == 0xfa)
             {
-                PL_ASSERT(gpuDOut == puOutput + uOLen);
                 if (gpuDOut != puOutput + uOLen)
                     return 0;
                 if (pl__adler32(1, puOutput, uOLen) != (uint32_t) pl__in4(2))
@@ -492,7 +484,6 @@ pl__decompress(uint8_t* puOutput, uint8_t* puI, uint32_t uLength)
             }
             else
             {
-                PL_ASSERT(0); // NOTREACHED
                 return 0;
             }
         }
@@ -519,12 +510,15 @@ pl_compress_compress(uint8_t* puDataIn, uint32_t uSize, uint8_t* puDataOut, uint
 uint32_t
 pl_compress_decompress(uint8_t* puDataIn, uint32_t size, uint8_t* puDataOut, uint32_t uSizeOut)
 {
+    // Validate the fixed header before size queries or decoder pointer arithmetic.
+    if(!puDataIn || size < 22 || puDataIn[0] != 0x57 || puDataIn[1] != 0xbc || puDataIn[2] || puDataIn[3] || puDataIn[4] || puDataIn[5] || puDataIn[6] || puDataIn[7])
+        return 0;
+    const uint32_t uExpected = pl__decompress_length(puDataIn);
     if(puDataOut == NULL)
-        return pl__decompress_length(puDataIn);
-        
-    uint32_t uResult = pl__decompress(puDataOut, puDataIn, size);
-    PL_ASSERT(uResult <= uSizeOut);
-    return uResult;
+        return uExpected; // Header-only query, not payload validation.
+    if(uExpected > uSizeOut)
+        return 0;
+    return pl__decompress(puDataOut, puDataIn, size);
 }
 
 //-----------------------------------------------------------------------------
