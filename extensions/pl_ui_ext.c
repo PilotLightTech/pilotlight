@@ -5,6 +5,8 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] docking
+// [SECTION] settings
 // [SECTION] public api implementations
 // [SECTION] helper windows
 // [SECTION] extension loading
@@ -17,6 +19,885 @@ Index of this file:
 
 #include "pl_ui_ext.h"
 #include "pl_ui_internal.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] docking
+//-----------------------------------------------------------------------------
+
+static plUiDockNode*
+pl__dock_node(uint32_t uId)
+{
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtDockNodes); i++)
+    {
+        if(gptCtx->sbtDockNodes[i].uId == uId)
+            return &gptCtx->sbtDockNodes[i];
+    }
+    return NULL;
+}
+
+static uint32_t
+pl__dock_new_node(void)
+{
+    do
+    {
+        gptCtx->uNextDockId++;
+    }
+    while(!gptCtx->uNextDockId || pl__dock_node(gptCtx->uNextDockId));
+    plUiDockNode tNode = {
+        .uId = gptCtx->uNextDockId,
+        .fRatio = 0.5f
+    };
+    pl_sb_push(gptCtx->sbtDockNodes, tNode);
+    return tNode.uId;
+}
+
+static plUiDockNode*
+pl__dock_root(uint32_t uId)
+{
+    plUiDockNode* ptNode = pl__dock_node(uId);
+    while(ptNode && ptNode->uParent)
+        ptNode = pl__dock_node(ptNode->uParent);
+    return ptNode;
+}
+
+static plUiWindow*
+pl__dock_host(plUiWindow* ptWindow)
+{
+    plUiDockNode* ptRoot = pl__dock_root(ptWindow->uDockId);
+    if(ptRoot && ptRoot->bFloating)
+        return pl__get_ptr(&gptCtx->tWindows, ptRoot->uHostWindow);
+    return NULL;
+}
+
+static void
+pl__draw_tab(plDrawLayer2D* ptLayer, plRect tBox, const char* pcLabel, plVec4 tColor)
+{
+    gptDraw->add_rect_rounded_filled(ptLayer, tBox.tMin, tBox.tMax, gptCtx->tStyle.fTabRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tColor)});
+    plRect tTextBox = gptDraw->calculate_text_bb(tBox.tMin, pcLabel, (plDrawTextOptions){.ptFont = gptCtx->tFont, .fSize = gptCtx->tStyle.fFontSize, .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL), .fWrap = -1.0f});
+    const plVec2 tTextPos = pl_add_vec2(tBox.tMin, pl_sub_vec2(pl_rect_center(&tBox), pl_rect_center(&tTextBox)));
+    pl__add_clipped_text(ptLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextPos, tBox.tMin, tBox.tMax, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+}
+
+static void
+pl__dock_layout(uint32_t uId, plRect tRect)
+{
+    plUiDockNode* ptNode = pl__dock_node(uId);
+    ptNode->tRect = tRect;
+    ptNode->ulLastFrame = gptIO->ulFrameCount;
+    if(!ptNode->auChildren[0])
+        return;
+    plRect atRects[2] = {tRect, tRect};
+    const int iAxis = ptNode->iAxis;
+    const float fExtent = pl_maxf(0.0f, tRect.tMax.d[iAxis] - tRect.tMin.d[iAxis] - 4.0f);
+    const float fSplit = tRect.tMin.d[iAxis] + fExtent * ptNode->fRatio;
+    atRects[0].tMax.d[iAxis] = fSplit;
+    atRects[1].tMin.d[iAxis] = pl_minf(tRect.tMax.d[iAxis], fSplit + 4.0f);
+    pl__dock_layout(ptNode->auChildren[0], atRects[0]);
+    pl__dock_layout(ptNode->auChildren[1], atRects[1]);
+}
+
+uint32_t
+pl_ui_dock_split(uint32_t uNode, int iDirection, float fRatio, uint32_t* puOpposite)
+{
+    if(puOpposite)
+        *puOpposite = 0;
+    plUiDockNode* ptNode = pl__dock_node(uNode);
+    if(!ptNode || ptNode->auChildren[0] || iDirection < 0 || iDirection > 3)
+        return 0;
+    const plRect tRect = ptNode->tRect;
+    const uint32_t uSelected = ptNode->uSelectedWindow;
+    const uint32_t auChildren[2] = {pl__dock_new_node(), pl__dock_new_node()};
+    ptNode = pl__dock_node(uNode);
+    ptNode->auChildren[0] = auChildren[0];
+    ptNode->auChildren[1] = auChildren[1];
+    const int iAt = (iDirection == 1 || iDirection == 3) ? 1 : 0;
+    ptNode->iAxis = iDirection >= 2 ? 1 : 0;
+    fRatio = pl_clampf(0.1f, fRatio, 0.9f);
+    ptNode->fRatio = iAt ? 1.0f - fRatio : fRatio;
+    ptNode->uSelectedWindow = 0;
+    pl__dock_node(auChildren[0])->uParent = uNode;
+    pl__dock_node(auChildren[1])->uParent = uNode;
+    pl__dock_node(auChildren[1-iAt])->uSelectedWindow = uSelected;
+    pl__dock_node(auChildren[1-iAt])->bHadWindows = ptNode->bHadWindows;
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptCreatedWindows); i++)
+        if(gptCtx->sbptCreatedWindows[i]->uDockId == uNode)
+            gptCtx->sbptCreatedWindows[i]->uDockId = auChildren[1-iAt];
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtWindowSettings); i++)
+    {
+        if(gptCtx->sbtWindowSettings[i].uDockId == uNode)
+            gptCtx->sbtWindowSettings[i].uDockId = auChildren[1-iAt];
+    }
+    pl__dock_layout(uNode, tRect);
+    if(puOpposite)
+        *puOpposite = auChildren[1-iAt];
+    return auChildren[iAt];
+}
+
+static void
+pl__dock_assign(plUiWindow* ptWindow, uint32_t uNode)
+{
+    if(uNode == ptWindow->uDockId)
+        return;
+    plUiDockNode* ptNode = pl__dock_node(uNode);
+    if(uNode && (!ptNode || ptNode->auChildren[0]))
+        return;
+    plUiDockNode* ptOld = pl__dock_node(ptWindow->uDockId);
+    if(ptOld && ptOld->uSelectedWindow == ptWindow->uId)
+        ptOld->uSelectedWindow = 0;
+    if(!ptWindow->uDockId)
+    {
+        ptWindow->tUndockedPos = ptWindow->tPos;
+        ptWindow->tUndockedSize = ptWindow->bCollapsed ? ptWindow->tFullSize : ptWindow->tSize;
+        ptWindow->bUndockedCollapsed = ptWindow->bCollapsed;
+    }
+    ptWindow->uDockId = uNode;
+    ptWindow->bCollapsed = false;
+    if(ptNode)
+    {
+        ptNode->uSelectedWindow = ptWindow->uId;
+        ptNode->bHadWindows = true;
+    }
+    else
+    {
+        ptWindow->tPos = ptWindow->tUndockedPos;
+        ptWindow->tSize = ptWindow->tUndockedSize;
+        ptWindow->tFullSize = ptWindow->tUndockedSize;
+        ptWindow->bCollapsed = ptWindow->bUndockedCollapsed;
+    }
+}
+
+static void
+pl__dock_prune_empty(void)
+{
+    // Defer compaction until all windows have been submitted. Inactive tabs are
+    // still submitted; windows the application closes or hides are not.
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtDockNodes);)
+    {
+        plUiDockNode* ptEmpty = &gptCtx->sbtDockNodes[i];
+        if(ptEmpty->auChildren[0] || !ptEmpty->uParent || !ptEmpty->bHadWindows || pl__dock_root(ptEmpty->uId)->ulLastFrame != gptIO->ulFrameCount)
+        {
+            i++;
+            continue;
+        }
+        bool bOccupied = false;
+        for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbptCreatedWindows); j++)
+        {
+            plUiWindow* ptMember = gptCtx->sbptCreatedWindows[j];
+            if(ptMember->uDockId == ptEmpty->uId && ptMember->uLastFrameActive == gptIO->ulFrameCount)
+                bOccupied = true;
+        }
+        if(bOccupied)
+        {
+            i++;
+            continue;
+        }
+        const uint32_t uEmpty = ptEmpty->uId;
+        plUiDockNode* ptParent = pl__dock_node(ptEmpty->uParent);
+        const uint32_t uParent = ptParent->uId;
+        const uint32_t uSibling = ptParent->auChildren[ptParent->auChildren[0] == uEmpty ? 1 : 0];
+        const plUiDockNode tSibling = *pl__dock_node(uSibling);
+        ptParent->auChildren[0] = tSibling.auChildren[0];
+        ptParent->auChildren[1] = tSibling.auChildren[1];
+        ptParent->uSelectedWindow = tSibling.uSelectedWindow;
+        ptParent->fRatio = tSibling.fRatio;
+        ptParent->iAxis = tSibling.iAxis;
+        ptParent->bHadWindows = true;
+        if(ptParent->auChildren[0])
+        {
+            pl__dock_node(ptParent->auChildren[0])->uParent = uParent;
+            pl__dock_node(ptParent->auChildren[1])->uParent = uParent;
+        }
+        uint32_t uLeaf = uParent;
+        while(pl__dock_node(uLeaf)->auChildren[0])
+            uLeaf = pl__dock_node(uLeaf)->auChildren[0];
+        // Reopened windows join a surviving pane; saved references never dangle.
+        for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbptCreatedWindows); j++)
+        {
+            plUiWindow* ptMember = gptCtx->sbptCreatedWindows[j];
+            if(ptMember->uDockId == uEmpty || ptMember->uDockId == uSibling)
+                ptMember->uDockId = uLeaf;
+        }
+        for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbtWindowSettings); j++)
+        {
+            plUiWindowSettings* ptSettings = &gptCtx->sbtWindowSettings[j];
+            if(ptSettings->uDockId == uEmpty || ptSettings->uDockId == uSibling)
+                ptSettings->uDockId = uLeaf;
+        }
+        if(gptCtx->uDockSplitterActive == uParent || gptCtx->uDockSplitterActive == uSibling || gptCtx->uDockSplitterActive == uEmpty)
+            gptCtx->uDockSplitterActive = 0;
+        const plRect tRect = ptParent->tRect;
+        for(uint32_t j = pl_sb_size(gptCtx->sbtDockNodes); j > 0; j--)
+        {
+            const uint32_t uId = gptCtx->sbtDockNodes[j - 1].uId;
+            if(uId == uEmpty || uId == uSibling)
+                pl_sb_del(gptCtx->sbtDockNodes, j - 1);
+        }
+        pl__dock_layout(uParent, tRect);
+        i = 0;
+    }
+}
+
+static void
+pl__dock_restore_single_windows(void)
+{
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtDockNodes);)
+    {
+        plUiDockNode* ptRoot = &gptCtx->sbtDockNodes[i];
+        if(!ptRoot->bFloating || ptRoot->uParent || ptRoot->auChildren[0] || ptRoot->ulLastFrame != gptIO->ulFrameCount)
+        {
+            i++;
+            continue;
+        }
+        plUiWindow* ptRemaining = NULL;
+        uint32_t uCount = 0;
+        for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbptCreatedWindows); j++)
+        {
+            plUiWindow* ptMember = gptCtx->sbptCreatedWindows[j];
+            if(ptMember->uDockId == ptRoot->uId && ptMember->uLastFrameActive == gptIO->ulFrameCount)
+            {
+                ptRemaining = ptMember;
+                uCount++;
+            }
+        }
+        plUiWindow* ptHost = pl__get_ptr(&gptCtx->tWindows, ptRoot->uHostWindow);
+        if(uCount != 1 || (ptHost && (gptCtx->ptMovingWindow == ptHost || gptCtx->ptSizingWindow == ptHost)))
+        {
+            i++;
+            continue;
+        }
+        const plVec2 tPos = ptHost ? ptHost->tPos : ptRoot->tHostPos;
+        const plVec2 tSize = ptHost ? ptHost->tSize : ptRoot->tHostSize;
+        if(gptCtx->ptNavWindow && (gptCtx->ptNavWindow == ptHost || gptCtx->ptNavWindow->uDockId == ptRoot->uId))
+            gptCtx->ptNavWindow = ptRemaining;
+        if(gptCtx->ptTitleFocusWindow && (gptCtx->ptTitleFocusWindow == ptHost || gptCtx->ptTitleFocusWindow->uDockId == ptRoot->uId))
+            gptCtx->ptTitleFocusWindow = ptRemaining;
+        // Keep the group's stacking position without raising it over other windows.
+        if(ptHost)
+        {
+            const uint32_t uOrder = ptRemaining->uFocusOrder;
+            ptRemaining->uFocusOrder = ptHost->uFocusOrder;
+            ptHost->uFocusOrder = uOrder;
+            gptCtx->sbptFocusedWindows[ptRemaining->uFocusOrder] = ptRemaining;
+            gptCtx->sbptFocusedWindows[ptHost->uFocusOrder] = ptHost;
+            ptHost->bActive = false;
+        }
+        // Closed members recover their floating placement when reopened.
+        for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbptCreatedWindows); j++)
+        {
+            plUiWindow* ptMember = gptCtx->sbptCreatedWindows[j];
+            if(ptMember->uDockId == ptRoot->uId)
+                pl__dock_assign(ptMember, 0);
+        }
+        for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbtWindowSettings); j++)
+        {
+            if(gptCtx->sbtWindowSettings[j].uDockId == ptRoot->uId)
+                gptCtx->sbtWindowSettings[j].uDockId = 0;
+        }
+        ptRemaining->tPos = ptRemaining->tUndockedPos = tPos;
+        ptRemaining->tSize = ptRemaining->tFullSize = ptRemaining->tUndockedSize = tSize;
+        ptRemaining->bCollapsed = ptRemaining->bUndockedCollapsed = false;
+        pl_sb_del(gptCtx->sbtDockNodes, i);
+    }
+}
+
+void
+pl_ui_set_next_window_dock(uint32_t uNode, plUiConditionFlags tCondition)
+{
+    gptCtx->tNextWindowData.uDockId = uNode;
+    gptCtx->tNextWindowData.tDockCondition = tCondition ? tCondition : PL_UI_COND_ALWAYS;
+    gptCtx->tNextWindowData.bHasDock = true;
+}
+
+uint32_t
+pl_ui_get_window_dock(void)
+{
+    return gptCtx->ptCurrentWindow ? gptCtx->ptCurrentWindow->uDockId : 0;
+}
+
+static void
+pl__dock_space(uint32_t uId, plVec2 tPos, plVec2 tSize, plDrawLayer2D* ptLayer)
+{
+    tSize = pl_max_vec2(tSize, (plVec2){1,1});
+    pl__dock_layout(uId, pl_calculate_rect(tPos, tSize));
+    gptDraw->add_rect_filled(ptLayer, tPos, pl_add_vec2(tPos, tSize),
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBgColor)});
+    // Splitter geometry is shared by layout, hit testing, and drawing.
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtDockNodes); i++)
+    {
+        plUiDockNode* ptNode = &gptCtx->sbtDockNodes[i];
+        uint32_t uRoot = ptNode->uId;
+        while(pl__dock_node(uRoot)->uParent) uRoot = pl__dock_node(uRoot)->uParent;
+        if(uRoot != uId || !ptNode->auChildren[0])
+            continue;
+        const int iAxis = ptNode->iAxis;
+        plRect tDivider = ptNode->tRect;
+        tDivider.tMin.d[iAxis] = pl__dock_node(ptNode->auChildren[0])->tRect.tMax.d[iAxis];
+        tDivider.tMax.d[iAxis] = pl__dock_node(ptNode->auChildren[1])->tRect.tMin.d[iAxis];
+        const bool bAvailable = !pl_sb_size(gptCtx->sbtOpenPopupStack) && !gptCtx->bPopupMouseDismissed &&
+            !gptCtx->ptMovingWindow && (!gptCtx->ptHoveredWindow || pl__dock_root(gptCtx->ptHoveredWindow->uDockId) == pl__dock_node(uId) || gptCtx->ptHoveredWindow->uId == pl__dock_node(uId)->uHostWindow);
+        const bool bHover = bAvailable && pl_rect_contains_point(&tDivider, gptIOI->get_mouse_pos());
+        if(bHover && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+            gptCtx->uDockSplitterActive = ptNode->uId;
+        if(gptCtx->uDockSplitterActive == ptNode->uId)
+        {
+            gptCtx->bWantCaptureMouse = true;
+            gptCtx->abMouseOwned[PL_MOUSE_BUTTON_LEFT] = true;
+            if(gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
+            {
+                const float fExtent = pl_maxf(1.0f, ptNode->tRect.tMax.d[iAxis] - ptNode->tRect.tMin.d[iAxis] - 4.0f);
+                const plVec2 tMouse = gptIOI->get_mouse_pos();
+                ptNode->fRatio = pl_clampf(0.1f, (tMouse.d[iAxis] - ptNode->tRect.tMin.d[iAxis]) / fExtent, 0.9f);
+                pl__dock_layout(uId, pl_calculate_rect(tPos, tSize));
+            }
+            else
+                gptCtx->uDockSplitterActive = 0;
+        }
+        gptDraw->add_rect_filled(ptLayer, tDivider.tMin, tDivider.tMax,
+            (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(bHover ? gptCtx->tColorScheme.tSeparatorCol : gptCtx->tColorScheme.tTitleBgCol)});
+    }
+}
+
+uint32_t
+pl_ui_dock_space(const char* pcName, plVec2 tPos, plVec2 tSize)
+{
+    const uint32_t uId = pl_str_hash(pcName, 0, pl_str_hash("PL_DOCKSPACE", 0, 0));
+    if(!pl__dock_node(uId))
+    {
+        plUiDockNode tRoot = {.uId = uId, .fRatio = 0.5f};
+        pl_sb_push(gptCtx->sbtDockNodes, tRoot);
+    }
+    pl__dock_space(uId, tPos, tSize, gptCtx->ptDockLayer);
+    return uId;
+}
+
+static void
+pl__dock_tabs(plUiWindow* ptWindow, bool* pbOpen, float fHeight)
+{
+    plUiDockNode* ptNode = pl__dock_node(ptWindow->uDockId);
+    uint32_t uCount = 0;
+    float fTotalWidth = 0.0f;
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptCreatedWindows); i++)
+    {
+        plUiWindow* ptTab = gptCtx->sbptCreatedWindows[i];
+        if(ptTab->uDockId == ptNode->uId && ptTab->uLastFrameActive + 1 >= gptIO->ulFrameCount)
+        {
+            uCount++;
+            fTotalWidth += pl__calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, ptTab->pcName, -1.0f).x + 2.0f * gptCtx->tStyle.tFramePadding.x;
+        }
+    }
+    const float fAvailable = pl_maxf(1.0f, ptWindow->tSize.x - (pbOpen ? pl_maxf(32.0f, fHeight) : 0.0f));
+    const float fSpacing = pl_minf(gptCtx->tStyle.tInnerSpacing.x, fAvailable / pl_max(1u, uCount * 2));
+    const float fScale = pl_minf(1.0f, pl_maxf(1.0f, fAvailable - fSpacing * (uCount ? uCount - 1 : 0)) / pl_maxf(1.0f, fTotalWidth));
+    const float fTabHeight = pl__get_frame_height();
+    float fX = ptWindow->tPos.x;
+    const bool bFocused = pl__title_highlight_root(gptCtx->ptTitleFocusWindow) == ptWindow;
+    gptDraw->add_rect_filled(ptWindow->ptFgLayer, ptWindow->tPos, pl_add_vec2(ptWindow->tPos, (plVec2){ptWindow->tSize.x, fHeight}), (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(bFocused ? gptCtx->tColorScheme.tTitleActiveCol : gptCtx->tColorScheme.tTitleBgCol)});
+    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){fX, ptWindow->tPos.y + fTabHeight}, (plVec2){fX + fAvailable, ptWindow->tPos.y + fTabHeight}, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tButtonActiveCol), .fThickness = 1.0f});
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptCreatedWindows); i++)
+    {
+        plUiWindow* ptTab = gptCtx->sbptCreatedWindows[i];
+        if(ptTab->uDockId != ptNode->uId || ptTab->uLastFrameActive + 1 < gptIO->ulFrameCount)
+            continue;
+        const float fNaturalWidth = pl__calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, ptTab->pcName, -1.0f).x + 2.0f * gptCtx->tStyle.tFramePadding.x;
+        const float fWidth = fNaturalWidth * fScale;
+        plRect tBox = pl_calculate_rect((plVec2){fX, ptWindow->tPos.y}, (plVec2){fWidth, fTabHeight});
+        const bool bHovered = pl__popup_allows_window(ptWindow) && gptCtx->ptHoveredWindow == ptWindow &&
+            pl_rect_contains_point(&tBox, gptIOI->get_mouse_pos());
+        if(bHovered && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+        {
+            ptNode->uSelectedWindow = ptTab->uId;
+            gptCtx->ptDockDragWindow = ptTab;
+            pl__focus_window(ptTab);
+        }
+        const plVec4 tColor = gptCtx->ptDockDragWindow == ptTab ? gptCtx->tColorScheme.tTabSelectedCol : bHovered ? gptCtx->tColorScheme.tTabHoveredCol :
+            (ptNode->uSelectedWindow == ptTab->uId ? gptCtx->tColorScheme.tTabSelectedCol : gptCtx->tColorScheme.tTabCol);
+        pl__draw_tab(ptWindow->ptFgLayer, tBox, ptTab->pcName, tColor);
+        fX += fWidth + fSpacing;
+    }
+    ptWindow->tTempData.fDockTabsEndX = fX;
+}
+
+static void
+pl__dock_target_rect(plRect tPane, int iDirection, plRect* ptTarget)
+{
+    const plVec2 tPaneSize = pl_sub_vec2(tPane.tMax, tPane.tMin);
+    const float fSize = pl_maxf(1.0f, pl_minf(gptCtx->tStyle.fFontSize * 2.2f, pl_minf(tPaneSize.x, tPaneSize.y) / 4.0f));
+    plVec2 tCenter = pl_rect_center(&tPane);
+    if(iDirection >= 0)
+        tCenter.d[iDirection >= 2 ? 1 : 0] += (iDirection == 0 || iDirection == 2 ? -1.0f : 1.0f) * fSize * 1.2f;
+    *ptTarget = pl_calculate_rect(pl_sub_vec2(tCenter, (plVec2){fSize * 0.5f, fSize * 0.5f}), (plVec2){fSize, fSize});
+}
+
+static int
+pl__dock_target_direction(plRect tPane, plVec2 tMouse)
+{
+    for(int i = -1; i < 4; i++)
+    {
+        plRect tTarget;
+        pl__dock_target_rect(tPane, i, &tTarget);
+        if(pl_rect_contains_point(&tTarget, tMouse))
+            return i;
+    }
+    return -2; // no target; -1 is the center/tab target
+}
+
+static void
+pl__dock_draw_reticle(plRect tPane, int iSelected)
+{
+    const plVec2 tCenter = pl_rect_center(&tPane);
+    // Draw the compass connectors behind all five targets.
+    for(int i = 0; i < 4; i++)
+    {
+        plRect tBox;
+        pl__dock_target_rect(tPane, i, &tBox);
+        gptDraw->add_line(gptCtx->ptDebugLayer, tCenter, pl_rect_center(&tBox), (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTabSelectedCol), .fThickness = 2.0f});
+    }
+    for(int i = -1; i < 4; i++)
+    {
+        plRect tBox;
+        pl__dock_target_rect(tPane, i, &tBox);
+        const float fSize = pl_rect_width(&tBox);
+        const plVec2 tSlotCenter = pl_rect_center(&tBox);
+        plVec4 tFill = i == iSelected ? gptCtx->tColorScheme.tHeaderActiveCol : gptCtx->tColorScheme.tTitleBgCol;
+        tFill.a = 0.95f;
+        const uint32_t uOutline = PL_COLOR_32_VEC4(i == iSelected ? gptCtx->tColorScheme.tTextCol : gptCtx->tColorScheme.tTabSelectedCol);
+        // Compass arms and a diamond center distinguish PL's target from tabs.
+        gptDraw->add_rect_rounded_filled(gptCtx->ptDebugLayer, tBox.tMin, tBox.tMax, fSize * 0.18f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tFill)});
+        gptDraw->add_rect_rounded(gptCtx->ptDebugLayer, tBox.tMin, tBox.tMax, fSize * 0.18f, 0, 0, (plDrawLineOptions){.uColor = uOutline, .fThickness = i == iSelected ? 2.0f : 1.0f});
+        const plDrawSolidOptions tGlyph = {.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol)};
+        if(i == -1)
+        {
+            const float fRadius = fSize * 0.23f;
+            plVec2 tTop = {tSlotCenter.x, tSlotCenter.y - fRadius};
+            plVec2 tBottom = {tSlotCenter.x, tSlotCenter.y + fRadius};
+            gptDraw->add_triangle_filled(gptCtx->ptDebugLayer, tTop, (plVec2){tSlotCenter.x + fRadius, tSlotCenter.y}, tBottom, tGlyph);
+            gptDraw->add_triangle_filled(gptCtx->ptDebugLayer, tTop, tBottom, (plVec2){tSlotCenter.x - fRadius, tSlotCenter.y}, tGlyph);
+        }
+        else
+        {
+            plRect tGlyphBox = pl_rect_expand_vec2(&tBox, (plVec2){-fSize * 0.25f, -fSize * 0.25f});
+            const int iAxis = i >= 2 ? 1 : 0;
+            if(i == 0 || i == 2)
+                tGlyphBox.tMax.d[iAxis] = tSlotCenter.d[iAxis];
+            else
+                tGlyphBox.tMin.d[iAxis] = tSlotCenter.d[iAxis];
+            gptDraw->add_rect_filled(gptCtx->ptDebugLayer, tGlyphBox.tMin, tGlyphBox.tMax, tGlyph);
+        }
+    }
+}
+
+static void
+pl__dock_drag(void)
+{
+    if(gptCtx->ptDockDragWindow && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 8.0f))
+    {
+        plUiWindow* ptWindow = gptCtx->ptDockDragWindow;
+        pl__dock_assign(ptWindow, 0);
+        ptWindow->tPos = pl_sub_vec2(gptIOI->get_mouse_pos(), (plVec2){ptWindow->tSize.x * 0.5f, 10.0f});
+        ptWindow->tFlags &= ~(PL_UI_WINDOW_FLAGS_NO_MOVE | PL_UI_WINDOW_FLAGS_NO_RESIZE);
+        gptCtx->ptMovingWindow = ptWindow;
+        gptCtx->ptDockDragWindow = NULL;
+    }
+    if(!gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
+        gptCtx->ptDockDragWindow = NULL;
+    plUiWindow* ptWindow = gptCtx->ptMovingWindow;
+    if(!ptWindow || ptWindow->uDockId || (ptWindow->tFlags & (PL_UI_WINDOW_FLAGS_CHILD_WINDOW | PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_NO_MOVE)))
+        return;
+    // Avoid docking on a click without a drag. The moving window is cleared after this call.
+    const bool bReleased = gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT);
+    if(bReleased && gptIO->_afMouseDragMaxDistSqr[PL_MOUSE_BUTTON_LEFT] < 4.0f)
+        return;
+    if(!bReleased && !gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
+        return;
+    const plVec2 tMouse = gptIOI->get_mouse_pos();
+    if(pl_sb_size(gptCtx->sbtOpenPopupStack) || gptCtx->bPopupMouseDismissed || (ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_DOCKING))
+        return;
+
+    uint32_t uTarget = 0;
+    plUiWindow* ptTargetWindow = NULL;
+    plRect tTargetRect = {0};
+    bool bBlocked = false;
+    // Find the frontmost window below the dragged window. A window that cannot
+    // dock still occludes targets behind it.
+    for(uint32_t i = pl_sb_size(gptCtx->sbptFocusedWindows); i > 0; i--)
+    {
+        plUiWindow* ptCandidate = gptCtx->sbptFocusedWindows[i - 1];
+        if(ptCandidate == ptWindow || !ptCandidate->bActive || ptCandidate->uHideFrames || pl__dock_host(ptCandidate))
+            continue;
+        if(!pl_rect_contains_point(&ptCandidate->tOuterRectClipped, tMouse))
+            continue;
+        bBlocked = true;
+        if(ptCandidate->tFlags & PL_UI_WINDOW_FLAGS_DOCK_HOST)
+        {
+            for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbtDockNodes); j++)
+            {
+                plUiDockNode* ptNode = &gptCtx->sbtDockNodes[j];
+                if(!ptNode->auChildren[0] && ptNode->ulLastFrame == gptIO->ulFrameCount && pl__dock_root(ptNode->uId)->uHostWindow == ptCandidate->uId && !ptCandidate->bCollapsed && pl_rect_contains_point(&ptNode->tRect, tMouse))
+                {
+                    uTarget = ptNode->uId;
+                    tTargetRect = ptNode->tRect;
+                    break;
+                }
+            }
+        }
+        else if(!(ptCandidate->tFlags & (PL_UI_WINDOW_FLAGS_CHILD_WINDOW | PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_NO_DOCKING | PL_UI_WINDOW_FLAGS_NO_MOVE | PL_UI_WINDOW_FLAGS_NO_TITLE_BAR)))
+        {
+            uTarget = ptCandidate->uDockId;
+            ptTargetWindow = ptCandidate;
+            tTargetRect = ptCandidate->tOuterRect;
+        }
+        break;
+    }
+    if(!bBlocked)
+    {
+        for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtDockNodes); i++)
+        {
+            plUiDockNode* ptNode = &gptCtx->sbtDockNodes[i];
+            if(!ptNode->auChildren[0] && !pl__dock_root(ptNode->uId)->bFloating && ptNode->ulLastFrame == gptIO->ulFrameCount && pl_rect_contains_point(&ptNode->tRect, tMouse))
+            {
+                uTarget = ptNode->uId;
+                tTargetRect = ptNode->tRect;
+                break;
+            }
+        }
+    }
+    if(uTarget || ptTargetWindow)
+    {
+        plRect tPreview = tTargetRect;
+        const int iDirection = pl__dock_target_direction(tTargetRect, tMouse);
+        if(iDirection == -2)
+        {
+            pl__dock_draw_reticle(tTargetRect, iDirection);
+            return;
+        }
+        if(iDirection >= 0)
+        {
+            int iAxis = iDirection >= 2 ? 1 : 0;
+            float fMid = (tPreview.tMin.d[iAxis] + tPreview.tMax.d[iAxis]) * 0.5f;
+            if(iDirection == 0 || iDirection == 2)
+                tPreview.tMax.d[iAxis] = fMid;
+            else
+                tPreview.tMin.d[iAxis] = fMid;
+        }
+        plVec4 tColor = gptCtx->tColorScheme.tHeaderActiveCol;
+        tColor.a = 0.45f;
+        gptDraw->add_rect_filled(gptCtx->ptDebugLayer, tPreview.tMin, tPreview.tMax, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tColor)});
+        pl__dock_draw_reticle(tTargetRect, iDirection);
+        if(bReleased)
+        {
+            if(!uTarget)
+            {
+                uTarget = pl__dock_new_node();
+                plUiDockNode* ptRoot = pl__dock_node(uTarget);
+                ptRoot->bFloating = true;
+                snprintf(ptRoot->acHostTitle, sizeof(ptRoot->acHostTitle), "%.*s", (int)(pl__find_renderered_text_end(ptTargetWindow->pcName, NULL) - ptTargetWindow->pcName), ptTargetWindow->pcName);
+                ptRoot->tHostPos = ptTargetWindow->tPos;
+                ptRoot->tHostSize = ptTargetWindow->bCollapsed ? ptTargetWindow->tFullSize : ptTargetWindow->tSize;
+                pl__dock_layout(uTarget, tTargetRect);
+                pl__dock_assign(ptTargetWindow, uTarget);
+            }
+            if(iDirection >= 0)
+                uTarget = pl_ui_dock_split(uTarget, iDirection, 0.5f, NULL);
+            pl__dock_assign(ptWindow, uTarget);
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] settings
+//-----------------------------------------------------------------------------
+
+static plUiWindowSettings*
+pl__settings_window(uint32_t uId)
+{
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtWindowSettings); i++)
+    {
+        if(gptCtx->sbtWindowSettings[i].uId == uId)
+            return &gptCtx->sbtWindowSettings[i];
+    }
+    return NULL;
+}
+
+void
+pl_ui_set_settings_file(const char* pcPath)
+{
+    PL_ASSERT(!gptCtx->bSettingsLoaded && "Set the settings path before the first UI frame");
+    if(gptCtx->bSettingsLoaded)
+        return;
+    char* pcCopy = NULL;
+    if(pcPath && *pcPath)
+    {
+        pcCopy = PL_ALLOC(strlen(pcPath) + 1);
+        strcpy(pcCopy, pcPath);
+    }
+    PL_FREE(gptCtx->pcSettingsFile);
+    gptCtx->pcSettingsFile = pcCopy;
+}
+
+static bool
+pl__settings_geometry(plVec2 tPos, plVec2 tSize)
+{
+    return fabsf(tPos.x) <= 10000000.0f && fabsf(tPos.y) <= 10000000.0f && tSize.x > 0.0f && tSize.y > 0.0f && tSize.x <= 1000000.0f && tSize.y <= 1000000.0f;
+}
+
+static plUiDockNode*
+pl__settings_node(plUiDockNode* sbtNodes, uint32_t uId)
+{
+    for(uint32_t i = 0; i < pl_sb_size(sbtNodes); i++)
+    {
+        if(sbtNodes[i].uId == uId)
+            return &sbtNodes[i];
+    }
+    return NULL;
+}
+
+static bool
+pl__settings_parse(char* pcText)
+{
+    plUiDockNode* sbtNodes = NULL;
+    plUiWindowSettings* sbtWindows = NULL;
+    bool bValid = strncmp(pcText, "PL_UI_LAYOUT 1\n", 15) == 0;
+    bool bEnd = false;
+    char* pcLine = bValid ? pcText + 15 : NULL;
+    while(bValid && pcLine && *pcLine)
+    {
+        char* pcNext = strchr(pcLine, '\n');
+        if(pcNext)
+            *pcNext++ = 0;
+        int iRead = 0;
+        int iCollapsed = 0;
+        if(strcmp(pcLine, "End") == 0)
+        {
+            bEnd = true;
+            bValid = !pcNext || !*pcNext;
+            break;
+        }
+        if(*pcLine == 'N')
+        {
+            plUiDockNode tNode = {0};
+            int iFloating = 0;
+            bValid = sscanf(pcLine, "N %u %u %u %u %u %d %f %d %f %f %f %f %d %n", &tNode.uId, &tNode.uParent, &tNode.auChildren[0], &tNode.auChildren[1], &tNode.uSelectedWindow, &tNode.iAxis, &tNode.fRatio, &iFloating, &tNode.tHostPos.x, &tNode.tHostPos.y, &tNode.tHostSize.x, &tNode.tHostSize.y, &iCollapsed, &iRead) == 13;
+            bValid = bValid && !pcLine[iRead] && tNode.uId && !pl__settings_node(sbtNodes, tNode.uId) && (tNode.iAxis == 0 || tNode.iAxis == 1) && tNode.fRatio >= 0.1f && tNode.fRatio <= 0.9f && (iFloating == 0 || iFloating == 1) && (iCollapsed == 0 || iCollapsed == 1) && pl__settings_geometry(tNode.tHostPos, tNode.tHostSize) && pl_sb_size(sbtNodes) < 4096;
+            tNode.bFloating = iFloating != 0;
+            tNode.bHadWindows = tNode.uSelectedWindow != 0;
+            tNode.bHostCollapsed = iCollapsed != 0;
+            tNode.tRect = pl_calculate_rect(tNode.tHostPos, tNode.tHostSize);
+            if(bValid)
+                pl_sb_push(sbtNodes, tNode);
+        }
+        else if(*pcLine == 'T')
+        {
+            uint32_t uId = 0;
+            char acHex[511] = {0};
+            bValid = sscanf(pcLine, "T %u %510s %n", &uId, acHex, &iRead) == 2 && !pcLine[iRead];
+            plUiDockNode* ptNode = pl__settings_node(sbtNodes, uId);
+            const size_t szLength = strlen(acHex);
+            bValid = bValid && ptNode && ptNode->bFloating && !ptNode->acHostTitle[0] && szLength % 2 == 0;
+            for(size_t i = 0; bValid && i < szLength; i += 2)
+            {
+                const char* pcDigits = "0123456789abcdef";
+                const char* pcHigh = strchr(pcDigits, acHex[i]);
+                const char* pcLow = strchr(pcDigits, acHex[i + 1]);
+                bValid = pcHigh && pcLow;
+                if(bValid)
+                {
+                    const unsigned char uChar = (unsigned char)((pcHigh - pcDigits) * 16 + pcLow - pcDigits);
+                    bValid = uChar != 0;
+                    ptNode->acHostTitle[i / 2] = (char)uChar;
+                }
+            }
+        }
+        else if(*pcLine == 'W')
+        {
+            plUiWindowSettings tWindow = {0};
+            bValid = sscanf(pcLine, "W %u %u %f %f %f %f %d %n", &tWindow.uId, &tWindow.uDockId, &tWindow.tPos.x, &tWindow.tPos.y, &tWindow.tSize.x, &tWindow.tSize.y, &iCollapsed, &iRead) == 7;
+            bValid = bValid && !pcLine[iRead] && tWindow.uId && (iCollapsed == 0 || iCollapsed == 1) && pl__settings_geometry(tWindow.tPos, tWindow.tSize) && pl_sb_size(sbtWindows) < 8192;
+            for(uint32_t i = 0; bValid && i < pl_sb_size(sbtWindows); i++)
+                bValid = sbtWindows[i].uId != tWindow.uId;
+            tWindow.bCollapsed = iCollapsed != 0;
+            if(bValid)
+            {
+                pl_sb_push(sbtWindows, tWindow);
+            }
+        }
+        else
+            bValid = false;
+        pcLine = pcNext;
+    }
+    bValid = bValid && bEnd;
+    // Validate the complete graph before installing it: no dangling links,
+    // duplicate children, cycles, or unbounded recursive layout depth.
+    for(uint32_t i = 0; bValid && i < pl_sb_size(sbtNodes); i++)
+    {
+        plUiDockNode* ptNode = &sbtNodes[i];
+        if(ptNode->bFloating && ptNode->uParent)
+            bValid = false;
+        if(!!ptNode->auChildren[0] != !!ptNode->auChildren[1])
+            bValid = false;
+        if(ptNode->auChildren[0])
+        {
+            plUiDockNode* ptA = pl__settings_node(sbtNodes, ptNode->auChildren[0]);
+            plUiDockNode* ptB = pl__settings_node(sbtNodes, ptNode->auChildren[1]);
+            bValid = bValid && ptA && ptB && ptA != ptB && ptA->uParent == ptNode->uId && ptB->uParent == ptNode->uId;
+        }
+        uint32_t uDepth = 0;
+        while(bValid && ptNode->uParent)
+        {
+            plUiDockNode* ptParent = pl__settings_node(sbtNodes, ptNode->uParent);
+            bValid = ptParent && (ptParent->auChildren[0] == ptNode->uId || ptParent->auChildren[1] == ptNode->uId) && ++uDepth <= 64;
+            ptNode = ptParent;
+        }
+    }
+    for(uint32_t i = 0; bValid && i < pl_sb_size(sbtWindows); i++)
+    {
+        if(sbtWindows[i].uDockId)
+        {
+            plUiDockNode* ptNode = pl__settings_node(sbtNodes, sbtWindows[i].uDockId);
+            bValid = ptNode && !ptNode->auChildren[0];
+        }
+    }
+    if(bValid)
+    {
+        pl_sb_free(gptCtx->sbtDockNodes);
+        pl_sb_free(gptCtx->sbtWindowSettings);
+        gptCtx->sbtDockNodes = sbtNodes;
+        gptCtx->sbtWindowSettings = sbtWindows;
+    }
+    else
+    {
+        pl_sb_free(sbtNodes);
+        pl_sb_free(sbtWindows);
+    }
+    return bValid;
+}
+
+static void
+pl__settings_load(void)
+{
+    if(gptCtx->bSettingsLoaded)
+        return;
+    gptCtx->bSettingsLoaded = true;
+    if(!gptCtx->pcSettingsFile || !gptFile)
+        return;
+    plFileStream* ptFile = gptFile->open_stream(gptCtx->pcSettingsFile, PL_FILE_MODE_READ);
+    if(!ptFile)
+    {
+        gptCtx->bSettingsReadOnly = gptFile->exists(gptCtx->pcSettingsFile);
+        return;
+    }
+    uint64_t ulSize = 0;
+    bool bValid = gptFile->size_stream(ptFile, &ulSize) == PL_FILE_RESULT_SUCCESS && ulSize > 0 && ulSize <= 1024 * 1024;
+    char* pcText = NULL;
+    if(bValid)
+    {
+        pcText = PL_ALLOC((size_t)ulSize + 1);
+        bValid = gptFile->read_stream(ptFile, pcText, (size_t)ulSize) == (size_t)ulSize;
+        pcText[ulSize] = 0;
+        bValid = bValid && strlen(pcText) == (size_t)ulSize && pl__settings_parse(pcText);
+    }
+    gptFile->close_stream(ptFile);
+    PL_FREE(pcText);
+    gptCtx->bSettingsReadOnly = !bValid;
+    if(!bValid)
+        fprintf(stderr, "UI: invalid layout in %s; leaving the file unchanged.\n", gptCtx->pcSettingsFile);
+}
+
+static void
+pl__settings_snapshot(void)
+{
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptCreatedWindows); i++)
+    {
+        plUiWindow* ptWindow = gptCtx->sbptCreatedWindows[i];
+        if(ptWindow->tFlags & (PL_UI_WINDOW_FLAGS_CHILD_WINDOW | PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_NO_SAVED_SETTINGS | PL_UI_WINDOW_FLAGS_DOCK_HOST))
+            continue;
+        plUiWindowSettings* ptSettings = pl__settings_window(ptWindow->uId);
+        if(!ptSettings)
+        {
+            plUiWindowSettings tSettings = {.uId = ptWindow->uId};
+            pl_sb_push(gptCtx->sbtWindowSettings, tSettings);
+            ptSettings = &pl_sb_last(gptCtx->sbtWindowSettings);
+        }
+        ptSettings->uDockId = ptWindow->uDockId;
+        ptSettings->tPos = ptWindow->uDockId ? ptWindow->tUndockedPos : ptWindow->tPos;
+        ptSettings->tSize = ptWindow->uDockId ? ptWindow->tUndockedSize : (ptWindow->bCollapsed ? ptWindow->tFullSize : ptWindow->tSize);
+        ptSettings->bCollapsed = ptWindow->uDockId ? ptWindow->bUndockedCollapsed : ptWindow->bCollapsed;
+    }
+    pl_sb_reset(gptCtx->sbcSettingsSnapshot);
+    pl_sb_sprintf(gptCtx->sbcSettingsSnapshot, "%s", "PL_UI_LAYOUT 1\n");
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtDockNodes); i++)
+    {
+        plUiDockNode* ptNode = &gptCtx->sbtDockNodes[i];
+        plUiWindow* ptHost = pl__get_ptr(&gptCtx->tWindows, ptNode->uHostWindow);
+        if(ptNode->bFloating && ptHost)
+        {
+            ptNode->tHostPos = ptHost->tPos;
+            ptNode->tHostSize = ptHost->bCollapsed ? ptHost->tFullSize : ptHost->tSize;
+            ptNode->bHostCollapsed = ptHost->bCollapsed;
+        }
+        plVec2 tPos = ptNode->bFloating ? ptNode->tHostPos : ptNode->tRect.tMin;
+        plVec2 tSize = ptNode->bFloating ? ptNode->tHostSize : pl_sub_vec2(ptNode->tRect.tMax, ptNode->tRect.tMin);
+        tSize = pl_max_vec2(tSize, (plVec2){1, 1});
+        pl_sb_pop(gptCtx->sbcSettingsSnapshot);
+        pl_sb_sprintf(gptCtx->sbcSettingsSnapshot, "N %u %u %u %u %u %d %.9g %d %.9g %.9g %.9g %.9g %d\n", ptNode->uId, ptNode->uParent, ptNode->auChildren[0], ptNode->auChildren[1], ptNode->uSelectedWindow, ptNode->iAxis, ptNode->fRatio, ptNode->bFloating, tPos.x, tPos.y, tSize.x, tSize.y, ptNode->bHostCollapsed);
+        if(ptNode->bFloating && ptNode->acHostTitle[0])
+        {
+            char acHex[511] = {0};
+            const char* pcDigits = "0123456789abcdef";
+            const size_t szLength = strlen(ptNode->acHostTitle);
+            for(size_t j = 0; j < szLength; j++)
+            {
+                const unsigned char uChar = (unsigned char)ptNode->acHostTitle[j];
+                acHex[j * 2] = pcDigits[uChar >> 4];
+                acHex[j * 2 + 1] = pcDigits[uChar & 15];
+            }
+            pl_sb_pop(gptCtx->sbcSettingsSnapshot);
+            pl_sb_sprintf(gptCtx->sbcSettingsSnapshot, "T %u %s\n", ptNode->uId, acHex);
+        }
+    }
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtWindowSettings); i++)
+    {
+        plUiWindowSettings* ptWindow = &gptCtx->sbtWindowSettings[i];
+        pl_sb_pop(gptCtx->sbcSettingsSnapshot);
+        pl_sb_sprintf(gptCtx->sbcSettingsSnapshot, "W %u %u %.9g %.9g %.9g %.9g %d\n", ptWindow->uId, ptWindow->uDockId, ptWindow->tPos.x, ptWindow->tPos.y, ptWindow->tSize.x, ptWindow->tSize.y, ptWindow->bCollapsed);
+    }
+    pl_sb_pop(gptCtx->sbcSettingsSnapshot);
+    pl_sb_sprintf(gptCtx->sbcSettingsSnapshot, "%s", "End\n");
+}
+
+bool
+pl_ui_save_settings(void)
+{
+    if(!gptCtx->bSettingsLoaded || !gptCtx->pcSettingsFile || gptCtx->bSettingsReadOnly || !gptFile)
+        return false;
+    pl__settings_snapshot();
+    if(gptCtx->sbcSettingsSaved && strcmp(gptCtx->sbcSettingsSaved, gptCtx->sbcSettingsSnapshot) == 0)
+        return true;
+    char acTempPath[4096] = {0};
+    plFileStream* ptFile = gptFile->open_temp_stream(gptCtx->pcSettingsFile, acTempPath, sizeof(acTempPath));
+    bool bSaved = false;
+    if(ptFile)
+    {
+        size_t szBytes = strlen(gptCtx->sbcSettingsSnapshot);
+        bSaved = gptFile->write_stream(ptFile, gptCtx->sbcSettingsSnapshot, szBytes) == szBytes;
+        if(gptFile->flush_stream(ptFile) != PL_FILE_RESULT_SUCCESS)
+            bSaved = false;
+        if(gptFile->close_stream(ptFile) != PL_FILE_RESULT_SUCCESS)
+            bSaved = false;
+        if(bSaved)
+            bSaved = gptFile->replace_file(acTempPath, gptCtx->pcSettingsFile) == PL_FILE_RESULT_SUCCESS;
+        if(!bSaved)
+            gptFile->remove(acTempPath);
+    }
+    if(bSaved)
+    {
+        pl_sb_reset(gptCtx->sbcSettingsSaved);
+        pl_sb_sprintf(gptCtx->sbcSettingsSaved, "%s", gptCtx->sbcSettingsSnapshot);
+    }
+    else if(!gptCtx->bSettingsWriteFailed)
+        fprintf(stderr, "UI: could not save layout to %s; will retry.\n", gptCtx->pcSettingsFile);
+    gptCtx->bSettingsWriteFailed = !bSaved;
+    return bSaved;
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -217,30 +1098,15 @@ pl_ui_wants_text_input(void)
 void
 pl_ui_begin_frame(void)
 {
+    pl__settings_load();
+    gptCtx->fMainMenuBarHeight = 0.0f;
 
+    PL_ASSERT(pl_sb_size(gptCtx->sbtBeginPopupStack) == 0 && "Missing end_popup()");
     pl_sb_reset(gptCtx->sbtBeginPopupStack);
     pl_sb_reset(gptCtx->sbDrawlists);
 
     gptCtx->bWantTextInput = false;
-    gptCtx->bWantCaptureMouse = gptCtx->uActiveId != 0 || gptCtx->ptMovingWindow != NULL || gptCtx->ptActiveWindow != NULL || gptCtx->ptNavWindow != NULL;
-    gptCtx->bWantCaptureKeyboard = gptCtx->uActiveId != 0;
-
-    if (gptCtx->iWantCaptureMouseNextFrame != -1)
-        gptCtx->bWantCaptureMouse = (gptCtx->iWantCaptureMouseNextFrame != 0);
-
-    if (gptCtx->iWantCaptureKeyboardNextFrame != -1)
-        gptCtx->bWantCaptureKeyboard = (gptCtx->iWantCaptureKeyboardNextFrame != 0);
-
-    gptCtx->iWantCaptureKeyboardNextFrame = -1;
-    gptCtx->iWantCaptureMouseNextFrame = -1;
-
-    for(uint32_t i = 0; i < 5; i++)
-    {
-        if(gptCtx->abMouseOwned[i])
-        {
-            gptCtx->bWantCaptureMouse = true;
-        }
-    }
+    const bool bHadOpenPopup = pl_sb_size(gptCtx->sbtOpenPopupStack) != 0;
 
     // update state id's from previous frame
     gptCtx->uHoveredId = gptCtx->uNextHoveredId;
@@ -258,32 +1124,66 @@ pl_ui_begin_frame(void)
     gptCtx->tNextWindowData.tPosCondition = PL_UI_COND_NONE;
     gptCtx->tNextWindowData.tSizeCondition = PL_UI_COND_NONE;
 
-    if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false) && gptCtx->uHoveredId == 0)
+    // A dock space may disappear while a divider is held; release must not depend
+    // on submitting that space again.
+    if(!gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
+        gptCtx->uDockSplitterActive = 0;
+    gptCtx->bPopupMouseDismissed = false;
+    if(gptIO->_tMousePos.x != gptIO->_tMousePosPrev.x || gptIO->_tMousePos.y != gptIO->_tMousePosPrev.y || gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
-        // gptCtx->uActiveWindowId = 0;
-        pl_sb_reset(gptCtx->sbtOpenPopupStack);
-        pl__set_nav_window(NULL);
+        gptCtx->bMenuHoverSuppressed = false;
     }
-    else if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false) && gptCtx->uHoveredId == 0)
+    // Hit-test this frame's mouse against the latest submitted geometry. A move and
+    // click may arrive together; the previous frame's cached hover is not sufficient.
+    gptCtx->ptHoveredWindow = NULL;
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
     {
-        // gptCtx->uActiveWindowId = 0;
-        pl_sb_reset(gptCtx->sbtOpenPopupStack);
-        pl__set_nav_window(NULL);
-    }
-    else if(gptIOI->is_key_pressed(PL_KEY_ESCAPE, false))
-    {
-        // gptCtx->uActiveWindowId = 0;
-        pl_sb_reset(gptCtx->sbtOpenPopupStack);
-        pl__set_nav_window(NULL);
-    }
-
-    if(gptCtx->ptNavWindow)
-    {
-        if(!(gptCtx->ptNavWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW))
+        plUiWindow* ptWindow = gptCtx->sbptWindows[i];
+        if(ptWindow->ptRootWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW)
         {
-            pl_sb_reset(gptCtx->sbtOpenPopupStack);
+            bool bOpen = false;
+            for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbtOpenPopupStack); j++)
+            {
+                if(gptCtx->sbtOpenPopupStack[j].ptWindow == ptWindow->ptRootWindow)
+                    bOpen = true;
+            }
+            if(!bOpen)
+                continue;
+        }
+        if(ptWindow->uHideFrames == 0 && pl_rect_contains_point(&ptWindow->tOuterRectClipped, gptIOI->get_mouse_pos()))
+            gptCtx->ptHoveredWindow = ptWindow;
+    }
+    gptCtx->tNextWindowData.bHasDock = false;
+    if(pl_sb_size(gptCtx->sbtOpenPopupStack))
+    {
+        if(gptIOI->is_key_pressed(PL_KEY_ESCAPE, false))
+        {
+            gptCtx->bMenuHoverSuppressed = true;
+            pl__close_popup_to_level(pl_sb_size(gptCtx->sbtOpenPopupStack) - 1, true);
+        }
+        else if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false) || gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false))
+        {
+            uint32_t uKeep = 0;
+            for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtOpenPopupStack); i++)
+            {
+                if(pl__window_in_popup(gptCtx->ptHoveredWindow, gptCtx->sbtOpenPopupStack[i].ptWindow))
+                    uKeep = i + 1;
+            }
+            if(uKeep < pl_sb_size(gptCtx->sbtOpenPopupStack))
+            {
+                // An outside click dismisses the stack without activating a widget behind it.
+                gptCtx->bPopupMouseDismissed = uKeep == 0;
+                pl__close_popup_to_level(uKeep, true);
+            }
         }
     }
+
+    // Clicking the scene releases UI focus. Popup dismissal still consumes this
+    // frame's input, but must not leave the restored host capturing the camera.
+    if(!gptCtx->ptHoveredWindow && (gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false) || gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false)))
+        pl__set_nav_window(NULL);
+    else if(!bHadOpenPopup && gptIOI->is_key_pressed(PL_KEY_ESCAPE, false))
+        pl__set_nav_window(NULL);
 
     // reset active id if no longer alive
     if(gptCtx->uActiveId != 0 && gptCtx->uActiveIdIsAlive != gptCtx->uActiveId)
@@ -297,12 +1197,25 @@ pl_ui_begin_frame(void)
 
     if(gptCtx->uActiveId == 0)
         gptCtx->ptActiveWindow = NULL;
-}
 
-static inline void
-pl__set_nav_window(plUiWindow* ptWindow)
-{
-    gptCtx->ptNavWindow = ptWindow;
+    // Resolve capture after focus changes so the initial camera click is usable.
+    gptCtx->bWantCaptureMouse = gptCtx->uActiveId != 0 || gptCtx->ptMovingWindow != NULL || gptCtx->ptActiveWindow != NULL || gptCtx->ptNavWindow != NULL;
+    gptCtx->bWantCaptureKeyboard = gptCtx->uActiveId != 0 || bHadOpenPopup;
+
+    if(gptCtx->iWantCaptureMouseNextFrame != -1)
+        gptCtx->bWantCaptureMouse = (gptCtx->iWantCaptureMouseNextFrame != 0);
+    if(gptCtx->iWantCaptureKeyboardNextFrame != -1)
+        gptCtx->bWantCaptureKeyboard = (gptCtx->iWantCaptureKeyboardNextFrame != 0);
+    gptCtx->iWantCaptureKeyboardNextFrame = -1;
+    gptCtx->iWantCaptureMouseNextFrame = -1;
+
+    for(uint32_t i = 0; i < 5; i++)
+    {
+        if(gptCtx->abMouseOwned[i])
+            gptCtx->bWantCaptureMouse = true;
+    }
+    if(pl_sb_size(gptCtx->sbtOpenPopupStack) || gptCtx->bPopupMouseDismissed)
+        gptCtx->bWantCaptureMouse = true;
 }
 
 static inline void
@@ -312,16 +1225,16 @@ pl__focus_window(plUiWindow* ptWindow)
     if(ptWindow != gptCtx->ptNavWindow)
     {
         pl__set_nav_window(ptWindow);
-        if(ptWindow && !(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW))
-        {
-            pl_sb_reset(gptCtx->sbtOpenPopupStack);
-        }
     }
 
     if(ptWindow == NULL)
     {
         return;
     }
+
+    plUiWindow* ptHost = pl__dock_host(ptWindow->ptRootWindow);
+    if(ptHost)
+        ptWindow = ptHost;
     
     pl_sb_del(gptCtx->sbptFocusedWindows, ptWindow->ptRootWindow->uFocusOrder);
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptFocusedWindows); i++)
@@ -524,12 +1437,40 @@ pl_ui_begin_child(const char* pcName, plUiChildFlags tChildFlags, plUiWindowFlag
     return bValue;
 }
 
+static void
+pl__close_popup_to_level(uint32_t uRemaining, bool bRestoreFocus)
+{
+    if(uRemaining >= pl_sb_size(gptCtx->sbtOpenPopupStack))
+        return;
+    plUiWindow* ptRestore = gptCtx->sbtOpenPopupStack[uRemaining].ptRestoreWindow;
+    for(uint32_t i = uRemaining; i < pl_sb_size(gptCtx->sbtOpenPopupStack); i++)
+    {
+        plUiWindow* ptWindow = gptCtx->sbtOpenPopupStack[i].ptWindow;
+        if(ptWindow && pl__window_in_popup(gptCtx->ptActiveWindow, ptWindow))
+            pl__set_active_id(0, NULL);
+    }
+    pl_sb_resize(gptCtx->sbtOpenPopupStack, uRemaining);
+    if(bRestoreFocus)
+        pl__focus_window(ptRestore);
+}
+
 void
 pl_ui_open_popup_id(uint32_t uHash, plUiPopupFlags tFlags)
 {
+    (void)tFlags; // reserved
+    const uint32_t uDepth = pl_sb_size(gptCtx->sbtBeginPopupStack);
+
+    // Closing a parent while still submitting it must not create orphan popups.
+    if(uDepth > pl_sb_size(gptCtx->sbtOpenPopupStack))
+        return;
+    if(uDepth < pl_sb_size(gptCtx->sbtOpenPopupStack) && gptCtx->sbtOpenPopupStack[uDepth].uId == uHash)
+        return;
+    pl__close_popup_to_level(uDepth, false);
     plUiPopupData tPopupData = {
         .uId = uHash,
-        .ulOpenFrameCount = gptIO->ulFrameCount
+        .ulOpenFrameCount = gptIO->ulFrameCount,
+        .ptRestoreWindow = gptCtx->ptCurrentWindow ? gptCtx->ptCurrentWindow : gptCtx->ptNavWindow,
+        .ptParentWindow = gptCtx->ptCurrentWindow
     };
     pl_sb_push(gptCtx->sbtOpenPopupStack, tPopupData);
 }
@@ -537,34 +1478,32 @@ pl_ui_open_popup_id(uint32_t uHash, plUiPopupFlags tFlags)
 void
 pl_ui_open_popup(const char* pcName, plUiPopupFlags tFlags)
 {
-    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
-    const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
-    pl_ui_open_popup_id(uHash, tFlags);
+    uint32_t uSeed = pl_sb_size(gptCtx->sbuIdStack) ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+    pl_ui_open_popup_id(pl_str_hash(pcName, 0, uSeed), tFlags);
 }
 
 void
 pl_ui_close_current_popup(void)
 {
-    if(pl_sb_size(gptCtx->sbtBeginPopupStack) == 0)
+    uint32_t uDepth = pl_sb_size(gptCtx->sbtBeginPopupStack);
+    if(!uDepth || uDepth > pl_sb_size(gptCtx->sbtOpenPopupStack))
         return;
-
-    uint32_t uCurrentPopupIndex = pl_sb_size(gptCtx->sbtBeginPopupStack) - 1;
-
-    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtOpenPopupStack); i++)
-    {
-        if(gptCtx->sbtOpenPopupStack[i].uId == gptCtx->sbtBeginPopupStack[uCurrentPopupIndex].uId)
-        {
-            // pl__focus_window(gptCtx->ptCurrentWindow->ptRestoreWindow);
-            pl_sb_del(gptCtx->sbtOpenPopupStack, i);
-            break;
-        }
-    }
+    uDepth--;
+    if(gptCtx->sbtOpenPopupStack[uDepth].uId != gptCtx->sbtBeginPopupStack[uDepth].uId)
+        return;
+    // Selecting a command in a submenu closes its menu chain, including a context popup.
+    while(uDepth && gptCtx->sbtOpenPopupStack[uDepth].ptWindow && (gptCtx->sbtOpenPopupStack[uDepth].ptWindow->tFlags & PL_UI_WINDOW_FLAGS_MENU))
+        uDepth--;
+    pl__close_popup_to_level(uDepth, true);
 }
 
 void
 pl_ui_end_popup(void)
 {
+    PL_ASSERT(pl_sb_size(gptCtx->sbtBeginPopupStack) > 0);
+    PL_ASSERT(gptCtx->ptCurrentWindow && (gptCtx->ptCurrentWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW));
     pl_ui_end_window();
+    pl_sb_pop(gptCtx->sbtBeginPopupStack);
 }
 
 uint32_t
@@ -578,67 +1517,56 @@ pl_ui_get_id(const char* pcName)
 bool
 pl_ui_is_popup_open_id(uint32_t uHash)
 {
-    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtOpenPopupStack); i++)
-    {
-        if(gptCtx->sbtOpenPopupStack[i].uId == uHash)
-        {
-            return true;
-        }
-    }
-    return false;
+    uint32_t uDepth = pl_sb_size(gptCtx->sbtBeginPopupStack);
+    return uDepth < pl_sb_size(gptCtx->sbtOpenPopupStack) && gptCtx->sbtOpenPopupStack[uDepth].uId == uHash;
 }
 
 bool
 pl_ui_is_popup_open(const char* pcName)
 {
-    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
-    const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
-    return pl_ui_is_popup_open_id(uHash);
+    uint32_t uSeed = pl_sb_size(gptCtx->sbuIdStack) ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+    return pl_ui_is_popup_open_id(pl_str_hash(pcName, 0, uSeed));
+}
+
+bool
+pl_ui_begin_popup_id(uint32_t uHash, plUiWindowFlags tFlags)
+{
+    if(!pl_ui_is_popup_open_id(uHash))
+    {
+        gptCtx->tNextWindowData.tFlags = 0;
+        gptCtx->tNextWindowData.bHasDock = false;
+        return false;
+    }
+    const uint32_t uDepth = pl_sb_size(gptCtx->sbtBeginPopupStack);
+    const bool bNew = gptCtx->sbtOpenPopupStack[uDepth].ptWindow == NULL;
+    if(bNew && !(gptCtx->tNextWindowData.tFlags & PL_NEXT_WINDOW_DATA_FLAGS_HAS_POS))
+    {
+        gptCtx->tNextWindowData.tPos = gptIOI->get_mouse_pos();
+        gptCtx->tNextWindowData.tPosCondition = PL_UI_COND_ALWAYS;
+        gptCtx->tNextWindowData.tFlags |= PL_NEXT_WINDOW_DATA_FLAGS_HAS_POS;
+    }
+    pl_sb_push(gptCtx->sbtBeginPopupStack, gptCtx->sbtOpenPopupStack[uDepth]);
+    char acName[48] = {0};
+    snprintf(acName, sizeof(acName), "Popup###PL_POPUP_%08x", uHash);
+    bool bResult = pl__begin_window_ex(acName, NULL, tFlags | PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_NO_COLLAPSE);
+    gptCtx->sbtOpenPopupStack[uDepth].ptWindow = gptCtx->ptCurrentWindow;
+    gptCtx->sbtBeginPopupStack[uDepth].ptWindow = gptCtx->ptCurrentWindow;
+    if(bResult)
+    {
+        static const float afWidth[] = {300.0f};
+        pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, afWidth);
+        if(bNew)
+            pl__focus_window(gptCtx->ptCurrentWindow);
+    }
+    else pl_ui_end_popup();
+    return bResult;
 }
 
 bool
 pl_ui_begin_popup(const char* pcName, plUiWindowFlags tFlags)
 {
-    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
-    const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
-    bool bIsOpen = false;
-    bool bNewOpen = false;
-    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtOpenPopupStack); i++)
-    {
-        if(gptCtx->sbtOpenPopupStack[i].uId == uHash)
-        {
-            bNewOpen = gptCtx->sbtOpenPopupStack[i].ulOpenFrameCount == gptIO->ulFrameCount;
-            bIsOpen = true;
-            break;
-        }
-    }
-
-    if(bIsOpen)
-    {
-
-        plUiPopupData tPopupData = {
-            .uId = uHash,
-            .ulOpenFrameCount = gptIO->ulFrameCount + 1
-        };
-        pl_sb_push(gptCtx->sbtBeginPopupStack, tPopupData);
-
-        // if(gptCtx->ptCurrentWindow)
-        //     gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
-
-        bool bResult = pl__begin_window_ex(pcName, NULL, tFlags | PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_NO_COLLAPSE);
-
-        static const float pfRatios[] = {300.0f};
-        if(bResult)
-        {
-            pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios);
-            pl__focus_window(gptCtx->ptCurrentWindow);
-        }
-        else
-            pl_ui_end_popup();
-        return bResult;
-    }
-
-    return false;
+    uint32_t uSeed = pl_sb_size(gptCtx->sbuIdStack) ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+    return pl_ui_begin_popup_id(pl_str_hash(pcName, 0, uSeed), tFlags);
 }
 
 void
@@ -1402,6 +2330,9 @@ pl__is_item_hoverable(const plRect* ptBox, uint32_t uHash)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
+    if(!pl__popup_allows_window(ptWindow))
+        return false;
+
     if(gptCtx->ptHoveredWindow != gptCtx->ptCurrentWindow)
         return false;
 
@@ -1428,6 +2359,9 @@ bool
 pl_is_item_hoverable_circle(plVec2 tP, float fRadius, uint32_t uHash)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+
+    if(!pl__popup_allows_window(ptWindow))
+        return false;
 
     if(gptCtx->ptHoveredWindow != gptCtx->ptCurrentWindow)
         return false;
@@ -1503,6 +2437,47 @@ pl__lower_bound(plUiStorageEntry* sbtData, uint32_t uKey)
     return ptFirstEntry;
 }
 
+static void
+pl__dock_begin_floating(plUiDockNode* ptRoot)
+{
+    if(ptRoot->ulLastFrame == gptIO->ulFrameCount)
+        return;
+
+    // The host is submitted lazily by the first member, including an inactive tab.
+    // The host only supplies geometry and resizing; each pane draws its own header.
+    const plUiNextWindowData tNext = gptCtx->tNextWindowData;
+    plUiWindow* ptCurrent = gptCtx->ptCurrentWindow;
+    gptCtx->ptCurrentWindow = NULL;
+    memset(&gptCtx->tNextWindowData, 0, sizeof(gptCtx->tNextWindowData));
+    char acName[64];
+    snprintf(acName, sizeof(acName), "Dock group###PL_DOCK_HOST_%08x", ptRoot->uId);
+    ptRoot->uHostWindow = pl_str_hash(acName, 0, 0);
+    if(!ptRoot->acHostTitle[0] && ptCurrent)
+        snprintf(ptRoot->acHostTitle, sizeof(ptRoot->acHostTitle), "%.*s", (int)(pl__find_renderered_text_end(ptCurrent->pcName, NULL) - ptCurrent->pcName), ptCurrent->pcName);
+    pl_ui_set_next_window_pos(ptRoot->tHostPos, PL_UI_COND_ONCE);
+    pl_ui_set_next_window_size(ptRoot->tHostSize, PL_UI_COND_ONCE);
+    gptCtx->tNextWindowData.tFlags |= PL_NEXT_WINDOW_DATA_FLAGS_HAS_COLLAPSED;
+    gptCtx->tNextWindowData.tCollapseCondition = PL_UI_COND_ALWAYS;
+    gptCtx->tNextWindowData.bCollapsed = false;
+    const bool bVisible = pl__begin_window_ex(acName, NULL, PL_UI_WINDOW_FLAGS_DOCK_HOST | PL_UI_WINDOW_FLAGS_NO_TITLE_BAR | PL_UI_WINDOW_FLAGS_NO_COLLAPSE | PL_UI_WINDOW_FLAGS_NO_DOCKING | PL_UI_WINDOW_FLAGS_NO_SAVED_SETTINGS | PL_UI_WINDOW_FLAGS_NO_SCROLLBAR);
+    plUiWindow* ptHost = gptCtx->ptCurrentWindow;
+    ptRoot->uHostWindow = ptHost->uId;
+    ptRoot->tHostPos = ptHost->tPos;
+    ptRoot->tHostSize = ptHost->bCollapsed ? ptHost->tFullSize : ptHost->tSize;
+    ptRoot->bHostCollapsed = ptHost->bCollapsed;
+    if(bVisible)
+    {
+        const plVec2 tPos = pl_add_vec2(ptHost->tPos, (plVec2){2.0f, 2.0f});
+        const plVec2 tSize = pl_sub_vec2(ptHost->tSize, (plVec2){4.0f, 4.0f});
+        pl__dock_space(ptRoot->uId, tPos, tSize, ptHost->ptFgLayer);
+    }
+    else
+        ptRoot->ulLastFrame = gptIO->ulFrameCount;
+    pl_ui_end_window();
+    gptCtx->ptCurrentWindow = ptCurrent;
+    gptCtx->tNextWindowData = tNext;
+}
+
 static bool
 pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 {
@@ -1520,11 +2495,31 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     }
 
     // generate hashed ID
-    const uint32_t uWindowID = pl_str_hash(pcName, 0, ptParentWindow ? pl_sb_top(gptCtx->sbuIdStack) : 0);
+    uint32_t uWindowID = pl_str_hash(pcName, 0, ptParentWindow ? pl_sb_top(gptCtx->sbuIdStack) : 0);
+    if(tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW)
+    {
+        const uint32_t uPopupID = pl_sb_top(gptCtx->sbtBeginPopupStack).uId;
+        const uint32_t uDepth = pl_sb_size(gptCtx->sbtBeginPopupStack);
+        // Separate popup-window storage from normal windows and from other popup depths.
+        const uint32_t uSeed = pl_str_hash_data(&uDepth, sizeof(uDepth), pl_str_hash("PL_POPUP_WINDOW", 0, 0));
+        uWindowID = pl_str_hash_data(&uPopupID, sizeof(uPopupID), uSeed);
+    }
     pl_sb_push(gptCtx->sbuIdStack, uWindowID);
 
     // title text & title bar sizes
-    const plVec2 tTextSize = pl__calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, pcName, 0.0f);
+    const char* pcTitle = pcName;
+    if(tFlags & PL_UI_WINDOW_FLAGS_DOCK_HOST)
+    {
+        for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtDockNodes); i++)
+        {
+            if(gptCtx->sbtDockNodes[i].uHostWindow == uWindowID)
+            {
+                pcTitle = gptCtx->sbtDockNodes[i].acHostTitle;
+                break;
+            }
+        }
+    }
+    const plVec2 tTextSize = pl__calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, pcTitle, 0.0f);
     float fTitleBarHeight = (tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR) ? 0.0f : gptCtx->tStyle.fFontSize + 2.0f * gptCtx->tStyle.fTitlePadding;
 
     // see if window already exist in storage
@@ -1586,6 +2581,25 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         // add window to storage
         pl__set_ptr(&gptCtx->tWindows, uWindowID, ptWindow);
         pl_sb_push(gptCtx->sbptCreatedWindows, ptWindow);
+
+        plUiWindowSettings* ptSettings = pl__settings_window(uWindowID);
+        if(ptSettings && !(tFlags & (PL_UI_WINDOW_FLAGS_CHILD_WINDOW | PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_NO_SAVED_SETTINGS)))
+        {
+            ptWindow->tPos = ptSettings->tPos;
+            ptWindow->tSize = ptSettings->tSize;
+            ptWindow->tFullSize = ptSettings->tSize;
+            ptWindow->bCollapsed = ptSettings->bCollapsed;
+            ptWindow->tUndockedPos = ptSettings->tPos;
+            ptWindow->tUndockedSize = ptSettings->tSize;
+            ptWindow->bUndockedCollapsed = ptSettings->bCollapsed;
+            ptWindow->uDockId = (tFlags & PL_UI_WINDOW_FLAGS_NO_DOCKING) ? 0 : ptSettings->uDockId;
+            ptWindow->bDockConditionOnce = true;
+            ptWindow->tPosAllowableFlags &= ~PL_UI_COND_ONCE;
+            ptWindow->tSizeAllowableFlags &= ~PL_UI_COND_ONCE;
+            ptWindow->tCollapseAllowableFlags &= ~PL_UI_COND_ONCE;
+        }
+        if(tFlags & PL_UI_WINDOW_FLAGS_DOCK_HOST)
+            ptWindow->tFullSize = gptCtx->tNextWindowData.tSize;
     }
     else
     {
@@ -1607,6 +2621,8 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
     ptWindow->uLastFrameActive = gptIO->ulFrameCount;
 
+    ptWindow->ptParentWindow = ptParentWindow;
+
     // seen this frame (obviously)
     ptWindow->bActive = true;
     ptWindow->tFlags = tFlags;
@@ -1616,6 +2632,48 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         pl_sb_push(ptParentWindow->sbtChildWindows, ptWindow);
     }
     gptCtx->ptCurrentWindow = ptWindow;
+
+    // Dock assignment is independent of position/size conditions; ONCE preserves user undocking.
+    if((tFlags & PL_UI_WINDOW_FLAGS_NO_DOCKING) && ptWindow->uDockId)
+        pl__dock_assign(ptWindow, 0);
+    if(gptCtx->tNextWindowData.bHasDock && !(tFlags & (PL_UI_WINDOW_FLAGS_CHILD_WINDOW | PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_NO_DOCKING)))
+    {
+        plUiConditionFlags tCondition = gptCtx->tNextWindowData.tDockCondition;
+        if((tCondition & PL_UI_COND_ALWAYS) || ((tCondition & PL_UI_COND_ONCE) && !ptWindow->bDockConditionOnce) || ((tCondition & PL_UI_COND_APPEARING) && ptWindow->bAppearing))
+        {
+            pl__dock_assign(ptWindow, gptCtx->tNextWindowData.uDockId);
+            ptWindow->bDockConditionOnce = true;
+        }
+    }
+    gptCtx->tNextWindowData.bHasDock = false;
+    plUiDockNode* ptDock = pl__dock_node(ptWindow->uDockId);
+    if(ptDock)
+    {
+        plUiDockNode* ptRoot = pl__dock_root(ptDock->uId);
+        if(ptRoot->bFloating)
+            pl__dock_begin_floating(ptRoot);
+        if(!ptDock->uSelectedWindow)
+            ptDock->uSelectedWindow = ptWindow->uId;
+        ptDock->bHadWindows = true;
+        ptWindow->bCollapsed = false;
+        if(ptDock->ulLastFrame != gptIO->ulFrameCount || ptDock->uSelectedWindow != ptWindow->uId || (ptRoot->bFloating && ptRoot->bHostCollapsed))
+        {
+            // No clip rect was pushed; end_window() observes collapsed solely for stack balance.
+            ptWindow->bCollapsed = true;
+            ptWindow->bActive = false;
+            ptWindow->bVisible = false;
+            gptCtx->tNextWindowData.tFlags = 0;
+            return false;
+        }
+        tFlags &= ~(PL_UI_WINDOW_FLAGS_AUTO_SIZE | PL_UI_WINDOW_FLAGS_NO_TITLE_BAR);
+        tFlags |= PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE;
+        ptWindow->tFlags = tFlags;
+        fTitleBarHeight = pl__get_frame_height() + gptCtx->tStyle.tItemSpacing.y;
+        gptCtx->tNextWindowData.tPos = ptDock->tRect.tMin;
+        gptCtx->tNextWindowData.tSize = pl_sub_vec2(ptDock->tRect.tMax, ptDock->tRect.tMin);
+        gptCtx->tNextWindowData.tFlags |= PL_NEXT_WINDOW_DATA_FLAGS_HAS_POS | PL_NEXT_WINDOW_DATA_FLAGS_HAS_SIZE;
+        gptCtx->tNextWindowData.tPosCondition = gptCtx->tNextWindowData.tSizeCondition = PL_UI_COND_ALWAYS;
+    }
 
     // use last frame cursors for sizing
     ptWindow->tContentSize = pl_add_vec2((plVec2){gptCtx->tStyle.fWindowHorizontalPadding, gptCtx->tStyle.fWindowVerticalPadding}, 
@@ -1679,6 +2737,8 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         }   
     }
 
+    if(bWindowSizeSet || !ptWindow->bCollapsed)
+        ptWindow->tFullSize = ptWindow->tSize;
     if(ptWindow->bCollapsed)
         ptWindow->tSize = (plVec2){ptWindow->tSize.x, fTitleBarHeight};
 
@@ -1696,6 +2756,11 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     }
 
     // updating outer rect here but autosized windows do so again in pl_end_window(..)
+    if(!ptWindow->uDockId && !(tFlags & (PL_UI_WINDOW_FLAGS_CHILD_WINDOW | PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_MAIN_MENU_BAR)))
+    {
+        ptWindow->tPos.y = pl_maxf(ptWindow->tPos.y, gptCtx->fMainMenuBarHeight);
+        tStartPos = ptWindow->tPos;
+    }
     ptWindow->tOuterRect = pl_calculate_rect(ptWindow->tPos, ptWindow->tSize);
     ptWindow->tOuterRectClipped = ptWindow->tOuterRect;
     ptWindow->tInnerRect = ptWindow->tOuterRect;
@@ -1747,7 +2812,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
         ptWindow->tInnerRect.tMin.y += fTitleBarHeight;
 
-        const bool bHighlightWindow = (gptCtx->ptNavWindow && ptWindow->ptRootWindowTitleBarHighlight == gptCtx->ptNavWindow->ptRootWindowTitleBarHighlight);
+        const bool bHighlightWindow = gptCtx->ptTitleFocusWindow && pl__title_highlight_root(ptWindow) == pl__title_highlight_root(gptCtx->ptTitleFocusWindow);
 
         // draw title bar
         plVec4 tTitleColor;
@@ -1757,11 +2822,13 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             tTitleColor = gptCtx->tColorScheme.tTitleBgCollapsedCol;
         else
             tTitleColor = gptCtx->tColorScheme.tTitleBgCol;
-        gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tStartPos, pl_add_vec2(tStartPos, (plVec2){ptWindow->tSize.x, fTitleBarHeight}), gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tTitleColor)});
+        if(!ptDock)
+            gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tStartPos, pl_add_vec2(tStartPos, (plVec2){ptWindow->tSize.x, fTitleBarHeight}), gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tTitleColor)});
 
         // draw title text
         const plVec2 titlePos = pl_add_vec2(tStartPos, (plVec2){ptWindow->tSize.x / 2.0f - tTextSize.x / 2.0f, gptCtx->tStyle.fTitlePadding});
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, titlePos, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcName, 0.0f);
+        if(ptDock) pl__dock_tabs(ptWindow, pbOpen, fTitleBarHeight);
+        else pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, titlePos, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcTitle, 0.0f);
 
         // draw close button
         const float fTitleBarButtonRadius = 8.0f;
@@ -2386,6 +3453,20 @@ static void
 pl__submit_window(plUiWindow* ptWindow)
 {
     ptWindow->bActive = false; // no longer active (for next frame)
+    plUiDockNode* ptNode = pl__dock_node(ptWindow->uDockId);
+    if(ptNode && ptNode->uSelectedWindow != ptWindow->uId)
+        return;
+    if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW)
+    {
+        bool bOpen = false;
+        for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtOpenPopupStack); i++)
+        {
+            if(gptCtx->sbtOpenPopupStack[i].ptWindow == ptWindow)
+                bOpen = true;
+        }
+        if(!bOpen)
+            return;
+    }
     pl_sb_push(gptCtx->sbptWindows, ptWindow);
     for(uint32_t j = 0; j < pl_sb_size(ptWindow->sbtChildWindows); j++)
         pl__submit_window(ptWindow->sbtChildWindows[j]);
@@ -2439,7 +3520,10 @@ pl__add_widget(uint32_t uHash)
 void
 pl_ui_initialize(void)
 {
+    pl_ui_set_settings_file("pl_ui.ini");
     // gptCtx->ptDrawlist = gptDraw->request_2d_drawlist();
+    gptCtx->ptDockDrawlist = gptDraw->request_2d_drawlist();
+    gptCtx->ptDockLayer = gptDraw->request_2d_layer(gptCtx->ptDockDrawlist);
     gptCtx->ptDebugDrawlist = gptDraw->request_2d_drawlist();
     gptCtx->tTooltipWindow.ptDrawlist = gptDraw->request_2d_drawlist();
     // gptCtx->ptBgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
@@ -2453,6 +3537,7 @@ pl_ui_initialize(void)
     gptCtx->iWantCaptureKeyboardNextFrame = -1;
     gptCtx->iWantCaptureMouseNextFrame = -1;
     pl_ui_set_dark_theme();
+    gptCtx->ulMainMenuBarFrame = UINT64_MAX;
 
     if(gptConsole->add_bool_variable)
     {
@@ -2464,6 +3549,11 @@ pl_ui_initialize(void)
 void
 pl_ui_cleanup(void)
 {
+    pl_ui_save_settings();
+    PL_FREE(gptCtx->pcSettingsFile);
+    pl_sb_free(gptCtx->sbtWindowSettings);
+    pl_sb_free(gptCtx->sbcSettingsSnapshot);
+    pl_sb_free(gptCtx->sbcSettingsSaved);
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptCreatedWindows); i++)
     {
         pl_sb_free(gptCtx->sbptCreatedWindows[i]->tStorage.sbtData);
@@ -2489,6 +3579,9 @@ pl_ui_cleanup(void)
     pl_sb_free(gptCtx->sbuIdStack);
     pl_sb_free(gptCtx->sbtBeginPopupStack);
     pl_sb_free(gptCtx->sbtOpenPopupStack);
+    pl_sb_free(gptCtx->sbtDockNodes);
+    gptDraw->return_2d_layer(gptCtx->ptDockLayer);
+    gptDraw->return_2d_drawlist(gptCtx->ptDockDrawlist);
     pl_sb_free(gptCtx->sbptCreatedWindows);
     pl_sb_free(gptCtx->tWindows.sbtData);
     pl_sb_free(gptCtx->tInputTextState.sbInitialTextA);
@@ -2919,7 +4012,39 @@ pl_ui_end_frame(void)
         pl_ui_show_debug_window(&gptCtx->bShowDebugTool);
     }
 
+    pl__dock_drag();
+
+    // submit windows in display order
+    pl_sb_reset(gptCtx->sbptWindows);
+    for(uint32_t uPass = 0; uPass < 3; uPass++)
+    {
+        for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptFocusedWindows); i++)
+        {
+            plUiWindow* ptRootWindow = gptCtx->sbptFocusedWindows[i];
+            const uint32_t uWindowPass = (ptRootWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW) ? 2 : ((ptRootWindow->tFlags & PL_UI_WINDOW_FLAGS_MAIN_MENU_BAR) ? 1 : 0);
+            // Main menu bar overlays ordinary windows; popups overlay the bar.
+            if(uWindowPass != uPass)
+                continue;
+            if(ptRootWindow->bActive && !pl__dock_host(ptRootWindow))
+            {
+                pl__submit_window(ptRootWindow);
+                if(ptRootWindow->tFlags & PL_UI_WINDOW_FLAGS_DOCK_HOST)
+                {
+                    for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbptCreatedWindows); j++)
+                    {
+                        plUiWindow* ptMember = gptCtx->sbptCreatedWindows[j];
+                        if(ptMember->bActive && pl__dock_host(ptMember) == ptRootWindow)
+                            pl__submit_window(ptMember);
+                    }
+                }
+            }
+        }
+    }
+
+
     // draw submission
+    gptDraw->submit_2d_layer(gptCtx->ptDockLayer);
+    pl_sb_push(gptCtx->sbDrawlists, gptCtx->ptDockDrawlist);
     // gptDraw->submit_2d_layer(gptCtx->ptBgLayer);
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
     {
@@ -2943,17 +4068,6 @@ pl_ui_end_frame(void)
 
     const plVec2 tMousePos = gptIOI->get_mouse_pos();
 
-    // submit windows in display order
-    pl_sb_reset(gptCtx->sbptWindows);
-    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptFocusedWindows); i++)
-    {
-        plUiWindow* ptRootWindow = gptCtx->sbptFocusedWindows[i];
-
-        // recursively submits child windows
-        if(ptRootWindow->bActive)
-            pl__submit_window(ptRootWindow);
-    }
-
     // find windows
     gptCtx->ptHoveredWindow = NULL;
     gptCtx->ptWheelingWindow = NULL;
@@ -2970,12 +4084,12 @@ pl_ui_end_frame(void)
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
     {
         plUiWindow* ptWindow = gptCtx->sbptWindows[i];
-        if(pl_rect_contains_point(&ptWindow->tOuterRectClipped, gptIO->_tMousePos))
+        if(ptWindow->uHideFrames == 0 && pl_rect_contains_point(&ptWindow->tOuterRectClipped, gptIO->_tMousePos))
         {
             gptCtx->ptHoveredWindow = ptWindow;
 
             // scrolling
-            if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_AUTO_SIZE) && gptIOI->get_mouse_wheel() != 0.0f)
+            if(pl__popup_allows_window(ptWindow) && !(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_AUTO_SIZE) && gptIOI->get_mouse_wheel() != 0.0f)
                 gptCtx->ptWheelingWindow = ptWindow;
 
             float fTitleBarHeight = ptWindow->tTempData.fTitleBarHeight;
@@ -2985,7 +4099,7 @@ pl_ui_end_frame(void)
             };
 
             // check if window is activated
-            if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+            if(pl__popup_allows_window(ptWindow) && !gptCtx->uDockSplitterActive && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
             {
 
                 bRequestFocus = true;
@@ -2993,8 +4107,10 @@ pl_ui_end_frame(void)
                 pl__set_nav_window(ptWindow);
 
                 // check if window titlebar is clicked
-                if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR) && gptIOI->is_mouse_hovering_rect(tTitleBarHitRegion.tMin, tTitleBarHitRegion.tMax))
+                if(!ptWindow->uDockId && !(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR) && gptIOI->is_mouse_hovering_rect(tTitleBarHitRegion.tMin, tTitleBarHitRegion.tMax))
                     gptCtx->ptMovingWindow = ptWindow;
+                else if(ptWindow->uDockId && !gptCtx->ptDockDragWindow && !gptCtx->uActiveId && tMousePos.x >= ptWindow->tTempData.fDockTabsEndX && tMousePos.x < ptWindow->tPos.x + ptWindow->tSize.x - 32.0f && gptIOI->is_mouse_hovering_rect(tTitleBarHitRegion.tMin, tTitleBarHitRegion.tMax))
+                    gptCtx->ptMovingWindow = pl__dock_host(ptWindow);
 
             }
         }
@@ -3025,10 +4141,39 @@ pl_ui_end_frame(void)
         gptCtx->ptMovingWindow->tPos.x = pl_minf(gptCtx->ptMovingWindow->tPos.x, gptIO->tMainViewportSize.x - gptCtx->ptMovingWindow->tSize.x / 2.0f);
 
         // clamp y
-        gptCtx->ptMovingWindow->tPos.y = pl_maxf(gptCtx->ptMovingWindow->tPos.y, 0.0f);   
+        gptCtx->ptMovingWindow->tPos.y = pl_maxf(gptCtx->ptMovingWindow->tPos.y, gptCtx->fMainMenuBarHeight);
         gptCtx->ptMovingWindow->tPos.y = pl_minf(gptCtx->ptMovingWindow->tPos.y, gptIO->tMainViewportSize.y - 50.0f);
 
         gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+    }
+
+    pl__dock_prune_empty();
+    pl__dock_restore_single_windows();
+
+    // A selected tab may not be submitted by the application this frame. Select
+    // another live member for the next frame, without depending on begin order.
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtDockNodes); i++)
+    {
+        plUiDockNode* ptNode = &gptCtx->sbtDockNodes[i];
+        plUiWindow* ptSelected = pl__get_ptr(&gptCtx->tWindows, ptNode->uSelectedWindow);
+        if(!ptNode->auChildren[0] && (!ptSelected || ptSelected->uDockId != ptNode->uId || ptSelected->uLastFrameActive != gptIO->ulFrameCount))
+        {
+            for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbptCreatedWindows); j++)
+            {
+                plUiWindow* ptMember = gptCtx->sbptCreatedWindows[j];
+                if(ptMember->uDockId == ptNode->uId && ptMember->uLastFrameActive == gptIO->ulFrameCount)
+                {
+                    ptNode->uSelectedWindow = ptMember->uId;
+                    break;
+                }
+            }
+        }
+    }
+    gptCtx->fSettingsSaveTimer += gptIO->fDeltaTime;
+    if(gptCtx->fSettingsSaveTimer >= 1.0f)
+    {
+        pl_ui_save_settings();
+        gptCtx->fSettingsSaveTimer = 0.0f;
     }
 
     gptIO->_fMouseWheel = 0.0f;
@@ -3134,149 +4279,160 @@ void
 pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plUiI tApi = {
-        .initialize                            = pl_ui_initialize,
-        .cleanup                               = pl_ui_cleanup,
-        .get_draw_lists                        = pl_ui_get_draw_lists,
-        .get_debug_draw_list                   = pl_ui_get_debug_draw_list,
-        .get_debug_draw_layer                  = pl_ui_get_debug_draw_layer,
-        .begin_frame                           = pl_ui_begin_frame,
-        .end_frame                             = pl_ui_end_frame,
-        .wants_keyboard_capture                = pl_ui_wants_keyboard_capture,
-        .wants_text_input                      = pl_ui_wants_text_input,
-        .wants_mouse_capture                   = pl_ui_wants_mouse_capture,
-        .show_debug_window                     = pl_ui_show_debug_window,
-        .show_style_editor_window              = pl_ui_show_style_editor_window,
-        .set_dark_theme                        = pl_ui_set_dark_theme,
-        .set_light_theme                       = pl_ui_set_light_theme,
-        .push_theme_color                      = pl_ui_push_theme_color,
-        .pop_theme_color                       = pl_ui_pop_theme_color,
-        .set_default_font                      = pl_ui_set_default_font,
-        .get_default_font                      = pl_ui_get_default_font,
-        .begin_window                          = pl_ui_begin_window,
-        .end_window                            = pl_ui_end_window,
-        .get_window_fg_drawlayer               = pl_ui_get_window_fg_drawlayer,
-        .get_window_bg_drawlayer               = pl_ui_get_window_bg_drawlayer,
-        .get_cursor_pos                        = pl_ui_get_cursor_pos,
-        .begin_child                           = pl_ui_begin_child,
-        .end_child                             = pl_ui_end_child,
-        .is_popup_open                         = pl_ui_is_popup_open,
-        .is_popup_open_id                      = pl_ui_is_popup_open_id,
-        .get_id                                = pl_ui_get_id,
-        .close_current_popup                   = pl_ui_close_current_popup,
-        .open_popup                            = pl_ui_open_popup,
-        .open_popup_id                         = pl_ui_open_popup_id,
-        .begin_popup                           = pl_ui_begin_popup,
-        .end_popup                             = pl_ui_end_popup,
-        .begin_tooltip                         = pl_ui_begin_tooltip,
-        .end_tooltip                           = pl_ui_end_tooltip,
-        .is_window_appearing                   = pl_ui_is_window_appearing,
-        .get_window_pos                        = pl_ui_get_window_pos,
-        .get_window_size                       = pl_ui_get_window_size,
-        .get_window_scroll                     = pl_ui_get_window_scroll,
-        .get_window_scroll_max                 = pl_ui_get_window_scroll_max,
-        .set_window_scroll                     = pl_ui_set_window_scroll,
-        .set_next_window_pos                   = pl_ui_set_next_window_pos,
-        .set_next_window_size                  = pl_ui_set_next_window_size,
-        .set_next_window_collapse              = pl_ui_set_next_window_collapse,
-        .button                                = pl_ui_button,
-        .selectable                            = pl_ui_selectable,
-        .checkbox                              = pl_ui_checkbox,
-        .checkbox_flags                        = pl_ui_checkbox_flags,
-        .radio_button                          = pl_ui_radio_button,
-        .image                                 = pl_ui_image,
-        .image_ex                              = pl_ui_image_ex,
-        .image_button                          = pl_ui_image_button,
-        .image_button_ex                       = pl_ui_image_button_ex,
-        .invisible_button                      = pl_ui_invisible_button,
-        .dummy                                 = pl_ui_dummy,
-        .progress_bar                          = pl_ui_progress_bar,
-        .text                                  = pl_ui_text,
-        .text_v                                = pl_ui_text_v,
-        .color_text                            = pl_ui_color_text,
-        .color_text_v                          = pl_ui_color_text_v,
-        .labeled_text                          = pl_ui_labeled_text,
-        .labeled_text_v                        = pl_ui_labeled_text_v,
-        .begin_combo                           = pl_ui_begin_combo,
-        .end_combo                             = pl_ui_end_combo,
-        .input_text                            = pl_ui_input_text,
-        .input_text_hint                       = pl_ui_input_text_hint,
-        .input_float                           = pl_ui_input_float,
-        .input_float_ex                        = pl_ui_input_float_ex,
-        .input_float2                          = pl_ui_input_float2,
-        .input_float3                          = pl_ui_input_float3,
-        .input_float4                          = pl_ui_input_float4,
-        .input_int                             = pl_ui_input_int,
-        .input_int_ex                          = pl_ui_input_int_ex,
-        .input_int2                            = pl_ui_input_int2,
-        .input_int3                            = pl_ui_input_int3,
-        .input_int4                            = pl_ui_input_int4,
-        .input_uint                            = pl_ui_input_uint,
-        .input_uint_ex                         = pl_ui_input_uint_ex,
-        .input_uint2                           = pl_ui_input_uint2,
-        .input_uint3                           = pl_ui_input_uint3,
-        .input_uint4                           = pl_ui_input_uint4,
-        .slider_float                          = pl_ui_slider_float,
-        .slider_float_f                        = pl_ui_slider_float_f,
-        .slider_int                            = pl_ui_slider_int,
-        .slider_int_f                          = pl_ui_slider_int_f,
-        .slider_uint                           = pl_ui_slider_uint,
-        .slider_uint_f                         = pl_ui_slider_uint_f,
-        .slider_angle                          = pl_ui_slider_angle,
-        .drag_float                            = pl_ui_drag_float,
-        .drag_float_f                          = pl_ui_drag_float_f,
-        .color_picker3                         = pl_ui_color_picker3,
-        .color_picker4                         = pl_ui_color_picker4,
-        .color_edit3                           = pl_ui_color_edit3,
-        .color_edit4                           = pl_ui_color_edit4,
-        .color_button                          = pl_ui_color_button,
-        .collapsing_header                     = pl_ui_collapsing_header,
-        .tree_node                             = pl_ui_tree_node,
-        .tree_node_f                           = pl_ui_tree_node_f,
-        .tree_node_v                           = pl_ui_tree_node_v,
-        .tree_pop                              = pl_ui_tree_pop,
-        .begin_menu                            = pl_ui_begin_menu,
-        .end_menu                              = pl_ui_end_menu,
-        .menu_item                             = pl_ui_menu_item,
-        .menu_item_toggle                      = pl_ui_menu_item_toggle,
-        .begin_tab_bar                         = pl_ui_begin_tab_bar,
-        .end_tab_bar                           = pl_ui_end_tab_bar,
-        .begin_tab                             = pl_ui_begin_tab,
-        .end_tab                               = pl_ui_end_tab,
-        .separator                             = pl_ui_separator,
-        .separator_text                        = pl_ui_separator_text,
-        .vertical_spacing                      = pl_ui_vertical_spacing,
-        .indent                                = pl_ui_indent,
-        .unindent                              = pl_ui_unindent,
-        .step_clipper                          = pl_ui_step_clipper,
-        .stash_layout                          = pl_ui_stash_layout,
-        .apply_layout                          = pl_ui_apply_layout,
-        .layout_dynamic                        = pl_ui_layout_dynamic,
-        .layout_static                         = pl_ui_layout_static,
-        .layout_row_begin                      = pl_ui_layout_row_begin,
-        .layout_row_push                       = pl_ui_layout_row_push,
-        .layout_row_end                        = pl_ui_layout_row_end,
-        .layout_row                            = pl_ui_layout_row,
-        .layout_template_begin                 = pl_ui_layout_template_begin,
-        .layout_template_push_dynamic          = pl_ui_layout_template_push_dynamic,
-        .layout_template_push_variable         = pl_ui_layout_template_push_variable,
-        .layout_template_push_static           = pl_ui_layout_template_push_static,
-        .layout_template_end                   = pl_ui_layout_template_end,
-        .layout_space_begin                    = pl_ui_layout_space_begin,
-        .layout_space_push                     = pl_ui_layout_space_push,
-        .layout_space_end                      = pl_ui_layout_space_end,
-        .was_last_item_hovered                 = pl_ui_was_last_item_hovered,
-        .was_last_item_active                  = pl_ui_was_last_item_active,
-        .push_id_string                        = pl_ui_push_id_string,
-        .push_id_pointer                       = pl_ui_push_id_pointer,
-        .push_id_uint                          = pl_ui_push_id_uint,
-        .pop_id                                = pl_ui_pop_id,
-        .text_filter_build                     = pl_ui_text_filter_build,
-        .text_filter_pass                      = pl_ui_text_filter_pass,
-        .text_filter_cleanup                   = pl_ui_text_filter_cleanup,
-        .text_filter_active                    = pl_ui_text_filter_active,
-        .set_keyboard_focus_last_item          = pl_ui_set_keyboard_focus_last_item,
-        .set_wants_mouse_capture_next_frame    = pl_ui_set_wants_mouse_capture_next_frame,
-        .set_wants_keyboard_capture_next_frame = pl_ui_set_wants_keyboard_capture_next_frame,
+        .initialize                              = pl_ui_initialize,
+        .cleanup                                 = pl_ui_cleanup,
+        .get_draw_lists                          = pl_ui_get_draw_lists,
+        .get_debug_draw_list                     = pl_ui_get_debug_draw_list,
+        .get_debug_draw_layer                    = pl_ui_get_debug_draw_layer,
+        .begin_frame                             = pl_ui_begin_frame,
+        .end_frame                               = pl_ui_end_frame,
+        .wants_keyboard_capture                  = pl_ui_wants_keyboard_capture,
+        .wants_text_input                        = pl_ui_wants_text_input,
+        .wants_mouse_capture                     = pl_ui_wants_mouse_capture,
+        .show_debug_window                       = pl_ui_show_debug_window,
+        .show_style_editor_window                = pl_ui_show_style_editor_window,
+        .set_dark_theme                          = pl_ui_set_dark_theme,
+        .set_light_theme                         = pl_ui_set_light_theme,
+        .push_theme_color                        = pl_ui_push_theme_color,
+        .pop_theme_color                         = pl_ui_pop_theme_color,
+        .set_default_font                        = pl_ui_set_default_font,
+        .get_default_font                        = pl_ui_get_default_font,
+        .begin_window                            = pl_ui_begin_window,
+        .end_window                              = pl_ui_end_window,
+        .get_window_fg_drawlayer                 = pl_ui_get_window_fg_drawlayer,
+        .get_window_bg_drawlayer                 = pl_ui_get_window_bg_drawlayer,
+        .get_cursor_pos                          = pl_ui_get_cursor_pos,
+        .begin_child                             = pl_ui_begin_child,
+        .end_child                               = pl_ui_end_child,
+        .is_popup_open                           = pl_ui_is_popup_open,
+        .is_popup_open_id                        = pl_ui_is_popup_open_id,
+        .get_id                                  = pl_ui_get_id,
+        .close_current_popup                     = pl_ui_close_current_popup,
+        .open_popup                              = pl_ui_open_popup,
+        .open_popup_id                           = pl_ui_open_popup_id,
+        .begin_popup                             = pl_ui_begin_popup,
+        .end_popup                               = pl_ui_end_popup,
+        .begin_popup_id                          = pl_ui_begin_popup_id,
+        .begin_menu_bar                          = pl_ui_begin_menu_bar,
+        .end_menu_bar                            = pl_ui_end_menu_bar,
+        .dock_space                              = pl_ui_dock_space,
+        .dock_split                              = pl_ui_dock_split,
+        .set_next_window_dock                    = pl_ui_set_next_window_dock,
+        .get_window_dock                         = pl_ui_get_window_dock,
+        .begin_tooltip                           = pl_ui_begin_tooltip,
+        .end_tooltip                             = pl_ui_end_tooltip,
+        .is_window_appearing                     = pl_ui_is_window_appearing,
+        .get_window_pos                          = pl_ui_get_window_pos,
+        .get_window_size                         = pl_ui_get_window_size,
+        .get_window_scroll                       = pl_ui_get_window_scroll,
+        .get_window_scroll_max                   = pl_ui_get_window_scroll_max,
+        .set_window_scroll                       = pl_ui_set_window_scroll,
+        .set_next_window_pos                     = pl_ui_set_next_window_pos,
+        .set_next_window_size                    = pl_ui_set_next_window_size,
+        .set_next_window_collapse                = pl_ui_set_next_window_collapse,
+        .button                                  = pl_ui_button,
+        .selectable                              = pl_ui_selectable,
+        .checkbox                                = pl_ui_checkbox,
+        .checkbox_flags                          = pl_ui_checkbox_flags,
+        .radio_button                            = pl_ui_radio_button,
+        .image                                   = pl_ui_image,
+        .image_ex                                = pl_ui_image_ex,
+        .image_button                            = pl_ui_image_button,
+        .image_button_ex                         = pl_ui_image_button_ex,
+        .invisible_button                        = pl_ui_invisible_button,
+        .dummy                                   = pl_ui_dummy,
+        .progress_bar                            = pl_ui_progress_bar,
+        .text                                    = pl_ui_text,
+        .text_v                                  = pl_ui_text_v,
+        .color_text                              = pl_ui_color_text,
+        .color_text_v                            = pl_ui_color_text_v,
+        .labeled_text                            = pl_ui_labeled_text,
+        .labeled_text_v                          = pl_ui_labeled_text_v,
+        .begin_combo                             = pl_ui_begin_combo,
+        .end_combo                               = pl_ui_end_combo,
+        .input_text                              = pl_ui_input_text,
+        .input_text_hint                         = pl_ui_input_text_hint,
+        .input_float                             = pl_ui_input_float,
+        .input_float_ex                          = pl_ui_input_float_ex,
+        .input_float2                            = pl_ui_input_float2,
+        .input_float3                            = pl_ui_input_float3,
+        .input_float4                            = pl_ui_input_float4,
+        .input_int                               = pl_ui_input_int,
+        .input_int_ex                            = pl_ui_input_int_ex,
+        .input_int2                              = pl_ui_input_int2,
+        .input_int3                              = pl_ui_input_int3,
+        .input_int4                              = pl_ui_input_int4,
+        .input_uint                              = pl_ui_input_uint,
+        .input_uint_ex                           = pl_ui_input_uint_ex,
+        .input_uint2                             = pl_ui_input_uint2,
+        .input_uint3                             = pl_ui_input_uint3,
+        .input_uint4                             = pl_ui_input_uint4,
+        .slider_float                            = pl_ui_slider_float,
+        .slider_float_f                          = pl_ui_slider_float_f,
+        .slider_int                              = pl_ui_slider_int,
+        .slider_int_f                            = pl_ui_slider_int_f,
+        .slider_uint                             = pl_ui_slider_uint,
+        .slider_uint_f                           = pl_ui_slider_uint_f,
+        .slider_angle                            = pl_ui_slider_angle,
+        .drag_float                              = pl_ui_drag_float,
+        .drag_float_f                            = pl_ui_drag_float_f,
+        .color_picker3                           = pl_ui_color_picker3,
+        .color_picker4                           = pl_ui_color_picker4,
+        .color_edit3                             = pl_ui_color_edit3,
+        .color_edit4                             = pl_ui_color_edit4,
+        .color_button                            = pl_ui_color_button,
+        .collapsing_header                       = pl_ui_collapsing_header,
+        .tree_node                               = pl_ui_tree_node,
+        .tree_node_f                             = pl_ui_tree_node_f,
+        .tree_node_v                             = pl_ui_tree_node_v,
+        .tree_pop                                = pl_ui_tree_pop,
+        .begin_menu                              = pl_ui_begin_menu,
+        .end_menu                                = pl_ui_end_menu,
+        .menu_item                               = pl_ui_menu_item,
+        .menu_item_toggle                        = pl_ui_menu_item_toggle,
+        .begin_tab_bar                           = pl_ui_begin_tab_bar,
+        .end_tab_bar                             = pl_ui_end_tab_bar,
+        .begin_tab                               = pl_ui_begin_tab,
+        .end_tab                                 = pl_ui_end_tab,
+        .separator                               = pl_ui_separator,
+        .separator_text                          = pl_ui_separator_text,
+        .vertical_spacing                        = pl_ui_vertical_spacing,
+        .indent                                  = pl_ui_indent,
+        .unindent                                = pl_ui_unindent,
+        .step_clipper                            = pl_ui_step_clipper,
+        .stash_layout                            = pl_ui_stash_layout,
+        .apply_layout                            = pl_ui_apply_layout,
+        .layout_dynamic                          = pl_ui_layout_dynamic,
+        .layout_static                           = pl_ui_layout_static,
+        .layout_row_begin                        = pl_ui_layout_row_begin,
+        .layout_row_push                         = pl_ui_layout_row_push,
+        .layout_row_end                          = pl_ui_layout_row_end,
+        .layout_row                              = pl_ui_layout_row,
+        .layout_template_begin                   = pl_ui_layout_template_begin,
+        .layout_template_push_dynamic            = pl_ui_layout_template_push_dynamic,
+        .layout_template_push_variable           = pl_ui_layout_template_push_variable,
+        .layout_template_push_static             = pl_ui_layout_template_push_static,
+        .layout_template_end                     = pl_ui_layout_template_end,
+        .layout_space_begin                      = pl_ui_layout_space_begin,
+        .layout_space_push                       = pl_ui_layout_space_push,
+        .layout_space_end                        = pl_ui_layout_space_end,
+        .was_last_item_hovered                   = pl_ui_was_last_item_hovered,
+        .was_last_item_active                    = pl_ui_was_last_item_active,
+        .push_id_string                          = pl_ui_push_id_string,
+        .push_id_pointer                         = pl_ui_push_id_pointer,
+        .push_id_uint                            = pl_ui_push_id_uint,
+        .pop_id                                  = pl_ui_pop_id,
+        .text_filter_build                       = pl_ui_text_filter_build,
+        .text_filter_pass                        = pl_ui_text_filter_pass,
+        .text_filter_cleanup                     = pl_ui_text_filter_cleanup,
+        .text_filter_active                      = pl_ui_text_filter_active,
+        .set_keyboard_focus_last_item            = pl_ui_set_keyboard_focus_last_item,
+        .set_wants_mouse_capture_next_frame      = pl_ui_set_wants_mouse_capture_next_frame,
+        .set_wants_keyboard_capture_next_frame   = pl_ui_set_wants_keyboard_capture_next_frame,
+        .set_settings_file                       = pl_ui_set_settings_file,
+        .save_settings                           = pl_ui_save_settings,
+        .begin_main_menu_bar                     = pl_ui_begin_main_menu_bar,
+        .end_main_menu_bar                       = pl_ui_end_main_menu_bar,
     };
     pl_set_api(ptApiRegistry, plUiI, &tApi);
 
@@ -3284,6 +4440,7 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptDraw = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptIOI = pl_get_api_latest(ptApiRegistry, plIOI);
     gptConsole = pl_get_api_latest(ptApiRegistry, plConsoleI);
+    gptFile = pl_get_api_latest(ptApiRegistry, plFileI);
     gptIO = gptIOI->get_io();
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

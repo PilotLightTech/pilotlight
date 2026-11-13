@@ -73,14 +73,78 @@ pl__show_pixel_perfect_demo(plAppData* ptAppData)
 
 }
 
+static void
+pl__show_demo_menus(bool* pbMainMenuBar)
+{
+    static bool bGrid = true;
+    static int iCommands = 0;
+    static const char* pcStatus = "Choose a command";
+    if(gptUI->begin_menu("File", true))
+    {
+        if(gptUI->menu_item("New example", "Ctrl+N", false, true))
+        {
+            iCommands++;
+            pcStatus = "Created an example";
+        }
+        if(gptUI->begin_menu("Recent", true))
+        {
+            if(gptUI->menu_item("Terrain", NULL, false, true))
+                pcStatus = "Selected Terrain example";
+            if(gptUI->begin_menu("More examples", true))
+            {
+                if(gptUI->menu_item("Nested command", NULL, false, true))
+                    pcStatus = "Selected nested command";
+                gptUI->end_menu();
+            }
+            gptUI->end_menu();
+        }
+        gptUI->separator();
+        if(gptUI->menu_item("Save UI layout", NULL, false, true))
+            pcStatus = gptUI->save_settings() ? "Saved UI layout" : "Could not save UI layout";
+        gptUI->menu_item("Unavailable command", NULL, false, false);
+        gptUI->end_menu();
+    }
+    if(gptUI->begin_menu("View", true))
+    {
+        gptUI->menu_item_toggle("Main menu bar", NULL, pbMainMenuBar, true);
+        gptUI->menu_item_toggle("Example grid", NULL, &bGrid, true);
+        gptUI->end_menu();
+    }
+    if(gptUI->begin_menu("Help", true))
+    {
+        gptUI->text("%s (%d new examples)", pcStatus, iCommands);
+        gptUI->text("Shortcut labels are display-only in this demo.");
+        gptUI->text("Drag a title onto a window, then choose a docking target.");
+        gptUI->text("Center diamond: tabs. Compass arms: split the pane.");
+        gptUI->text("Drag unused tab-bar space to move the group; drag tabs to undock.");
+        gptUI->end_menu();
+    }
+    gptUI->begin_menu("Disabled", false);
+}
+
 void
 pl__show_ui_demo_window(plAppData* ptAppData)
 {
+    static bool bMainMenuBar = false;
+    if(bMainMenuBar && gptUI->begin_main_menu_bar())
+    {
+        pl__show_demo_menus(&bMainMenuBar);
+        gptUI->end_main_menu_bar();
+    }
+
     if(gptUI->begin_window("UI Demo", &ptAppData->bShowUiDemo, PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR))
     {
 
         static const float pfRatios0[] = {1.0f};
         gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios0);
+
+        if(gptUI->begin_menu_bar())
+        {
+            pl__show_demo_menus(&bMainMenuBar);
+            gptUI->end_menu_bar();
+        }
+        gptUI->separator();
+        gptUI->checkbox("Main menu bar", &bMainMenuBar);
 
         if(gptUI->collapsing_header("Help", 0))
         {
@@ -183,7 +247,7 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                     printf("menu item toggle\n");
                 }
 
-                if(gptUI->begin_menu("menu (not ready)", true))
+                if(gptUI->begin_menu("Menu example", true))
                 {
 
                     if(gptUI->menu_item("Menu item 0", NULL, false, true))

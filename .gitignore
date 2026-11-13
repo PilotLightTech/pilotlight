@@ -100,3 +100,4 @@ shaders/*_mod.*
 
 # misc
 .DS_Store
+pl_ui.ini

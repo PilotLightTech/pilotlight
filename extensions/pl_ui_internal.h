@@ -47,6 +47,7 @@ Index of this file:
 #include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_console_ext.h"
+#include "pl_platform_ext.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -69,6 +70,7 @@ Index of this file:
     static const plDrawI*    gptDraw    = NULL;
     static const plIOI*      gptIOI     = NULL;
     static const plConsoleI* gptConsole = NULL;
+    static const plFileI*    gptFile    = NULL;
     static plIO* gptIO = NULL;
 #endif
 
@@ -339,9 +341,40 @@ typedef struct _plUiInputTextState
 
 typedef struct _plUiPopupData
 {
-    uint32_t uId;
-    uint64_t ulOpenFrameCount;
+    uint32_t    uId;
+    uint64_t    ulOpenFrameCount;
+    plUiWindow* ptWindow;
+    plUiWindow* ptRestoreWindow;
+    plUiWindow* ptParentWindow;
 }plUiPopupData;
+
+typedef struct _plUiDockNode
+{
+    uint32_t uId;
+    uint32_t auChildren[2];
+    uint32_t uParent;
+    uint32_t uSelectedWindow;
+    plRect   tRect;
+    float    fRatio;
+    int      iAxis;
+    uint64_t ulLastFrame;
+    bool     bFloating;
+    bool     bHadWindows;
+    uint32_t uHostWindow;
+    plVec2   tHostPos;
+    plVec2   tHostSize;
+    bool     bHostCollapsed;
+    char     acHostTitle[256];
+} plUiDockNode;
+
+typedef struct _plUiWindowSettings
+{
+    uint32_t uId;
+    uint32_t uDockId;
+    plVec2   tPos;
+    plVec2   tSize;
+    bool     bCollapsed;
+} plUiWindowSettings;
 
 //-----------------------------------------------------------------------------
 // [SECTION] plUiStorage
@@ -382,11 +415,15 @@ typedef struct _plUiTreeNodeStackItem
 typedef struct _plUiTempWindowData
 {
     float         fTitleBarHeight;   // titlebar height
+    float         fDockTabsEndX;
     plVec2        tCursorStartPos;   // position where widgets begin drawing (could be outside window if scrolling)
     plVec2        tCursorMaxPos;     // maximum cursor position (could be outside window if scrolling)
     plVec2        tRowCursorLastPos; // current row starting position
     plVec2        tRowCursorPos;     // current row starting position
     plUiLayoutRow tLayoutRow;        // current layout row to use
+    bool          bMenuBar;
+    plUiLayoutRow tMenuBarBackupRow;
+    plVec2        tMenuBarStart;
     float         fExtraIndent;      // extra indent added by pl_indent
     float         fTempMinWidth;     // template layout system
     float         fTempStaticWidth;  // template layout system
@@ -440,6 +477,11 @@ typedef struct _plUiWindow
     uint32_t                   uFocusOrder;             // display rank
     plUiStorage                tStorage;                // state storage
     uint64_t                   uLastFrameActive;        // last frame active
+    uint32_t                   uDockId;
+    bool                       bDockConditionOnce;
+    plVec2                     tUndockedPos;
+    plVec2                     tUndockedSize;
+    bool                       bUndockedCollapsed;
 } plUiWindow;
 
 //-----------------------------------------------------------------------------
@@ -460,6 +502,9 @@ typedef struct _plUiNextWindowData
     plVec2              tPos;
     plVec2              tSize;
     bool                bCollapsed;
+    uint32_t            uDockId;
+    plUiConditionFlags  tDockCondition;
+    bool                bHasDock;
 } plUiNextWindowData;
 
 typedef struct _plUiContext
@@ -509,12 +554,35 @@ typedef struct _plUiContext
 
     // navigation
     plUiWindow* ptNavWindow; // focused window
+    plUiWindow* ptTitleFocusWindow; // application window remains highlighted while menus own input
     uint32_t    uNavId;
     bool        bNavIdIsAlive; // id of focused item if seen this frame
 
     // shared stacks
     plUiPopupData* sbtBeginPopupStack;
     plUiPopupData* sbtOpenPopupStack;
+    bool           bPopupMouseDismissed;
+    bool           bMenuHoverAllowed;
+    bool           bMenuHoverSuppressed;
+
+    // docking
+    plUiDockNode*      sbtDockNodes;
+    uint32_t           uNextDockId;
+    uint32_t           uDockSplitterActive;
+    plUiWindow*        ptDockDragWindow;
+    uint64_t           ulMainMenuBarFrame;
+    float              fMainMenuBarHeight;
+    plUiNextWindowData tMainMenuBarNextWindowData;
+
+    // settings
+    char*               pcSettingsFile;
+    bool                bSettingsLoaded;
+    bool                bSettingsReadOnly;
+    bool                bSettingsWriteFailed;
+    float               fSettingsSaveTimer;
+    plUiWindowSettings* sbtWindowSettings;
+    char*               sbcSettingsSnapshot;
+    char*               sbcSettingsSaved;
 
     // tab bars
     plUiTabBar* sbtTabBars;             // stretchy-buffer for persistent tab bar data
@@ -525,6 +593,8 @@ typedef struct _plUiContext
 
     // drawing
     plDrawList2D*  ptDebugDrawlist; // ui debug drawlist (i.e. overlays)
+    plDrawList2D*  ptDockDrawlist;
+    plDrawLayer2D* ptDockLayer;
     plFont*        tFont;           // current font
     // plDrawLayer2D* ptBgLayer;       // submitted before window layers
     // plDrawLayer2D* ptFgLayer;       // submitted after window layers
@@ -580,6 +650,9 @@ static void        pl__render_scrollbar(plUiWindow*, uint32_t uHash, plUiAxis);
 static void        pl__submit_window   (plUiWindow*);
 static inline void pl__set_nav_window  (plUiWindow*);
 static inline void pl__focus_window    (plUiWindow*);
+static void        pl__close_popup_to_level(uint32_t uRemaining, bool bRestoreFocus);
+static inline bool pl__window_in_popup(plUiWindow* ptWindow, plUiWindow* ptPopup);
+static inline bool pl__popup_allows_window(plUiWindow* ptWindow);
 static inline bool pl__ui_should_render(const plVec2* ptStartPos, const plVec2* ptWidgetSize) { return !(ptStartPos->y + ptWidgetSize->y < gptCtx->ptCurrentWindow->tPos.y || ptStartPos->y > gptCtx->ptCurrentWindow->tPos.y + gptCtx->ptCurrentWindow->tSize.y); }
 static void        pl__set_active_id(uint32_t uHash, plUiWindow*);
 static void        pl__set_nav_id   (uint32_t uHash, plUiWindow*);
@@ -713,6 +786,53 @@ pl__ui_get_id(const char* pcName)
     uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
     const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
     return uHash;
+}
+
+// window focus and popup helpers
+
+static inline plUiWindow*
+pl__title_highlight_root(plUiWindow* ptWindow)
+{
+    while(ptWindow && (ptWindow->tFlags & (PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_CHILD_WINDOW)))
+        ptWindow = ptWindow->ptParentWindow;
+    if(!ptWindow || (ptWindow->tFlags & PL_UI_WINDOW_FLAGS_MAIN_MENU_BAR))
+        return NULL;
+    return ptWindow->ptRootWindow;
+}
+
+static inline void
+pl__set_nav_window(plUiWindow* ptWindow)
+{
+    gptCtx->ptNavWindow = ptWindow;
+    if(!ptWindow)
+        gptCtx->ptTitleFocusWindow = NULL;
+    else if(pl__title_highlight_root(ptWindow))
+        gptCtx->ptTitleFocusWindow = pl__title_highlight_root(ptWindow);
+}
+
+static inline bool
+pl__window_in_popup(plUiWindow* ptWindow, plUiWindow* ptPopup)
+{
+    if(!ptPopup)
+        return false;
+    for(; ptWindow; ptWindow = ptWindow->ptParentWindow)
+    {
+        if(ptWindow == ptPopup)
+            return true;
+    }
+    return false;
+}
+
+static inline bool
+pl__popup_allows_window(plUiWindow* ptWindow)
+{
+    if(gptCtx->bPopupMouseDismissed)
+        return false;
+    if(gptCtx->bMenuHoverAllowed || pl_sb_size(gptCtx->sbtOpenPopupStack) == 0)
+        return true;
+    
+    // Any open ancestor can receive input: clicking it dismisses only its descendants.
+    return pl__window_in_popup(ptWindow, gptCtx->sbtOpenPopupStack[0].ptWindow);
 }
 
 #endif // PL_UI_INTERNAL_H

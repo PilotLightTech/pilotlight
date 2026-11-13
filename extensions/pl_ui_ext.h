@@ -55,7 +55,7 @@ extern "C" {
 // [SECTION] api
 //-----------------------------------------------------------------------------
 
-#define plUiI_version {2, 0, 0}
+#define plUiI_version {2, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -160,6 +160,7 @@ typedef struct _plUiI
     bool (*is_popup_open)      (const char* name);
     bool (*is_popup_open_id)   (uint32_t);
     bool (*begin_popup)        (const char* name, plUiWindowFlags);
+    bool (*begin_popup_id)     (uint32_t id, plUiWindowFlags); // Popups opened by an explicit ID may be begun outside the original ID scope.
     void (*end_popup)          (void);
 
     // window utilities
@@ -281,7 +282,7 @@ typedef struct _plUiI
     bool (*begin_tab)    (const char* text, plUiTabFlags);
     void (*end_tab)      (void);
 
-    // menus (not ready, do not use yet)
+    // menus (shortcut strings are display-only; dispatch shortcuts in the application)
     bool (*begin_menu)      (const char* label, bool enabled);
     void (*end_menu)        (void);
     bool (*menu_item)       (const char* label, const char* shortcut, bool selected, bool enabled);
@@ -386,6 +387,30 @@ typedef struct _plUiI
     
     void (*set_keyboard_focus_last_item)(void); // don't use yet
 
+    // Horizontal menu row at the current cursor. Pair end only when begin returns true.
+    bool (*begin_menu_bar)(void);
+    void (*end_menu_bar)(void);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~docking~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // Floating windows dock into each other automatically. Explicit dock spaces
+    // use viewport coordinates; submit them before their windows every frame.
+    // Split a leaf once; direction: 0=left, 1=right, 2=up, 3=down.
+    uint32_t (*dock_space)          (const char* name, plVec2 pos, plVec2 size);
+    uint32_t (*dock_split)          (uint32_t node, int direction, float ratio, uint32_t* opposite);
+    void     (*set_next_window_dock)(uint32_t node, plUiConditionFlags); // node=0 undocks
+    uint32_t (*get_window_dock)     (void);
+
+    // Defaults to "pl_ui.ini" in the working directory. Set before the first frame;
+    // NULL disables persistence. Loaded settings override ONCE defaults, not ALWAYS.
+    void (*set_settings_file)(const char* path);
+    bool (*save_settings)(void); // also saved automatically after changes and at cleanup
+
+    // Full-width bar at the top of the main viewport. Submit once per frame,
+    // before other windows. End only when begin returns true.
+    bool (*begin_main_menu_bar)(void);
+    void (*end_main_menu_bar)(void);
+
 } plUiI;
 
 //-----------------------------------------------------------------------------
@@ -445,11 +470,15 @@ enum plUiWindowFlags_
     PL_UI_WINDOW_FLAGS_NO_BACKGROUND        = 1 << 5,
     PL_UI_WINDOW_FLAGS_NO_SCROLLBAR         = 1 << 6,
     PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR = 1 << 7,
+    PL_UI_WINDOW_FLAGS_NO_SAVED_SETTINGS    = 1 << 11,
+    PL_UI_WINDOW_FLAGS_NO_DOCKING           = 1 << 12,
 
     // [INTERNAL]
-    PL_UI_WINDOW_FLAGS_CHILD_WINDOW = 1 << 8,
-    PL_UI_WINDOW_FLAGS_POPUP_WINDOW = 1 << 9,
-    PL_UI_WINDOW_FLAGS_MENU         = 1 << 10,
+    PL_UI_WINDOW_FLAGS_CHILD_WINDOW  = 1 << 8,
+    PL_UI_WINDOW_FLAGS_POPUP_WINDOW  = 1 << 9,
+    PL_UI_WINDOW_FLAGS_MENU          = 1 << 10,
+    PL_UI_WINDOW_FLAGS_DOCK_HOST     = 1 << 13,
+    PL_UI_WINDOW_FLAGS_MAIN_MENU_BAR = 1 << 14,
 };
 
 enum plUiTreeNodeFlags_
