@@ -66,7 +66,8 @@ typedef struct _plDebugContext
     bool*          sbbValues;
     uint32_t       uSelectedCount;
     uint32_t       uMaxSelectedCount;
-    float          fLegendWidth;
+    float          fStatSelectorWidth;
+    plUiTextFilter tStatFilter;
 
     // profile data
     plProfileCpuSample* sbtSamples;
@@ -779,7 +780,17 @@ static void
 pl__show_statistics(bool* bValue)
 {
 
+    static const plVec4 atColors[6] = {
+        {0.0f, 1.0f, 1.0f, 0.75f},
+        {1.0f, 0.5f, 0.0f, 0.75f},
+        {0.0f, 1.0f, 0.0f, 0.75f},
+        {0.0f, 0.5f, 1.0f, 0.75f},
+        {1.0f, 1.0f, 0.0f, 0.75f},
+        {1.0f, 0.0f, 1.0f, 0.75}
+    };
+
     const char** apcTempNames = NULL;
+    plVec4* atSelectedColors = NULL;
     const uint32_t uStatsMaxFrames = gptStats->get_max_frames();
 
     // selectable values
@@ -802,8 +813,8 @@ pl__show_statistics(bool* bValue)
         {
             gptDebugCtx->sbppdFrameValues[i] = gptStats->get_counter_data(gptDebugCtx->ppcNames[i]);
             float fCurrentWidth = gptDraw->calculate_text_size(gptDebugCtx->ppcNames[i], (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x;
-            if(fCurrentWidth > gptDebugCtx->fLegendWidth)
-                gptDebugCtx->fLegendWidth = fCurrentWidth * 1.1f;
+            if(fCurrentWidth > gptDebugCtx->fStatSelectorWidth)
+                gptDebugCtx->fStatSelectorWidth = fCurrentWidth * 1.1f;
         }
     }
     
@@ -819,8 +830,8 @@ pl__show_statistics(bool* bValue)
         {
             gptDebugCtx->sbppdFrameValues[i] = gptStats->get_counter_data(gptDebugCtx->ppcNames[i]);
             float fCurrentWidth = gptDraw->calculate_text_size(gptDebugCtx->ppcNames[i], (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x;
-            if(fCurrentWidth > gptDebugCtx->fLegendWidth)
-                gptDebugCtx->fLegendWidth = fCurrentWidth * 1.1f;
+            if(fCurrentWidth > gptDebugCtx->fStatSelectorWidth)
+                gptDebugCtx->fStatSelectorWidth = fCurrentWidth * 1.1f;
         }
     }
 
@@ -830,6 +841,8 @@ pl__show_statistics(bool* bValue)
         static bool bAllowNegative = false;
         gptUI->text("Frame rate: %.0f FPS", gptIO->fFrameRate);
         gptUI->text("Frame time: %.6f s", gptIO->fDeltaTime);
+        if(gptUI->input_text_hint("Stat Filter", "Filter (inc,-exc)", gptDebugCtx->tStatFilter.acInputBuffer, sizeof(gptDebugCtx->tStatFilter.acInputBuffer), 0))
+            gptUI->text_filter_build(&gptDebugCtx->tStatFilter);
         const plVec2 tCursor = gptUI->get_cursor_pos();
 
         plDrawLayer2D* ptFgLayer = gptUI->get_window_fg_drawlayer();
@@ -839,7 +852,7 @@ pl__show_statistics(bool* bValue)
         const plVec2 tWindowEnd = pl_add_vec2(gptUI->get_window_size(), tWindowPos);
 
         gptUI->layout_template_begin(tWindowSize.y - 15.0f);
-        gptUI->layout_template_push_static(gptDebugCtx->fLegendWidth * 1.0f);
+        gptUI->layout_template_push_static(pl_minf(gptDebugCtx->fStatSelectorWidth, tWindowSize.x * 0.45f));
         gptUI->layout_template_push_dynamic();
         gptUI->layout_template_end();
       
@@ -847,10 +860,11 @@ pl__show_statistics(bool* bValue)
         {
             gptUI->layout_dynamic(0.0f, 1);
  
-            const plVec4 tNewHeaderColor = (plVec4){0.0f, 0.5f, 0.0f, 0.75f};
-            gptUI->push_theme_color(PL_UI_COLOR_HEADER, tNewHeaderColor);
             for(uint32_t i = 0; i < pl_sb_size(gptDebugCtx->sbppdValues); i++)
             {
+                if(!gptUI->text_filter_pass(&gptDebugCtx->tStatFilter, gptDebugCtx->ppcNames[i], NULL))
+                    continue;
+                gptUI->push_theme_color(PL_UI_COLOR_HEADER, atColors[i % 6]);
                 if(gptUI->selectable(gptDebugCtx->ppcNames[i], &gptDebugCtx->sbbValues[i], 0))
                 {
                     if(gptDebugCtx->sbbValues[i])
@@ -869,18 +883,20 @@ pl__show_statistics(bool* bValue)
                         *gptStats->get_counter_data(gptDebugCtx->ppcNames[i]) = NULL;
                     }
                 }
+                gptUI->pop_theme_color(1);
             }
-            gptUI->pop_theme_color(1);
             gptUI->end_child();
         }
 
         uint32_t uSelectionSlot = 0;
         apcTempNames = pl_temp_allocator_alloc(&gptDebugCtx->tTempAllocator, sizeof(const char*) * gptDebugCtx->uSelectedCount);
+        atSelectedColors = pl_temp_allocator_alloc(&gptDebugCtx->tTempAllocator, sizeof(plVec4) * gptDebugCtx->uSelectedCount);
         for(uint32_t i = 0; i < pl_sb_size(gptDebugCtx->sbbValues); i++)
         {
             if(gptDebugCtx->sbbValues[i])
             {
                 apcTempNames[uSelectionSlot] = gptDebugCtx->ppcNames[i];
+                atSelectedColors[uSelectionSlot] = atColors[i % 6];
                 *gptDebugCtx->sbppdFrameValues[i] = &gptDebugCtx->sbdRawValues[uSelectionSlot * uStatsMaxFrames];
                 uSelectionSlot++;
             }
@@ -896,32 +912,16 @@ pl__show_statistics(bool* bValue)
             if(gptUI->begin_tab("Plot", 0))
             {
                 
-                gptUI->layout_template_begin(tWindowSize.y - 30.0f);
-                gptUI->layout_template_push_variable(300.0f);
-                gptUI->layout_template_push_static(gptDebugCtx->fLegendWidth * 2.0f + 10.0f);
-                gptUI->layout_template_end();
-                
+                gptUI->layout_dynamic(tWindowSize.y - 40.0f, 1);
                 const plVec2 tCursor0 = gptUI->get_cursor_pos();
-                const plVec2 tPlotSize = {tWindowEnd.x - tCursor0.x - 10.0f - gptDebugCtx->fLegendWidth - 20.0f, tWindowSize.y - 40.0f};
-                const plVec2 tLegendSize = {gptDebugCtx->fLegendWidth + 20.0f, tWindowSize.y - 40.0f};
+                const plVec2 tPlotSize = {pl_maxf(1.0f, tWindowEnd.x - tCursor0.x - 20.0f), pl_maxf(1.0f, tWindowSize.y - 40.0f)};
                 gptUI->invisible_button("plot", tPlotSize);
 
-                const plVec2 tCursor1 = gptUI->get_cursor_pos();
-                gptUI->invisible_button("legend", tLegendSize);
                 gptDraw->add_rect_rounded_filled(ptFgLayer, 
                     tCursor0, 
                     pl_add_vec2(tCursor0, tPlotSize),
                     0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.2f, 0.0f, 0.0f, 0.5f)});
        
-                static const plVec4 atColors[6] = {
-                    {0.0f, 1.0f, 1.0f, 0.75f},
-                    {1.0f, 0.5f, 0.0f, 0.75f},
-                    {0.0f, 1.0f, 0.0f, 0.75f},
-                    {0.0f, 0.5f, 1.0f, 0.75f},
-                    {1.0f, 1.0f, 0.0f, 0.75f},
-                    {1.0f, 0.0f, 1.0f, 0.75}
-                };
-
                 const double dAxisMultiplier = bAllowNegative ? 2.0 : 1.0;
 
                 // const double dYCenter = tCursor0.y + tPlotSize.y * 0.5f;            
@@ -936,7 +936,7 @@ pl__show_statistics(bool* bValue)
                 bAllowNegative = false;
                 for(uint32_t i = 0; i < gptDebugCtx->uSelectedCount; i++)
                 {
-                    const plVec4* ptColor = &atColors[i % 6];
+                    const plVec4* ptColor = &atSelectedColors[i];
                     double* dValues = &gptDebugCtx->sbdRawValues[i * uStatsMaxFrames];
                     double dMaxValue = -DBL_MAX;
                     double dMinValue = DBL_MAX;
@@ -956,10 +956,6 @@ pl__show_statistics(bool* bValue)
 
                     uint32_t uIndexStart = (uint32_t)gptIO->ulFrameCount;
 
-                    const plVec2 tTextPoint = {tCursor1.x + 5.0f, tCursor1.y + i * 20.0f};
-                    gptDraw->add_rect_rounded_filled(ptFgLayer, tTextPoint, (plVec2){tTextPoint.x + gptUI->get_default_font()->fSize, tTextPoint.y + gptUI->get_default_font()->fSize}, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(*ptColor)});
-                    gptDraw->add_text(ptFgLayer, (plVec2){roundf(tTextPoint.x + 20.0f), roundf(tTextPoint.y)}, (plDrawTextOptions){.uColor = PL_COLOR_32_VEC4(*ptColor), .ptFont = gptUI->get_default_font()}, apcTempNames[i]);
-        
                     for(uint32_t j = 0; j < uStatsMaxFrames - 1; j++)
                     {
                         uint32_t uActualIndex0 = (uIndexStart + j) % uStatsMaxFrames;
@@ -1548,6 +1544,7 @@ pl_unload_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     ptApiRegistry->remove_api(ptApi);
 
     gptUI->text_filter_cleanup(&gptDebugCtx->tMemoryFilter);
+    gptUI->text_filter_cleanup(&gptDebugCtx->tStatFilter);
     pl_sb_free(gptDebugCtx->sbppdValues);
     pl_sb_free(gptDebugCtx->sbppdFrameValues);
     pl_sb_free(gptDebugCtx->sbdRawValues);
