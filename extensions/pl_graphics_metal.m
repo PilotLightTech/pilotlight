@@ -593,6 +593,9 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
     if(tDesc.pcDebugName == NULL)
         tDesc.pcDebugName = "unnamed texture";
 
+    if(tDesc.eSampleCount == 0)
+        tDesc.eSampleCount = 1;
+
     if(tDesc.uMips == 0)
         tDesc.uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)tDesc.tDimensions.x, (int)tDesc.tDimensions.y))) + 1;
 
@@ -610,6 +613,7 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
 
     ptTexture->tDesc = tDesc,
     ptTexture->tView = (plTextureViewDesc){
+        .eType = tDesc.eType,
         .eFormat = tDesc.eFormat,
         .uBaseMip = 0,
         .uMips = tDesc.uMips,
@@ -625,7 +629,7 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
     ptTextureDescriptor.mipmapLevelCount = tDesc.uMips;
     ptTextureDescriptor.arrayLength = tDesc.eType == PL_TEXTURE_TYPE_2D_ARRAY ? tDesc.uLayers : 1;
     ptTextureDescriptor.depth = tDesc.tDimensions.z;
-    ptTextureDescriptor.sampleCount = ptDesc->eSampleCount == 0 ? 1 : ptDesc->eSampleCount;
+    ptTextureDescriptor.sampleCount = tDesc.eSampleCount;
 
     if(tDesc.eUsage & PL_TEXTURE_USAGE_SAMPLED)
         ptTextureDescriptor.usage |= MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
@@ -984,7 +988,9 @@ pl_graphics_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptV
 
     ptNewTexture->tDesc = ptOriginalTexture->tDesc;
     ptNewTexture->tView = *ptViewDesc;
-    ptNewTexture->tDesc.uMips = ptViewDesc->uMips;
+    ptNewTexture->tDesc.uMips = ptViewDesc->uMips == 0 ? ptOriginalTexture->tDesc.uMips - ptViewDesc->uBaseMip : ptViewDesc->uMips;
+    ptNewTexture->tView.uMips = ptNewTexture->tDesc.uMips;
+    ptNewTexture->tDesc.eFormat = ptViewDesc->eFormat;
     ptNewTexture->tDesc.uLayers = ptViewDesc->uLayerCount;
     ptNewTexture->tDesc.eType = ptViewDesc->eType;
     ptNewTexture->tView.uBaseMip = 0;
@@ -1021,7 +1027,7 @@ pl_graphics_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptV
     }
 
     NSRange tLevelRange = {
-        .length = ptViewDesc->uMips == 0 ? ptOriginalTexture->tDesc.uMips - ptViewDesc->uBaseMip : ptViewDesc->uMips,
+        .length = ptNewTexture->tDesc.uMips,
         .location = ptViewDesc->uBaseMip
     };
 
@@ -1090,7 +1096,7 @@ pl_graphics_allocate_dynamic_data_block(plDevice* ptDevice)
         ._uBufferHandle  = ptFrame->uCurrentBufferIndex,
         ._uByteSize      = ptDevice->tInit.szDynamicBufferBlockSize,
         ._pcData         = ptDynamicBuffer->tBuffer.contents,
-        ._uAlignment     = 256,
+        ._uAlignment     = ptDevice->tInfo.tLimits.uMinUniformBufferOffsetAlignment,
         ._uBumpAmount    = ptDevice->tInit.szDynamicDataMaxSize,
         ._uCurrentOffset = 0
     };
@@ -1538,6 +1544,8 @@ pl_graphics_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCoun
     if(atDeviceInfo == NULL)
         return;
 
+    memset(&atDeviceInfo[0], 0, sizeof(atDeviceInfo[0]));
+
     plIO* ptIOCtx = gptIOI->get_io();
     plPlatformExtData* ptBackendData = ptIOCtx->pBackendPlatformData;
     id<MTLDevice> tDevice =  MTLCreateSystemDefaultDevice();
@@ -1550,6 +1558,10 @@ pl_graphics_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCoun
     atDeviceInfo[0].eType = PL_DEVICE_TYPE_INTEGRATED;
     atDeviceInfo[0].eCapabilities = PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING | PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY | PL_DEVICE_CAPABILITY_SWAPCHAIN | PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS;
     atDeviceInfo[0].tLimits.uNonCoherentAtomSize = 64;
+    // Match the conservative alignment used for dynamic uniform data blocks.
+    atDeviceInfo[0].tLimits.uMinUniformBufferOffsetAlignment = 256;
+    // Common 2D texture limit supported by macOS Metal GPU families.
+    atDeviceInfo[0].tLimits.uMaxTextureSize = 16384;
 
     if(tDevice.hasUnifiedMemory)
     {
@@ -1722,6 +1734,7 @@ pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plS
         ptTexture->tDesc.eUsage = PL_TEXTURE_USAGE_PRESENT;
         ptTexture->tDesc.pcDebugName = "swapchain dummy image";
         ptTexture->tView.eFormat = ptTexture->tDesc.eFormat;
+        ptTexture->tView.eType = ptTexture->tDesc.eType;
         ptTexture->tView.uBaseMip = 0;
         ptTexture->tView.uBaseLayer = 0;
         ptTexture->tView.uMips = 1;
