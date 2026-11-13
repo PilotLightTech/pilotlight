@@ -149,7 +149,11 @@ pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plAssetHandle tAsset)
         ptTerrain->sbuFreeRequests[i] = i;
     }
 
-    gptFreeList->create(268435456 * 2, 256, &ptTerrain->tVertexBufferManager);
+    // Keep minimum allocations and the pool tail on whole vertex boundaries.
+    const uint64_t uVertexStride = sizeof(plTerrainVertex);
+    const uint64_t uVertexCapacity = (536870912ull / uVertexStride) * uVertexStride;
+    const uint64_t uVertexMinimum = ((256 + uVertexStride - 1) / uVertexStride) * uVertexStride;
+    gptFreeList->create(uVertexCapacity, uVertexMinimum, &ptTerrain->tVertexBufferManager);
     gptFreeList->create(268435456 * 2, 256, &ptTerrain->tIndexBufferManager);
 
     plDevice* ptDevice = gptData->ptDevice;
