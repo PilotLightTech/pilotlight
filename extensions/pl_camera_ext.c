@@ -165,7 +165,7 @@ pl__ecs_camera_serialize(void* pComponent, const plComponentLibrary* ptLibrary, 
 
     if(ptComponent->eDepthMode == PL_CAMERA_DEPTH_MODE_STANDARD)
         gptJson->add_string_member(ptJson, "depth_mode", "standard");
-    else if(ptComponent->eProjectionType == PL_CAMERA_DEPTH_MODE_REVERSE_Z)
+    else if(ptComponent->eDepthMode == PL_CAMERA_DEPTH_MODE_REVERSE_Z)
         gptJson->add_string_member(ptJson, "depth_mode", "reverse");
 
     gptJson->add_double_array(ptJson, "position", ptComponent->tPosition.d, 3);
