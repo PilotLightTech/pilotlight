@@ -523,7 +523,11 @@ typedef struct _plScene
     uint32_t* sbtVisibleDrawables;
     uint32_t* asbuRenderBuckets[PL_RENDER_BUCKET_COUNT];
 
+    // Lifetime total; independent of the per-frame stats reset.
+    uint64_t          uResourceGrowthCount;
+
     // shadow atlas
+    bool              bShadowAtlasReady;
     uint32_t          uShadowAtlasIndex;
     uint32_t          uShadowAtlasResolution;
     plShadowPackData* sbtShadowRectData;

@@ -306,6 +306,211 @@ pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene
 }
 
 static bool
+pl__renderer_grow_buffer(plScene* ptScene, plBufferHandle* ptHandle, uint64_t uCapacity)
+{
+    const plBufferDesc tDesc = gptGfx->get_buffer(gptData->ptDevice, *ptHandle)->tDesc;
+    if(!gptStage->grow_buffer(ptHandle, uCapacity))
+        return false;
+    if(uCapacity > tDesc.szByteSize)
+    {
+        ptScene->uResourceGrowthCount++;
+        gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_CYAN, 1.0f, "Renderer grew %s: %llu -> %llu bytes", tDesc.pcDebugName ? tDesc.pcDebugName : "buffer", (unsigned long long)tDesc.szByteSize, (unsigned long long)uCapacity);
+    }
+    return true;
+}
+
+// Allocation is deliberately synchronous. It must run before
+// recording draws. Handles and descriptors are replaced only after all queued
+// work using the old resources has completed; offsets and live nodes are stable.
+static plFreeListNode*
+pl__renderer_allocate_node(plScene* ptScene, plFreeList* ptList, uint64_t uSize)
+{
+    plFreeListNode* ptNode = gptFreeList->get_node(ptList, uSize);
+    if(ptNode)
+        return ptNode;
+
+    const uint64_t uQuantum = ptList->_uMinNodeSize;
+    uSize = pl_max(uSize, uQuantum);
+    if(uSize > UINT32_MAX || ptList->uSize > UINT32_MAX - uSize)
+        return NULL;
+    uint64_t uCapacity = pl_max(ptList->uSize * 2, ptList->uSize + uSize);
+    uCapacity = ((uCapacity + uQuantum - 1) / uQuantum) * uQuantum;
+    if(uCapacity > UINT32_MAX)
+        return NULL;
+
+    plBufferHandle* ptHandles = NULL;
+    uint32_t uCount = 1;
+    uint64_t uElementSize = 1;
+    if(ptList == &ptScene->tIndexBufferFreeList)         ptHandles = &ptScene->tIndexBuffer;
+    else if(ptList == &ptScene->tVertexBufferFreeList)   ptHandles = &ptScene->tVertexBuffer;
+    else if(ptList == &ptScene->tStorageBufferFreeList)  ptHandles = &ptScene->tStorageBuffer;
+    else if(ptList == &ptScene->tMaterialFreeList)       ptHandles = &ptScene->tMaterialDataBuffer;
+    else if(ptList == &ptScene->tInstanceFreelist)
+    {
+        ptHandles = &ptScene->tInstanceBuffer;
+        uElementSize = sizeof(plShadowInstanceBufferData);
+    }
+    else if(ptList == &ptScene->tTransformFreelist)
+    {
+        ptHandles = ptScene->atTransformBuffer;
+        uElementSize = sizeof(plGpuTransform);
+        uCount = gptGfx->get_frames_in_flight();
+    }
+    else if(ptList == &ptScene->tSkinBufferFreeList)
+    {
+        ptHandles = ptScene->atDynamicSkinBuffer;
+        uCount = gptGfx->get_frames_in_flight();
+    }
+    else if(ptList == &ptScene->tShadowCameraFreeList)
+    {
+        ptHandles = ptScene->atShadowCameraBuffers;
+        uCount = gptGfx->get_frames_in_flight();
+    }
+    if(!ptHandles || uCapacity > SIZE_MAX / uElementSize)
+        return NULL;
+
+    bool bGrown = true;
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        if(!pl__renderer_grow_buffer(ptScene, &ptHandles[i], uCapacity * uElementSize))
+        {
+            bGrown = false;
+            break;
+        }
+    }
+    if(bGrown)
+        bGrown = gptFreeList->grow(ptList, uCapacity);
+    if(bGrown)
+    {
+        if(ptList == &ptScene->tIndexBufferFreeList)         ptScene->tInit.szIndexBufferSize = (size_t)uCapacity;
+        else if(ptList == &ptScene->tVertexBufferFreeList)   ptScene->tInit.szVertexBufferSize = (size_t)uCapacity;
+        else if(ptList == &ptScene->tStorageBufferFreeList)  ptScene->tInit.szDataBufferSize = (size_t)uCapacity;
+        else if(ptList == &ptScene->tMaterialFreeList)       ptScene->tInit.szMaterialBufferSize = (size_t)uCapacity;
+        else if(ptList == &ptScene->tSkinBufferFreeList)     ptScene->tInit.szSkinBufferSize = (size_t)uCapacity;
+        else if(ptList == &ptScene->tTransformFreelist)      ptScene->uTransformCapacity = (uint32_t)uCapacity;
+        else if(ptList == &ptScene->tInstanceFreelist)       ptScene->uShadowInstanceCapacity = (uint32_t)uCapacity;
+    }
+    // Even a partial multi-buffer replacement must rebind the handles it changed.
+    pl__renderer_scene_update_bindgroups(ptScene);
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbptViews); i++)
+        pl__renderer_view_update_bindgroups(ptScene->sbptViews[i]);
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtProbeData); i++)
+        pl__renderer_probe_update_bindgroups(ptScene, &ptScene->sbtProbeData[i]);
+    return bGrown ? gptFreeList->get_node(ptList, uSize) : NULL;
+}
+
+static bool
+pl__renderer_reserve_buffer(plScene* ptScene, plBufferHandle* ptHandle, uint64_t uBytes, bool* pbChanged)
+{
+    const uint64_t uCapacity = gptGfx->get_buffer(gptData->ptDevice, *ptHandle)->tDesc.szByteSize;
+    if(uBytes <= uCapacity)
+        return true;
+    if(uBytes > SIZE_MAX / 2 || uCapacity > SIZE_MAX / 2)
+        return false;
+    if(!pl__renderer_grow_buffer(ptScene, ptHandle, pl_max(uBytes, uCapacity * 2)))
+        return false;
+    *pbChanged = true;
+    return true;
+}
+
+// Reserve before any CPU writes or command recording.
+static bool
+pl__renderer_reserve_lighting_buffers(plScene* ptScene)
+{
+    bool bChanged = false;
+    bool bOkay = true;
+    const uint64_t uPoints = pl_sb_size(ptScene->sbtPointLightData);
+    const uint64_t uSpots = pl_sb_size(ptScene->sbtSpotLightData);
+    const uint64_t uDirections = pl_sb_size(ptScene->sbtDirectionLightData);
+    bOkay &= pl__renderer_reserve_buffer(ptScene, &ptScene->tGPUProbeDataBuffers, (uint64_t)pl_sb_size(ptScene->sbtProbeData) * sizeof(plGpuProbe), &bChanged);
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        bOkay &= pl__renderer_reserve_buffer(ptScene, &ptScene->atPointLightBuffer[i], uPoints * sizeof(plGpuPointLight), &bChanged);
+        bOkay &= pl__renderer_reserve_buffer(ptScene, &ptScene->atSpotLightBuffer[i], uSpots * sizeof(plGpuSpotLight), &bChanged);
+        bOkay &= pl__renderer_reserve_buffer(ptScene, &ptScene->atDirectionLightBuffer[i], uDirections * sizeof(plGpuDirectionLight), &bChanged);
+        bOkay &= pl__renderer_reserve_buffer(ptScene, &ptScene->atPointLightShadowDataBuffer[i], uPoints * sizeof(plGpuPointLightShadow), &bChanged);
+        bOkay &= pl__renderer_reserve_buffer(ptScene, &ptScene->atSpotLightShadowDataBuffer[i], uSpots * sizeof(plGpuSpotLightShadow), &bChanged);
+        for(uint32_t j = 0; j < pl_sb_size(ptScene->sbptViews); j++)
+        {
+            plView* ptView = ptScene->sbptViews[j];
+            bOkay &= pl__renderer_reserve_buffer(ptScene, &ptView->atDShadowCameraBuffers[i], uDirections * sizeof(plMat4), &bChanged);
+            bOkay &= pl__renderer_reserve_buffer(ptScene, &ptView->atDLightShadowDataBuffer[i], uDirections * sizeof(plGpuDirectionLightShadow), &bChanged);
+        }
+    }
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtProbeData); i++)
+    {
+        plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[i];
+        bOkay &= pl__renderer_reserve_buffer(ptScene, &ptProbe->tDShadowCameraBuffers, uDirections * sizeof(plMat4), &bChanged);
+        bOkay &= pl__renderer_reserve_buffer(ptScene, &ptProbe->tDLightShadowDataBuffer, uDirections * 6 * sizeof(plGpuDirectionLightShadow), &bChanged);
+        if(i == 0)
+        {
+            ptScene->tDefaultProbeData.tDShadowCameraBuffers = ptProbe->tDShadowCameraBuffers;
+            ptScene->tDefaultProbeData.tDLightShadowDataBuffer = ptProbe->tDLightShadowDataBuffer;
+        }
+    }
+    if(bChanged)
+    {
+        for(uint32_t i = 0; i < pl_sb_size(ptScene->sbptViews); i++)
+            pl__renderer_view_update_bindgroups(ptScene->sbptViews[i]);
+        for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtProbeData); i++)
+            pl__renderer_probe_update_bindgroups(ptScene, &ptScene->sbtProbeData[i]);
+    }
+    return bOkay;
+}
+
+static bool
+pl__renderer_fit_shadow_atlas(plScene* ptScene, bool bSun, plPackRect* ptRects, uint32_t uCount)
+{
+    uint32_t* puResolution = bSun ? &ptScene->uSunShadowAtlasResolution : &ptScene->uShadowAtlasResolution;
+    plTextureHandle* ptHandle = bSun ? &ptScene->tSunShadowTexture : &ptScene->tShadowTexture;
+    uint32_t* puIndex = bSun ? &ptScene->uSunShadowAtlasIndex : &ptScene->uShadowAtlasIndex;
+    const uint32_t uMaxSize = gptGfx->get_device_info(gptData->ptDevice)->tLimits.uMaxTextureSize;
+    uint32_t uResolution = *puResolution;
+    for(;;)
+    {
+        gptRect->pack(uResolution, uResolution, ptRects, uCount);
+        bool bPacked = true;
+        for(uint32_t i = 0; i < uCount; i++)
+            bPacked &= ptRects[i].iWasPacked != 0;
+        if(bPacked)
+            break;
+        if(uResolution >= uMaxSize)
+        {
+            PL_LOG_ERROR_API(gptLog, gptData->uLogChannel, "Shadow atlas exceeds device texture limit; reduce shadow resolutions or light count");
+            return false;
+        }
+        uResolution = uResolution > uMaxSize / 2 ? uMaxSize : uResolution * 2;
+    }
+    if(uResolution == *puResolution)
+        return true;
+
+    // Shadow content is regenerated this frame; no texture copy is necessary.
+    // Fence the shared graphics queue explicitly. Metal's legacy flush_device
+    // implementation only sleeps, so it is not a resource-lifetime guarantee.
+    plCommandBuffer* ptFence = gptGfx->request_command_buffer(gptStarter->get_current_command_pool(), "grow shadow atlas");
+    gptGfx->begin_command_recording(ptFence);
+    gptGfx->end_command_recording(ptFence);
+    gptGfx->submit_command_buffer(ptFence, NULL);
+    gptGfx->wait_on_command_buffer(ptFence);
+    gptGfx->return_command_buffer(ptFence);
+    plTextureDesc tDesc = gptGfx->get_texture(gptData->ptDevice, *ptHandle)->tDesc;
+    tDesc.tDimensions.x = tDesc.tDimensions.y = (float)uResolution;
+    plTextureHandle tNew = {0};
+    gptStarter->create_texture(&tDesc, NULL, 0, &tNew);
+    if(!gptGfx->is_texture_valid(gptData->ptDevice, tNew))
+        return false;
+    // The just-returned slot is reused immediately, retaining the bindless index.
+    pl__renderer_return_bindless_texture_index(ptScene, *ptHandle);
+    *puIndex = pl__renderer_get_bindless_texture_index(ptScene, tNew);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, *ptHandle);
+    *ptHandle = tNew;
+    ptScene->uResourceGrowthCount++;
+    gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_CYAN, 1.0f, "Renderer grew %s shadow atlas: %u x %u -> %u x %u", bSun ? "sun" : "general", *puResolution, *puResolution, uResolution, uResolution);
+    *puResolution = uResolution;
+    return true;
+}
+
+static bool
 pl__renderer_pack_shadow_atlas(plScene* ptScene)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
@@ -370,19 +575,7 @@ pl__renderer_pack_shadow_atlas(plScene* ptScene)
     }
 
     const uint32_t uRectCount = pl_sb_size(ptScene->sbtShadowRects);
-    gptRect->pack(ptScene->uShadowAtlasResolution, ptScene->uShadowAtlasResolution, ptScene->sbtShadowRects, uRectCount);
-
-    // ensure rects are packed
-    bool bPacked = true;
-    for(uint32_t i = 0; i < uRectCount; i++)
-    {
-        if(!ptScene->sbtShadowRects[i].iWasPacked)
-        {
-            bPacked = false;
-            PL_ASSERT(false && "Shadow atlas too small");
-            break;
-        }
-    }
+    const bool bPacked = pl__renderer_fit_shadow_atlas(ptScene, false, ptScene->sbtShadowRects, uRectCount);
 
     // ptScene->tSunPackRect = pl_sb_pop(ptScene->sbtShadowRects);
 
@@ -430,19 +623,7 @@ pl__renderer_pack_view_shadow_atlas(plScene* ptScene)
 
     // pack rects
     const uint32_t uRectCount = pl_sb_size(ptScene->sbtShadowViewRects);
-    gptRect->pack(ptScene->uSunShadowAtlasResolution, ptScene->uSunShadowAtlasResolution, ptScene->sbtShadowViewRects, uRectCount);
-
-    // ensure rects are packed
-    bool bPacked = true;
-    for(uint32_t i = 0; i < uRectCount; i++)
-    {
-        if(!ptScene->sbtShadowViewRects[i].iWasPacked)
-        {
-            bPacked = false;
-            PL_ASSERT(false && "Shadow sun atlas too small");
-            break;
-        }
-    }
+    const bool bPacked = pl__renderer_fit_shadow_atlas(ptScene, true, ptScene->sbtShadowViewRects, uRectCount);
 
     // ptScene->tSunPackRect = pl_sb_pop(ptScene->sbtShadowRects);
 
@@ -2381,7 +2562,7 @@ pl__renderer_get_or_create_material_slot(plScene* ptScene, plAssetHandle tMateri
             pl_sb_add(ptScene->sbtMaterialNodes);
         }
         pl_hm_insert(&ptScene->tMaterialHashmap, tMaterial.uData, uMaterialIndex);
-        ptScene->sbtMaterialNodes[uMaterialIndex] = gptFreeList->get_node(&ptScene->tMaterialFreeList, sizeof(plGpuMaterial));
+        ptScene->sbtMaterialNodes[uMaterialIndex] = pl__renderer_allocate_node(ptScene, &ptScene->tMaterialFreeList, sizeof(plGpuMaterial));
     }
     return (uint32_t)pl_hm_lookup(&ptScene->tMaterialHashmap, tMaterial.uData);
 }
@@ -2497,14 +2678,14 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
     if(ptMesh->ptVertexJoints[0])  { uSkinStride += 1; uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_0; }
     if(ptMesh->ptVertexJoints[1])  { uSkinStride += 1; uVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_1; }
 
-    plFreeListNode* ptIndexBufferNode = gptFreeList->get_node(&ptScene->tIndexBufferFreeList, uIndexCount * sizeof(uint32_t));
-    plFreeListNode* ptVertexBufferNode = gptFreeList->get_node(&ptScene->tVertexBufferFreeList, uVertexCount * sizeof(plVec3));
+    plFreeListNode* ptIndexBufferNode = pl__renderer_allocate_node(ptScene, &ptScene->tIndexBufferFreeList, uIndexCount * sizeof(uint32_t));
+    plFreeListNode* ptVertexBufferNode = pl__renderer_allocate_node(ptScene, &ptScene->tVertexBufferFreeList, uVertexCount * sizeof(plVec3));
     plFreeListNode* ptVertexDataBufferNode = NULL;
     if(uStride * uVertexCount > 0)
-        ptVertexDataBufferNode = gptFreeList->get_node(&ptScene->tStorageBufferFreeList, uStride * uVertexCount * sizeof(plVec4));
+        ptVertexDataBufferNode = pl__renderer_allocate_node(ptScene, &ptScene->tStorageBufferFreeList, uStride * uVertexCount * sizeof(plVec4));
     plFreeListNode* ptSkinVertexDataBufferNode = NULL;
     if(gptEcs->has_component(ptScene->ptComponentLibrary, gptSkeleton->get_ecs_type_key_skin(), tEntity))
-        ptSkinVertexDataBufferNode = gptFreeList->get_node(&ptScene->tStorageBufferFreeList, uSkinStride * uVertexCount * sizeof(plVec4));
+        ptSkinVertexDataBufferNode = pl__renderer_allocate_node(ptScene, &ptScene->tStorageBufferFreeList, uSkinStride * uVertexCount * sizeof(plVec4));
 
     bool bResizeNeeded = false;
     if(ptIndexBufferNode == NULL)
@@ -2741,7 +2922,7 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
 
         plSkinComponent* ptSkinComponent = gptEcs->get_component(ptScene->ptComponentLibrary, gptSkeleton->get_ecs_type_key_skin(), tEntity);
         plSkin* ptSkin = gptAsset->get_data(ptSkinComponent->tSkin);
-        tSkinData.ptFreeListNode = gptFreeList->get_node(&ptScene->tSkinBufferFreeList, ptSkin->uJointCount * 2 * sizeof(plMat4));
+        tSkinData.ptFreeListNode = pl__renderer_allocate_node(ptScene, &ptScene->tSkinBufferFreeList, ptSkin->uJointCount * 2 * sizeof(plMat4));
 
         tSkinData.tObjectEntity = tEntity;
         tSkinData.bActive = true;
@@ -6594,7 +6775,7 @@ pl__renderer_scene_update_bindgroups(plScene* ptScene)
                 {
                     .tBuffer       = ptScene->atShadowCameraBuffers[i],
                     .uSlot         = 0,
-                    .szBufferRange = 4096
+                    .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atShadowCameraBuffers[i])->tDesc.szByteSize
                 },
                 {
                     .tBuffer       = ptScene->tInstanceBuffer,
@@ -9101,7 +9282,7 @@ pl__renderer_view_update_bindgroups(plView* ptView)
                 {
                     .tBuffer       = ptView->atDShadowCameraBuffers[i],
                     .uSlot         = 0,
-                    .szBufferRange = 4096
+                    .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptView->atDShadowCameraBuffers[i])->tDesc.szByteSize
                 },
                 {
                     .tBuffer       = ptScene->tInstanceBuffer,
@@ -9116,7 +9297,7 @@ pl__renderer_view_update_bindgroups(plView* ptView)
                 {
                     .tBuffer       = ptView->atSunCameraBuffers[i],
                     .uSlot         = 0,
-                    .szBufferRange = 4096
+                    .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptView->atSunCameraBuffers[i])->tDesc.szByteSize
                 },
                 {
                     .tBuffer       = ptScene->tInstanceBuffer,
@@ -9294,7 +9475,7 @@ pl__renderer_probe_update_bindgroups(plScene* ptScene, plEnvironmentProbeData* p
             {
                 .tBuffer       = ptProbeData->tDShadowCameraBuffers,
                 .uSlot         = 0,
-                .szBufferRange = 4096
+                .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptProbeData->tDShadowCameraBuffers)->tDesc.szByteSize
             },
             {
                 .tBuffer       = ptScene->tInstanceBuffer,
@@ -9310,7 +9491,7 @@ pl__renderer_probe_update_bindgroups(plScene* ptScene, plEnvironmentProbeData* p
             {
                 .tBuffer       = ptProbeData->tSunCameraBuffers,
                 .uSlot         = 0,
-                .szBufferRange = 4096
+                .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptProbeData->tSunCameraBuffers)->tDesc.szByteSize
             },
             {
                 .tBuffer       = ptScene->tInstanceBuffer,
@@ -9803,8 +9984,8 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
                         ptDrawable->uInstanceCount++;
                         gptFreeList->return_node(&ptScene->tTransformFreelist, ptDrawableResources->ptTransformNode);
                         gptFreeList->return_node(&ptScene->tInstanceFreelist, ptDrawableResources->ptInstanceNode);
-                        ptDrawableResources->ptTransformNode = gptFreeList->get_node(&ptScene->tTransformFreelist, ptDrawable->uInstanceCount);
-                        ptDrawableResources->ptInstanceNode = gptFreeList->get_node(&ptScene->tInstanceFreelist, ptDrawable->uInstanceCount * 6);
+                        ptDrawableResources->ptTransformNode = pl__renderer_allocate_node(ptScene, &ptScene->tTransformFreelist, ptDrawable->uInstanceCount);
+                        ptDrawableResources->ptInstanceNode = pl__renderer_allocate_node(ptScene, &ptScene->tInstanceFreelist, ptDrawable->uInstanceCount * 6);
                         ptDrawable->uTransformIndex = (uint32_t)ptDrawableResources->ptTransformNode->uOffset;
                         ptDrawable->uInstanceIndex = (uint32_t)ptDrawableResources->ptInstanceNode->uOffset;
                         ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_INSTANCE_BUFFER_DIRTY;
@@ -9847,8 +10028,8 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
                 ptDrawable->uInstanceCount = 1;
                 ptDrawableResources->tEntity = atObjects[i];
                 ptDrawableResources->uSkinIndex = UINT32_MAX;
-                ptDrawableResources->ptTransformNode = gptFreeList->get_node(&ptScene->tTransformFreelist, ptDrawable->uInstanceCount);
-                ptDrawableResources->ptInstanceNode = gptFreeList->get_node(&ptScene->tInstanceFreelist, ptDrawable->uInstanceCount * 6);
+                ptDrawableResources->ptTransformNode = pl__renderer_allocate_node(ptScene, &ptScene->tTransformFreelist, ptDrawable->uInstanceCount);
+                ptDrawableResources->ptInstanceNode = pl__renderer_allocate_node(ptScene, &ptScene->tInstanceFreelist, ptDrawable->uInstanceCount * 6);
                 ptDrawable->uTransformIndex = (uint32_t)ptDrawableResources->ptTransformNode->uOffset;
                 ptDrawable->uInstanceIndex = (uint32_t)ptDrawableResources->ptInstanceNode->uOffset;
                 ptScene->tInternalFlags |= PL_SCENE_INTERNAL_FLAG_INSTANCE_BUFFER_DIRTY;
@@ -9946,7 +10127,7 @@ pl__renderer_add_lights_to_scene(plScene* ptScene, uint32_t uCount, const plEnti
         {  
             if(ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW)
             {
-                tRendererLight.ptShadowBufferOffset = gptFreeList->get_node(&ptScene->tShadowCameraFreeList, sizeof(plMat4) * 6);
+                tRendererLight.ptShadowBufferOffset = pl__renderer_allocate_node(ptScene, &ptScene->tShadowCameraFreeList, sizeof(plMat4) * 6);
             }
             pl_sb_push(ptScene->sbtPointLights, tRendererLight);
         }
@@ -9954,7 +10135,7 @@ pl__renderer_add_lights_to_scene(plScene* ptScene, uint32_t uCount, const plEnti
         {  
             if(ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW)
             {
-                tRendererLight.ptShadowBufferOffset = gptFreeList->get_node(&ptScene->tShadowCameraFreeList, sizeof(plMat4));
+                tRendererLight.ptShadowBufferOffset = pl__renderer_allocate_node(ptScene, &ptScene->tShadowCameraFreeList, sizeof(plMat4));
             }
             pl_sb_push(ptScene->sbtSpotLights, tRendererLight);
         }

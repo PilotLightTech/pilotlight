@@ -189,12 +189,12 @@ typedef struct _plRendererInit
 
 typedef struct _plSceneDesc
 {
-    size_t   szIndexBufferSize;      // default: 64000000
-    size_t   szVertexBufferSize;     // default: 64000000
-    size_t   szDataBufferSize;       // default: 64000000
-    size_t   szMaterialBufferSize;   // default:  8000000
-    size_t   szSkinBufferSize;       // default:  8000000
-    uint32_t uShadowAtlasResolution; // default:     4096
+    size_t   szIndexBufferSize;      // initial capacity, default: 1 MiB; grows on demand
+    size_t   szVertexBufferSize;     // initial capacity, default: 1 MiB; grows on demand
+    size_t   szDataBufferSize;       // initial capacity, default: 1 MiB; grows on demand
+    size_t   szMaterialBufferSize;   // initial capacity, default: 64 KiB; grows on demand
+    size_t   szSkinBufferSize;       // initial capacity, default: 64 KiB; grows on demand
+    uint32_t uShadowAtlasResolution; // initial side length, default: 1024; grows to device limit
 } plSceneDesc;
 
 typedef struct _plViewDesc

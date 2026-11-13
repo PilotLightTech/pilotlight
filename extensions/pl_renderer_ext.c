@@ -251,19 +251,30 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     plSceneDesc tInit = *ptInit;
 
-    if(tInit.szIndexBufferSize == 0)    tInit.szIndexBufferSize    = 64000000;
-    if(tInit.szVertexBufferSize == 0)   tInit.szVertexBufferSize   = 64000000;
-    if(tInit.szDataBufferSize == 0)     tInit.szDataBufferSize     = 64000000;
-    if(tInit.szMaterialBufferSize == 0) tInit.szMaterialBufferSize = 8000000;
-    if(tInit.szSkinBufferSize == 0)     tInit.szSkinBufferSize     = 8000000;
+    if(tInit.szIndexBufferSize == 0)    tInit.szIndexBufferSize    = 1024 * 1024;
+    if(tInit.szVertexBufferSize == 0)   tInit.szVertexBufferSize   = 1024 * 1024;
+    if(tInit.szDataBufferSize == 0)     tInit.szDataBufferSize     = 1024 * 1024;
+    if(tInit.szMaterialBufferSize == 0) tInit.szMaterialBufferSize = 64 * 1024;
+    if(tInit.szSkinBufferSize == 0)     tInit.szSkinBufferSize     = 64 * 1024;
+
+    // Current renderer offsets are 32-bit. Leave room for alignment rounding.
+    if(tInit.szIndexBufferSize > UINT32_MAX - 4096 || tInit.szVertexBufferSize > UINT32_MAX - 4096 || tInit.szDataBufferSize > UINT32_MAX - 4096 || tInit.szMaterialBufferSize > UINT32_MAX - 4096 || tInit.szSkinBufferSize > UINT32_MAX - 4096)
+        return NULL;
+
+    // Keep future appended free ranges aligned to the element type.
+    tInit.szIndexBufferSize    = ((tInit.szIndexBufferSize + 127) / 128) * 128;
+    tInit.szVertexBufferSize   = ((tInit.szVertexBufferSize + 119) / 120) * 120;
+    tInit.szDataBufferSize     = ((tInit.szDataBufferSize + 127) / 128) * 128;
+    tInit.szMaterialBufferSize = ((tInit.szMaterialBufferSize + sizeof(plGpuMaterial) - 1) / sizeof(plGpuMaterial)) * sizeof(plGpuMaterial);
+    tInit.szSkinBufferSize     = ((tInit.szSkinBufferSize + 127) / 128) * 128;
 
     plScene* ptScene = PL_ALLOC(sizeof(plScene));
     memset(ptScene, 0, sizeof(plScene));
     pl_sb_push(gptData->sbptScenes, ptScene);
 
     // default limits
-    ptScene->uTransformCapacity = 100000;
-    ptScene->uShadowInstanceCapacity = 100000;
+    ptScene->uTransformCapacity = 1024;
+    ptScene->uShadowInstanceCapacity = 1024;
     gptFreeList->create((uint64_t)ptScene->uTransformCapacity, 1, &ptScene->tTransformFreelist);
     gptFreeList->create((uint64_t)ptScene->uShadowInstanceCapacity, 1, &ptScene->tInstanceFreelist);
 
@@ -272,7 +283,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     ptScene->tEnvironment = gptAsset->load("/assets/environments/skybox.plenvironment");
     ptScene->tSettings = gptAsset->load("/assets/settings/default.plrenderer");
-    ptScene->uSunShadowAtlasResolution = 4096 * 4; // TODO: make this an option
+    ptScene->uSunShadowAtlasResolution = pl_min(1024u, gptData->tDeviceInfo.tLimits.uMaxTextureSize);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         ptScene->abSunTransmissionLutDirty[i] = true;
@@ -291,7 +302,8 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     ptScene->uShadowAtlasResolution = ptInit->uShadowAtlasResolution;
     if(ptScene->uShadowAtlasResolution == 0)
-        ptScene->uShadowAtlasResolution = 4092;
+        ptScene->uShadowAtlasResolution = 1024;
+    ptScene->uShadowAtlasResolution = pl_min(ptScene->uShadowAtlasResolution, gptData->tDeviceInfo.tLimits.uMaxTextureSize);
 
     // create scene freelists
     //-----------------------------------------------------------------------------
@@ -328,10 +340,10 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     ptScene->tProbeMesh = gptAsset->load("/assets/meshes/probe.plmesh");
     plMesh* ptMesh = gptAsset->get_data(ptScene->tSphereMesh);
 
-    plFreeListNode* ptIndexBufferNode = gptFreeList->get_node(&ptScene->tIndexBufferFreeList, (uint32_t)ptMesh->atSubmeshes->szIndexCount * sizeof(uint32_t));
-    plFreeListNode* ptVertexBufferNode = gptFreeList->get_node(&ptScene->tVertexBufferFreeList, (uint32_t)ptMesh->atSubmeshes->szVertexCount * sizeof(plVec3));
-    plFreeListNode* ptTransformNode = gptFreeList->get_node(&ptScene->tTransformFreelist, 1);
-    plFreeListNode* ptInstanceNode = gptFreeList->get_node(&ptScene->tInstanceFreelist, 6);
+    plFreeListNode* ptIndexBufferNode  = pl__renderer_allocate_node(ptScene, &ptScene->tIndexBufferFreeList, (uint32_t)ptMesh->atSubmeshes->szIndexCount * sizeof(uint32_t));
+    plFreeListNode* ptVertexBufferNode = pl__renderer_allocate_node(ptScene, &ptScene->tVertexBufferFreeList, (uint32_t)ptMesh->atSubmeshes->szVertexCount * sizeof(plVec3));
+    plFreeListNode* ptTransformNode    = pl__renderer_allocate_node(ptScene, &ptScene->tTransformFreelist, 1);
+    plFreeListNode* ptInstanceNode     = pl__renderer_allocate_node(ptScene, &ptScene->tInstanceFreelist, 6);
 
     const plDrawable tDrawable = {
         .uIndexOffset    = (uint32_t)(ptIndexBufferNode->uOffset / sizeof(uint32_t)),
@@ -1103,8 +1115,8 @@ pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEc
                                 // Reclaim unused slots and refresh offsets if the smaller blocks move.
                                 gptFreeList->return_node(&ptScene->tTransformFreelist, ptDrawableResources->ptTransformNode);
                                 gptFreeList->return_node(&ptScene->tInstanceFreelist, ptDrawableResources->ptInstanceNode);
-                                ptDrawableResources->ptTransformNode = gptFreeList->get_node(&ptScene->tTransformFreelist, ptDrawable->uInstanceCount);
-                                ptDrawableResources->ptInstanceNode = gptFreeList->get_node(&ptScene->tInstanceFreelist, ptDrawable->uInstanceCount * 6);
+                                ptDrawableResources->ptTransformNode = pl__renderer_allocate_node(ptScene, &ptScene->tTransformFreelist, ptDrawable->uInstanceCount);
+                                ptDrawableResources->ptInstanceNode = pl__renderer_allocate_node(ptScene, &ptScene->tInstanceFreelist, ptDrawable->uInstanceCount * 6);
                                 ptDrawable->uTransformIndex = (uint32_t)ptDrawableResources->ptTransformNode->uOffset;
                                 ptDrawable->uInstanceIndex = (uint32_t)ptDrawableResources->ptInstanceNode->uOffset;
                                 break;
@@ -1248,6 +1260,7 @@ pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEc
 void
 pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t uCameraCount)
 {
+    ptScene->bShadowAtlasReady = false;
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     ptScene->tInternalFlags = PL_SCENE_INTERNAL_FLAG_ACTIVE | (ptScene->tInternalFlags & (PL_SCENE_INTERNAL_FLAG_INSTANCE_BUFFER_DIRTY | PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY));
@@ -1454,6 +1467,14 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     // update light GPU side light buffers
     //-----------------------------------------------------------------------------
 
+    if(!pl__renderer_reserve_lighting_buffers(ptScene))
+    {
+        PL_RENDERER_STAT("renderer / resource growths", ptScene->uResourceGrowthCount);
+        PL_LOG_ERROR_API(gptLog, gptData->uLogChannel, "Unable to grow renderer lighting buffers");
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        return;
+    }
+
     plBuffer* ptPointLightingBuffer = gptGfx->get_buffer(ptDevice, ptScene->atPointLightBuffer[uFrameIdx]);
     plBuffer* ptSpotLightingBuffer = gptGfx->get_buffer(ptDevice, ptScene->atSpotLightBuffer[uFrameIdx]);
     plBuffer* ptDirectionLightingBuffer = gptGfx->get_buffer(ptDevice, ptScene->atDirectionLightBuffer[uFrameIdx]);
@@ -1549,7 +1570,14 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     if(uFrameIdx != 0)
         pl__renderer_update_object_probes(ptScene);
 
-    pl__renderer_pack_view_shadow_atlas(ptScene);
+    ptScene->bShadowAtlasReady = pl__renderer_pack_view_shadow_atlas(ptScene) && pl__renderer_pack_shadow_atlas(ptScene);
+    // Publish the lifetime total even when atlas preparation fails.
+    PL_RENDERER_STAT("renderer / resource growths", ptScene->uResourceGrowthCount);
+    if(!ptScene->bShadowAtlasReady)
+    {
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        return;
+    }
 
     // update CPU side scene data
     //-----------------------------------------------------------------------------
@@ -1684,7 +1712,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~generate shadow maps~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // prep
-    pl__renderer_pack_shadow_atlas(ptScene);
+    // Both atlases were packed before recording this frame.
     
     plCommandBuffer* ptShadowCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "scene shadows");
     gptGfx->begin_command_recording(ptShadowCmdBuffer);
@@ -1842,6 +1870,8 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 void
 pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
 {
+    if(!ptView->ptParentScene->bShadowAtlasReady)
+        return;
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     // for convience
@@ -2162,6 +2192,8 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
 void
 pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 {
+    if(!ptView->ptParentScene->bShadowAtlasReady)
+        return;
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     pl__renderer_render_debug_view(ptView, ptViewDesc);
