@@ -932,9 +932,9 @@ pl__import_gltf_texture(const char* pcFileNameOnly, bool bSrgb, const cgltf_text
             pcExtension = "jpg";
         if(!pcExtension || szData > INT_MAX || !gptImage->get_info(pucData, (int)szData, &tImageInfo))
             return pl__gltf_texture_failure(pOwnedData);
-        // Persistent source beside the imported texture, not an evictable cache.
-        // /assets/textures must exist, as it does for other texture imports.
-        snprintf(acFilepath, sizeof(acFilepath), "/assets/textures/gltf_%016llx_%u.%s", (unsigned long long)gptGltfCtx->ulSourceHash, uTextureIndex, pcExtension);
+        // Extract embedded sources into the import cache; re-import regenerates them.
+        // /cache/imports must exist, as created by the application.
+        snprintf(acFilepath, sizeof(acFilepath), "/cache/imports/gltf_%016llx_%u.%s", (unsigned long long)gptGltfCtx->ulSourceHash, uTextureIndex, pcExtension);
         plVfsFileHandle tFile = gptVfs->open_file(acFilepath, PL_VFS_FILE_MODE_WRITE);
         if(!gptVfs->is_file_open(tFile))
             return pl__gltf_texture_failure(pOwnedData);

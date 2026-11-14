@@ -38,6 +38,9 @@ Index of this file:
         * plTextureI (v0.1.x)
         * plTransformI (v1.x)
         * plVfsI (v3.x)
+
+        Embedded PNG/JPEG sources are extracted to writable /cache/imports.
+        Re-import the glTF to regenerate these sources after clearing the cache.
 */
 
 //-----------------------------------------------------------------------------
