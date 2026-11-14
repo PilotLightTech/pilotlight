@@ -120,7 +120,7 @@ pl_collision_intersect_line_segment_cylinder(plVec3 tA, plVec3 tB, const plCylin
         if(fMd < 0.0f) // intersect endcap at base
             fT = -fMn / fNn;
         else if (fMd > fDd) // intersect endcap at tip
-            fT = (fNd - fMn / fNn);
+            fT = (fNd - fMn) / fNn;
         else // lies inside cylinder
             fT = 0.0f;
         if(pfT)

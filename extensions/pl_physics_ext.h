@@ -18,19 +18,22 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
-        * plDrawI    (v1.x)
-        * plProfileI (v1.x)
-        * plLogI     (v1.x)
-        * plStatsI   (v1.x)
-
-        unstable APIs:
-        * plCollisionI
-        * plEcsI
+        * plCollisionI (v0.2.x)
+        * plConsoleI (v2.x)
+        * plDataRegistryI (v1.x)
+        * plDrawI (v4.x)
+        * plEcsI (v3.x)
+        * plJsonI (v1.x)
+        * plLogI (v2.x)
+        * plMemoryI (v1.x)
+        * plProfileI (v2.x)
+        * plStatsI (v1.x)
+        * plTransformI (v1.x)
+        * plUiI (v2.x)
 */
 
 //-----------------------------------------------------------------------------
