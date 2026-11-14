@@ -116,3 +116,22 @@ Demonstrates:
 * compute shaders
 * image extension
 * drawing extension (2D)
+
+### Example 7 - Multiple Native Viewports (example_gfx_7.c)
+Demonstrates:
+* two native windows with independent surfaces and swapchains
+* one shared graphics device and triangle vertex buffer
+* animated triangles with separate viewport sizes and background colors
+* presenting only successfully acquired windows in one submission
+* independent resize, minimize, and secondary-window close handling
+
+Build the runtime/extensions and examples as described above, then run from `out`:
+
+```sh
+pilot_light.exe -a example_gfx_7
+# Linux/macOS: ./pilot_light -a example_gfx_7
+```
+
+Closing the main window exits. Closing the secondary window leaves the main
+window running. This example manages frames directly through the graphics API;
+it does not use the single-window starter extension or implement UI detachment.
