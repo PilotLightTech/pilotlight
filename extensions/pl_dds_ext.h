@@ -4,6 +4,7 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] quick notes
 // [SECTION] header mess
 // [SECTION] APIs
@@ -43,6 +44,18 @@ Index of this file:
 				- ...
 			- ...
 		- ...
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+    Implementation:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
+
+        No additional APIs beyond the API registry passed to the loader.
 */
 
 //-----------------------------------------------------------------------------

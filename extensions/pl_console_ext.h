@@ -20,13 +20,15 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
-        * plUiI   (v1.x)
-        * plDrawI (v1.x)
+        * plDataRegistryI (v1.x)
+        * plDrawI (v4.x)
+        * plIOI (v1.x)
+        * plMemoryI (v1.x)
+        * plUiI (v2.x)
 */
 
 //-----------------------------------------------------------------------------

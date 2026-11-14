@@ -4,12 +4,46 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] public api
 // [SECTION] public api struct
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+    Implementation:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
+
+        * plAnimationI (v0.1.x)
+        * plAssetI (v1.x)
+        * plCameraEcsI (v0.1.x)
+        * plCameraI (v1.x)
+        * plConsoleI (v2.x)
+        * plDataRegistryI (v1.x)
+        * plEcsI (v3.x)
+        * plGraphicsI (v2.x)
+        * plIOI (v1.x)
+        * plIkI (v0.3.x)
+        * plMaterialI (v0.5.x)
+        * plMemoryI (v1.x)
+        * plMeshI (v0.3.x)
+        * plPhysicsI (v0.2.x)
+        * plRendererI (v0.3.x)
+        * plResourceI (v1.x)
+        * plScriptI (v0.1.x)
+        * plSkeletonI (v0.1.x)
+        * plTerrainI (v0.1.x)
+        * plTextureI (v0.1.x)
+        * plTransformI (v1.x)
+        * plUiI (v2.x)
 */
 
 //-----------------------------------------------------------------------------

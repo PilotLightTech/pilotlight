@@ -4,6 +4,7 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] APIs
@@ -11,6 +12,24 @@ Index of this file:
 // [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] enums
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+    Implementation:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
+
+        * plCollisionI (v0.2.x)
+        * plDataRegistryI (v1.x)
+        * plDrawI (v4.x)
+        * plEcsI (v3.x)
+        * plIOI (v1.x)
+        * plTransformI (v1.x)
+        * plUiI (v2.x)
 */
 
 //-----------------------------------------------------------------------------

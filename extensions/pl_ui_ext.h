@@ -21,12 +21,16 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
-        * plDrawI (v1.x)
+        * plConsoleI (v2.x)
+        * plDataRegistryI (v1.x)
+        * plDrawI (v4.x)
+        * plFileI (v2.x)
+        * plIOI (v1.x)
+        * plMemoryI (v1.x)
 */
 
 //-----------------------------------------------------------------------------
@@ -64,7 +68,7 @@ extern "C" {
 // basic types
 typedef struct _plUiContext    plUiContext;    // (opaque structure)
 typedef struct _plUiClipper    plUiClipper;    // data used with "step_clipper(...)" function (see function)
-typedef struct _plUiTextFilter plUiTextFilter; // data used with "step_clipper(...)" function (see function)
+typedef struct _plUiTextFilter plUiTextFilter; // parsed text filter; build again after editing its input buffer
 
 // enums
 typedef int plUiConditionFlags;  // -> enum plUiConditionFlags_   // Enum:  A conditional for some functions (PL_UI_COND_XXX value)

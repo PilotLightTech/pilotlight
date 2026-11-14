@@ -20,15 +20,19 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
-        * plEcsI     (v3.x) (only if using ECS integration)
-        * plProfileI (v2.x) (only if using ECS integration)
-        * plLogI     (v2.x) (only if using ECS integration)
-        * plJsonI    (v1.x) (only if using ECS integration)
+        * plDataRegistryI (v1.x)
+        * plEcsI (v3.x)
+        * plIOI (v1.x)
+        * plJsonI (v1.x)
+        * plProfileI (v2.x)
+        * plTransformI (v1.x)
+
+    plEcsI, plTransformI, plJsonI and plProfileI serve the ECS integration;
+    standalone plCameraI operations do not use them.
 */
 
 //-----------------------------------------------------------------------------

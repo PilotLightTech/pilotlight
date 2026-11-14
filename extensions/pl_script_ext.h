@@ -5,11 +5,33 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] forward declarations
 // [SECTION] public api
 // [SECTION] public api struct
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+    Implementation:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
+
+        * plDataRegistryI (v1.x)
+        * plEcsI (v3.x)
+        * plExtensionRegistryI (v1.x)
+        * plJsonI (v1.x)
+        * plLogI (v2.x)
+        * plProfileI (v2.x)
+        * plStringInternI (v3.x)
+
+    Loaded script modules additionally provide plScriptInterface (v0.1.x),
+    retrieved by the script path rather than a fixed API name.
 */
 
 //-----------------------------------------------------------------------------

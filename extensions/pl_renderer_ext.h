@@ -4,6 +4,7 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] includes
@@ -11,6 +12,56 @@ Index of this file:
 // [SECTION] public api structs
 // [SECTION] stable structs
 // [SECTION] structs
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+    Implementation:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
+
+        * plAnimationI (v0.1.x)
+        * plAssetI (v1.x)
+        * plBVHI (v0.2.x)
+        * plCameraEcsI (v0.1.x)
+        * plCameraI (v1.x)
+        * plCollisionI (v0.2.x)
+        * plConsoleI (v2.x)
+        * plDataRegistryI (v1.x)
+        * plDrawI (v4.x)
+        * plEcsI (v3.x)
+        * plFreeListI (v0.2.x)
+        * plGPUAllocatorsI (v2.x)
+        * plGjkI (v0.1.x)
+        * plGraphicsI (v2.x)
+        * plIOI (v1.x)
+        * plImageI (v1.x)
+        * plImageOpsI (v0.2.x)
+        * plJobI (v2.x)
+        * plJsonI (v1.x)
+        * plLogI (v2.x)
+        * plMaterialI (v0.5.x)
+        * plMemoryI (v1.x)
+        * plMeshI (v0.3.x)
+        * plProfileI (v2.x)
+        * plRectPackI (v2.x)
+        * plResourceI (v1.x)
+        * plScreenLogI (v2.x)
+        * plScriptI (v0.1.x)
+        * plShaderI (v2.x)
+        * plShaderLibraryI (v0.3.x)
+        * plSkeletonI (v0.1.x)
+        * plStageI (v0.3.x)
+        * plStarterI (v2.x)
+        * plStatsI (v1.x)
+        * plTerrainI (v0.1.x)
+        * plTextureI (v0.1.x)
+        * plTransformI (v1.x)
+        * plUiI (v2.x)
+        * plVfsI (v3.x)
 */
 
 //-----------------------------------------------------------------------------

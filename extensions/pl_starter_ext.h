@@ -22,16 +22,26 @@ Index of this file:
 
 /*
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
-        * plGraphicsI    (v2.x)
-        * plScreenLogI   (v2.x)
-        * plUiI          (v1.x)
-        * plDrawI        (v3.x)
-        * plShaderI      (v2.x)
-        * plProfileI     (v1.x)
-        * plConsoleI     (v1.x)
+        * plConsoleI (v2.x)
+        * plDataRegistryI (v1.x)
+        * plDrawI (v4.x)
+        * plFileI (v2.x)
+        * plGPUAllocatorsI (v2.x)
+        * plGraphicsI (v2.x)
+        * plIOI (v1.x)
+        * plMemoryI (v1.x)
+        * plProfileI (v2.x)
+        * plResourceI (v1.x)
+        * plScreenLogI (v2.x)
+        * plShaderI (v2.x)
+        * plStageI (v0.3.x)
+        * plStatsI (v1.x)
+        * plToolsI (v1.x)
+        * plUiI (v2.x)
+        * plVfsI (v3.x)
 */
 
 //-----------------------------------------------------------------------------

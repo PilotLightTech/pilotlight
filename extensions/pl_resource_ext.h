@@ -20,19 +20,22 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
-        * plGraphicsI      (v1.x)
-        * plGPUAllocatorsI (v1.x)
-        * plVfsI           (v2.x)
-        * plImageI         (v1.x)
-        * plDxtI           (v1.x)
-        * plDdsI           (v1.x)
-        * plPakI           (v1.x)
-    
+        * plDataRegistryI (v1.x)
+        * plDdsI (v2.x)
+        * plDxtI (v2.x)
+        * plFileI (v2.x)
+        * plGPUAllocatorsI (v2.x)
+        * plGraphicsI (v2.x)
+        * plImageI (v1.x)
+        * plMemoryI (v1.x)
+        * plPakI (v2.x)
+        * plProfileI (v2.x)
+        * plVfsI (v3.x)
+
     Notes:
         Requires VFS has "/cache/textures" mounted
 */

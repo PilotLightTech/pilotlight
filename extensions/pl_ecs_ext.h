@@ -21,16 +21,20 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
-        * plLogI          (v2.x)
-        * plProfileI      (v2.x)
+        * plAssetI (v1.x)
+        * plDataRegistryI (v1.x)
+        * plIOI (v1.x)
+        * plJsonI (v1.x)
+        * plLogI (v2.x)
+        * plMemoryI (v1.x)
+        * plProfileI (v2.x)
         * plStringInternI (v3.x)
-        * plTimerI        (v1.1)
-        * plJsonI         (v1.x)
+        * plTimerI (v1.x)
+        * plVfsI (v3.x)
 
     Pointer Lifetime:
         Functions marked "can store" return values/pointers that remain valid

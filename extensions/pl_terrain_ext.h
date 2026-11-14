@@ -4,6 +4,7 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] defines
@@ -12,6 +13,24 @@ Index of this file:
 // [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] structs
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+    Implementation:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
+
+        * plAssetI (v1.x)
+        * plDataRegistryI (v1.x)
+        * plFileI (v2.x)
+        * plImageI (v1.x)
+        * plJsonI (v1.x)
+        * plMemoryI (v1.x)
+        * plVfsI (v3.x)
 */
 
 //-----------------------------------------------------------------------------

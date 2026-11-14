@@ -4,6 +4,7 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] APIs
@@ -13,6 +14,19 @@ Index of this file:
 // [SECTION] public api structs
 // [SECTION] enums
 // [SECTION] structs
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+    Implementation:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
+
+        * plIOI (v1.x)
+        * plMemoryI (v1.x)
 */
 
 //-----------------------------------------------------------------------------

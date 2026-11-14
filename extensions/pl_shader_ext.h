@@ -20,15 +20,18 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
-        * plVfsI          (v2.x)
-        * plLogI          (v1.x)
-        * plScreenLogI    (v2.x)
-        * plStringInternI (v1.x)
+        * plDataRegistryI (v1.x)
+        * plLibraryI (v1.x)
+        * plLogI (v2.x)
+        * plMemoryI (v1.x)
+        * plProfileI (v2.x)
+        * plScreenLogI (v2.x)
+        * plStringInternI (v3.x)
+        * plVfsI (v3.x)
 */
 
 //-----------------------------------------------------------------------------

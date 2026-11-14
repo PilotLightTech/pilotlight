@@ -5,6 +5,7 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] quick notes
 // [SECTION] header mess
 // [SECTION] APIs
@@ -28,6 +29,18 @@ Index of this file:
       * 2 channel -> PL_FORMAT_BC5_*
       * 3 channel -> PL_FORMAT_BC1_*
       * 4 channel -> PL_FORMAT_BC3_*
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+    Implementation:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
+
+        No additional APIs beyond the API registry passed to the loader.
 */
 
 //-----------------------------------------------------------------------------

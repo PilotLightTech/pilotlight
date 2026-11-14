@@ -26,14 +26,18 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
+        * plDataRegistryI (v1.x)
+        * plIOI (v1.x)
+        * plLogI (v2.x)
+        * plMemoryI (v1.x)
+        * plProfileI (v2.x)
         * plThreadsI (v1.x)
-        * plProfileI (v1.x)
-        * plLogI     (v1.x)
+        * plTimerI (v1.x; CPU backend only)
+        * plWindowI (v2.x)
 */
 
 //-----------------------------------------------------------------------------
@@ -59,15 +63,6 @@ Index of this file:
     graphics extension matches the stricter API at the cost of some freedom
     Vulkan would normally allow. There is only a few cases like this but you
     should be aware of them.
-
-    Provided Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
-
-        * plLogI
-        * plThreadsI
-        * plLogI
-        * plProfileI
 
     WARNING:
 

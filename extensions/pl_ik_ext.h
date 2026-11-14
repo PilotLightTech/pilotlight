@@ -19,13 +19,15 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
-        * plEcsI       (v3.x)
-        * plProfileI   (v2.x)
+        * plDataRegistryI (v1.x)
+        * plEcsI (v3.x)
+        * plJsonI (v1.x)
+        * plMemoryI (v1.x)
+        * plProfileI (v2.x)
         * plTransformI (v1.x)
 */
 

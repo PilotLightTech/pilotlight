@@ -20,14 +20,14 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
-        * plVfsI      (v3.x)
         * plCompressI (v1.1.1+)
-        * plFileI     (v2.2+)
+        * plFileI (v2.1+)
+        * plMemoryI (v1.x)
+        * plVfsI (v3.x)
 */
 
 //-----------------------------------------------------------------------------

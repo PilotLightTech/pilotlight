@@ -19,12 +19,14 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
-        * plGraphicsI (v1.x)
+        * plDataRegistryI (v1.x)
+        * plGraphicsI (v2.x)
+        * plMemoryI (v1.x)
+        * plStringInternI (v3.x)
 */
 
 //-----------------------------------------------------------------------------

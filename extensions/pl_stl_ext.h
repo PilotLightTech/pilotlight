@@ -17,15 +17,14 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-
     Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
+        The provided implementation retrieves the following APIs. Core services
+        are included; this lists direct dependencies, not their dependencies.
 
-        * plResourceI (v1.x)
-        * plEcsI      (v1.x)
-        * plFileI     (v1.x)
-        * plVfsI      (v2.x)
+        * plAssetI (v1.x)
+        * plMemoryI (v1.x)
+        * plMeshI (v0.3.x)
+        * plVfsI (v3.x)
 */
 
 //-----------------------------------------------------------------------------
