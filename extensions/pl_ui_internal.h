@@ -84,7 +84,7 @@ Index of this file:
 #undef STB_TEXTEDIT_STRING
 #undef STB_TEXTEDIT_CHARTYPE
 #define STB_TEXTEDIT_STRING           plUiInputTextState
-#define STB_TEXTEDIT_CHARTYPE         plUiWChar
+#define STB_TEXTEDIT_CHARTYPE         char
 #define STB_TEXTEDIT_GETWIDTH_NEWLINE (-1.0f)
 #define STB_TEXTEDIT_UNDOSTATECOUNT   99
 #define STB_TEXTEDIT_UNDOCHARCOUNT    999
@@ -324,12 +324,9 @@ typedef struct _plUiLayoutRow
 typedef struct _plUiInputTextState
 {
     uint32_t           uId;
-    int                iCurrentLengthW;        // widget id owning the text state
-    int                iCurrentLengthA;        // we need to maintain our buffer length in both UTF-8 and wchar format. UTF-8 length is valid even if TextA is not.
-    plUiWChar*         sbTextW;                // edit buffer, we need to persist but can't guarantee the persistence of the user-provided buffer. so we copy into own buffer.
-    char*              sbTextA;                // temporary UTF8 buffer for callbacks and other operations. this is not updated in every code-path! size=capacity.
+    int                iCurrentLengthA;        // UTF-8 byte length; cursor, selection and undo positions are byte offsets
+    char*              sbTextA;                // persistent UTF-8 edit buffer, including space for the terminator
     char*              sbInitialTextA;         // backup of end-user buffer at the time of focus (in UTF-8, unaltered)
-    bool               bTextAIsValid;          // temporary UTF8 buffer is not initially valid before we make the widget active (until then we pull the data from user argument)
     int                iBufferCapacityA;       // end-user buffer capacity
     float              fScrollX;               // horizontal scrolling/offset
     STB_TexteditState  tStb;                   // state for stb_textedit.h
@@ -670,16 +667,31 @@ static bool        pl__ui_button_ex(const char* pcText, const plVec2* ptSize, co
 
 static bool        pl__input_text_filter_character(unsigned int* puChar, plUiInputTextFlags tFlags);
 static inline void pl__text_state_cursor_anim_reset  (plUiInputTextState* ptState) { ptState->fCursorAnim = -0.30f; }
-static inline void pl__text_state_cursor_clamp       (plUiInputTextState* ptState) { ptState->tStb.cursor = pl_min(ptState->tStb.cursor, ptState->iCurrentLengthW); ptState->tStb.select_start = pl_min(ptState->tStb.select_start, ptState->iCurrentLengthW); ptState->tStb.select_end = pl_min(ptState->tStb.select_end, ptState->iCurrentLengthW);}
+static inline int
+pl__text_state_clamp_offset(plUiInputTextState* ptState, int iOffset)
+{
+    iOffset = pl_clampi(0, iOffset, ptState->iCurrentLengthA);
+    while(iOffset > 0 && ((unsigned char)ptState->sbTextA[iOffset] & 0xC0) == 0x80)
+        iOffset--;
+    return iOffset;
+}
+
+static inline void
+pl__text_state_cursor_clamp(plUiInputTextState* ptState)
+{
+    ptState->tStb.cursor = pl__text_state_clamp_offset(ptState, ptState->tStb.cursor);
+    ptState->tStb.select_start = pl__text_state_clamp_offset(ptState, ptState->tStb.select_start);
+    ptState->tStb.select_end = pl__text_state_clamp_offset(ptState, ptState->tStb.select_end);
+}
 static inline bool pl__text_state_has_selection      (plUiInputTextState* ptState) { return ptState->tStb.select_start != ptState->tStb.select_end; }
 static inline void pl__text_state_clear_selection    (plUiInputTextState* ptState) { ptState->tStb.select_start = ptState->tStb.select_end = ptState->tStb.cursor; }
 static inline int  pl__text_state_get_cursor_pos     (plUiInputTextState* ptState) { return ptState->tStb.cursor; }
 static inline int  pl__text_state_get_selection_start(plUiInputTextState* ptState) { return ptState->tStb.select_start; }
 static inline int  pl__text_state_get_selection_end  (plUiInputTextState* ptState) { return ptState->tStb.select_end; }
-static inline void pl__text_state_select_all         (plUiInputTextState* ptState) { ptState->tStb.select_start = 0; ptState->tStb.cursor = ptState->tStb.select_end = ptState->iCurrentLengthW; ptState->tStb.has_preferred_x = 0; }
+static inline void pl__text_state_select_all         (plUiInputTextState* ptState) { ptState->tStb.select_start = 0; ptState->tStb.cursor = ptState->tStb.select_end = ptState->iCurrentLengthA; ptState->tStb.has_preferred_x = 0; }
 
-static inline void pl__text_state_clear_text      (plUiInputTextState* ptState)           { ptState->iCurrentLengthA = ptState->iCurrentLengthW = 0; ptState->sbTextA[0] = 0; ptState->sbTextW[0] = 0; pl__text_state_cursor_clamp(ptState);}
-static inline void pl__text_state_free_memory     (plUiInputTextState* ptState)           { pl_sb_free(ptState->sbTextA); pl_sb_free(ptState->sbTextW); pl_sb_free(ptState->sbInitialTextA);}
+static inline void pl__text_state_clear_text      (plUiInputTextState* ptState)           { ptState->iCurrentLengthA = 0; ptState->sbTextA[0] = 0; pl__text_state_cursor_clamp(ptState);}
+static inline void pl__text_state_free_memory     (plUiInputTextState* ptState)           { pl_sb_free(ptState->sbTextA); pl_sb_free(ptState->sbInitialTextA);}
 static inline int  pl__text_state_undo_avail_count(plUiInputTextState* ptState)           { return ptState->tStb.undostate.undo_point;}
 static inline int  pl__text_state_redo_avail_count(plUiInputTextState* ptState)           { return STB_TEXTEDIT_UNDOSTATECOUNT - ptState->tStb.undostate.redo_point; }
 static void        pl__text_state_on_key_press    (plUiInputTextState* ptState, int iKey);

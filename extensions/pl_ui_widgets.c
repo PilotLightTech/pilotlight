@@ -5,7 +5,7 @@
 //-----------------------------------------------------------------------------
 
 static plVec2
-pl__input_text_calc_text_size_w(const plUiWChar* text_begin, const plUiWChar* text_end, const plUiWChar** remaining, plVec2* out_offset, bool stop_on_new_line, bool bPassword)
+pl__input_text_calc_text_size(const char* text_begin, const char* text_end, const char** remaining, plVec2* out_offset, bool stop_on_new_line, bool bPassword)
 {
     plFont* font = gptCtx->tFont;
     const float scale = gptCtx->tStyle.fFontSize / font->fSize;
@@ -14,10 +14,11 @@ pl__input_text_calc_text_size_w(const plUiWChar* text_begin, const plUiWChar* te
     plVec2 text_size = {0};
     float line_width = 0.0f;
 
-    const plUiWChar* s = text_begin;
+    const char* s = text_begin;
     while (s < text_end)
     {
-        unsigned int c = (unsigned int)(*s++);
+        unsigned int c;
+        s += pl_text_char_from_utf8(&c, s, text_end);
         if (c == '\n')
         {
             text_size.x = pl_max(text_size.x, line_width);
@@ -55,19 +56,20 @@ pl__input_text_calc_text_size_w(const plUiWChar* text_begin, const plUiWChar* te
 static int
 STB_TEXTEDIT_STRINGLEN(const plUiInputTextState* obj)
 {
-    return obj->iCurrentLengthW;
+    return obj->iCurrentLengthA;
 }
 
-static plUiWChar
+static char
 STB_TEXTEDIT_GETCHAR(const plUiInputTextState* obj, int idx)
 {
-    return obj->sbTextW[idx];
+    return obj->sbTextA[idx];
 }
 
 static float
 STB_TEXTEDIT_GETWIDTH(plUiInputTextState* obj, int line_start_idx, int char_idx)
 {
-    plUiWChar c = obj->sbTextW[line_start_idx + char_idx];
+    unsigned int c;
+    pl_text_char_from_utf8(&c, obj->sbTextA + line_start_idx + char_idx, obj->sbTextA + obj->iCurrentLengthA);
     if (c == '\n')
         return STB_TEXTEDIT_GETWIDTH_NEWLINE;
     if(obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_PASSWORD)
@@ -76,20 +78,14 @@ STB_TEXTEDIT_GETWIDTH(plUiInputTextState* obj, int line_start_idx, int char_idx)
     return font->_sbtGlyphs[font->_auCodePoints[c]].fXAdvance * (gptCtx->tStyle.fFontSize / font->fSize);
 }
 
-static int
-STB_TEXTEDIT_KEYTOTEXT(int key)
-{
-    return key >= 0x200000 ? 0 : key;
-}
-
-static plUiWChar STB_TEXTEDIT_NEWLINE = '\n';
+static char STB_TEXTEDIT_NEWLINE = '\n';
 
 static void
 STB_TEXTEDIT_LAYOUTROW(StbTexteditRow* r, plUiInputTextState* obj, int line_start_idx)
 {
-    const plUiWChar* text = obj->sbTextW;
-    const plUiWChar* text_remaining = NULL;
-    const plVec2 size = pl__input_text_calc_text_size_w(text + line_start_idx, text + obj->iCurrentLengthW, &text_remaining, NULL, true, (obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_PASSWORD) != 0);
+    const char* text = obj->sbTextA;
+    const char* text_remaining = NULL;
+    const plVec2 size = pl__input_text_calc_text_size(text + line_start_idx, text + obj->iCurrentLengthA, &text_remaining, NULL, true, (obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_PASSWORD) != 0);
     r->x0 = 0.0f;
     r->x1 = size.x;
     r->baseline_y_delta = (obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_MULTILINE) ? size.y : gptCtx->tStyle.fFontSize;
@@ -97,6 +93,39 @@ STB_TEXTEDIT_LAYOUTROW(StbTexteditRow* r, plUiInputTextState* obj, int line_star
     r->ymax = r->baseline_y_delta;
     r->num_chars = (int)(text_remaining - (text + line_start_idx));
 }
+
+static int
+STB_TEXTEDIT_GETPREVCHARINDEX(const plUiInputTextState* obj, int idx)
+{
+    if(idx <= 0)
+        return -1;
+    idx--;
+    while(idx > 0 && ((unsigned char)obj->sbTextA[idx] & 0xC0) == 0x80)
+        idx--;
+    return idx;
+}
+
+static int
+STB_TEXTEDIT_GETNEXTCHARINDEX(const plUiInputTextState* obj, int idx)
+{
+    if(idx >= obj->iCurrentLengthA)
+        return obj->iCurrentLengthA;
+    unsigned int c;
+    return idx + pl_text_char_from_utf8(&c, obj->sbTextA + idx, obj->sbTextA + obj->iCurrentLengthA);
+}
+
+static unsigned int
+pl__text_codepoint_at(const plUiInputTextState* obj, int idx)
+{
+    unsigned int c = 0;
+    if(idx >= 0 && idx < obj->iCurrentLengthA)
+        pl_text_char_from_utf8(&c, obj->sbTextA + idx, obj->sbTextA + obj->iCurrentLengthA);
+    return c;
+}
+
+// Keep these macros defined so STB does not install its single-byte defaults.
+#define STB_TEXTEDIT_GETPREVCHARINDEX STB_TEXTEDIT_GETPREVCHARINDEX
+#define STB_TEXTEDIT_GETNEXTCHARINDEX STB_TEXTEDIT_GETNEXTCHARINDEX
 
 static bool
 pl__is_separator(unsigned int c)
@@ -120,10 +149,10 @@ pl__is_word_boundary_from_right(plUiInputTextState* obj, int idx)
     if((obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_PASSWORD) || idx <= 0)
         return 0;
 
-    bool prev_white = pl__char_is_blank_w(obj->sbTextW[idx - 1]);
-    bool prev_separ = pl__is_separator(obj->sbTextW[idx - 1]);
-    bool curr_white = pl__char_is_blank_w(obj->sbTextW[idx]);
-    bool curr_separ = pl__is_separator(obj->sbTextW[idx]);
+    bool prev_white = pl__char_is_blank_w(pl__text_codepoint_at(obj, STB_TEXTEDIT_GETPREVCHARINDEX(obj, idx)));
+    bool prev_separ = pl__is_separator(pl__text_codepoint_at(obj, STB_TEXTEDIT_GETPREVCHARINDEX(obj, idx)));
+    bool curr_white = pl__char_is_blank_w(pl__text_codepoint_at(obj, idx));
+    bool curr_separ = pl__is_separator(pl__text_codepoint_at(obj, idx));
     return ((prev_white || prev_separ) && !(curr_separ || curr_white)) || (curr_separ && !prev_separ);
 }
 
@@ -133,39 +162,39 @@ pl__is_word_boundary_from_left(plUiInputTextState* obj, int idx)
     if((obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_PASSWORD) || idx <= 0)
         return 0;
 
-    bool prev_white = pl__char_is_blank_w(obj->sbTextW[idx]);
-    bool prev_separ = pl__is_separator(obj->sbTextW[idx]);
-    bool curr_white = pl__char_is_blank_w(obj->sbTextW[idx - 1]);
-    bool curr_separ = pl__is_separator(obj->sbTextW[idx - 1]);
+    bool prev_white = pl__char_is_blank_w(pl__text_codepoint_at(obj, idx));
+    bool prev_separ = pl__is_separator(pl__text_codepoint_at(obj, idx));
+    bool curr_white = pl__char_is_blank_w(pl__text_codepoint_at(obj, STB_TEXTEDIT_GETPREVCHARINDEX(obj, idx)));
+    bool curr_separ = pl__is_separator(pl__text_codepoint_at(obj, STB_TEXTEDIT_GETPREVCHARINDEX(obj, idx)));
     return ((prev_white) && !(curr_separ || curr_white)) || (curr_separ && !prev_separ);
 }
 
 static int
 STB_TEXTEDIT_MOVEWORDLEFT_IMPL(plUiInputTextState* obj, int idx)
 {
-    idx--;
+    idx = STB_TEXTEDIT_GETPREVCHARINDEX(obj, idx);
     while (idx >= 0 && !pl__is_word_boundary_from_right(obj, idx))
-        idx--;
+        idx = STB_TEXTEDIT_GETPREVCHARINDEX(obj, idx);
     return idx < 0 ? 0 : idx;
 }
 
 static int
 STB_TEXTEDIT_MOVEWORDRIGHT_MAC(plUiInputTextState* obj, int idx)
 {
-    idx++;
-    int len = obj->iCurrentLengthW;
+    idx = STB_TEXTEDIT_GETNEXTCHARINDEX(obj, idx);
+    int len = obj->iCurrentLengthA;
     while (idx < len && !pl__is_word_boundary_from_left(obj, idx))
-        idx++;
+        idx = STB_TEXTEDIT_GETNEXTCHARINDEX(obj, idx);
     return idx > len ? len : idx;
 }
 
 static int
 STB_TEXTEDIT_MOVEWORDRIGHT_WIN(plUiInputTextState* obj, int idx)
 {
-    idx++;
-    int len = obj->iCurrentLengthW;
+    idx = STB_TEXTEDIT_GETNEXTCHARINDEX(obj, idx);
+    int len = obj->iCurrentLengthA;
     while (idx < len && !pl__is_word_boundary_from_right(obj, idx))
-        idx++;
+        idx = STB_TEXTEDIT_GETNEXTCHARINDEX(obj, idx);
     return idx > len ? len : idx;
 }
 
@@ -179,88 +208,35 @@ STB_TEXTEDIT_MOVEWORDRIGHT_IMPL(plUiInputTextState* obj, int idx)
 #define STB_TEXTEDIT_MOVEWORDLEFT  STB_TEXTEDIT_MOVEWORDLEFT_IMPL  // They need to be #define for stb_textedit.h
 #define STB_TEXTEDIT_MOVEWORDRIGHT STB_TEXTEDIT_MOVEWORDRIGHT_IMPL
 
-static inline int
-pl__text_count_utf8_bytes_from_char(unsigned int c)
-{
-    if (c < 0x80)
-        return 1;
-    if (c < 0x800)
-        return 2;
-    if (c < 0x10000)
-        return 3;
-    if (c <= 0x10FFFF)
-        return 4;
-    return 3;
-}
-
-static int
-pl__text_count_utf8_bytes_from_str(const plUiWChar* in_text, const plUiWChar* in_text_end)
-{
-    int bytes_count = 0;
-    while ((!in_text_end || in_text < in_text_end) && *in_text)
-    {
-        unsigned int c = (unsigned int)(*in_text++);
-        if (c < 0x80)
-            bytes_count++;
-        else
-            bytes_count += pl__text_count_utf8_bytes_from_char(c);
-    }
-    return bytes_count;
-}
-
 static void
 STB_TEXTEDIT_DELETECHARS(plUiInputTextState* obj, int pos, int n)
 {
-    plUiWChar* dst = obj->sbTextW + pos;
-
-    // We maintain our buffer length in both UTF-8 and wchar formats
+    PL_ASSERT(pos >= 0 && n >= 0 && pos + n <= obj->iCurrentLengthA);
+    memmove(obj->sbTextA + pos, obj->sbTextA + pos + n, (size_t)(obj->iCurrentLengthA - pos - n + 1));
+    obj->iCurrentLengthA -= n;
     obj->bEdited = true;
-    obj->iCurrentLengthA -= pl__text_count_utf8_bytes_from_str(dst, dst + n);
-    obj->iCurrentLengthW -= n;
-
-    // Offset remaining text (FIXME-OPT: Use memmove)
-    const plUiWChar* src = obj->sbTextW + pos + n;
-    plUiWChar c = *src++;
-    while (c)
-    {
-        *dst++ = c;
-        c = *src++;
-    }
-    *dst = '\0';
 }
 
-static bool
-STB_TEXTEDIT_INSERTCHARS(plUiInputTextState* obj, int pos, const plUiWChar* new_text, int new_text_len)
+static int
+STB_TEXTEDIT_INSERTCHARS(plUiInputTextState* obj, int pos, const char* new_text, int new_text_len)
 {
-    // const bool is_resizable = (obj->Flags & ImGuiInputTextFlags_CallbackResize) != 0;
-    const bool is_resizable = false;
-    const int text_len = obj->iCurrentLengthW;
-    PL_ASSERT(pos <= text_len);
-
-    const int new_text_len_utf8 = pl__text_count_utf8_bytes_from_str(new_text, new_text + new_text_len);
-    if (!is_resizable && (new_text_len_utf8 + obj->iCurrentLengthA + 1 > obj->iBufferCapacityA))
-        return false;
-
-    // Grow internal buffer if needed
-    if (new_text_len + text_len + 1 > (int)pl_sb_size(obj->sbTextW))
+    PL_ASSERT(pos >= 0 && pos <= obj->iCurrentLengthA);
+    const int available = obj->iBufferCapacityA - obj->iCurrentLengthA - 1;
+    if(new_text_len > available)
     {
-        if (!is_resizable)
-            return false;
-        PL_ASSERT(text_len < (int)pl_sb_size(obj->sbTextW));
-        pl_sb_resize(obj->sbTextW, text_len + pl_clampi(32, new_text_len * 4, pl_max(256, new_text_len)) + 1);
+        // Accept only complete UTF-8 characters when the caller's buffer fills up.
+        new_text_len = pl_max(available, 0);
+        while(new_text_len > 0 && ((unsigned char)new_text[new_text_len] & 0xC0) == 0x80)
+            new_text_len--;
     }
+    if(new_text_len == 0)
+        return 0;
 
-    plUiWChar* text = obj->sbTextW;
-    if (pos != text_len)
-        memmove(text + pos + new_text_len, text + pos, (size_t)(text_len - pos) * sizeof(plUiWChar));
-    memcpy(text + pos, new_text, (size_t)new_text_len * sizeof(plUiWChar));
-
+    memmove(obj->sbTextA + pos + new_text_len, obj->sbTextA + pos, (size_t)(obj->iCurrentLengthA - pos + 1));
+    memcpy(obj->sbTextA + pos, new_text, (size_t)new_text_len);
+    obj->iCurrentLengthA += new_text_len;
     obj->bEdited = true;
-    obj->iCurrentLengthW += new_text_len;
-    obj->iCurrentLengthA += new_text_len_utf8;
-    obj->sbTextW[obj->iCurrentLengthW] = '\0';
-
-    return true;
+    return new_text_len;
 }
 
 // We don't use an enum so we can build even with conflicting symbols (if another user of stb_textedit.h leak their STB_TEXTEDIT_K_* symbols)
@@ -290,8 +266,8 @@ STB_TEXTEDIT_INSERTCHARS(plUiInputTextState* obj, int pos, const plUiWChar* new_
 static void
 stb_textedit_replace(plUiInputTextState* str, STB_TexteditState* state, const STB_TEXTEDIT_CHARTYPE* text, int text_len)
 {
-    stb_text_makeundo_replace(str, state, 0, str->iCurrentLengthW, text_len);
-    STB_TEXTEDIT_DELETECHARS(str, 0, str->iCurrentLengthW);
+    stb_text_makeundo_replace(str, state, 0, str->iCurrentLengthA, text_len);
+    STB_TEXTEDIT_DELETECHARS(str, 0, str->iCurrentLengthA);
     state->cursor = state->select_start = state->select_end = 0;
     if (text_len <= 0)
         return;
@@ -302,14 +278,6 @@ stb_textedit_replace(plUiInputTextState* str, STB_TexteditState* state, const ST
         return;
     }
     PL_ASSERT(0); // Failed to insert character, normally shouldn't happen because of how we currently use stb_textedit_replace()
-}
-
-static void
-pl__text_state_on_key_press(plUiInputTextState* ptState, int iKey)
-{
-    stb_textedit_key(ptState, &ptState->tStb, iKey);
-    ptState->bCursorFollow = true;
-    pl__text_state_cursor_anim_reset(ptState);
 }
 
 // Based on stb_to_utf8() from github.com/nothings/stb/
@@ -323,14 +291,16 @@ pl__text_char_to_utf8_inline(char* buf, int buf_size, unsigned int c)
     }
     if (c < 0x800)
     {
-        if (buf_size < 2) return 0;
+        if (buf_size < 2)
+            return 0;
         buf[0] = (char)(0xc0 + (c >> 6));
         buf[1] = (char)(0x80 + (c & 0x3f));
         return 2;
     }
     if (c < 0x10000)
     {
-        if (buf_size < 3) return 0;
+        if (buf_size < 3)
+            return 0;
         buf[0] = (char)(0xe0 + (c >> 12));
         buf[1] = (char)(0x80 + ((c >> 6) & 0x3f));
         buf[2] = (char)(0x80 + ((c ) & 0x3f));
@@ -338,7 +308,8 @@ pl__text_char_to_utf8_inline(char* buf, int buf_size, unsigned int c)
     }
     if (c <= 0x10FFFF)
     {
-        if (buf_size < 4) return 0;
+        if (buf_size < 4)
+            return 0;
         buf[0] = (char)(0xf0 + (c >> 18));
         buf[1] = (char)(0x80 + ((c >> 12) & 0x3f));
         buf[2] = (char)(0x80 + ((c >> 6) & 0x3f));
@@ -349,65 +320,38 @@ pl__text_char_to_utf8_inline(char* buf, int buf_size, unsigned int c)
     return 0;
 }
 
+static void
+pl__text_state_on_key_press(plUiInputTextState* ptState, int iKey)
+{
+    if(iKey < 0x200000)
+    {
+        char acText[4];
+        const int iLength = pl__text_char_to_utf8_inline(acText, sizeof(acText), (unsigned int)iKey);
+        int iReplaceLength = abs(ptState->tStb.select_end - ptState->tStb.select_start);
+        if(iReplaceLength == 0 && ptState->tStb.insert_mode && ptState->tStb.cursor < ptState->iCurrentLengthA)
+            iReplaceLength = STB_TEXTEDIT_GETNEXTCHARINDEX(ptState, ptState->tStb.cursor) - ptState->tStb.cursor;
+        // Do not delete a selection or overwritten character if the new code point cannot fit.
+        if(iLength > 0 && iLength <= ptState->iBufferCapacityA - (ptState->iCurrentLengthA - iReplaceLength) - 1)
+            stb_textedit_text(ptState, &ptState->tStb, acText, iLength);
+    }
+    else
+        stb_textedit_key(ptState, &ptState->tStb, iKey);
+    ptState->bCursorFollow = true;
+    pl__text_state_cursor_anim_reset(ptState);
+}
+
 static inline plUiInputTextState*
 pl__get_input_text_state(uint32_t id)
 { 
     return (id != 0 && gptCtx->tInputTextState.uId == id) ? &gptCtx->tInputTextState : NULL; 
 }
 
-static const plUiWChar*
-pl__str_bol_w(const plUiWChar* buf_mid_line, const plUiWChar* buf_begin) // find beginning-of-line
+static const char*
+pl__str_bol(const char* buf_mid_line, const char* buf_begin) // find beginning-of-line
 {
     while (buf_mid_line > buf_begin && buf_mid_line[-1] != '\n')
         buf_mid_line--;
     return buf_mid_line;
-}
-
-static int
-pl__text_str_to_utf8(char* out_buf, int out_buf_size, const plUiWChar* in_text, const plUiWChar* in_text_end)
-{
-    char* buf_p = out_buf;
-    const char* buf_end = out_buf + out_buf_size;
-    while (buf_p < buf_end - 1 && (!in_text_end || in_text < in_text_end) && *in_text)
-    {
-        unsigned int c = (unsigned int)(*in_text++);
-        if (c < 0x80)
-            *buf_p++ = (char)c;
-        else
-            buf_p += pl__text_char_to_utf8_inline(buf_p, (int)(buf_end - buf_p - 1), c);
-    }
-    *buf_p = 0;
-    return (int)(buf_p - out_buf);
-}
-
-static int
-pl__text_str_from_utf8(plUiWChar* buf, int buf_size, const char* in_text, const char* in_text_end, const char** in_text_remaining)
-{
-    plUiWChar* buf_out = buf;
-    plUiWChar* buf_end = buf + buf_size;
-    while (buf_out < buf_end - 1 && (!in_text_end || in_text < in_text_end) && *in_text)
-    {
-        unsigned int c;
-        in_text += pl_text_char_from_utf8(&c, in_text, in_text_end);
-        *buf_out++ = (plUiWChar)c;
-    }
-    *buf_out = 0;
-    if (in_text_remaining)
-        *in_text_remaining = in_text;
-    return (int)(buf_out - buf);
-}
-
-static int
-pl__text_count_chars_from_utf8(const char* in_text, const char* in_text_end)
-{
-    int char_count = 0;
-    while ((!in_text_end || in_text < in_text_end) && *in_text)
-    {
-        unsigned int c;
-        in_text += pl_text_char_from_utf8(&c, in_text, in_text_end);
-        char_count++;
-    }
-    return char_count;
 }
 
 static int
@@ -2464,7 +2408,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         ptState = &gptCtx->tInputTextState;
         pl__text_state_cursor_anim_reset(ptState);
 
-        // Take a copy of the initial buffer value (both in original UTF-8 format and converted to wchar)
+        // Take a copy of the initial buffer value (UTF-8)
         // From the moment we focused we are ignoring the content of 'buf' (unless we are in read-only mode)
         const int iBufferLength = (int)strlen(pcBuffer);
         pl_sb_resize(ptState->sbInitialTextA, iBufferLength + 1); // UTF-8. we use +1 to make sure that it is always pointing to at least an empty string.
@@ -2473,18 +2417,15 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         // Preserve cursor position and undo/redo stack if we come back to same widget
         // FIXME: Since we reworked this on 2022/06, may want to differenciate recycle_cursor vs recycle_undostate?
         bool bRecycleState = (ptState->uId == uHash && !bInitChangedSpecs);
-        if (bRecycleState && (ptState->iCurrentLengthA != iBufferLength || (ptState->bTextAIsValid && strncmp(ptState->sbTextA, pcBuffer, iBufferLength) != 0)))
+        if (bRecycleState && (ptState->iCurrentLengthA != iBufferLength || (strncmp(ptState->sbTextA, pcBuffer, iBufferLength) != 0)))
             bRecycleState = false;
 
         // start edition
-        const char* pcBufferEnd = NULL;
         ptState->uId = uHash;
         ptState->iBufferCapacityA = (int)szBufferSize;
-        pl_sb_resize(ptState->sbTextW, (uint32_t)szBufferSize + 1);          // wchar count <= UTF-8 count. we use +1 to make sure that .Data is always pointing to at least an empty string.
-        pl_sb_reset(ptState->sbTextA);
-        ptState->bTextAIsValid = false;                // TextA is not valid yet (we will display buf until then)
-        ptState->iCurrentLengthW = pl__text_str_from_utf8(ptState->sbTextW, (int)szBufferSize, pcBuffer, NULL, &pcBufferEnd);
-        ptState->iCurrentLengthA = (int)(pcBufferEnd - pcBuffer);      // We can't get the result from ImStrncpy() above because it is not UTF-8 aware. Here we'll cut off malformed UTF-8.
+        pl_sb_resize(ptState->sbTextA, (uint32_t)szBufferSize);
+        memcpy(ptState->sbTextA, pcBuffer, (size_t)iBufferLength + 1);
+        ptState->iCurrentLengthA = iBufferLength;
 
         if (bRecycleState)
         {
@@ -2538,27 +2479,23 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     bool bValidated = false;
 
     // When read-only we always use the live data passed to the function
-    // FIXME-OPT: Because our selection/cursor code currently needs the wide text we need to convert it when active, which is not ideal :(
     if (bIsReadOnly && ptState != NULL && (bRenderCursor || bRenderSelection))
     {
-        const char* pcBufferEnd = NULL;
-        pl_sb_resize(ptState->sbTextW, (uint32_t)szBufferSize + 1);
-        ptState->iCurrentLengthW = pl__text_str_from_utf8(ptState->sbTextW, pl_sb_size(ptState->sbTextW), pcBuffer, NULL, &pcBufferEnd);
-        ptState->iCurrentLengthA = (int)(pcBufferEnd - pcBuffer);
+        ptState->iCurrentLengthA = (int)strlen(pcBuffer);
+        pl_sb_resize(ptState->sbTextA, (uint32_t)szBufferSize);
+        memcpy(ptState->sbTextA, pcBuffer, (size_t)ptState->iCurrentLengthA + 1);
         pl__text_state_cursor_clamp(ptState);
         bRenderSelection &= pl__text_state_has_selection(ptState);
     }
 
     // Select the buffer to render.
-    const bool bBufferDisplayFromState = (bRenderCursor || bRenderSelection || gptCtx->uActiveId == uHash) && !bIsReadOnly && ptState && ptState->bTextAIsValid;
+    const bool bBufferDisplayFromState = (bRenderCursor || bRenderSelection || gptCtx->uActiveId == uHash) && !bIsReadOnly && ptState;
     const bool bIsDisplayingHint = (pcHint != NULL && (bBufferDisplayFromState ? ptState->sbTextA : pcBuffer)[0] == 0);
 
     // process mouse inputs and character inputs
-    int iBackupCurrentTextLength = 0;
     if(gptCtx->uActiveId == uHash)
     {
         PL_ASSERT(ptState != NULL);
-        iBackupCurrentTextLength = ptState->iCurrentLengthA;
         ptState->bEdited = false;
         ptState->iBufferCapacityA = (int)szBufferSize;
         ptState->tFlags = tFlags;
@@ -2793,10 +2730,11 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
             if (gptIO->set_clipboard_text_fn)
             {
                 const int ib = pl__text_state_has_selection(ptState) ? pl_min(ptState->tStb.select_start, ptState->tStb.select_end) : 0;
-                const int ie = pl__text_state_has_selection(ptState) ? pl_max(ptState->tStb.select_start, ptState->tStb.select_end) : ptState->iCurrentLengthW;
-                const int clipboard_data_len = pl__text_count_utf8_bytes_from_str(ptState->sbTextW + ib, ptState->sbTextW + ie) + 1;
+                const int ie = pl__text_state_has_selection(ptState) ? pl_max(ptState->tStb.select_start, ptState->tStb.select_end) : ptState->iCurrentLengthA;
+                const int clipboard_data_len = ie - ib + 1;
                 char* clipboard_data = (char*)PL_ALLOC(clipboard_data_len * sizeof(char));
-                pl__text_str_to_utf8(clipboard_data, clipboard_data_len, ptState->sbTextW + ib, ptState->sbTextW + ie);
+                memcpy(clipboard_data, ptState->sbTextA + ib, (size_t)(ie - ib));
+                clipboard_data[ie - ib] = 0;
                 gptIO->set_clipboard_text_fn(gptIO->pClipboardUserData, clipboard_data);
                 PL_FREE(clipboard_data);
             }
@@ -2815,7 +2753,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
             {
                 // Filter pasted buffer
                 const int clipboard_len = (int)strlen(clipboard);
-                plUiWChar* clipboard_filtered = (plUiWChar*)PL_ALLOC((clipboard_len + 1) * sizeof(plUiWChar));
+                char* clipboard_filtered = (char*)PL_ALLOC((size_t)clipboard_len * 3 + 1); // invalid bytes may expand to U+FFFD
                 int clipboard_filtered_len = 0;
                 for (const char* s = clipboard; *s != 0; )
                 {
@@ -2823,7 +2761,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                     s += pl_text_char_from_utf8(&c, s, NULL);
                     if (!pl__input_text_filter_character(&c, tFlags))
                         continue;
-                    clipboard_filtered[clipboard_filtered_len++] = (plUiWChar)c; //-V522
+                    clipboard_filtered_len += pl__text_char_to_utf8_inline(clipboard_filtered + clipboard_filtered_len, 4, c);
                 }
                 clipboard_filtered[clipboard_filtered_len] = 0; //-V522
                 if (clipboard_filtered_len > 0) // If everything was filtered, ignore the pasting operation
@@ -2862,23 +2800,8 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                 pcApplyNewText = ptState->sbInitialTextA;
                 iApplyNewTextLength = pl_sb_size(ptState->sbInitialTextA) - 1;
                 bValueChanged = true;
-                plUiWChar* sbWText = NULL;
-                if (iApplyNewTextLength > 0)
-                {
-                    pl_sb_resize(sbWText, pl__text_count_chars_from_utf8(pcApplyNewText, pcApplyNewText + iApplyNewTextLength) + 1);
-                    pl__text_str_from_utf8(sbWText, pl_sb_size(sbWText), pcApplyNewText, pcApplyNewText + iApplyNewTextLength, NULL);
-                }
-                stb_textedit_replace(ptState, &ptState->tStb, sbWText, (iApplyNewTextLength > 0) ? (pl_sb_size(sbWText) - 1) : 0);
-                pl_sb_free(sbWText);
+                stb_textedit_replace(ptState, &ptState->tStb, pcApplyNewText, iApplyNewTextLength);
             }
-        }
-
-        // Apply ASCII value
-        if (!bIsReadOnly)
-        {
-            ptState->bTextAIsValid = true;
-            pl_sb_resize(ptState->sbTextA, pl_sb_size(ptState->sbTextW) * 4 + 1);
-            pl__text_str_to_utf8(ptState->sbTextA, pl_sb_size(ptState->sbTextA), ptState->sbTextW, NULL);
         }
 
         // When using 'ImGuiInputTextFlags_EnterReturnsTrue' as a special case we reapply the live buffer back to the input buffer before clearing ActiveId, even though strictly speaking it wasn't modified on this frame.
@@ -2891,85 +2814,6 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
             // Note that as soon as the input box is active, the in-widget value gets priority over any underlying modification of the input buffer
             // FIXME: We actually always render 'buf' when calling DrawList->AddText, making the comment above incorrect.
             // FIXME-OPT: CPU waste to do this every time the widget is active, should mark dirty state from the stb_textedit callbacks.
-
-            // User callback
-            // if ((flags & (ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory | ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackAlways)) != 0)
-            // {
-            //     PL_ASSERT(callback != NULL);
-
-            //     // The reason we specify the usage semantic (Completion/History) is that Completion needs to disable keyboard TABBING at the moment.
-            //     ImGuiInputTextFlags event_flag = 0;
-            //     ImGuiKey event_key = ImGuiKey_None;
-            //     if ((flags & ImGuiInputTextFlags_CallbackCompletion) != 0 && Shortcut(ImGuiKey_Tab, id))
-            //     {
-            //         event_flag = ImGuiInputTextFlags_CallbackCompletion;
-            //         event_key = ImGuiKey_Tab;
-            //     }
-            //     else if ((flags & ImGuiInputTextFlags_CallbackHistory) != 0 && IsKeyPressed(ImGuiKey_UpArrow))
-            //     {
-            //         event_flag = ImGuiInputTextFlags_CallbackHistory;
-            //         event_key = ImGuiKey_UpArrow;
-            //     }
-            //     else if ((flags & ImGuiInputTextFlags_CallbackHistory) != 0 && IsKeyPressed(ImGuiKey_DownArrow))
-            //     {
-            //         event_flag = ImGuiInputTextFlags_CallbackHistory;
-            //         event_key = ImGuiKey_DownArrow;
-            //     }
-            //     else if ((flags & ImGuiInputTextFlags_CallbackEdit) && state->Edited)
-            //     {
-            //         event_flag = ImGuiInputTextFlags_CallbackEdit;
-            //     }
-            //     else if (flags & ImGuiInputTextFlags_CallbackAlways)
-            //     {
-            //         event_flag = ImGuiInputTextFlags_CallbackAlways;
-            //     }
-
-            //     if (event_flag)
-            //     {
-            //         ImGuiInputTextCallbackData callback_data;
-            //         callback_data.Ctx = &g;
-            //         callback_data.EventFlag = event_flag;
-            //         callback_data.Flags = flags;
-            //         callback_data.UserData = callback_user_data;
-
-            //         char* callback_buf = bIsReadOnly ? buf : state->TextA.Data;
-            //         callback_data.EventKey = event_key;
-            //         callback_data.Buf = callback_buf;
-            //         callback_data.BufTextLen = ptState->iCurrentLengthA;
-            //         callback_data.BufSize = state->BufCapacityA;
-            //         callback_data.BufDirty = false;
-
-            //         // We have to convert from wchar-positions to UTF-8-positions, which can be pretty slow (an incentive to ditch the plUiWChar buffer, see https://github.com/nothings/stb/issues/188)
-            //         plUiWChar* text = ptState->sbTextW;
-            //         const int utf8_cursor_pos = callback_data.CursorPos = pl__text_count_utf8_bytes_from_str(text, text + ptState->tStb.cursor);
-            //         const int utf8_selection_start = callback_data.SelectionStart = pl__text_count_utf8_bytes_from_str(text, text + ptState->tStb.select_start);
-            //         const int utf8_selection_end = callback_data.SelectionEnd = pl__text_count_utf8_bytes_from_str(text, text + ptState->tStb.select_end);
-
-            //         // Call user code
-            //         callback(&callback_data);
-
-            //         // Read back what user may have modified
-            //         callback_buf = bIsReadOnly ? buf : state->TextA.Data; // Pointer may have been invalidated by a resize callback
-            //         PL_ASSERT(callback_data.Buf == callback_buf);         // Invalid to modify those fields
-            //         PL_ASSERT(callback_data.BufSize == state->BufCapacityA);
-            //         PL_ASSERT(callback_data.Flags == flags);
-            //         const bool buf_dirty = callback_data.BufDirty;
-            //         if (callback_data.CursorPos != utf8_cursor_pos || buf_dirty)            { ptState->tStb.cursor = pl__text_count_chars_from_utf8(callback_data.Buf, callback_data.Buf + callback_data.CursorPos); ptState->bCursorFollow = true; }
-            //         if (callback_data.SelectionStart != utf8_selection_start || buf_dirty)  { ptState->tStb.select_start = (callback_data.SelectionStart == callback_data.CursorPos) ? ptState->tStb.cursor : pl__text_count_chars_from_utf8(callback_data.Buf, callback_data.Buf + callback_data.SelectionStart); }
-            //         if (callback_data.SelectionEnd != utf8_selection_end || buf_dirty)      { ptState->tStb.select_end = (callback_data.SelectionEnd == callback_data.SelectionStart) ? ptState->tStb.select_start : pl__text_count_chars_from_utf8(callback_data.Buf, callback_data.Buf + callback_data.SelectionEnd); }
-            //         if (buf_dirty)
-            //         {
-            //             PL_ASSERT((flags & ImGuiInputTextFlags_ReadOnly) == 0);
-            //             PL_ASSERT(callback_data.BufTextLen == (int)strlen(callback_data.Buf)); // You need to maintain BufTextLen if you change the text!
-            //             InputTextReconcileUndoStateAfterUserCallback(state, callback_data.Buf, callback_data.BufTextLen); // FIXME: Move the rest of this block inside function and rename to InputTextReconcileStateAfterUserCallback() ?
-            //             if (callback_data.BufTextLen > backup_current_text_length && is_resizable)
-            //                 state->TextW.resize(state->TextW.Size + (callback_data.BufTextLen - backup_current_text_length)); // Worse case scenario resize
-            //             state->CurLenW = pl__text_str_from_utf8(ptState->sbTextW, state->TextW.Size, callback_data.Buf, NULL);
-            //             ptState->iCurrentLengthA = callback_data.BufTextLen;  // Assume correct length and valid UTF-8 from user, saves us an extra strlen()
-            //             state->CursorAnimReset();
-            //         }
-            //     }
-            // }
 
             // Will copy result string if modified
             if (!bIsReadOnly && strcmp(ptState->sbTextA, pcBuffer) != 0)
@@ -3093,13 +2937,13 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         // - Measure text height (for scrollbar)
         // We are attempting to do most of that in **one main pass** to minimize the computation cost (non-negligible for large amount of text) + 2nd pass for selection rendering (we could merge them by an extra refactoring effort)
         // FIXME: This should occur on pcBufferDisplay but we'd need to maintain cursor/select_start/select_end for UTF-8.
-        const plUiWChar* text_begin = ptState->sbTextW;
+        const char* text_begin = ptState->sbTextA;
         plVec2 cursor_offset = {0};
         plVec2 select_start_offset = {0};
 
         {
             // Find lines numbers straddling 'cursor' (slot 0) and 'select_start' (slot 1) positions.
-            const plUiWChar* searches_input_ptr[2] = { NULL, NULL };
+            const char* searches_input_ptr[2] = { NULL, NULL };
             int searches_result_line_no[2] = { -1000, -1000 };
             int searches_remaining = 0;
             if (bRenderCursor)
@@ -3119,8 +2963,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
             // In multi-line mode, we never exit the loop until all lines are counted, so add one extra to the searches_remaining counter.
             searches_remaining += bIsMultiLine ? 1 : 0;
             int line_count = 0;
-            //for (const plUiWChar* s = text_begin; (s = (const plUiWChar*)wcschr((const wchar_t*)s, (wchar_t)'\n')) != NULL; s++)  // FIXME-OPT: Could use this when wchar_t are 16-bit
-            for (const plUiWChar* s = text_begin; *s != 0; s++)
+            for (const char* s = text_begin; *s != 0; s++)
                 if (*s == '\n')
                 {
                     line_count++;
@@ -3134,11 +2977,11 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                 searches_result_line_no[1] = line_count;
 
             // Calculate 2d position by finding the beginning of the line and measuring distance
-            cursor_offset.x = pl__input_text_calc_text_size_w(pl__str_bol_w(searches_input_ptr[0], text_begin), searches_input_ptr[0], NULL, NULL, false, bIsPassword).x;
+            cursor_offset.x = pl__input_text_calc_text_size(pl__str_bol(searches_input_ptr[0], text_begin), searches_input_ptr[0], NULL, NULL, false, bIsPassword).x;
             cursor_offset.y = (searches_result_line_no[0] - 1) * fLineHeight + gptCtx->tStyle.fFontSize;
             if (searches_result_line_no[1] >= 0)
             {
-                select_start_offset.x = pl__input_text_calc_text_size_w(pl__str_bol_w(searches_input_ptr[1], text_begin), searches_input_ptr[1], NULL, NULL, false, bIsPassword).x;
+                select_start_offset.x = pl__input_text_calc_text_size(pl__str_bol(searches_input_ptr[1], text_begin), searches_input_ptr[1], NULL, NULL, false, bIsPassword).x;
                 select_start_offset.y = (searches_result_line_no[1] - 1) * fLineHeight + gptCtx->tStyle.fFontSize;
             }
 
@@ -3187,20 +3030,19 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         const plVec2 draw_scroll = (plVec2){ptState->fScrollX, fScrollY};
         if (bRenderSelection)
         {
-            const plUiWChar* text_selected_begin = text_begin + pl_min(ptState->tStb.select_start, ptState->tStb.select_end);
-            const plUiWChar* text_selected_end = text_begin + pl_max(ptState->tStb.select_start, ptState->tStb.select_end);
+            const char* text_selected_begin = text_begin + pl_min(ptState->tStb.select_start, ptState->tStb.select_end);
+            const char* text_selected_end = text_begin + pl_max(ptState->tStb.select_start, ptState->tStb.select_end);
 
             // ImU32 bg_color = GetColorU32(ImGuiCol_TextSelectedBg, bRenderCursor ? 1.0f : 0.6f); // FIXME: current code flow mandate that bRenderCursor is always true here, we are leaving the transparent one for tests.
             float bg_offy_up = bIsMultiLine ? 0.0f : -1.0f;    // FIXME: those offsets should be part of the style? they don't play so well with multi-line selection.
             float bg_offy_dn = bIsMultiLine ? 0.0f : 2.0f;
             plVec2 rect_pos = pl_sub_vec2(pl_add_vec2(draw_pos, select_start_offset), draw_scroll);
-            for (const plUiWChar* p = text_selected_begin; p < text_selected_end; )
+            for (const char* p = text_selected_begin; p < text_selected_end; )
             {
                 if (rect_pos.y > clip_rect.tMax.y + gptCtx->tStyle.fFontSize)
                     break;
                 if (rect_pos.y < clip_rect.tMin.y)
                 {
-                    //p = (const plUiWChar*)wmemchr((const wchar_t*)p, '\n', text_selected_end - p);  // FIXME-OPT: Could use this when wchar_t are 16-bit
                     //p = p ? p + 1 : text_selected_end;
                     while (p < text_selected_end)
                         if (*p++ == '\n')
@@ -3208,7 +3050,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                 }
                 else
                 {
-                    plVec2 rect_size = pl__input_text_calc_text_size_w(p, text_selected_end, &p, NULL, true, bIsPassword);
+                    plVec2 rect_size = pl__input_text_calc_text_size(p, text_selected_end, &p, NULL, true, bIsPassword);
                     if (rect_size.x <= 0.0f) rect_size.x = floorf(font->_sbtGlyphs[font->_auCodePoints[(plUiWChar)' ']].fXAdvance * 0.50f); // So we can see selected empty lines
                     plRect rect = {
                         pl_add_vec2(rect_pos, (plVec2){0.0f, bg_offy_up - gptCtx->tStyle.fFontSize}), 
