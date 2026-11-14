@@ -2368,6 +2368,9 @@ pl_ui_input_uint4(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFl
 static bool
 pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize, plUiInputTextFlags tFlags, const plVec2* ptWidgetSize, const plVec2* ptStartPos)
 {
+    if(!pcBuffer || szBufferSize == 0 || !memchr(pcBuffer, 0, szBufferSize))
+        return false;
+
     plFont* font = gptCtx->tFont;
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const plVec2 tMousePos = gptIOI->get_mouse_pos();
@@ -2397,10 +2400,44 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     const plRect* ptClipRect = gptDraw->get_clip_rect(ptWindow->ptDrawlist);
     tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
 
-    plUiWindow* ptDrawWindow = ptWindow;
     plVec2 tInnerSize = tFrameSize;
 
-    const bool bHovered = pl__is_item_hoverable(&tBoundingBox, uHash);
+    const float fLineHeight = bIsMultiLine ? font->_fLineSpacing * (gptCtx->tStyle.fFontSize / font->fSize) : gptCtx->tStyle.fFontSize;
+    const uint32_t uScrollKey = pl_str_hash("##input-scroll-y", 0, uHash);
+    float fScrollY = bIsMultiLine ? pl__get_float(&ptWindow->tStorage, uScrollKey, 0.0f) : 0.0f;
+    const float fContentHeight = bIsMultiLine ? pl__input_text_calc_text_len_and_line_count(pcBuffer, NULL) * fLineHeight : 0.0f;
+    const float fScrollMax = pl_maxf(0.0f, fContentHeight + 2.0f * gptCtx->tStyle.tFramePadding.y - tFrameSize.y);
+    const bool bScrollbar = bIsMultiLine && fScrollMax > 0.0f;
+    if(bScrollbar)
+        tInnerSize.x -= gptCtx->tStyle.fScrollbarSize;
+    plRect tTextBox = pl_calculate_rect(tFrameStartPos, tInnerSize);
+    tTextBox = pl_rect_clip_full(&tTextBox, ptClipRect);
+    const bool bFrameHovered = pl__is_item_hoverable(&tBoundingBox, uHash);
+    const bool bHovered = bFrameHovered && pl_rect_contains_point(&tTextBox, tMousePos);
+    if(bIsMultiLine && bFrameHovered && gptIOI->get_mouse_wheel() != 0.0f)
+    {
+        fScrollY -= gptIOI->get_mouse_wheel() * fLineHeight * 3.0f;
+        gptCtx->bInputTextWheeling = true;
+    }
+    fScrollY = pl_clampf(0.0f, fScrollY, fScrollMax);
+    const bool bScrollClicked = bScrollbar && bFrameHovered && !bHovered && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false);
+    if(bScrollClicked)
+    {
+        gptCtx->uInputTextScrollId = uHash;
+        const float fHandleHeight = pl_minf(tFrameSize.y, pl_maxf(12.0f, tFrameSize.y * tFrameSize.y / (tFrameSize.y + fScrollMax)));
+        const float fHandleTop = tFrameStartPos.y + (tFrameSize.y - fHandleHeight) * fScrollY / fScrollMax;
+        gptCtx->fInputTextScrollGrab = tMousePos.y >= fHandleTop && tMousePos.y < fHandleTop + fHandleHeight ? tMousePos.y - fHandleTop : fHandleHeight * 0.5f;
+    }
+    const bool bScrollActive = gptCtx->uInputTextScrollId == uHash && gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT);
+    if(bScrollActive && bScrollbar)
+    {
+        const float fHandleHeight = pl_minf(tFrameSize.y, pl_maxf(12.0f, tFrameSize.y * tFrameSize.y / (tFrameSize.y + fScrollMax)));
+        const float fTravel = tFrameSize.y - fHandleHeight;
+        if(fTravel > 0.0f)
+            fScrollY = pl_clampf(0.0f, (tMousePos.y - tFrameStartPos.y - gptCtx->fInputTextScrollGrab) / fTravel * fScrollMax, fScrollMax);
+        gptCtx->uNextHoveredId = uHash;
+        gptCtx->iWantCaptureMouseNextFrame = 1;
+    }
 
     if(bHovered)
     {
@@ -2410,18 +2447,15 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
 
     plUiInputTextState* ptState = pl__get_input_text_state(uHash);
 
-    // TODO: scroll stuff
     const bool bUserClicked = bHovered && gptIOI->is_mouse_clicked(0, false);
     const bool bActiveWithoutState = gptCtx->uActiveId == uHash && ptState == NULL;
-    const bool bUserScrollFinish = false; // bIsMultiLine && ptState != NULL && gptCtx->uNextActiveId == 0 && gptCtx->uActiveId == GetWindowScrollbarID(ptDrawWindow, ImGuiAxis_Y);
-    const bool bUserScrollActive = false; // bIsMultiLine && ptState != NULL && gptCtx->uNextActiveId == GetWindowScrollbarID(ptDrawWindow, ImGuiAxis_Y);
+    const bool bUserScrollFinish = false;
+    const bool bUserScrollActive = false;
 
     bool bClearActiveId = false;
     bool bSelectAll = false;
 
-    float fScrollY = bIsMultiLine ? ptDrawWindow->tScroll.y : FLT_MAX;
-
-    const bool bInitChangedSpecs = (ptState != NULL && ptState->tStb.single_line != !bIsMultiLine); // state != NULL means its our state.
+    const bool bInitChangedSpecs = (ptState != NULL && (ptState->tStb.single_line != !bIsMultiLine || ptState->iBufferCapacityA != (int)szBufferSize)); // state != NULL means its our state.
     const bool bInitMakeActive = (bUserClicked || bUserScrollFinish);
     const bool bInitState = (bInitMakeActive || bUserScrollActive);
     if((bUserClicked && gptCtx->uActiveId != uHash) || bActiveWithoutState || bInitChangedSpecs)
@@ -2445,6 +2479,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         // start edition
         const char* pcBufferEnd = NULL;
         ptState->uId = uHash;
+        ptState->iBufferCapacityA = (int)szBufferSize;
         pl_sb_resize(ptState->sbTextW, (uint32_t)szBufferSize + 1);          // wchar count <= UTF-8 count. we use +1 to make sure that .Data is always pointing to at least an empty string.
         pl_sb_reset(ptState->sbTextA);
         ptState->bTextAIsValid = false;                // TextA is not valid yet (we will display buf until then)
@@ -2493,7 +2528,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         pl__set_active_id(0, ptWindow);
 
     // Release focus when we click outside
-    if (gptCtx->uActiveId == uHash && gptIOI->is_mouse_clicked(0, false) && !bInitState && !bInitMakeActive) //-V560
+    if (gptCtx->uActiveId == uHash && gptIOI->is_mouse_clicked(0, false) && !bInitState && !bInitMakeActive && !bScrollClicked) //-V560
         bClearActiveId = true;
 
     // Lock the decision of whether we are going to take the path displaying the cursor or selection
@@ -2518,22 +2553,6 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     const bool bBufferDisplayFromState = (bRenderCursor || bRenderSelection || gptCtx->uActiveId == uHash) && !bIsReadOnly && ptState && ptState->bTextAIsValid;
     const bool bIsDisplayingHint = (pcHint != NULL && (bBufferDisplayFromState ? ptState->sbTextA : pcBuffer)[0] == 0);
 
-    // Password pushes a temporary font with only a fallback glyph
-    if (bIsPassword && !bIsDisplayingHint)
-    {
-        // const ImFontGlyph* glyph = g.Font->FindGlyph('*');
-        // ImFont* password_font = &g.InputTextPasswordFont;
-        // password_font->FontSize = g.Font->FontSize;
-        // password_font->Scale = g.Font->Scale;
-        // password_font->Ascent = g.Font->Ascent;
-        // password_font->Descent = g.Font->Descent;
-        // password_font->ContainerAtlas = g.Font->ContainerAtlas;
-        // password_font->FallbackGlyph = glyph;
-        // password_font->FallbackAdvanceX = glyph->AdvanceX;
-        // PL_ASSERT(password_font->Glyphs.empty() && password_font->IndexAdvanceX.empty() && password_font->IndexLookup.empty());
-        // PushFont(password_font);
-    }
-
     // process mouse inputs and character inputs
     int iBackupCurrentTextLength = 0;
     if(gptCtx->uActiveId == uHash)
@@ -2550,8 +2569,8 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         gptCtx->bActiveIdAllowsOverlap = !gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT);
 
         // Edit in progress
-        const float fMouseX = (tMousePos.x - tBoundingBox.tMin.x - gptCtx->tStyle.tFramePadding.x) + ptState->fScrollX;
-        const float fMouseY = (bIsMultiLine ? (tMousePos.y - tBoundingBox.tMin.y) : (gptCtx->tStyle.fFontSize * 0.5f));
+        const float fMouseX = (tMousePos.x - tFrameStartPos.x - gptCtx->tStyle.tFramePadding.x) + ptState->fScrollX;
+        const float fMouseY = (bIsMultiLine ? (tMousePos.y - tFrameStartPos.y - gptCtx->tStyle.tFramePadding.y + fScrollY) : (gptCtx->tStyle.fFontSize * 0.5f));
 
         if (bSelectAll)
         {
@@ -2606,7 +2625,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                 pl__text_state_cursor_anim_reset(ptState);
             }
         }
-        else if (gptIO->_abMouseDown[0] && !ptState->bSelectedAllMouseLock && (gptIO->_tMouseDelta.x != 0.0f || gptIO->_tMouseDelta.y != 0.0f))
+        else if (!bScrollActive && gptIO->_abMouseDown[0] && !ptState->bSelectedAllMouseLock && (gptIO->_tMouseDelta.x != 0.0f || gptIO->_tMouseDelta.y != 0.0f))
         {
             stb_textedit_drag(ptState, &ptState->tStb, fMouseX, fMouseY);
             pl__text_state_cursor_anim_reset(ptState);
@@ -2617,7 +2636,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
 
         // We expect backends to emit a Tab key but some also emit a Tab character which we ignore (#2467, #1336)
         // (For Tab and Enter: Win32/SFML/Allegro are sending both keys and chars, GLFW and SDL are only sending keys. For Space they all send all threes)
-        if ((tFlags & PL_UI_INPUT_TEXT_FLAGS_ALLOW_TAB_INPUT) && gptIOI->is_key_down(PL_KEY_TAB) && !bIsReadOnly)
+        if ((tFlags & PL_UI_INPUT_TEXT_FLAGS_ALLOW_TAB_INPUT) && gptIOI->is_key_pressed(PL_KEY_TAB, true) && !bIsReadOnly)
         {
             unsigned int c = '\t'; // Insert TAB
             if (pl__input_text_filter_character(&c, tFlags))
@@ -2635,7 +2654,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                 {
                     // Insert character if they pass filtering
                     unsigned int c = (unsigned int)gptIO->_sbInputQueueCharacters[n];
-                    if (c == '\t') // Skip Tab, see above.
+                    if (c == '\t' || c == '\n' || c == '\r') // Tab and Enter are handled as keys.
                         continue;
                     if (pl__input_text_filter_character(&c, tFlags))
                         pl__text_state_on_key_press(ptState, c);
@@ -2652,7 +2671,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     {
         PL_ASSERT(ptState != NULL);
 
-        const int iRowCountPerPage = pl_max((int)((tInnerSize.y - gptCtx->tStyle.tFramePadding.y) / gptCtx->tStyle.fFontSize), 1);
+        const int iRowCountPerPage = pl_max((int)((tInnerSize.y - gptCtx->tStyle.tFramePadding.y) / fLineHeight), 1);
         ptState->tStb.row_count_per_page = iRowCountPerPage;
 
         const int iKMask = (gptIO->bKeyShift ? STB_TEXTEDIT_K_SHIFT : 0);
@@ -2663,12 +2682,13 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         // Otherwise we could simply assume that we own the keys as we are active.
         // const ImGuiInputFlags bRepeat = ImGuiInputFlags_Repeat;
         const bool bRepeat = false;
-        const bool bIsCut = ((gptIO->bKeyCtrl  && gptIOI->is_key_pressed(PL_KEY_X, bRepeat)) || (gptIO->bKeyShift && gptIOI->is_key_pressed(PL_KEY_DELETE, bRepeat))) && !bIsReadOnly && !bIsPassword && (!bIsMultiLine || pl__text_state_has_selection(ptState));
-        const bool bIsCopy = ((gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_C, bRepeat)) || (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_INSERT, bRepeat))) && !bIsPassword && (!bIsMultiLine || pl__text_state_has_selection(ptState));
-        const bool bIsPaste = ((gptIO->bKeyCtrl  && gptIOI->is_key_pressed(PL_KEY_V, bRepeat)) || (gptIO->bKeyShift && gptIOI->is_key_pressed(PL_KEY_INSERT, bRepeat))) && !bIsReadOnly;
-        const bool bIsUndo  = (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_Z, bRepeat)) && !bIsReadOnly && bIsUndoable;
-        const bool bIsRedo =  (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_Y, bRepeat)) || (bIsOsX && gptIO->bKeyShift && gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_Z, bRepeat)) && !bIsReadOnly && bIsUndoable;
-        const bool bIsSelectAll = gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_A, bRepeat);
+        const bool bShortcut = bIsOsX ? gptIO->bKeySuper : gptIO->bKeyCtrl;
+        const bool bIsCut = ((bShortcut  && gptIOI->is_key_pressed(PL_KEY_X, bRepeat)) || (gptIO->bKeyShift && gptIOI->is_key_pressed(PL_KEY_DELETE, bRepeat))) && !bIsReadOnly && !bIsPassword && (!bIsMultiLine || pl__text_state_has_selection(ptState));
+        const bool bIsCopy = ((bShortcut && gptIOI->is_key_pressed(PL_KEY_C, bRepeat)) || (bShortcut && gptIOI->is_key_pressed(PL_KEY_INSERT, bRepeat))) && !bIsPassword && (!bIsMultiLine || pl__text_state_has_selection(ptState));
+        const bool bIsPaste = ((bShortcut  && gptIOI->is_key_pressed(PL_KEY_V, bRepeat)) || (gptIO->bKeyShift && gptIOI->is_key_pressed(PL_KEY_INSERT, bRepeat))) && !bIsReadOnly;
+        const bool bIsUndo  = (bShortcut && !gptIO->bKeyShift && gptIOI->is_key_pressed(PL_KEY_Z, bRepeat)) && !bIsReadOnly && bIsUndoable;
+        const bool bIsRedo = ((bShortcut && gptIOI->is_key_pressed(PL_KEY_Y, bRepeat)) || (gptIO->bKeyShift && bShortcut && gptIOI->is_key_pressed(PL_KEY_Z, bRepeat))) && !bIsReadOnly && bIsUndoable;
+        const bool bIsSelectAll = bShortcut && gptIOI->is_key_pressed(PL_KEY_A, bRepeat);
 
         // We allow validate/cancel with Nav source (gamepad) to makes it easier to undo an accidental NavInput press with no keyboard wired, but otherwise it isn't very useful.
         const bool bNavGamepadActive = false; // (io.ConfigFlags & ImGuiConfigFlags_NavEnableGamepad) != 0 && (io.BackendFlags & ImGuiBackendFlags_HasGamepad) != 0;
@@ -2679,10 +2699,22 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         // FIXME: Should use more Shortcut() and reduce gptIOI->is_key_pressed()+SetKeyOwner(), but requires modifiers combination to be taken account of.
         if (gptIOI->is_key_pressed(PL_KEY_LEFT_ARROW, true))                        { pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_LINESTART : bIsWordmoveKeyDown ? STB_TEXTEDIT_K_WORDLEFT : STB_TEXTEDIT_K_LEFT) | iKMask); }
         else if (gptIOI->is_key_pressed(PL_KEY_RIGHT_ARROW, true))                  { pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_LINEEND : bIsWordmoveKeyDown ? STB_TEXTEDIT_K_WORDRIGHT : STB_TEXTEDIT_K_RIGHT) | iKMask); }
-        // else if (gptIOI->is_key_pressed(PL_KEY_UP_ARROW, true) && bIsMultiLine)     { if (gptIO->bKeyCtrl) pl_set_window_scroll(ptDrawWindow, pl_max(ptDrawWindow->tScroll.y - gptCtx->tStyle.fFontSize, 0.0f)); else pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_TEXTSTART : STB_TEXTEDIT_K_UP) | iKMask); }
-        // else if (gptIOI->is_key_pressed(PL_KEY_DOWN_ARROW, true) && bIsMultiLine)   { if (gptIO->bKeyCtrl) SetScrollY(ptDrawWindow, pl_min(ptDrawWindow->tScroll.y + gptCtx->tStyle.fFontSize, GetScrollMaxY())); else pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_TEXTEND : STB_TEXTEDIT_K_DOWN) | iKMask); }
-        else if (gptIOI->is_key_pressed(PL_KEY_PAGE_UP, true) && bIsMultiLine)      { pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_PGUP | iKMask); fScrollY -= iRowCountPerPage * gptCtx->tStyle.fFontSize; }
-        else if (gptIOI->is_key_pressed(PL_KEY_PAGE_DOWN, true) && bIsMultiLine)    { pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_PGDOWN | iKMask); fScrollY += iRowCountPerPage * gptCtx->tStyle.fFontSize; }
+        else if (gptIOI->is_key_pressed(PL_KEY_UP_ARROW, true) && bIsMultiLine)
+        {
+            if(gptIO->bKeyCtrl)
+                fScrollY -= fLineHeight;
+            else
+                pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_TEXTSTART : STB_TEXTEDIT_K_UP) | iKMask);
+        }
+        else if (gptIOI->is_key_pressed(PL_KEY_DOWN_ARROW, true) && bIsMultiLine)
+        {
+            if(gptIO->bKeyCtrl)
+                fScrollY += fLineHeight;
+            else
+                pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_TEXTEND : STB_TEXTEDIT_K_DOWN) | iKMask);
+        }
+        else if (gptIOI->is_key_pressed(PL_KEY_PAGE_UP, true) && bIsMultiLine)      { pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_PGUP | iKMask); fScrollY -= iRowCountPerPage * fLineHeight; }
+        else if (gptIOI->is_key_pressed(PL_KEY_PAGE_DOWN, true) && bIsMultiLine)    { pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_PGDOWN | iKMask); fScrollY += iRowCountPerPage * fLineHeight; }
         else if (gptIOI->is_key_pressed(PL_KEY_HOME, true))                        { pl__text_state_on_key_press(ptState,gptIO->bKeyCtrl ? STB_TEXTEDIT_K_TEXTSTART | iKMask : STB_TEXTEDIT_K_LINESTART | iKMask); }
         else if (gptIOI->is_key_pressed(PL_KEY_END, true))                         { pl__text_state_on_key_press(ptState,gptIO->bKeyCtrl ? STB_TEXTEDIT_K_TEXTEND | iKMask : STB_TEXTEDIT_K_LINEEND | iKMask); }
         else if (gptIOI->is_key_pressed(PL_KEY_DELETE, true) && !bIsReadOnly && !bIsCut)
@@ -2776,7 +2808,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                 stb_textedit_cut(ptState, &ptState->tStb);
             }
         }
-        else if (bIsPaste)
+        else if (bIsPaste && gptIO->get_clipboard_text_fn)
         {
             const char* clipboard = gptIO->get_clipboard_text_fn(gptIO->pClipboardUserData);
             if (clipboard)
@@ -2837,6 +2869,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                     pl__text_str_from_utf8(sbWText, pl_sb_size(sbWText), pcApplyNewText, pcApplyNewText + iApplyNewTextLength, NULL);
                 }
                 stb_textedit_replace(ptState, &ptState->tStb, sbWText, (iApplyNewTextLength > 0) ? (pl_sb_size(sbWText) - 1) : 0);
+                pl_sb_free(sbWText);
             }
         }
 
@@ -3015,15 +3048,8 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     }
 
 
-    // const ImVec4 clip_rect(frame_bb.Min.x, frame_bb.Min.y, frame_bb.Min.x + tInnerSize.x, frame_bb.Min.y + tInnerSize.y); // Not using frame_bb.Max because we have adjusted size
-    const plRect clip_rect = {
-        .tMin = tBoundingBox.tMin,
-        .tMax = {
-            .x = tBoundingBox.tMin.x + tInnerSize.x,
-            .y = tBoundingBox.tMin.y + tInnerSize.y
-        }
-    };
-    plVec2 draw_pos = bIsMultiLine ? *ptStartPos : pl_add_vec2(tFrameStartPos, gptCtx->tStyle.tFramePadding);
+    const plRect clip_rect = tTextBox;
+    plVec2 draw_pos = pl_add_vec2(tFrameStartPos, gptCtx->tStyle.tFramePadding);
     plVec2 text_size = {0};
 
     // Set upper limit of single-line InputTextEx() at 2 million characters strings. The current pathological worst case is a long line
@@ -3038,12 +3064,26 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         pcBufferDisplayEnd = pcHint + strlen(pcHint);
     }
 
+    char* sbPassword = NULL;
+    if(bIsPassword && !bIsDisplayingHint)
+    {
+        for(const char* pcChar = pcBufferDisplay; *pcChar;)
+        {
+            unsigned int uChar;
+            pcChar += pl_text_char_from_utf8(&uChar, pcChar, NULL);
+            pl_sb_push(sbPassword, (uChar == '\n' || uChar == '\r') ? (char)uChar : '*');
+        }
+        pl_sb_push(sbPassword, 0);
+        pcBufferDisplay = sbPassword;
+        pcBufferDisplayEnd = sbPassword + pl_sb_size(sbPassword) - 1;
+    }
+
     // Render text. We currently only render selection when the widget is active or while scrolling.
     // FIXME: We could remove the '&& bRenderCursor' to keep rendering selection when inactive.
     if (bRenderCursor || bRenderSelection)
     {
         PL_ASSERT(ptState != NULL);
-        if (!bIsDisplayingHint)
+        if (!bIsDisplayingHint && !bIsPassword)
             pcBufferDisplayEnd = pcBufferDisplay + ptState->iCurrentLengthA;
 
         // Render text (with cursor and selection)
@@ -3094,17 +3134,17 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                 searches_result_line_no[1] = line_count;
 
             // Calculate 2d position by finding the beginning of the line and measuring distance
-            cursor_offset.x = pl__input_text_calc_text_size_w(pl__str_bol_w(searches_input_ptr[0], text_begin), searches_input_ptr[0], NULL, NULL, false).x;
-            cursor_offset.y = searches_result_line_no[0] * gptCtx->tStyle.fFontSize;
+            cursor_offset.x = pl__input_text_calc_text_size_w(pl__str_bol_w(searches_input_ptr[0], text_begin), searches_input_ptr[0], NULL, NULL, false, bIsPassword).x;
+            cursor_offset.y = (searches_result_line_no[0] - 1) * fLineHeight + gptCtx->tStyle.fFontSize;
             if (searches_result_line_no[1] >= 0)
             {
-                select_start_offset.x = pl__input_text_calc_text_size_w(pl__str_bol_w(searches_input_ptr[1], text_begin), searches_input_ptr[1], NULL, NULL, false).x;
-                select_start_offset.y = searches_result_line_no[1] * gptCtx->tStyle.fFontSize;
+                select_start_offset.x = pl__input_text_calc_text_size_w(pl__str_bol_w(searches_input_ptr[1], text_begin), searches_input_ptr[1], NULL, NULL, false, bIsPassword).x;
+                select_start_offset.y = (searches_result_line_no[1] - 1) * fLineHeight + gptCtx->tStyle.fFontSize;
             }
 
             // Store text height (note that we haven't calculated text width at all, see GitHub issues #383, #1224)
             if (bIsMultiLine)
-                text_size = (plVec2){tInnerSize.x, line_count * gptCtx->tStyle.fFontSize};
+                text_size = (plVec2){tInnerSize.x, line_count * fLineHeight};
         }
 
         // Scroll
@@ -3135,15 +3175,16 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                     fScrollY = cursor_offset.y - tInnerSize.y + gptCtx->tStyle.tFramePadding.y * 2.0f;
                 const float scroll_max_y = pl_max((text_size.y + gptCtx->tStyle.tFramePadding.y * 2.0f) - tInnerSize.y, 0.0f);
                 fScrollY = pl_clampf(0.0f, fScrollY, scroll_max_y);
-                draw_pos.y += (ptDrawWindow->tScroll.y - fScrollY);   // Manipulate cursor pos immediately avoid a frame of lag
-                ptDrawWindow->tScroll.y = fScrollY;
+
             }
 
             ptState->bCursorFollow = false;
         }
 
+        if(bIsMultiLine)
+            fScrollY = pl_clampf(0.0f, fScrollY, pl_maxf(0.0f, text_size.y + 2.0f * gptCtx->tStyle.tFramePadding.y - tInnerSize.y));
         // Draw selection
-        const plVec2 draw_scroll = (plVec2){ptState->fScrollX, 0.0f};
+        const plVec2 draw_scroll = (plVec2){ptState->fScrollX, fScrollY};
         if (bRenderSelection)
         {
             const plUiWChar* text_selected_begin = text_begin + pl_min(ptState->tStb.select_start, ptState->tStb.select_end);
@@ -3167,7 +3208,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                 }
                 else
                 {
-                    plVec2 rect_size = pl__input_text_calc_text_size_w(p, text_selected_end, &p, NULL, true);
+                    plVec2 rect_size = pl__input_text_calc_text_size_w(p, text_selected_end, &p, NULL, true, bIsPassword);
                     if (rect_size.x <= 0.0f) rect_size.x = floorf(font->_sbtGlyphs[font->_auCodePoints[(plUiWChar)' ']].fXAdvance * 0.50f); // So we can see selected empty lines
                     plRect rect = {
                         pl_add_vec2(rect_pos, (plVec2){0.0f, bg_offy_up - gptCtx->tStyle.fFontSize}), 
@@ -3178,7 +3219,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                         gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, rect.tMin, rect.tMax, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGB(1.0f, 0.0f, 0.0f)});
                     rect_pos.x = draw_pos.x - draw_scroll.x;
                 }
-                rect_pos.y += gptCtx->tStyle.fFontSize;
+                rect_pos.y += fLineHeight;
             }
         }
 
@@ -3186,7 +3227,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         if (bIsMultiLine || (pcBufferDisplayEnd - pcBufferDisplay) < iBufferDisplayMaxLength)
         {
             uint32_t uColor = bIsDisplayingHint ? PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextDisabledCol) : PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol);
-            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_sub_vec2(draw_pos, draw_scroll), tFrameStartPos, tBoundingBox.tMax, uColor, pcBufferDisplay, 0.0f);
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_sub_vec2(draw_pos, draw_scroll), clip_rect.tMin, clip_rect.tMax, uColor, pcBufferDisplay, 0.0f);
             // gptDraw->add_text_ex(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_sub_vec2(draw_pos, draw_scroll), gptCtx->tColorScheme.tTextCol, 
             //     pcBufferDisplay, pcBufferDisplayEnd, 0.0f);
             // draw_window->DrawList->AddText(g.Font, gptCtx->tStyle.fFontSize, draw_pos - draw_scroll, col, pcBufferDisplay, pcBufferDisplayEnd, 0.0f, bIsMultiLine ? NULL : &clip_rect);
@@ -3206,8 +3247,8 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
             if (bCursorIsVisible && pl_rect_overlaps_rect(&cursor_screen_rect, &clip_rect))
             {
                 gptDraw->add_line(ptWindow->ptFgLayer,
-                    cursor_screen_rect.tMin,
-                    pl_rect_bottom_left(&cursor_screen_rect),
+                    pl_rect_clip_full(&cursor_screen_rect, &clip_rect).tMin,
+                    (plVec2){cursor_screen_rect.tMin.x, pl_minf(cursor_screen_rect.tMax.y, clip_rect.tMax.y)},
                     (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), .fThickness = 1.0f});
             }
 
@@ -3224,8 +3265,8 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     {
         // Render text only (no selection, no cursor)
         if (bIsMultiLine)
-            text_size = (plVec2){tInnerSize.x, pl__input_text_calc_text_len_and_line_count(pcBufferDisplay, &pcBufferDisplayEnd) * gptCtx->tStyle.fFontSize}; // We don't need width
-        else if (!bIsDisplayingHint && gptCtx->uActiveId == uHash)
+            text_size = (plVec2){tInnerSize.x, pl__input_text_calc_text_len_and_line_count(pcBufferDisplay, &pcBufferDisplayEnd) * fLineHeight}; // We don't need width
+        else if (!bIsDisplayingHint && !bIsPassword && gptCtx->uActiveId == uHash)
             pcBufferDisplayEnd = pcBufferDisplay + ptState->iCurrentLengthA;
         else if (!bIsDisplayingHint)
             pcBufferDisplayEnd = pcBufferDisplay + strlen(pcBufferDisplay);
@@ -3233,35 +3274,31 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         if (bIsMultiLine || (pcBufferDisplayEnd - pcBufferDisplay) < iBufferDisplayMaxLength)
         {
             uint32_t uColor = bIsDisplayingHint ? PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextDisabledCol) : PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol);
-            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, draw_pos, tFrameStartPos, tBoundingBox.tMax, uColor, 
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_sub_vec2(draw_pos, (plVec2){0.0f, fScrollY}), clip_rect.tMin, clip_rect.tMax, uColor,
                 pcBufferDisplay, 0.0f);
             // gptDraw->add_text_ex(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, draw_pos, gptCtx->tColorScheme.tTextCol, 
             //     pcBufferDisplay, pcBufferDisplayEnd, 0.0f);
         }
     }
 
-    // if (bIsPassword && !bIsDisplayingHint)
-    //     PopFont();
+    pl_sb_free(sbPassword);
 
-    if (bIsMultiLine)
+    if(bIsMultiLine)
     {
-        // // For focus requests to work on our multiline we need to ensure our child ItemAdd() call specifies the ImGuiItemFlags_Inputable (ref issue #4761)...
-        // Dummy(ImVec2(text_size.x, text_size.y + style.FramePadding.y));
-        // ImGuiItemFlags backup_item_flags = g.CurrentItemFlags;
-        // g.CurrentItemFlags |= ImGuiItemFlags_Inputable | ImGuiItemFlags_NoTabStop;
-        // EndChild();
-        // item_data_backup.StatusFlags |= (g.LastItemData.StatusFlags & ImGuiItemStatusFlags_HoveredWindow);
-        // g.CurrentItemFlags = backup_item_flags;
-
-        // // ...and then we need to undo the group overriding last item data, which gets a bit messy as EndGroup() tries to forward scrollbar being active...
-        // // FIXME: This quite messy/tricky, should attempt to get rid of the child window.
-        // EndGroup();
-        // if (g.LastItemData.ID == 0)
-        // {
-        //     g.LastItemData.ID = id;
-        //     g.LastItemData.InFlags = item_data_backup.InFlags;
-        //     g.LastItemData.StatusFlags = item_data_backup.StatusFlags;
-        // }
+        pl__set_float(&ptWindow->tStorage, uScrollKey, fScrollY);
+        const float fFinalScrollMax = pl_maxf(0.0f, text_size.y + 2.0f * gptCtx->tStyle.tFramePadding.y - tInnerSize.y);
+        if(bScrollbar && fFinalScrollMax > 0.0f)
+        {
+            const float fHandleHeight = pl_minf(tFrameSize.y, pl_maxf(12.0f, tFrameSize.y * tFrameSize.y / (tFrameSize.y + fFinalScrollMax)));
+            plRect tTrack = {{tFrameStartPos.x + tInnerSize.x, tFrameStartPos.y}, {tFrameStartPos.x + tFrameSize.x, tFrameStartPos.y + tFrameSize.y}};
+            const float fHandleTop = tFrameStartPos.y + (tFrameSize.y - fHandleHeight) * fScrollY / fFinalScrollMax;
+            plRect tHandle = {{tTrack.tMin.x, fHandleTop}, {tTrack.tMax.x, fHandleTop + fHandleHeight}};
+            tTrack = pl_rect_clip_full(&tTrack, ptClipRect);
+            tHandle = pl_rect_clip_full(&tHandle, ptClipRect);
+            gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tTrack.tMin, tTrack.tMax, gptCtx->tStyle.fScrollbarRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tScrollbarBgCol)});
+            const plVec4 tColor = bScrollActive ? gptCtx->tColorScheme.tScrollbarActiveCol : gptCtx->tColorScheme.tScrollbarHandleCol;
+            gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tHandle.tMin, tHandle.tMax, gptCtx->tStyle.fScrollbarRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tColor)});
+        }
     }
 
     if (pcLabel[0] != 0)
@@ -4621,7 +4658,7 @@ pl_ui_color_picker4(const char* pcLabel, float colRGBA[4], plUiColorEditFlags tF
     const uint32_t uAlphaHash = pl_str_hash("##alpha", 0, pl_sb_top(gptCtx->sbuIdStack));
     plVec2 tAlphaBarMarker = { 0 };
 
-    // current color, in RGB — needed by the gradient below AND by the preview swatch further down,
+    // current color, in RGB â€” needed by the gradient below AND by the preview swatch further down,
     // so it's computed unconditionally rather than inside the bNoAlpha-gated block
     float fCurrentR = 0.0f;
     float fCurrentG = 0.0f;

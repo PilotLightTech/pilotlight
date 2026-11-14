@@ -1,3 +1,9 @@
+// [PILOT LIGHT] Correctness backports from Dear ImGui's imstb_textedit.h:
+// - Bound redo-record compaction to undo_rec (nothings/stb #321).
+// - Keep the real last-line position at end of text (ocornut/imgui #6000, #6783).
+// Retains STB's code-point indexing and boolean INSERTCHARS contract.
+// Reference: local Dear ImGui 1.93.1 WIP (19302).
+//
 // stb_textedit.h - v1.14  - public domain - Sean Barrett
 // Development of this library was sponsored by RAD Game Tools
 //
@@ -518,29 +524,13 @@ static void stb_textedit_find_charpos(StbFindState *find, STB_TEXTEDIT_STRING *s
    int z = STB_TEXTEDIT_STRINGLEN(str);
    int i=0, first;
 
-   if (n == z) {
-      // if it's at the end, then find the last line -- simpler than trying to
-      // explicitly handle this case in the regular code
-      if (single_line) {
-         STB_TEXTEDIT_LAYOUTROW(&r, str, 0);
-         find->y = 0;
-         find->first_char = 0;
-         find->length = z;
-         find->height = r.ymax - r.ymin;
-         find->x = r.x1;
-      } else {
-         find->y = 0;
-         find->x = 0;
-         find->height = 1;
-         while (i < z) {
-            STB_TEXTEDIT_LAYOUTROW(&r, str, i);
-            prev_start = i;
-            i += r.num_chars;
-         }
-         find->first_char = i;
-         find->length = 0;
-         find->prev_first = prev_start;
-      }
+   if (n == z && single_line) {
+      STB_TEXTEDIT_LAYOUTROW(&r, str, 0);
+      find->y = 0;
+      find->first_char = 0;
+      find->length = z;
+      find->height = r.ymax - r.ymin;
+      find->x = r.x1;
       return;
    }
 
@@ -551,9 +541,16 @@ static void stb_textedit_find_charpos(StbFindState *find, STB_TEXTEDIT_STRING *s
       STB_TEXTEDIT_LAYOUTROW(&r, str, i);
       if (n < i + r.num_chars)
          break;
+      // [PILOT LIGHT / DEAR IMGUI] End of a nonempty final line is on that row.
+      if (i + r.num_chars == z && z > 0 && STB_TEXTEDIT_GETCHAR(str, z - 1) != STB_TEXTEDIT_NEWLINE)
+         break;
       prev_start = i;
       i += r.num_chars;
       find->y += r.baseline_y_delta;
+      if (i == z) {
+         r.num_chars = 0;
+         break;
+      }
    }
 
    find->first_char = first = i;
@@ -1152,7 +1149,7 @@ static void stb_textedit_discard_redo(StbUndoState *state)
                state->undo_rec[i].char_storage += n;
       }
       // now move all the redo records towards the end of the buffer; the first one is at 'redo_point'
-      STB_TEXTEDIT_memmove(state->undo_rec + state->redo_point+1, state->undo_rec + state->redo_point, (size_t) ((STB_TEXTEDIT_UNDOSTATECOUNT - state->redo_point)*sizeof(state->undo_rec[0])));
+      STB_TEXTEDIT_memmove(state->undo_rec + state->redo_point+1, state->undo_rec + state->redo_point, (size_t) ((STB_TEXTEDIT_UNDOSTATECOUNT - state->redo_point - 1)*sizeof(state->undo_rec[0])));
       // now move redo_point to point to the new one
       ++state->redo_point;
    }
