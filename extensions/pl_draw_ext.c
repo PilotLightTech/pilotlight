@@ -1849,6 +1849,9 @@ pl__draw_add_text_clipped(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, 
     }
 
     // const plVec2 tTextSize = pl_calculate_text_size_ex(font, size, text, pcTextEnd, wrap);
+    if(tMin.x >= tMax.x || tMin.y >= tMax.y)
+        return;
+
     const plRect tClipRect = {tMin, tMax};
 
     plFont* ptFont = tOptions.ptFont;
@@ -1919,8 +1922,23 @@ pl__draw_add_text_clipped(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, 
             t1 = ptGlyph->v1;
 
             p.x += ptGlyph->fXAdvance * fScale;
-            if(c != ' ' && pl_rect_contains_point(&tClipRect, p))
+            if(c != ' ' && x1 > x0 && y1 > y0 && x0 < tMax.x && x1 > tMin.x && y0 < tMax.y && y1 > tMin.y)
             {
+                // Clip the glyph quad and UVs, including partially visible edge glyphs.
+                const float fClippedX0 = pl_maxf(x0, tMin.x);
+                const float fClippedY0 = pl_maxf(y0, tMin.y);
+                const float fClippedX1 = pl_minf(x1, tMax.x);
+                const float fClippedY1 = pl_minf(y1, tMax.y);
+                const float fScaleU = (s1 - s0) / (x1 - x0);
+                const float fScaleV = (t1 - t0) / (y1 - y0);
+                s1 = s0 + (fClippedX1 - x0) * fScaleU;
+                t1 = t0 + (fClippedY1 - y0) * fScaleV;
+                s0 += (fClippedX0 - x0) * fScaleU;
+                t0 += (fClippedY0 - y0) * fScaleV;
+                x0 = fClippedX0;
+                y0 = fClippedY0;
+                x1 = fClippedX1;
+                y1 = fClippedY1;
                 pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, (bool)ptGlyph->iSDF);
                 pl__reserve_triangles(ptLayer, 6, 4);
                 const uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
