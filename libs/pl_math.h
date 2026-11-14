@@ -14,8 +14,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_MATH_VERSION    "1.3.0"
-#define PL_MATH_VERSION_NUM 10300
+#define PL_MATH_VERSION    "1.3.1"
+#define PL_MATH_VERSION_NUM 10301
 
 /*
 Index of this file:
@@ -1201,8 +1201,10 @@ pl_mul_scalarf_mat3(float fLeft, const plMat3* ptRight)
 {
     plMat3 tResult;
     for (int i = 0; i < 3; i++)
+    {
         for (int j = 0; j < 3; j++)
-            pl_mat3_set(&tResult, i, j, fLeft * pl_mat3_get(ptRight, j, i));
+            pl_mat3_set(&tResult, i, j, fLeft * pl_mat3_get(ptRight, i, j));
+    }
     return tResult;
 }
 
@@ -1270,8 +1272,10 @@ pl_mat4_transpose(const plMat4* ptMat)
 {
     plMat4 tResult;
     for (int i = 0; i < 4; i++)
+    {
         for (int j = 0; j < 4; j++)
             pl_mat4_set(&tResult, i, j, pl_mat4_get(ptMat, j, i));
+    }
     return tResult;
 }
 
@@ -1329,8 +1333,10 @@ pl_mul_scalarf_mat4(float fLeft, const plMat4* ptRight)
 {
     plMat4 tResult;
     for (int i = 0; i < 4; i++)
+    {
         for (int j = 0; j < 4; j++)
-            pl_mat4_set(&tResult, i, j, fLeft * pl_mat4_get(ptRight, j, i));
+            pl_mat4_set(&tResult, i, j, fLeft * pl_mat4_get(ptRight, i, j));
+    }
     return tResult;
 }
 
@@ -2145,8 +2151,10 @@ pl_mul_scalar_mat3(double dLeft, const plMat3d* ptRight)
 {
     plMat3d tResult;
     for (int i = 0; i < 3; i++)
+    {
         for (int j = 0; j < 3; j++)
-            pl_mat3_set_d(&tResult, i, j, dLeft * pl_mat3_get_d(ptRight, j, i));
+            pl_mat3_set_d(&tResult, i, j, dLeft * pl_mat3_get_d(ptRight, i, j));
+    }
     return tResult;
 }
 
@@ -2273,8 +2281,10 @@ pl_mul_scalar_mat4(double dLeft, const plMat4d* ptRight)
 {
     plMat4d tResult;
     for (int i = 0; i < 4; i++)
+    {
         for (int j = 0; j < 4; j++)
-            pl_mat4_set_d(&tResult, i, j, dLeft * pl_mat4_get_d(ptRight, j, i));
+            pl_mat4_set_d(&tResult, i, j, dLeft * pl_mat4_get_d(ptRight, i, j));
+    }
     return tResult;
 }
 
