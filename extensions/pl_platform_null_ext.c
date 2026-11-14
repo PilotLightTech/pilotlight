@@ -230,6 +230,7 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
 {
     plWindowData* ptData = PL_ALLOC(sizeof(plWindowData));
     plWindow* ptWindow = PL_ALLOC(sizeof(plWindow));
+    memset(ptWindow, 0, sizeof(plWindow));
     pl_sb_push(gptPlatformExtCtx->sbtWindows, ptWindow);
     *pptWindowOut = ptWindow;
 
@@ -259,6 +260,7 @@ plWindowResult
 pl_window_create_surface(plWindow* ptWindow, const plWindowSurfaceDesc* ptDesc, plWindowSurface** ptSurfaceOut)
 {
     plWindowSurface* ptSurface = PL_ALLOC(sizeof(plWindowSurface));
+    memset(ptSurface, 0, sizeof(plWindowSurface));
     
     ptSurface->ptWindow = ptWindow;
     ptSurface->atImages = PL_ALLOC(sizeof(plWindowSurfaceImageNull) * ptDesc->uImageCount);
@@ -402,14 +404,17 @@ pl_window_get_capabilities(void)
 void
 pl_window_set_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
 {
-    // TODO: implement
+    if(ptWindow)
+    {
+        ptWindow->_tCallback = tCallback;
+        ptWindow->_pCallbackUserData = pUserData;
+    }
 }
 
 plWindowEventCallback
 pl_window_get_callback(plWindow* ptWindow)
 {
-    plWindowEventCallback tCallback = PL_ZERO_INIT;
-    return tCallback;
+    return ptWindow ? ptWindow->_tCallback : NULL;
 }
 
 const char*

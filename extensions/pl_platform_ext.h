@@ -59,7 +59,7 @@ extern "C" {
 #define plNetworkI_version       {1, 0, 0}
 #define plThreadsI_version       {1, 0, 1}
 #define plVirtualMemoryI_version {2, 0, 0}
-#define plWindowI_version        {2, 1, 0}
+#define plWindowI_version        {2, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -166,7 +166,11 @@ typedef struct _plWindowI
     void                        (*show)            (plWindow*);
     const plWindowCapabilities* (*get_capabilities)(void);
 
-    // attributes
+    // attributes: SIZE is client-area size; POSITION is outer-window top-left in
+    // screen coordinates on Win32. Win32 sizes use client coordinate pixels (subject
+    // to the application's DPI awareness). HOVERED is query-only; FOCUSED can only
+    // be requested true and the OS may refuse activation. Query capabilities first.
+    // Per-window DPI and client-to-screen conversion are not exposed yet.
     bool (*set_attribute) (plWindow*, plWindowAttribute, const plWindowAttributeValue*);
     bool (*get_attribute) (plWindow*, plWindowAttribute, plWindowAttributeValue*);
 
@@ -184,7 +188,9 @@ typedef struct _plWindowI
     bool           (*acquire_surface_image)(plWindowSurface*, plWindowSurfaceImage* imageOut);
     void           (*present_surface_image)(plWindowSurface*, uint32_t imageIndex);
 
-    // future callback system
+    // Resize/close notifications on the event-pump thread (main thread on Cocoa).
+    // With a close callback, the caller owns dismissal/destruction; defer destruction
+    // until after the callback and release graphics swapchains/surfaces first.
     void                  (*set_callback)(plWindow*, plWindowEventCallback, void* userData);
     plWindowEventCallback (*get_callback)(plWindow*);
 
@@ -373,6 +379,8 @@ enum _plWindowFlags
  {
 
     PL_WINDOW_EVENT_TYPE_NONE = 0,
+    PL_WINDOW_EVENT_TYPE_WINDOW_RESIZE,
+    PL_WINDOW_EVENT_TYPE_WINDOW_CLOSE,
 
     // FUTURE
 
@@ -382,8 +390,6 @@ enum _plWindowFlags
     // PL_WINDOW_EVENT_TYPE_KEY,
     // PL_WINDOW_EVENT_TYPE_CHAR,
     // PL_WINDOW_EVENT_TYPE_WINDOW_FOCUS,
-    // PL_WINDOW_EVENT_TYPE_WINDOW_RESIZE,
-    // PL_WINDOW_EVENT_TYPE_WINDOW_CLOSE
  };
 
   enum _plWindowAttribute
@@ -530,6 +536,9 @@ typedef struct _plWindow
     int                   _iRequestedMonitor;
     int                   _iXPos;
     int                   _iYPos;
+    void*                 _pGraphicsSurface; // native presentation layer, owned by the window
+    plWindowEventCallback _tCallback;
+    void*                 _pCallbackUserData;
 } plWindow;
 
 typedef struct _plWindowEvent

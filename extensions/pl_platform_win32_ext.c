@@ -167,6 +167,7 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
         }
     }
 
+    const bool bMainWindow = ptWindow && ptWindow == gptPlatformExtCtx->ptMainWindow;
     static UINT_PTR puIDEvent = 0;
     switch (tMsg)
     {
@@ -174,6 +175,8 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
         case WM_SYSCOMMAND:
         {
 
+            if(!bMainWindow)
+                break;
             if(tWParam == SC_MINIMIZE)
                 gptIO->bViewportMinimized = true;
             else if(tWParam == SC_RESTORE)
@@ -184,37 +187,27 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
         }
 
         case WM_SIZE:
-        case WM_SIZING:
         {
-            if (tWParam != SIZE_MINIMIZED)
+            RECT tRect = {0};
+            GetClientRect(tHwnd, &tRect);
+            if(ptWindow)
             {
-                // client window size
-                RECT tCRect;
-                int iCWidth = 0;
-                int iCHeight = 0;
-                if (GetClientRect(tHwnd, &tCRect))
-                {
-                    iCWidth = tCRect.right - tCRect.left;
-                    iCHeight = tCRect.bottom - tCRect.top;
-                }
-
-                if(iCWidth > 0 && iCHeight > 0)
-                    gptIO->bViewportMinimized = false;
-                else
-                    gptIO->bViewportMinimized = true;
-
-                if(gptIO->tMainViewportSize.x != (float)iCWidth || gptIO->tMainViewportSize.y != (float)iCHeight)
-                    gptIO->bViewportSizeChanged = true;  
-
-                gptIO->tMainViewportSize.x = (float)iCWidth;
-                gptIO->tMainViewportSize.y = (float)iCHeight;
-
-                if(gptIO->bViewportSizeChanged && !gptIO->bViewportMinimized && gptIO->_bFirstLoadComplete)
-                {
-                    gptIO->pl_app_resize(gptPlatformExtCtx->ptMainWindow, gptIO->pAppUserData);
-                }
-                // send paint message
-                InvalidateRect(tHwnd, NULL, TRUE);
+                ptWindow->_uRequestedWidth = (uint32_t)(tRect.right - tRect.left);
+                ptWindow->_uRequestedHeight = (uint32_t)(tRect.bottom - tRect.top);
+            }
+            if(bMainWindow)
+            {
+                gptIO->bViewportMinimized = tWParam == SIZE_MINIMIZED || tRect.right == tRect.left || tRect.bottom == tRect.top;
+                if(gptIO->tMainViewportSize.x != (float)tRect.right || gptIO->tMainViewportSize.y != (float)tRect.bottom)
+                    gptIO->bViewportSizeChanged = true;
+                gptIO->tMainViewportSize = (plVec2){(float)tRect.right, (float)tRect.bottom};
+                if(gptIO->bViewportSizeChanged && !gptIO->bViewportMinimized && gptIO->_bFirstLoadComplete && gptIO->pl_app_resize)
+                    gptIO->pl_app_resize(ptWindow, gptIO->pAppUserData);
+            }
+            if(ptWindow && ptWindow->_tCallback)
+            {
+                const plWindowEvent tEvent = {.tType = PL_WINDOW_EVENT_TYPE_WINDOW_RESIZE, .ptWindow = ptWindow};
+                ptWindow->_tCallback(&tEvent, ptWindow->_pCallbackUserData);
             }
             break;
         }
@@ -249,7 +242,8 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 
         case WM_PAINT:
         {
-            gptIO->pl_app_update(gptIO->pAppUserData);
+            if(bMainWindow && gptIO->_bFirstLoadComplete && gptIO->pl_app_update)
+                gptIO->pl_app_update(gptIO->pAppUserData);
 
             
 
@@ -377,8 +371,16 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 
         case WM_CLOSE:
         {
-            PostQuitMessage(0);
-            break;
+            if(ptWindow && ptWindow->_tCallback)
+            {
+                const plWindowEvent tEvent = {.tType = PL_WINDOW_EVENT_TYPE_WINDOW_CLOSE, .ptWindow = ptWindow};
+                ptWindow->_tCallback(&tEvent, ptWindow->_pCallbackUserData);
+            }
+            else if(bMainWindow)
+                PostQuitMessage(0);
+            else
+                ShowWindow(tHwnd, SW_HIDE);
+            return 0;
         }
 
     #ifdef PL_EXPERIMENTAL_RENDER_WHILE_RESIZE
@@ -579,8 +581,16 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
         NULL // user data
     );
 
+    if(!tHandle)
+    {
+        *pptWindowOut = NULL;
+        return PL_WINDOW_RESULT_FAIL;
+    }
     plWindow* ptWindow = PL_ALLOC(sizeof(plWindow));
+    memset(ptWindow, 0, sizeof(plWindow));
     ptWindow->_pBackendData = tHandle;
+    ptWindow->_uRequestedWidth = tDesc.uWidth;
+    ptWindow->_uRequestedHeight = tDesc.uHeight;
     pl_sb_push(gptPlatformExtCtx->sbtWindows, ptWindow);
     *pptWindowOut = ptWindow;
 
@@ -594,6 +604,18 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
 void
 pl_window_destroy(plWindow* ptWindow)
 {
+    if(!ptWindow)
+        return;
+    for(uint32_t i = 0; i < pl_sb_size(gptPlatformExtCtx->sbtWindows); i++)
+    {
+        if(gptPlatformExtCtx->sbtWindows[i] == ptWindow)
+        {
+            pl_sb_del(gptPlatformExtCtx->sbtWindows, i);
+            break;
+        }
+    }
+    if(gptPlatformExtCtx->ptMainWindow == ptWindow)
+        gptPlatformExtCtx->ptMainWindow = NULL;
     DestroyWindow(ptWindow->_pBackendData);
     PL_FREE(ptWindow);
 }
@@ -608,6 +630,7 @@ plWindowResult
 pl_window_create_surface(plWindow* ptWindow, const plWindowSurfaceDesc* ptDesc, plWindowSurface** ptSurfaceOut)
 {
     plWindowSurface* ptSurface = PL_ALLOC(sizeof(plWindowSurface));
+    memset(ptSurface, 0, sizeof(plWindowSurface));
     
     ptSurface->ptWindow = ptWindow;
     ptSurface->atImages = PL_ALLOC(sizeof(plWindowSurfaceImageWin32) * ptDesc->uImageCount);
@@ -649,6 +672,12 @@ pl_window_acquire_surface_image(plWindowSurface* ptSurface, plWindowSurfaceImage
     int iClientWidth  = tRect.right - tRect.left;
     int iClientHeight = tRect.bottom - tRect.top;
 
+    if(iClientWidth <= 0 || iClientHeight <= 0 || IsIconic(tHandle))
+    {
+        ReleaseDC(tHandle, ptImageWin32->tDc);
+        ptImageWin32->tDc = NULL;
+        return false;
+    }
     uint32_t uPixelsNeeded = (uint32_t)iClientWidth * (uint32_t)iClientHeight;
     bool bResizeNeeded = uPixelsNeeded > ptImageWin32->uPixelCapacity;
 
@@ -719,16 +748,109 @@ pl_window_present_surface_image(plWindowSurface* ptSurface, uint32_t uImageIndex
     
 }
 
-bool 
+bool
 pl_window_set_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
 {
-    return false;
+    if(!ptWindow || !ptValue)
+        return false;
+    HWND tHandle = ptWindow->_pBackendData;
+    switch(tAttribute)
+    {
+        case PL_WINDOW_ATTRIBUTE_SIZE:
+        {
+            if(!ptValue->tuVec2.x || !ptValue->tuVec2.y || ptValue->tuVec2.x > INT_MAX || ptValue->tuVec2.y > INT_MAX)
+                return false;
+            RECT tRect = {0, 0, (LONG)ptValue->tuVec2.x, (LONG)ptValue->tuVec2.y};
+            AdjustWindowRectEx(&tRect, (DWORD)GetWindowLongPtrW(tHandle, GWL_STYLE), FALSE, (DWORD)GetWindowLongPtrW(tHandle, GWL_EXSTYLE));
+            return SetWindowPos(tHandle, NULL, 0, 0, tRect.right - tRect.left, tRect.bottom - tRect.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE) != 0;
+        }
+        case PL_WINDOW_ATTRIBUTE_POSITION:
+            return SetWindowPos(tHandle, NULL, ptValue->tiVec2.x, ptValue->tiVec2.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE) != 0;
+        case PL_WINDOW_ATTRIBUTE_RESIZABLE:
+        case PL_WINDOW_ATTRIBUTE_DECORATED:
+        {
+            LONG_PTR tStyle = GetWindowLongPtrW(tHandle, GWL_STYLE);
+            LONG_PTR tMask = tAttribute == PL_WINDOW_ATTRIBUTE_RESIZABLE ? WS_THICKFRAME | WS_MAXIMIZEBOX : WS_CAPTION | WS_SYSMENU;
+            SetWindowLongPtrW(tHandle, GWL_STYLE, ptValue->bValue ? tStyle | tMask : tStyle & ~tMask);
+            return SetWindowPos(tHandle, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED) != 0;
+        }
+        case PL_WINDOW_ATTRIBUTE_TOP_MOST:
+            return SetWindowPos(tHandle, ptValue->bValue ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE) != 0;
+        case PL_WINDOW_ATTRIBUTE_MINIMIZED:
+            ShowWindow(tHandle, ptValue->bValue ? SW_MINIMIZE : SW_RESTORE);
+            return true;
+        case PL_WINDOW_ATTRIBUTE_MAXIMIZED:
+            ShowWindow(tHandle, ptValue->bValue ? SW_MAXIMIZE : SW_RESTORE);
+            return true;
+        case PL_WINDOW_ATTRIBUTE_VISIBLE:
+            ShowWindow(tHandle, ptValue->bValue ? SW_SHOWNA : SW_HIDE);
+            return true;
+        case PL_WINDOW_ATTRIBUTE_FOCUSED:
+            if(!ptValue->bValue)
+                return false;
+            return SetForegroundWindow(tHandle) != 0;
+        default:
+            return false;
+    }
 }
 
 bool
 pl_window_get_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
 {
-    return false;
+    if(!ptWindow || !ptValue)
+        return false;
+    HWND tHandle = ptWindow->_pBackendData;
+    switch(tAttribute)
+    {
+        case PL_WINDOW_ATTRIBUTE_SIZE:
+        {
+            RECT tRect;
+            if(!GetClientRect(tHandle, &tRect))
+                return false;
+            ptValue->tuVec2.x = (uint32_t)(tRect.right - tRect.left);
+            ptValue->tuVec2.y = (uint32_t)(tRect.bottom - tRect.top);
+            return true;
+        }
+        case PL_WINDOW_ATTRIBUTE_POSITION:
+        {
+            RECT tRect;
+            if(!GetWindowRect(tHandle, &tRect))
+                return false;
+            ptValue->tiVec2.x = tRect.left;
+            ptValue->tiVec2.y = tRect.top;
+            return true;
+        }
+        case PL_WINDOW_ATTRIBUTE_RESIZABLE:
+            ptValue->bValue = (GetWindowLongPtrW(tHandle, GWL_STYLE) & WS_THICKFRAME) != 0;
+            return true;
+        case PL_WINDOW_ATTRIBUTE_DECORATED:
+            ptValue->bValue = (GetWindowLongPtrW(tHandle, GWL_STYLE) & WS_CAPTION) != 0;
+            return true;
+        case PL_WINDOW_ATTRIBUTE_TOP_MOST:
+            ptValue->bValue = (GetWindowLongPtrW(tHandle, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
+            return true;
+        case PL_WINDOW_ATTRIBUTE_MINIMIZED:
+            ptValue->bValue = IsIconic(tHandle) != 0;
+            return true;
+        case PL_WINDOW_ATTRIBUTE_MAXIMIZED:
+            ptValue->bValue = IsZoomed(tHandle) != 0;
+            return true;
+        case PL_WINDOW_ATTRIBUTE_VISIBLE:
+            ptValue->bValue = IsWindowVisible(tHandle) != 0;
+            return true;
+        case PL_WINDOW_ATTRIBUTE_FOCUSED:
+            ptValue->bValue = GetForegroundWindow() == tHandle;
+            return true;
+        case PL_WINDOW_ATTRIBUTE_HOVERED:
+        {
+            POINT tPoint;
+            GetCursorPos(&tPoint);
+            ptValue->bValue = WindowFromPoint(tPoint) == tHandle;
+            return true;
+        }
+        default:
+            return false;
+    }
 }
 
 bool
@@ -761,11 +883,15 @@ pl_window_get_capabilities(void)
     static plWindowCapabilities tCapabilities = {0};
 
     tCapabilities.uCursorModeCount = 1;
-    tCapabilities.uAttributeCount = 1;
-    tCapabilities.uFullScreenModeCount = 2;
+    tCapabilities.uAttributeCount = 10;
+    tCapabilities.uFullScreenModeCount = 1;
 
     static const plWindowAttribute atSupportedAttributes[] = {
-        -1
+        PL_WINDOW_ATTRIBUTE_SIZE, PL_WINDOW_ATTRIBUTE_POSITION,
+        PL_WINDOW_ATTRIBUTE_RESIZABLE, PL_WINDOW_ATTRIBUTE_DECORATED,
+        PL_WINDOW_ATTRIBUTE_TOP_MOST, PL_WINDOW_ATTRIBUTE_MINIMIZED,
+        PL_WINDOW_ATTRIBUTE_MAXIMIZED, PL_WINDOW_ATTRIBUTE_VISIBLE,
+        PL_WINDOW_ATTRIBUTE_FOCUSED, PL_WINDOW_ATTRIBUTE_HOVERED
     };
 
     static const plCursorMode atSupportedCursorModes[] = {
@@ -773,8 +899,7 @@ pl_window_get_capabilities(void)
     };
 
     static const plFullScreenMode atSupportedScreenModes[] = {
-        PL_FULLSCREEN_MODE_NONE,
-        PL_FULLSCREEN_MODE_EXCLUSIVE
+        PL_FULLSCREEN_MODE_NONE
     };
 
     tCapabilities.atCursorModes = atSupportedCursorModes;
@@ -788,14 +913,17 @@ pl_window_get_capabilities(void)
 void
 pl_window_set_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
 {
-    // TODO: implement
+    if(ptWindow)
+    {
+        ptWindow->_tCallback = tCallback;
+        ptWindow->_pCallbackUserData = pUserData;
+    }
 }
 
 plWindowEventCallback
 pl_window_get_callback(plWindow* ptWindow)
 {
-    plWindowEventCallback tCallback = PL_ZERO_INIT;
-    return tCallback;
+    return ptWindow ? ptWindow->_tCallback : NULL;
 }
 
 void

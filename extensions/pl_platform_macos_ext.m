@@ -231,16 +231,13 @@ static plMacWindowEvent*      gsbtWindowEvents = NULL;
     gptIO->bRunning = false;
 }
 
-- (void)windowWillClose:(NSNotification*)notification
+- (BOOL)windowShouldClose:(NSWindow*)window
 {
-    plWindowData* ptData = pl__find_window_data((NSWindow*)notification.object);
+    plWindowData* ptData = pl__find_window_data(window);
     if(!ptData)
-        return;
-
+        return YES;
     ptData->bClosePending = true;
-
-    if(ptData->ptPublicWindow == gptMainWindow)
-        gptIO->bRunning = false;
+    return NO; // dispatch the request at the normal frame boundary
 }
 
 @end
@@ -570,16 +567,25 @@ pl_platform_new_frame(void* pPlatformData)
                     gptIO->bViewportSizeChanged = true;
                 }
 
-                // if(gptIO->pl_app_resize && gptIO->_bFirstLoadComplete)
-                //    gptIO->pl_app_resize(gptMainWindow, gptIO->pAppUserData);
-                // gptIO->bViewportSizeChanged = true;
+                if(ptEvent->ptWindow->_tCallback)
+                {
+                    const plWindowEvent tEvent = {.tType = PL_WINDOW_EVENT_TYPE_WINDOW_RESIZE, .ptWindow = ptEvent->ptWindow};
+                    ptEvent->ptWindow->_tCallback(&tEvent, ptEvent->ptWindow->_pCallbackUserData);
+                }
                 break;
             }
 
             case PL_MAC_WINDOW_EVENT_CLOSE_REQUESTED:
             {
-                if(ptEvent->ptWindow == gptMainWindow)
+                if(ptEvent->ptWindow->_tCallback)
+                {
+                    const plWindowEvent tEvent = {.tType = PL_WINDOW_EVENT_TYPE_WINDOW_CLOSE, .ptWindow = ptEvent->ptWindow};
+                    ptEvent->ptWindow->_tCallback(&tEvent, ptEvent->ptWindow->_pCallbackUserData);
+                }
+                else if(ptEvent->ptWindow == gptMainWindow)
                     gptIO->bRunning = false;
+                else
+                    [((plWindowData*)ptEvent->ptWindow->_pBackendData)->ptNativeWindow orderOut:nil];
                 break;
             }
         }
@@ -599,6 +605,11 @@ pl_window_destroy(plWindow* ptWindow)
         return;
 
     plWindowData* ptData = (plWindowData*)ptWindow->_pBackendData;
+    for(uint32_t i = pl_sb_size(gsbtWindowEvents); i > 0; i--)
+    {
+        if(gsbtWindowEvents[i - 1].ptWindow == ptWindow)
+            pl_sb_del(gsbtWindowEvents, i - 1);
+    }
 
     for(uint32_t i = 0; i < pl_sb_size(gsbtWindows); i++)
     {
@@ -851,6 +862,8 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
     }
 
     ptWindow->_pBackendData = ptData;
+    ptWindow->_uRequestedWidth = tDesc.uWidth;
+    ptWindow->_uRequestedHeight = tDesc.uHeight;
     ptData->ptPublicWindow = ptWindow;
 
     ptData->ptViewController = [[plNSViewController alloc] init];
@@ -869,6 +882,7 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
         [ptData->ptView addSubview:ptData->ptKeyResponder];
 
         ptData->ptLayer = ptData->ptView.metalLayer;
+        ptWindow->_pGraphicsSurface = ptData->ptLayer;
         ptData->ptLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
     }
     else if(tDesc.tMode == PL_WINDOW_PRESENTATION_MODE_SOFTWARE)
@@ -937,6 +951,7 @@ plWindowResult
 pl_window_create_surface(plWindow* ptWindow, const plWindowSurfaceDesc* ptDesc, plWindowSurface** ptSurfaceOut)
 {
     plWindowSurface* ptSurface = PL_ALLOC(sizeof(plWindowSurface));
+    memset(ptSurface, 0, sizeof(plWindowSurface));
     
     ptSurface->ptWindow = ptWindow;
     ptSurface->atImages = PL_ALLOC(sizeof(plWindowSurfaceImageCocoa) * ptDesc->uImageCount);
@@ -1228,14 +1243,17 @@ pl__osx_key_to_pl_key(int iKey)
 void
 pl_window_set_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
 {
-    // TODO: implement
+    if(ptWindow)
+    {
+        ptWindow->_tCallback = tCallback;
+        ptWindow->_pCallbackUserData = pUserData;
+    }
 }
 
 plWindowEventCallback
 pl_window_get_callback(plWindow* ptWindow)
 {
-    plWindowEventCallback tCallback = PL_ZERO_INIT;
-    return tCallback;
+    return ptWindow ? ptWindow->_tCallback : NULL;
 }
 
 //-----------------------------------------------------------------------------

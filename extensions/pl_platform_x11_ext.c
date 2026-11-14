@@ -172,6 +172,18 @@ typedef struct _plWindowData
     GC                gc;
 } plWindowData;
 
+static plWindow*
+pl__window_from_xcb(xcb_window_t tWindow)
+{
+    for(uint32_t i = 0; i < pl_sb_size(gptPlatformExtCtx->sbtWindows); i++)
+    {
+        plWindow* ptWindow = gptPlatformExtCtx->sbtWindows[i];
+        if(((plWindowData*)ptWindow->_pBackendData)->tWindow == tWindow)
+            return ptWindow;
+    }
+    return NULL;
+}
+
 void pl__linux_procedure(xcb_generic_event_t* event);
 void pl__update_mouse_cursor(void);
 static void pl__linux_handle_selection_request(const xcb_selection_request_event_t* ptRequest);
@@ -219,14 +231,17 @@ pl_platform_cleanup(void* ptPlatformData)
 void
 pl_window_set_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
 {
-    // TODO: implement
+    if(ptWindow)
+    {
+        ptWindow->_tCallback = tCallback;
+        ptWindow->_pCallbackUserData = pUserData;
+    }
 }
 
 plWindowEventCallback
 pl_window_get_callback(plWindow* ptWindow)
 {
-    plWindowEventCallback tCallback = PL_ZERO_INIT;
-    return tCallback;
+    return ptWindow ? ptWindow->_tCallback : NULL;
 }
 
 plWindowResult
@@ -237,7 +252,7 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
     ptData->header = 0; //-V522
     ptData->tWindow = xcb_generate_id(gptPlatformExtCtx->ptConnection); //-V522
     ptData->ptConnection = gptPlatformExtCtx->ptConnection; //-V522
-    ptData->gc = XCreateGC(gptPlatformExtCtx->ptDisplay, ptData->tWindow, 0, NULL);
+    ptData->gc = XCreateGC(gptPlatformExtCtx->ptDisplay, gptPlatformExtCtx->ptScreen->root, 0, NULL);
 
     // register event types.
     // XCB_CW_BACK_PIXEL = filling then window bg with a single colour
@@ -323,7 +338,10 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
     int stream_result = xcb_flush(gptPlatformExtCtx->ptConnection);
 
     plWindow* ptWindow = PL_ALLOC(sizeof(plWindow));
+    memset(ptWindow, 0, sizeof(plWindow));
     ptWindow->_pBackendData = ptData; //-V522
+    ptWindow->_uRequestedWidth = tDesc.uWidth;
+    ptWindow->_uRequestedHeight = tDesc.uHeight;
     pl_sb_push(gptPlatformExtCtx->sbtWindows, ptWindow);
     *pptWindowOut = ptWindow;
 
@@ -335,7 +353,20 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
 void
 pl_window_destroy(plWindow* ptWindow)
 {
+    if(!ptWindow)
+        return;
     plWindowData* ptData = ptWindow->_pBackendData;
+    for(uint32_t i = 0; i < pl_sb_size(gptPlatformExtCtx->sbtWindows); i++)
+    {
+        if(gptPlatformExtCtx->sbtWindows[i] == ptWindow)
+        {
+            pl_sb_del(gptPlatformExtCtx->sbtWindows, i);
+            break;
+        }
+    }
+    if(gptPlatformExtCtx->ptMainWindow == ptWindow)
+        gptPlatformExtCtx->ptMainWindow = NULL;
+    XFreeGC(gptPlatformExtCtx->ptDisplay, ptData->gc);
     xcb_destroy_window(gptPlatformExtCtx->ptConnection, ptData->tWindow);
     PL_FREE(ptData);
     PL_FREE(ptWindow);
@@ -351,6 +382,7 @@ plWindowResult
 pl_window_create_surface(plWindow* ptWindow, const plWindowSurfaceDesc* ptDesc, plWindowSurface** ptSurfaceOut)
 {
     plWindowSurface* ptSurface = PL_ALLOC(sizeof(plWindowSurface));
+    memset(ptSurface, 0, sizeof(plWindowSurface));
     
     ptSurface->ptWindow = ptWindow;
     ptSurface->atImages = PL_ALLOC(sizeof(plWindowSurfaceImageX11) * ptDesc->uImageCount);
@@ -769,7 +801,16 @@ pl__linux_procedure(xcb_generic_event_t* event)
             // Window close
             if (cm->data.data32[0] == gptPlatformExtCtx->tWmDeleteWin) 
             {
-                gptIO->bRunning  = false;
+                plWindow* ptWindow = pl__window_from_xcb(cm->window);
+                if(ptWindow && ptWindow->_tCallback)
+                {
+                    const plWindowEvent tEvent = {.tType = PL_WINDOW_EVENT_TYPE_WINDOW_CLOSE, .ptWindow = ptWindow};
+                    ptWindow->_tCallback(&tEvent, ptWindow->_pCallbackUserData);
+                }
+                else if(ptWindow == gptPlatformExtCtx->ptMainWindow)
+                    gptIO->bRunning = false;
+                else
+                    xcb_unmap_window(gptPlatformExtCtx->ptConnection, cm->window);
             }
             break;
         }
@@ -844,29 +885,29 @@ pl__linux_procedure(xcb_generic_event_t* event)
             gptIOI->add_key_event(pl__xcb_key_to_pl_key(key_sym), false);
             break;
         }
-        case XCB_CONFIGURE_NOTIFY: 
+        case XCB_CONFIGURE_NOTIFY:
         {
-            // Resizing - note that this is also triggered by moving the window, but should be
-            // passed anyway since a change in the x/y could mean an upper-left resize.
-            // The application layer can decide what to do with this.
-            xcb_configure_notify_event_t* configure_event = (xcb_configure_notify_event_t*)event;
-
-                // gsbtWindows[0]->tDesc.iXPos = configure_event->x;
-                // gsbtWindows[0]->tDesc.iYPos = configure_event->y;
-
-            // Fire the event. The application layer should pick this up, but not handle it
-            // as it shouldn be visible to other parts of the application.
-            if(configure_event->width != gptIO->tMainViewportSize.x || configure_event->height != gptIO->tMainViewportSize.y)
+            xcb_configure_notify_event_t* ptConfigure = (xcb_configure_notify_event_t*)event;
+            plWindow* ptWindow = pl__window_from_xcb(ptConfigure->window);
+            if(!ptWindow)
+                break;
+            const bool bResized = ptWindow->_uRequestedWidth != ptConfigure->width || ptWindow->_uRequestedHeight != ptConfigure->height;
+            ptWindow->_uRequestedWidth = ptConfigure->width;
+            ptWindow->_uRequestedHeight = ptConfigure->height;
+            ptWindow->_iXPos = ptConfigure->x;
+            ptWindow->_iYPos = ptConfigure->y;
+            if(bResized && ptWindow == gptPlatformExtCtx->ptMainWindow)
             {
-                gptIO->tMainViewportSize.x = configure_event->width;
-                gptIO->tMainViewportSize.y = configure_event->height;
+                gptIO->tMainViewportSize = (plVec2){ptConfigure->width, ptConfigure->height};
                 gptIO->bViewportSizeChanged = true;
-                // gsbtWindows[0]->tDesc.uWidth = configure_event->width;
-                // gsbtWindows[0]->tDesc.uHeight = configure_event->height;
-
+            }
+            if(bResized && ptWindow->_tCallback)
+            {
+                const plWindowEvent tEvent = {.tType = PL_WINDOW_EVENT_TYPE_WINDOW_RESIZE, .ptWindow = ptWindow};
+                ptWindow->_tCallback(&tEvent, ptWindow->_pCallbackUserData);
             }
             break;
-        } 
+        }
         default: break;
     }
     free(event);
