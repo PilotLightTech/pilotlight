@@ -245,7 +245,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plBuffer* ptBuffer = gptGfx->get_buffer(ptAppData->ptDevice, ptAppData->tVertexBuffer);
     plDeviceMemoryAllocation tMemory = gptGfx->allocate_memory(ptAppData->ptDevice, ptBuffer->tMemoryRequirements.ulSize, PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT, ptBuffer->tMemoryRequirements.uMemoryTypeBits, "shared viewport triangle");
     gptGfx->bind_buffer_to_memory(ptAppData->ptDevice, ptAppData->tVertexBuffer, &tMemory);
-    memcpy(tMemory.pHostMapped, afVertices, sizeof(afVertices));
+    // Metal exposes the mapped address on the buffer after binding the heap.
+    memcpy(ptBuffer->tMemoryAllocation.pHostMapped, afVertices, sizeof(afVertices));
     return ptAppData;
 }
 

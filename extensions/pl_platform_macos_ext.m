@@ -918,7 +918,6 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
     const NSPoint tOrigin = NSMakePoint(tDesc.iXPos, fScreenHeight - tDesc.iYPos);
     [ptData->ptNativeWindow setFrameTopLeftPoint:tOrigin];
 
-    [ptData->ptNativeWindow center];
     [ptData->ptNativeWindow orderFront:nil];
     [ptData->ptNativeWindow makeKeyWindow];
 
