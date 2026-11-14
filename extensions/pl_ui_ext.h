@@ -346,6 +346,7 @@ typedef struct _plUiI
     void (*unindent)        (float);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~text filter~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // Case-insensitive: spaces AND terms, commas OR groups, -term excludes, quotes preserve spaces/commas.
     void (*text_filter_cleanup)(plUiTextFilter*);
     void (*text_filter_build)  (plUiTextFilter*);
     bool (*text_filter_pass)   (plUiTextFilter*, const char* text, const char* text_end);

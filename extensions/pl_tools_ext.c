@@ -254,7 +254,7 @@ pl__show_memory_allocations(bool* bValue)
         gptUI->labeled_text("Active Allocations", "%u", szActiveAllocations);
         gptUI->labeled_text("Freed Allocations", "%u", szAllocationFrees);
 
-        if(gptUI->input_text_hint("File Filter", "Filter (inc,-exc)", gptDebugCtx->tMemoryFilter.acInputBuffer, 256, 0))
+        if(gptUI->input_text_hint("File Filter", "all terms, alternatives -exclude", gptDebugCtx->tMemoryFilter.acInputBuffer, 256, 0))
         {
             gptUI->text_filter_build(&gptDebugCtx->tMemoryFilter);
         }
@@ -841,7 +841,7 @@ pl__show_statistics(bool* bValue)
         static bool bAllowNegative = false;
         gptUI->text("Frame rate: %.0f FPS", gptIO->fFrameRate);
         gptUI->text("Frame time: %.6f s", gptIO->fDeltaTime);
-        if(gptUI->input_text_hint("Stat Filter", "Filter (inc,-exc)", gptDebugCtx->tStatFilter.acInputBuffer, sizeof(gptDebugCtx->tStatFilter.acInputBuffer), 0))
+        if(gptUI->input_text_hint("Stat Filter", "all terms, alternatives -exclude", gptDebugCtx->tStatFilter.acInputBuffer, sizeof(gptDebugCtx->tStatFilter.acInputBuffer), 0))
             gptUI->text_filter_build(&gptDebugCtx->tStatFilter);
         const plVec2 tCursor = gptUI->get_cursor_pos();
 

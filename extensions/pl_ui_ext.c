@@ -3591,51 +3591,21 @@ pl_ui_cleanup(void)
     pl_sb_free(gptCtx->tInputTextState.sbTextW);
 }
 
-static void
-pl__ui_text_filter_split(plUiTextFilterRange* ptFilter, char separator, plUiTextFilterRange** psbtFilters)
-{
-    plUiTextFilterRange* sbtFilters = *psbtFilters;
-
-    pl_sb_reset(sbtFilters);
-    const char* wb = ptFilter->b;
-    const char* we = wb;
-
-    while (we < ptFilter->e)
-    {
-        if (*we == separator)
-        {
-            pl_sb_push(sbtFilters, ((plUiTextFilterRange){wb, we}));
-            wb = we + 1;
-        }
-        we++;
-    }
-    if (wb != we)
-    {
-        pl_sb_push(sbtFilters, ((plUiTextFilterRange){wb, we}));
-    }
-
-    *psbtFilters = sbtFilters;
-}
-
 static const char*
-pl__str_is_tr(const char* haystack, const char* haystack_end, const char* needle, const char* needle_end)
+pl__str_is_tr(const char* pcText, const char* pcTextEnd, const char* pcNeedle, const char* pcNeedleEnd)
 {
-    if (!needle_end)
-        needle_end = needle + strlen(needle);
-
-    const char un0 = (char)pl_str_to_upper(*needle);
-    while ((!haystack_end && *haystack) || (haystack_end && haystack < haystack_end))
+    if(!pcTextEnd)
+        pcTextEnd = pcText + strlen(pcText);
+    if(!pcNeedleEnd)
+        pcNeedleEnd = pcNeedle + strlen(pcNeedle);
+    const size_t szLength = (size_t)(pcNeedleEnd - pcNeedle);
+    for(; pcText <= pcTextEnd && (size_t)(pcTextEnd - pcText) >= szLength; pcText++)
     {
-        if (pl_str_to_upper(*haystack) == un0)
-        {
-            const char* b = needle + 1;
-            for (const char* a = haystack + 1; b < needle_end; a++, b++)
-                if (pl_str_to_upper(*a) != pl_str_to_upper(*b))
-                    break;
-            if (b == needle_end)
-                return haystack;
-        }
-        haystack++;
+        size_t i = 0;
+        while(i < szLength && pl_str_to_upper(pcText[i]) == pl_str_to_upper(pcNeedle[i]))
+            i++;
+        if(i == szLength)
+            return pcText;
     }
     return NULL;
 }
@@ -3644,6 +3614,7 @@ void
 pl_ui_text_filter_cleanup(plUiTextFilter* ptFilter)
 {
     pl_sb_free(ptFilter->sbtFilters);
+    ptFilter->uCountGrep = 0;
 }
 
 bool
@@ -3656,58 +3627,79 @@ void
 pl_ui_text_filter_build(plUiTextFilter* ptFilter)
 {
     pl_sb_reset(ptFilter->sbtFilters);
-    plUiTextFilterRange tInputRange = {
-        .b = ptFilter->acInputBuffer,
-        .e = ptFilter->acInputBuffer + strlen(ptFilter->acInputBuffer)
-    };
-    pl__ui_text_filter_split(&tInputRange, ',', &ptFilter->sbtFilters);
-
     ptFilter->uCountGrep = 0;
-    for(uint32_t i = 0; i < pl_sb_size(ptFilter->sbtFilters); i++)
+    ptFilter->acInputBuffer[sizeof(ptFilter->acInputBuffer) - 1] = 0;
+    const char* pcEnd = ptFilter->acInputBuffer + strlen(ptFilter->acInputBuffer);
+    uint32_t uCountExclude = 0;
+    int iSequenceStart = -1;
+    for(const char* pcWord = ptFilter->acInputBuffer; pcWord < pcEnd;)
     {
-        while (ptFilter->sbtFilters[i].b < ptFilter->sbtFilters[i].e && (ptFilter->sbtFilters[i].b[0] == ' ' || ptFilter->sbtFilters[i].b[0] == '\t'))
-            ptFilter->sbtFilters[i].b++;
-        while (ptFilter->sbtFilters[i].e > ptFilter->sbtFilters[i].b && (ptFilter->sbtFilters[i].e[-1] == ' ' || ptFilter->sbtFilters[i].e[-1] == '\t'))
-            ptFilter->sbtFilters[i].e--;
-        if(ptFilter->sbtFilters[i].b == ptFilter->sbtFilters[i].e) // empty
-            continue;
-        if(ptFilter->sbtFilters[i].b[0] != '-')
-            ptFilter->uCountGrep += 1;
+        while(pcWord < pcEnd && (*pcWord == ' ' || *pcWord == '\t'))
+            pcWord++;
+        const bool bExclude = pcWord < pcEnd && *pcWord == '-';
+        if(bExclude)
+            pcWord++;
+        const bool bQuoted = pcWord < pcEnd && *pcWord == '"';
+        if(bQuoted)
+            pcWord++;
+        const char* pcWordEnd = pcWord;
+        while(pcWordEnd < pcEnd && (bQuoted ? *pcWordEnd != '"' : (*pcWordEnd != ' ' && *pcWordEnd != ',')))
+            pcWordEnd++;
+        if(pcWordEnd > pcWord)
+        {
+            plUiTextFilterRange tRange = {.b = pcWord, .e = pcWordEnd};
+            if(bExclude)
+            {
+                pl_sb_insert(ptFilter->sbtFilters, uCountExclude, tRange);
+                uCountExclude++;
+                if(iSequenceStart >= 0)
+                    iSequenceStart++;
+            }
+            else
+            {
+                if(iSequenceStart < 0)
+                    iSequenceStart = (int)pl_sb_size(ptFilter->sbtFilters);
+                pl_sb_push(ptFilter->sbtFilters, tRange);
+                ptFilter->sbtFilters[iSequenceStart].uCountInclude++;
+                ptFilter->uCountGrep++;
+            }
+        }
+        if(pcWordEnd == pcEnd)
+            break;
+        if(*pcWordEnd == ',')
+            iSequenceStart = -1;
+        pcWord = pcWordEnd + 1;
     }
-
 }
 
 bool
-pl_ui_text_filter_pass(plUiTextFilter* ptFilter, const char* text, const char* text_end)
+pl_ui_text_filter_pass(plUiTextFilter* ptFilter, const char* pcText, const char* pcTextEnd)
 {
-    if (pl_sb_size(ptFilter->sbtFilters) == 0)
-        return true;
-
-    if (text == NULL)
-        text = text_end = "";
-
-    for(uint32_t i = 0; i < pl_sb_size(ptFilter->sbtFilters); i++)
+    if(!pcText)
+        pcText = pcTextEnd = "";
+    const uint32_t uCount = pl_sb_size(ptFilter->sbtFilters);
+    const uint32_t uCountExclude = uCount - ptFilter->uCountGrep;
+    for(uint32_t i = 0; i < uCountExclude; i++)
     {
-        if (ptFilter->sbtFilters[i].b == ptFilter->sbtFilters[i].e)
-            continue;
-        if (ptFilter->sbtFilters[i].b[0] == '-')
-        {
-            // Subtract
-            if (pl__str_is_tr(text, text_end, ptFilter->sbtFilters[i].b + 1, ptFilter->sbtFilters[i].e) != NULL)
-                return false;
-        }
-        else
-        {
-            // Grep
-            if (pl__str_is_tr(text, text_end, ptFilter->sbtFilters[i].b, ptFilter->sbtFilters[i].e) != NULL)
-                return true;
-        }
+        const plUiTextFilterRange* ptRange = &ptFilter->sbtFilters[i];
+        if(pl__str_is_tr(pcText, pcTextEnd, ptRange->b, ptRange->e))
+            return false;
     }
-
-    // Implicit * grep
-    if (ptFilter->uCountGrep == 0)
+    if(uCount == uCountExclude)
         return true;
-
+    for(uint32_t i = uCountExclude; i < uCount;)
+    {
+        const uint32_t uEnd = i + ptFilter->sbtFilters[i].uCountInclude;
+        bool bMatch = true;
+        for(; i < uEnd; i++)
+        {
+            const plUiTextFilterRange* ptRange = &ptFilter->sbtFilters[i];
+            if(!pl__str_is_tr(pcText, pcTextEnd, ptRange->b, ptRange->e))
+                bMatch = false;
+        }
+        if(bMatch)
+            return true;
+    }
     return false;
 }
 

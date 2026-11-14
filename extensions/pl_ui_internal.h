@@ -187,6 +187,7 @@ typedef struct _plUiTextFilterRange
 {
     const char* b;
     const char* e;
+    uint32_t uCountInclude; // at the first term of each AND group
 } plUiTextFilterRange;
 
 typedef struct  _plUiColorStackItem
@@ -519,6 +520,9 @@ typedef struct _plUiContext
     int  iWantCaptureMouseNextFrame;
     int  iWantCaptureKeyboardNextFrame;
     bool bWantTextInput;
+    bool bInputTextWheeling;
+    uint32_t uInputTextScrollId;
+    float fInputTextScrollGrab;
     bool abMouseOwned[5];
     
     // prev/next state
@@ -644,7 +648,6 @@ pl__get_cursor_pos(void)
 }
 
 // text filter
-static void        pl__ui_text_filter_split(plUiTextFilterRange* ptFilter, char separator, plUiTextFilterRange** psbtFilters);
 static const char* pl__str_is_tr(const char* haystack, const char* haystack_end, const char* needle, const char* needle_end);
 
 // misc

@@ -36,6 +36,8 @@ Index of this file:
 #include "pl_pak_ext.h"
 #include "pl_vfs_ext.h"
 #include "pl_string_intern_ext.h"
+#include "pl_log_ext.h"
+#include "pl_ui_ext.h"
 
 // unstable extensions
 #include "pl_collision_ext.h"
@@ -54,6 +56,8 @@ const plPakI*          gptPak       = NULL;
 const plCompressI*     gptCompress  = NULL;
 const plFileI*         gptFile      = NULL;
 const plStringInternI* gptString    = NULL;
+const plLogI*          gptLog       = NULL;
+const plUiI*           gptUi        = NULL;
 const plBVHI*          gptBvh       = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
@@ -84,6 +88,8 @@ void bvh_tests(void*);
 void datetime_tests_0(void*);
 void vfs_tests_0(void*);
 void file_tests_0(void*);
+void log_file_tests(void*);
+void ui_filter_tests(void*);
 void string_intern_tests_0(void*);
 
 //-----------------------------------------------------------------------------
@@ -186,6 +192,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptCompress  = pl_get_api_latest(ptApiRegistry, plCompressI);
     gptFile      = pl_get_api_latest(ptApiRegistry, plFileI);
     gptString    = pl_get_api_latest(ptApiRegistry, plStringInternI);
+    gptLog       = pl_get_api_latest(ptApiRegistry, plLogI);
+    gptUi        = pl_get_api_latest(ptApiRegistry, plUiI);
     gptBvh       = pl_get_api_latest(ptApiRegistry, plBVHI);
 
     // this path is taken only during first load, so we
@@ -248,6 +256,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     pl_test_register_test(string_intern_tests_0, ptAppData);
     pl_test_run_suite("pl_string_intern.h");
+
+    pl_test_register_test(log_file_tests, ptAppData);
+    pl_test_run_suite("pl_log_ext.h file output");
+
+    pl_test_register_test(ui_filter_tests, ptAppData);
+    pl_test_run_suite("pl_ui_ext.h text filtering");
 
     return ptAppData;
 }
@@ -706,6 +720,97 @@ file_tests_0(void* pAppData)
 
     pl_test_expect_true(gptFile->directory_exists("../libs"), NULL);
     pl_test_expect_false(gptFile->directory_exists("../libs-offset"), NULL);
+}
+
+
+static void
+pl__test_log_va(uint64_t uChannel, const char* pcFormat, ...)
+{
+    va_list tArgs;
+    va_start(tArgs, pcFormat);
+    gptLog->info_va(uChannel, pcFormat, tArgs);
+    va_end(tArgs);
+}
+
+static void
+pl__test_log_contents(const char* pcPath, const char* pcExpected)
+{
+    FILE* ptFile = fopen(pcPath, "rb");
+    pl_test_expect_true(ptFile != NULL, "log file exists");
+    if(!ptFile)
+        return;
+    char acText[1024] = {0};
+    size_t szRead = fread(acText, 1, sizeof(acText) - 1, ptFile);
+    fclose(ptFile);
+    pl_test_expect_true(szRead == strlen(pcExpected), "log byte count");
+    pl_test_expect_string_equal(acText, pcExpected, "log contents");
+}
+
+void
+log_file_tests(void* pData)
+{
+    const char* pcAll = "test-log-all.txt";
+    const char* pcOne = "test-log-channel.txt";
+    uint64_t uChannel = gptLog->add_channel("FileTest", (plLogExtChannelInit){0});
+    gptLog->set_level(uChannel, PL_LOG_LEVEL_INFO);
+    pl_test_expect_true(gptLog->set_file(PL_LOG_ALL_CHANNELS, pcAll, 0), "global file");
+    pl_test_expect_true(gptLog->set_file(uChannel, pcOne, PL_LOG_FILE_FLAGS_FLUSH_EACH_ENTRY), "channel file");
+    gptLog->debug(uChannel, "filtered");
+    gptLog->info(uChannel, "100% raw");
+    gptLog->info_p(uChannel, "value %d", 42);
+    pl__test_log_va(uChannel, "va %s", "copied");
+    pl_test_expect_false(gptLog->set_file(uChannel, "", 0), "invalid replacement preserves sink");
+    gptLog->warn(uChannel, "still open");
+    uint64_t uLater = gptLog->add_channel("Later", (plLogExtChannelInit){0});
+    gptLog->info(uLater, "future channel");
+    pl_test_expect_true(gptLog->flush_file(PL_LOG_ALL_CHANNELS), "flush global file");
+    pl_test_expect_true(gptLog->close_file(uChannel), "close channel file");
+    pl__test_log_contents(pcOne, "[FileTest] [INFO] 100% raw\n[FileTest] [INFO] value 42\n[FileTest] [INFO] va copied\n[FileTest] [WARN] still open\n");
+    pl__test_log_contents(pcAll, "[FileTest] [INFO] 100% raw\n[FileTest] [INFO] value 42\n[FileTest] [INFO] va copied\n[FileTest] [WARN] still open\n[Later] [INFO] future channel\n");
+    pl_test_expect_true(gptLog->set_file(uChannel, pcOne, PL_LOG_FILE_FLAGS_APPEND), "append existing log");
+    gptLog->error(uChannel, "appended");
+    pl_test_expect_true(gptLog->close_file(uChannel), "flush on close");
+    pl__test_log_contents(pcOne, "[FileTest] [INFO] 100% raw\n[FileTest] [INFO] value 42\n[FileTest] [INFO] va copied\n[FileTest] [WARN] still open\n[FileTest] [ERROR] appended\n");
+    pl_test_expect_true(gptLog->set_file(uChannel, pcOne, 0), "truncate existing log");
+    gptLog->info(uChannel, "buffered old data");
+    pl_test_expect_true(gptLog->set_file(uChannel, pcOne, 0), "truncate currently open log");
+    gptLog->fatal(uChannel, "flushed fatal");
+    pl__test_log_contents(pcOne, "[FileTest] [FATAL] flushed fatal\n");
+    pl_test_expect_true(gptLog->close_file(uChannel), "close");
+    pl_test_expect_true(gptLog->close_file(uChannel), "repeated close");
+    pl_test_expect_false(gptLog->has_file_error(uChannel), "no write error");
+    pl_test_expect_true(gptLog->close_file(PL_LOG_ALL_CHANNELS), "close global");
+    remove(pcOne);
+    remove(pcAll);
+}
+
+void
+ui_filter_tests(void* pData)
+{
+    const struct { const char* pcFilter; const char* pcText; bool bPass; } atCases[] = {
+        {"", "", true}, {"alpha beta", "BETA / ALPHA", true}, {"alpha beta", "alpha", false},
+        {"alpha beta,gamma", "gamma", true}, {"alpha beta,gamma", "beta", false},
+        {"alpha -beta", "alpha beta", false}, {"alpha,-beta", "alpha beta", false},
+        {"-beta", "alpha", true}, {"-beta", "beta", false},
+        {"\"hello, world\"", "hello, world!", true}, {"\"hello world\"", "hello world", true},
+        {"-\"hello world\"", "hello world", false}, {"-", "anything", true},
+        {"\"unterminated", "unterminated", true}
+    };
+    plUiTextFilter tFilter = {0};
+    for(uint32_t i = 0; i < PL_ARRAYSIZE(atCases); i++)
+    {
+        snprintf(tFilter.acInputBuffer, sizeof(tFilter.acInputBuffer), "%s", atCases[i].pcFilter);
+        gptUi->text_filter_build(&tFilter);
+        pl_test_expect_true(gptUi->text_filter_pass(&tFilter, atCases[i].pcText, NULL) == atCases[i].bPass, atCases[i].pcFilter);
+    }
+    snprintf(tFilter.acInputBuffer, sizeof(tFilter.acInputBuffer), "beta");
+    gptUi->text_filter_build(&tFilter);
+    const char acBounded[] = {'b', 'e', 't'}; // deliberately not NUL-terminated
+    pl_test_expect_false(gptUi->text_filter_pass(&tFilter, acBounded, acBounded + sizeof(acBounded)), "match cannot cross range end");
+    pl_test_expect_false(gptUi->text_filter_pass(&tFilter, NULL, NULL), "null text treated as empty");
+    gptUi->text_filter_cleanup(&tFilter);
+    pl_test_expect_false(gptUi->text_filter_active(&tFilter), "cleanup removes active terms");
+    pl_test_expect_true(gptUi->text_filter_pass(&tFilter, "anything", NULL), "cleaned filter passes text");
 }
 
 //-----------------------------------------------------------------------------
