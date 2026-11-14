@@ -36,6 +36,9 @@ Index of this file:
 
 #include "pl_shader_interop.h"
 
+// Byte comments give each group size and its offset from the start of the struct.
+// Totals match the C layout and std430 array stride; scalar arrays require std430.
+
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
@@ -212,14 +215,21 @@ PL_BEGIN_STRUCT(plGpuProbeSelection)
     int iProbe1;
     int iProbe2;
     int iCount;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~16 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuProbeSelection)
 
 PL_BEGIN_STRUCT(plGpuTransform)
     mat4 tTransform;
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 0)~~~~~~~~~~~~~~~~
     uint uProbeSelection;
     uint _uProbeSelectionPadding0;
     uint _uProbeSelectionPadding1;
     uint _uProbeSelectionPadding2;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 64)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~80 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuTransform)
 
 PL_BEGIN_STRUCT(plGpuDynData)
@@ -227,6 +237,9 @@ PL_BEGIN_STRUCT(plGpuDynData)
     int  iVertexOffset;
     int  iMaterialIndex;
     uint uGlobalIndex;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~16 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynData)
 
 PL_BEGIN_STRUCT(plGpuDynForwardData)
@@ -234,16 +247,21 @@ PL_BEGIN_STRUCT(plGpuDynForwardData)
     int  iVertexOffset;
     int  iMaterialIndex;
     uint uGlobalIndex;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     int  _iUnusedProbeCount;
     int  iPointLightCount;
     int  iSpotLightCount;
     int  iDirectionLightCount;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
     int _iUnused0;
     int _iUnused1;
     int _iUnused2;
     int iObjectShaderFlags;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 32)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~48 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynForwardData)
 
 //-----------------------------------------------------------------------------
@@ -252,69 +270,79 @@ PL_END_STRUCT(plGpuDynForwardData)
 
 PL_BEGIN_STRUCT(plGpuDecal)
     mat4 tWorldToDecal;
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 0)~~~~~~~~~~~~~~~~
     vec4 tNormalOpacity; // projector outward normal and opacity
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 64)~~~~~~~~~~~~~~~~
     int iMaterialIndex;
     int iSortOrder;
     float fNormalCutoff;
     float fEdgeFade;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 80)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~96 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDecal)
 
 PL_BEGIN_STRUCT(plGpuSceneData)
 
     vec3 tDirection; // main shadow-casting light direction (sun by day, moon by night)
     int iCascadeCount;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     vec3 tColor;
     int iCastShadow;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
     int iShadowMapTexIdx;
     float fFactor;
     float fXOffset;
     float fYOffset;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 32)~~~~~~~~~~~~~~~~
 
     float fIntensity;
     float fSunRadius;
     float fAtmosphereConversion;
     int bCascadeDebug;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 48)~~~~~~~~~~~~~~~~
 
     int iBrdfLutIndex;
     int iSceneFlags;
     float fFogHeight;
     float fFogDensity;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 64)~~~~~~~~~~~~~~~~
 
     float fFogStart;
     float fFogCutOffDistance;
     float fFogMaxOpacity;
     float fFogHeightFalloff;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 80)~~~~~~~~~~~~~~~~
 
     vec3 tFogDensity;
     float fFogLinearParam0;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 96)~~~~~~~~~~~~~~~~
 
     vec3 tFogColor;
     float fFogLinearParam1;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 112)~~~~~~~~~~~~~~~~
 
     // atmosphere stuff
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     vec3 scatteringRayleighGround;
     float planetRadius;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 128)~~~~~~~~~~~~~~~~
 
     vec3 extinctionRayleighGround;
     float atmosphereHeight;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 144)~~~~~~~~~~~~~~~~
 
     vec3 ozoneExtinction;
     float scatteringMieGround;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 160)~~~~~~~~~~~~~~~~
 
     float extinctionMieGround;
     float mieScatteringExponent; // used in mie phase function
     float g_time;
     int bMultiScatter;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 176)~~~~~~~~~~~~~~~~
 
     // vec4 tSunColorRadius; // now "tColor" & "fSunRadius"
     // vec4 tSunDirection; // now "tDirection"
@@ -325,35 +353,51 @@ PL_BEGIN_STRUCT(plGpuSceneData)
     // z = world-to-atmosphere scale
     // w = sun intensity
     vec4 tAerialInfo;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 192)~~~~~~~~~~~~~~~~
     vec4 tCloudLayer; // coverage (zero disables), base height, thickness, extinction
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 208)~~~~~~~~~~~~~~~~
     vec4 tCloudNoise; // frequency, wind X/Z, view step count
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 224)~~~~~~~~~~~~~~~~
     vec4 tCloudProfile; // reserved, multiple scattering strength, reserved, reserved
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 240)~~~~~~~~~~~~~~~~
     vec4 tCloudShadowCenter; // atmosphere-space center; bindless index (-1 = invalid)
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 256)~~~~~~~~~~~~~~~~
     vec4 tCloudShadowRight; // light-space basis and half extent
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 272)~~~~~~~~~~~~~~~~
     vec4 tCloudShadowUp;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 288)~~~~~~~~~~~~~~~~
     vec4 tCloudShadowForward;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 304)~~~~~~~~~~~~~~~~
 
     // Contact shadows: length, thickness, bias (world units), step count.
     vec4 tContactShadow;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 320)~~~~~~~~~~~~~~~~
 
     int iDecalCount;
     int _iDecalPadding0;
     int _iDecalPadding1;
     int _iDecalPadding2;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 336)~~~~~~~~~~~~~~~~
     plGpuDecal atDecals[PL_MAX_DECALS];
+    // ~~~~~~~~~~~~~~~~6144 bytes (offset 352)~~~~~~~~~~~~~~~~
 
     vec4 tNightSky; // star intensity, star rotation, moon intensity, moon angular radius
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 6496)~~~~~~~~~~~~~~~~
     vec4 tMoonDirection; // direction toward moon; w = illuminated fraction
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 6512)~~~~~~~~~~~~~~~~
     vec4 tSunDirection; // actual solar light travel direction; w = 1 when main shadows belong to moon
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 6528)~~~~~~~~~~~~~~~~
     vec4 tSunRadiance; // actual solar color * intensity, independent of the main-light handoff
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 6544)~~~~~~~~~~~~~~~~
     vec4 tMoonlight; // lunar color * phase/horizon/twilight-adjusted intensity; w = moonlight enabled
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 6560)~~~~~~~~~~~~~~~~
 
     // mat4 tCameraProjectionInv; // camera
     // mat4 tInvViewMatNoTranslation; // camera
     // mat4 tShadowViewProj; // shadow camera
     // mat4 tCameraViewInv; // camera
 
-    // ~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~6576 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuSceneData)
 
 //-----------------------------------------------------------------------------
@@ -366,53 +410,55 @@ PL_BEGIN_STRUCT(plGpuViewData)
     int iClusterPointCount;
     int iClusterSpotCount;
     int iAOEnabled;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     vec4 afCascadeSplits;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
     mat4 viewProjMat[4]; // main shadow camera (4 for cascades)
-    // ~~~~~~~~~~~~~~~~384 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~256 bytes (offset 32)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     float fAspectRatio;
     int iContactShadowDepthIndex;
     int iTransmissionDepthIndex;
     float _fUnused2;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 288)~~~~~~~~~~~~~~~~
     
     int iTransmissionFrameBufferIndex;
     float fCameraRange;
     float fCameraNearZ;
     int   iCameraProjectType;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 304)~~~~~~~~~~~~~~~~
 
     vec4 tViewportSize;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 320)~~~~~~~~~~~~~~~~
 
     vec4 tCloudTransportCache; // xy: bindless resolved transport/depth (-1 unavailable), zw: reserved
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 336)~~~~~~~~~~~~~~~~
 
     vec4 tCameraPos; // viewing camera
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 352)~~~~~~~~~~~~~~~~
 
     mat4 tCameraView[6]; // viewing camera (6 for probes)
-    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~384 bytes (offset 368)~~~~~~~~~~~~~~~~
 
     mat4 tCameraViewInv[6]; // viewing camera (6 for probes)
-    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~384 bytes (offset 752)~~~~~~~~~~~~~~~~
 
     mat4 tCameraProjection[6]; // viewing camera (6 for probes)
-    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~384 bytes (offset 1136)~~~~~~~~~~~~~~~~
 
     mat4 tCameraProjectionInv[6]; // viewing camera (6 for probes)
-    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~384 bytes (offset 1520)~~~~~~~~~~~~~~~~
 
     mat4 tCameraViewProjection[6]; // viewing camera (6 for probes)
-    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~384 bytes (offset 1904)~~~~~~~~~~~~~~~~
 
     mat4 tInvViewMatNoTranslation[6]; // viewing camera (6 for probes)
+    // ~~~~~~~~~~~~~~~~384 bytes (offset 2288)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~xxx bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~2672 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuViewData)
 
 //-----------------------------------------------------------------------------
@@ -425,27 +471,27 @@ PL_BEGIN_STRUCT(plGpuDynGrid)
     float fCameraZPos;
     float fGridSize;
     float fGridCellSize;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     float fGridMinPixelsBetweenCells;
     int   _iUnused0;
     int   _iUnused1;
     int   _iUnused2;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
     vec4 tViewDirection;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 32)~~~~~~~~~~~~~~~~
 
     vec4 tGridColorThin;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 48)~~~~~~~~~~~~~~~~
 
     vec4 tGridColorThick;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 64)~~~~~~~~~~~~~~~~
 
     mat4 tCameraViewProjection;
-    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 80)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~128 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~144 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynGrid)
 
 //-----------------------------------------------------------------------------
@@ -457,30 +503,47 @@ PL_BEGIN_STRUCT(plGpuDynFXAA)
     int iHeight;
     uint _auUnused0;
     uint _auUnused1;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~16 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynFXAA)
 
 PL_BEGIN_STRUCT(plGpuDynAOData)
     mat4  tProjection;
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 0)~~~~~~~~~~~~~~~~
     mat4  tProjectionInv;
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 64)~~~~~~~~~~~~~~~~
     mat4  tView;
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 128)~~~~~~~~~~~~~~~~
     vec2  tViewportSize;
     int   iLevel;
     int   iMode;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 192)~~~~~~~~~~~~~~~~
     float fRadius;
     float fStrength;
     float fBias;
     int   iLevels;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 208)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~224 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynAOData)
 
 PL_BEGIN_STRUCT(plGpuDynSSGI)
     mat4 tProjection;
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 0)~~~~~~~~~~~~~~~~
     mat4 tProjectionInv;
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 64)~~~~~~~~~~~~~~~~
     mat4 tView;
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 128)~~~~~~~~~~~~~~~~
     vec4 tParameters;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 192)~~~~~~~~~~~~~~~~
     uint uWidth;
     uint uHeight;
     uint uRayCount;
     uint uStepCount;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 208)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~224 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynSSGI)
 
 PL_BEGIN_STRUCT(plGpuDynBloomData)
@@ -488,6 +551,9 @@ PL_BEGIN_STRUCT(plGpuDynBloomData)
     float bloomStrength;
     int isLowestMip;
     int iMipLevel;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~16 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynBloomData)
 
 PL_BEGIN_STRUCT(plGpuDynTonemap)
@@ -496,15 +562,15 @@ PL_BEGIN_STRUCT(plGpuDynTonemap)
     float fExposure;
     float fBrightness;
     float fContrast;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     float fSaturation;
     uint _auUnused0;
     uint _auUnused1;
     uint _auUnused2;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~32 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~32 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynTonemap)
 
 //-----------------------------------------------------------------------------
@@ -517,15 +583,15 @@ PL_BEGIN_STRUCT(plGpuDynFilterSpec)
     float fRoughness;
     int   iSampleCount;
     int   iWidth;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     float fLodBias;
     int   iCurrentMipLevel;
     int   iFaceOffset;
     int   iFaceCount;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~32 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~32 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynFilterSpec)
 
 //-----------------------------------------------------------------------------
@@ -538,9 +604,9 @@ PL_BEGIN_STRUCT(plGpuDynShadow)
     int iDataOffset;
     int iVertexOffset;
     int iMaterialIndex;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynShadow)
 
 //-----------------------------------------------------------------------------
@@ -553,15 +619,15 @@ PL_BEGIN_STRUCT(plGpuDynSkinData)
     int  iDestDataOffset;
     int  iDestVertexOffset;
     uint uMaxSize;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     uint uMatrixOffset;
     int  _iUnused0;
     int  _iUnused1;
     int  _iUnused2;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~96 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~32 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynSkinData)
 
 //-----------------------------------------------------------------------------
@@ -574,12 +640,12 @@ PL_BEGIN_STRUCT(plGpuDynSkybox)
     uint _auUnused0;
     uint _auUnused1;
     uint _auUnused2;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     mat4 tModel;
-    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 16)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~80 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~80 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynSkybox)
 
 //-----------------------------------------------------------------------------
@@ -592,12 +658,12 @@ PL_BEGIN_STRUCT(plGpuDynPost)
     float fXScale;
     float fYScale;
     uint  _unused0;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     vec4 tOutlineColor;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~32 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~32 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynPost)
 
 //-----------------------------------------------------------------------------
@@ -610,15 +676,15 @@ PL_BEGIN_STRUCT(plGpuDynPick)
     uint _unused0;
     uint _unused1;
     uint _unused2;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     vec4 tMousePos;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
     
     mat4 tModel;
-    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
-    
-    // ~~~~~~~~~~~~~~~~96 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 32)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~96 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynPick)
 
 //-----------------------------------------------------------------------------
@@ -629,42 +695,42 @@ PL_BEGIN_STRUCT(plGpuPointLight)
 
     vec3  tPosition;
     float fIntensity;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     vec3  tColor;
     float fRange;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
     int iShadowIndex;
     int iContactShadow;
     int _unused1;
     int iCastShadow;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 32)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~48 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~48 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuPointLight)
 
 PL_BEGIN_STRUCT(plGpuSpotLight)
 
     vec3  tPosition;
     float fIntensity;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     vec3  tDirection;
     float fInnerConeCos;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
     vec3  tColor;
     float fRange;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 32)~~~~~~~~~~~~~~~~
 
     int iShadowIndex;
     int iCastShadow;
     float fOuterConeCos;
     int iContactShadow;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 48)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~64 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuSpotLight)
 
 PL_BEGIN_STRUCT(plGpuDirectionLight)
@@ -673,84 +739,85 @@ PL_BEGIN_STRUCT(plGpuDirectionLight)
     int iContactShadow;
     int iCastShadow;
     float fIntensity;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     vec3 tDirection;
     int _unused1;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
     vec3 tColor;
     int _unused2;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 32)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~48 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~48 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDirectionLight)
 
 PL_BEGIN_STRUCT(plGpuProbe)
 
     vec3  tPosition;
     float fRangeSqr;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     uint uLambertianEnvSampler;
     uint uGGXEnvSampler;
     int  uCharlieEnvSampler;
     int  iParallaxCorrection;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
     vec4 tMin;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 32)~~~~~~~~~~~~~~~~
     vec4 tMax;
-    // ~~~~~~~~~~~~~~~~32 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 48)~~~~~~~~~~~~~~~~
 
     int iMips;
     int _unused1;
     int _unused2;
     int _unused3;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 64)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~80 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~80 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuProbe)
 
 PL_BEGIN_STRUCT(plGpuPointLightShadow)
     
     mat4 viewProjMat[6];
-    // ~~~~~~~~~~~~~~~~384 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~384 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     int iShadowMapTexIdx;
     float fFactor;
     float fXOffset;
     float fYOffset;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
-    
-    // ~~~~~~~~~~~~~~~~400 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 384)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~400 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuPointLightShadow)
 
 PL_BEGIN_STRUCT(plGpuSpotLightShadow)
     
     mat4 viewProjMat;
-    // ~~~~~~~~~~~~~~~~384 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     int iShadowMapTexIdx;
     float fFactor;
     float fXOffset;
     float fYOffset;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
-    
-    // ~~~~~~~~~~~~~~~~400 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 64)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~80 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuSpotLightShadow)
 
 PL_BEGIN_STRUCT(plGpuDirectionLightShadow)
     
     mat4 viewProjMat;
-    // ~~~~~~~~~~~~~~~~384 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     int iShadowMapTexIdx;
     float fFactor;
     float fXOffset;
     float fYOffset;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
-    
-    // ~~~~~~~~~~~~~~~~400 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 64)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~80 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDirectionLightShadow)
 
 PL_BEGIN_STRUCT(plGpuDynDeferredLighting)
@@ -759,7 +826,9 @@ PL_BEGIN_STRUCT(plGpuDynDeferredLighting)
     int  iLightIndex;
     int _iUnusedProbeCount;
     int iObjectShaderFlags;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~16 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynDeferredLighting)
 
 PL_BEGIN_STRUCT(plShadowInstanceBufferData)
@@ -768,7 +837,9 @@ PL_BEGIN_STRUCT(plShadowInstanceBufferData)
     int iViewportIndex;
     uint _uUnused0;
     uint _uUnused1;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~16 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plShadowInstanceBufferData)
 
 //-----------------------------------------------------------------------------
@@ -777,18 +848,33 @@ PL_END_STRUCT(plShadowInstanceBufferData)
 
 PL_BEGIN_STRUCT(plGpuWater)
     vec4 tWaves; // mode, Gerstner steepness, FFT height bound, choppiness
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
     vec4 tOcean; // texture index, patch length, resolution, unused
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
     vec4 tSwell0; // swell0_amplitude, swell0_wavelength, swell0_speed, swell0_heading_degrees
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 32)~~~~~~~~~~~~~~~~
     vec4 tSwell1; // swell1_amplitude, swell1_wavelength, swell1_speed, swell1_heading_degrees
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 48)~~~~~~~~~~~~~~~~
     vec4 tDetail; // detail_scale, detail_speed, foam_speed, foam_scale
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 64)~~~~~~~~~~~~~~~~
     vec4 tShore; // shore_strength, shore_depth, shore_ray_fade_start, shore_ray_fade_end
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 80)~~~~~~~~~~~~~~~~
     vec4 tCaps; // whitecap_strength, crest_start, crest_full, slope_start
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 96)~~~~~~~~~~~~~~~~
     vec4 tAppearance; // slope_full, minimum_roughness, foam_roughness, foam_normal_flatten
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 112)~~~~~~~~~~~~~~~~
     vec4 tAbsorption; // RGB transmission at reference distance, reference distance
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 128)~~~~~~~~~~~~~~~~
     vec4 tScattering; // RGB scattering color, coefficient per world unit
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 144)~~~~~~~~~~~~~~~~
     vec4 tDistortion; // refraction strength, maximum offset in pixels, reserved, reserved
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 160)~~~~~~~~~~~~~~~~
     vec4 tOptics; // refraction_max_distance, scattering_direction, refraction_edge_fade_pixels, refraction_intersection_fade
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 176)~~~~~~~~~~~~~~~~
     vec4 tFoamColorDebug; // foam_red, foam_green, foam_blue, debug_view
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 192)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~208 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuWater)
 
 PL_BEGIN_STRUCT(plGpuMaterial)
@@ -797,69 +883,78 @@ PL_BEGIN_STRUCT(plGpuMaterial)
     float fRoughnessFactor;
     float fClearcoatFactor;
     float fClearcoatRoughnessFactor;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
     vec4 tBaseColorFactor;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
 
     vec3 tEmissiveFactor;
     float fEmissiveStrength;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 32)~~~~~~~~~~~~~~~~
 
     vec3 tSheenColorFactor;
     float fSheenRoughnessFactor;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 48)~~~~~~~~~~~~~~~~
     
     float fAlphaCutoff;
     float fOcclusionStrength;
     float fNormalMapStrength;
     float fThickness;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 64)~~~~~~~~~~~~~~~~
 
     vec3  tAttenuationColor;
     float fAttenuationDistance;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 80)~~~~~~~~~~~~~~~~
 
     float fIridescenceFactor;
     float fIridescenceIor;
     float fIridescenceThicknessMax;
     float fIridescenceThicknessMin;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 96)~~~~~~~~~~~~~~~~
 
     vec3 tAnisotropy;
     float fTransmissionFactor;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 112)~~~~~~~~~~~~~~~~
 
     float fDispersion;
     float fIor;
     int   eAlphaMode;
     int   iTextureMappingFlags;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 128)~~~~~~~~~~~~~~~~
 
     int iMaterialFlags;
     int _iUnused0;
     int _iUnused1;
     int _iUnused2;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 144)~~~~~~~~~~~~~~~~
 
     vec3 tDiffuseTransmissionColor;
     float fDiffuseTransmission;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 160)~~~~~~~~~~~~~~~~
 
     plGpuWater tWater;
+    // ~~~~~~~~~~~~~~~~208 bytes (offset 176)~~~~~~~~~~~~~~~~
 
     int aiTextureUVSet[PL_TEXTURE_COUNT];
+    // ~~~~~~~~~~~~~~~~80 bytes (offset 384)~~~~~~~~~~~~~~~~
     int aiTextureIndices[PL_TEXTURE_COUNT];
-    // ~~~~~~~~~~~~~~~~96 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~80 bytes (offset 464)~~~~~~~~~~~~~~~~
 
     mat4 atTextureTransforms[PL_TEXTURE_COUNT];
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~1280 bytes (offset 544)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~144 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~1824 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuMaterial)
 
 PL_BEGIN_STRUCT(plCloudTemporalData)
     mat4 tPreviousViewProjection;
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 0)~~~~~~~~~~~~~~~~
     vec4 tPreviousCamera;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 64)~~~~~~~~~~~~~~~~
     vec4 tParams; // history weight (zero invalidates), delta time, reserved, reserved
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 80)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~96 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plCloudTemporalData)
 
 #endif // PL_SHADER_INTEROP_RENDERER_H

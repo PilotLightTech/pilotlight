@@ -34,6 +34,9 @@ typedef struct _plVertexBufferLayout     plVertexBufferLayout;
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+// CPU shader ABI only. Pointer-bearing totals below assume 64-bit pointers;
+// these structs are not GLSL buffer layouts.
+
 typedef struct _plVaryingData
 {
     plVaryingType atTypes[16];
@@ -43,6 +46,8 @@ typedef struct _plVaryingData
     uint32_t _uCurrentVarying;
     uint32_t _uCurrentOffset;
     uint32_t _auOffset[16];
+
+    // ~~~~~~~~~~~~~~~~648 bytes total~~~~~~~~~~~~~~~~
 } plVaryingData;
 
 typedef struct _plFrameBufferData
@@ -50,17 +55,23 @@ typedef struct _plFrameBufferData
     uint32_t       uWidth;
     uint32_t       uHeight;
     unsigned char* pucData;
+
+    // ~~~~~~~~~~~~~~~~16 bytes total (64-bit native ABI)~~~~~~~~~~~~~~~~
 } plFrameBufferData;
 
 typedef struct _plPixelShaderBuiltIns
 {
     plVec4 gl_FragCoord;
+
+    // ~~~~~~~~~~~~~~~~16 bytes total~~~~~~~~~~~~~~~~
 } plPixelShaderBuiltIns;
 
 typedef struct _plVertexShaderBuiltIns
 {
     uint32_t                    uVertexID;
     const plVertexBufferLayout* atLayouts;
+
+    // ~~~~~~~~~~~~~~~~16 bytes total (64-bit native ABI)~~~~~~~~~~~~~~~~
 } plVertexShaderBuiltIns;
 
 typedef struct _plDescriptor
@@ -74,11 +85,15 @@ typedef struct _plDescriptor
 
     // buffer
     uint8_t* puData;
+
+    // ~~~~~~~~~~~~~~~~24 bytes total (64-bit native ABI)~~~~~~~~~~~~~~~~
 } plDescriptor;
 
 typedef struct _plDescriptorSet
 {
     plDescriptor* atDescriptors;
+
+    // ~~~~~~~~~~~~~~~~8 bytes total (64-bit native ABI)~~~~~~~~~~~~~~~~
 } plDescriptorSet;
 
 //-----------------------------------------------------------------------------
