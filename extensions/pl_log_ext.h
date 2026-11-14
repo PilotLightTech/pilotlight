@@ -54,7 +54,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plLogI_version {2, 0, 0}
+#define plLogI_version {2, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -81,6 +81,9 @@ typedef struct _plLogExtChannelInfo plLogExtChannelInfo; // information about a 
 
 // enums
 typedef int plLogChannelType;
+typedef int plLogFileFlags;
+
+#define PL_LOG_ALL_CHANNELS UINT64_MAX
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -128,11 +131,27 @@ typedef struct _plLogI
     void (*warn_va)  (uint64_t channelId, const char* format, va_list args);
     void (*error_va) (uint64_t channelId, const char* format, va_list args);
     void (*fatal_va) (uint64_t channelId, const char* format, va_list args);
+
+    // File sinks supplement console/buffer output and honor channel levels.
+    // Use PL_LOG_ALL_CHANNELS for one sink receiving all channels (including future ones).
+    // Paths are native filesystem paths. Calls require external serialization.
+    // Opening failure preserves the previous sink. Close/flush report I/O failures.
+    bool (*set_file)      (uint64_t channelId, const char* path, plLogFileFlags flags);
+    bool (*flush_file)    (uint64_t channelId);
+    bool (*close_file)    (uint64_t channelId);
+    bool (*has_file_error)(uint64_t channelId); // latched until a successful set_file
 } plLogI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
+
+enum _plLogFileFlags
+{
+    PL_LOG_FILE_FLAGS_NONE             = 0,      // truncate on open, buffered writes
+    PL_LOG_FILE_FLAGS_APPEND           = 1 << 0,
+    PL_LOG_FILE_FLAGS_FLUSH_EACH_ENTRY = 1 << 1  // fatal entries always flush
+};
 
 enum _plLogChannelType
 {

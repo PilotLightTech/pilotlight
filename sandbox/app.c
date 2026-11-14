@@ -95,6 +95,7 @@ Index of this file:
 
 const plWindowI*            gptWindows          = NULL;
 const plStatsI*             gptStats            = NULL;
+const plLogI*               gptLog              = NULL;
 const plGraphicsI*          gptGfx              = NULL;
 const plToolsI*             gptTools            = NULL;
 const plEcsI*               gptEcs              = NULL;
@@ -139,6 +140,9 @@ const plTextureI*           gptTexture          = NULL;
 const plTerrainI*           gptTerrain          = NULL;
 const plStlI*               gptStl              = NULL;
 const plDialogI*            gptDialog           = NULL;
+
+static uint64_t guLogChannel;
+static bool gbLogFileErrorReported;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -236,6 +240,7 @@ typedef struct _plAppData
 void pl__show_ui_demo_window(plAppData* ptAppData);
 
 void pl__load_apis(plApiRegistryI*);
+static void pl__initialize_logging(void);
 void pl__refresh_files(plAppData*);
 void pl__load_assets(plAppData*);
 
@@ -261,6 +266,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         // re-retrieve the apis since we are now in
         // a different dll/so
         pl__load_apis(ptApiRegistry);
+        pl__initialize_logging();
+        gptLog->info(guLogChannel, "App hot reloaded");
 
         gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
 
@@ -280,6 +287,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // load apis
     pl__load_apis(ptApiRegistry);
+    pl__initialize_logging();
 
     // this path is taken only during first load, so we
     // allocate app memory here
@@ -330,6 +338,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptPhysics->initialize(tPhysicsSettings);
 
     // create window (only 1 allowed currently)
+    gptLog->info(guLogChannel, "Creating sandbox window and initializing graphics");
     plWindowDesc tWindowDesc = {
         .tMode = PL_WINDOW_PRESENTATION_MODE_GRAPHICS_API,
         .tFlags = PL_WINDOW_FLAG_NONE,
@@ -372,6 +381,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptStarter->initialize(tStarterInit);
     
     ptAppData->ptDevice = gptStarter->get_device();
+    gptLog->info_p(guLogChannel, "Graphics ready: %s, device: %s", gptGfx->get_backend_string(), gptGfx->get_device_info(ptAppData->ptDevice)->acName);
 
     // initialize job system
     plJobSystemInit tJobInit = {0};
@@ -635,6 +645,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->ptDrawList = gptDraw->request_2d_drawlist();
     ptAppData->ptDrawLayer = gptDraw->request_2d_layer(ptAppData->ptDrawList);
 
+    gptLog->info(guLogChannel, "Sandbox ready");
     return ptAppData;
 }
 
@@ -645,6 +656,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
+    gptLog->info(guLogChannel, "Sandbox shutdown started");
     gptJobs->cleanup();
     pl_sb_free(ptAppData->sbcTempBuffer);
     pl_sb_free(ptAppData->sbtSceneFilesCore);
@@ -678,6 +690,9 @@ pl_app_shutdown(plAppData* ptAppData)
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
     PL_FREE(ptAppData);
+    gptLog->info(guLogChannel, "Sandbox shutdown complete");
+    if(!gptLog->close_file(PL_LOG_ALL_CHANNELS))
+        gptLog->warn(guLogChannel, "Failed to finish writing ../cache/sandbox.log; the file may be incomplete");
 }
 
 //-----------------------------------------------------------------------------
@@ -701,6 +716,13 @@ pl_app_update(plAppData* ptAppData)
 {
     if(!gptStarter->begin_frame())
         return;
+
+    if(!gbLogFileErrorReported && gptLog->has_file_error(PL_LOG_ALL_CHANNELS))
+    {
+        gbLogFileErrorReported = true;
+        gptLog->warn(guLogChannel, "File logging failed for ../cache/sandbox.log; console and Log Tool remain available");
+        gptScreenLog->add_message_ex(0, 10.0, PL_COLOR_32_RED, 1.0f, "%s", "File logging failed; see Log Tool");
+    }
         
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     
@@ -888,6 +910,7 @@ pl_app_update(plAppData* ptAppData)
         {
             if(!gptUI->wants_keyboard_capture())
             {
+                gptLog->info_p(guLogChannel, "Unloading scene: %s", ptAppData->acCurrentScene);
                 gptPhysics->reset();
                 gptRenderer->destroy_view(ptAppData->ptView);
                 gptRenderer->destroy_scene(ptAppData->ptScene);
@@ -960,8 +983,17 @@ pl_app_update(plAppData* ptAppData)
                         bool bPlaceHolder = false;
                         if(gptUI->button(gacImportFiles[n]))
                         {
-                            gptGltf->import(gacImportFiles[n], NULL);
-                            gptScreenLog->add_message_ex(0, 10.0, PL_COLOR_32_GREEN, 1.0f, "Imported: %s", gacImportFiles[n]);
+                            gptLog->info_p(guLogChannel, "Importing: %s", gacImportFiles[n]);
+                            if(gptGltf->import(gacImportFiles[n], NULL))
+                            {
+                                gptLog->info_p(guLogChannel, "Imported: %s", gacImportFiles[n]);
+                                gptScreenLog->add_message_ex(0, 10.0, PL_COLOR_32_GREEN, 1.0f, "Imported: %s", gacImportFiles[n]);
+                            }
+                            else
+                            {
+                                gptLog->error_p(guLogChannel, "Import failed: %s", gacImportFiles[n]);
+                                gptScreenLog->add_message_ex(0, 10.0, PL_COLOR_32_RED, 1.0f, "Import failed: %s", gacImportFiles[n]);
+                            }
                         }
                     }
                 }
@@ -977,6 +1009,7 @@ pl_app_update(plAppData* ptAppData)
                         {
                             pl_sprintf(ptAppData->acCurrentScene, "%s", ptAppData->sbtSceneFilesCore[n].acTemplate);
 
+                            gptLog->info_p(guLogChannel, "Loading scene: %s", ptAppData->acCurrentScene);
                             ptAppData->tSceneHandle = gptAsset->load(ptAppData->acCurrentScene);
 
                             if(gptAsset->is_valid(ptAppData->tSceneHandle))
@@ -998,9 +1031,11 @@ pl_app_update(plAppData* ptAppData)
                                 uint32_t uCameraCount = gptEcs->get_components(ptLibrary, gptCameraEcs->get_ecs_type_key(), NULL, &ptCameraEntities);
                                 if(uCameraCount > 0)
                                     ptAppData->tMainCamera = ptCameraEntities[0];
+                                gptLog->info_p(guLogChannel, "Scene ready: %s (%u cameras)", ptAppData->acCurrentScene, uCameraCount);
                             }
                             else
                             {
+                                gptLog->error_p(guLogChannel, "Failed to load scene: %s; check asset availability/imports", ptAppData->acCurrentScene);
                                 gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_RED, 1.5f, "%s", "Failed to load scene");
                                 gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_RED, 1.0f, "%s", "Ensure assets are downloaded");
                                 gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_RED, 1.0f, "%s", "Ensure assets are imported");
@@ -1140,6 +1175,7 @@ pl_app_update(plAppData* ptAppData)
 void
 pl__load_apis(plApiRegistryI* ptApiRegistry)
 {
+    gptLog              = pl_get_api_latest(ptApiRegistry, plLogI);
     gptWindows          = pl_get_api_latest(ptApiRegistry, plWindowI);
     gptStats            = pl_get_api_latest(ptApiRegistry, plStatsI);
     gptGfx              = pl_get_api_latest(ptApiRegistry, plGraphicsI);
@@ -1186,6 +1222,24 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptTerrain          = pl_get_api_latest(ptApiRegistry, plTerrainI);
     gptStl              = pl_get_api_latest(ptApiRegistry, plStlI);
     gptDialog           = pl_get_api_latest(ptApiRegistry, plDialogI);
+}
+
+static void
+pl__initialize_logging(void)
+{
+    guLogChannel = gptLog->get_channel_id("Sandbox");
+    if(guLogChannel != SIZE_MAX)
+        return; // Keep the existing sink and log contents across hot reloads.
+
+    guLogChannel = gptLog->add_channel("Sandbox", (plLogExtChannelInit){.tType = PL_LOG_CHANNEL_TYPE_CONSOLE | PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER});
+    gptFile->create_directory("../cache");
+    // One file per run, including existing and subsequently created extension channels.
+    // Flush each entry so diagnostics preceding a crash are not left in the stdio buffer.
+    if(!gptLog->set_file(PL_LOG_ALL_CHANNELS, "../cache/sandbox.log", PL_LOG_FILE_FLAGS_FLUSH_EACH_ENTRY))
+        gptLog->warn(guLogChannel, "Unable to open ../cache/sandbox.log; continuing with console and Log Tool logging");
+
+    const plDateTime tNow = gptDateTime->now();
+    gptLog->info_p(guLogChannel, "Sandbox session started: %04d-%02d-%02d %02d:%02d:%02d (local), Pilot Light %s, backend %s", tNow.tDate.iYear, tNow.tDate.eMonth, tNow.tDate.iDay, tNow.tTime.iHour, tNow.tTime.iMinute, tNow.tTime.iSecond, PILOT_LIGHT_VERSION_STRING, gptGfx->get_backend_string());
 }
 
 void
@@ -1259,6 +1313,7 @@ pl__refresh_files(plAppData* ptAppData)
 void
 pl__load_assets(plAppData* ptAppData)
 {
+    gptLog->info(guLogChannel, "Bulk asset loading started");
     char* sbcBuffer = NULL;
 
     {
@@ -1413,6 +1468,7 @@ pl__load_assets(plAppData* ptAppData)
 
     pl_sb_free(sbcBuffer);
     gptAsset->clear_changes();
+    gptLog->info(guLogChannel, "Bulk asset loading finished; individual failures are reported on the Assets channel");
 }
 
 //-----------------------------------------------------------------------------
