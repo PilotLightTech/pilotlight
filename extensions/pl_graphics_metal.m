@@ -152,7 +152,6 @@ typedef struct _plGraphics
     
     // metal specifics
     plTempAllocator tTempAllocator;
-    CAMetalLayer*   pMetalLayer;
     
     bool bComputeEncoderActive;
     bool bRenderEncoderActive;
@@ -211,6 +210,7 @@ typedef struct _plDevice
 
     // metal specifics
     id<MTLDevice> tDevice;
+    CAMetalLayer** sbptMetalLayers; // live swapchain layers, including secondary windows
 
     id<MTLHeap> atHeaps[64];
     const char* apcHeapNames[64];
@@ -241,22 +241,14 @@ typedef struct _plSwapchain
     plTextureHandle* sbtSwapchainTextureViews;
     uint32_t         uCurrentImageIndex; // current image to use within the swap chain
     bool             bVSync;
-    plSurface*       ptSurface; // unused
+    plSurface*       ptSurface;
     id<CAMetalDrawable> tCurrentDrawable;
 } plSwapchain;
 
 typedef struct _plSurface
 {
-    int _iUnused;
-} plSurface;
-
-typedef struct _plPlatformExtData
-{
-    NSNumber* tScreen;
-    id<MTLDevice> tDevice;
     CAMetalLayer* ptLayer;
-    id gtAppDelegate;
-} plPlatformExtData;
+} plSurface;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -1531,25 +1523,24 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
 plSurface*
 pl_graphics_create_surface(plWindow* ptWindow)
 {
+    if(!ptWindow || !ptWindow->_pGraphicsSurface)
+        return NULL;
     plSurface* ptSurface = PL_ALLOC(sizeof(plSurface));
-    memset(ptSurface, 0, sizeof(plSurface));
+    ptSurface->ptLayer = [(CAMetalLayer*)ptWindow->_pGraphicsSurface retain];
     return ptSurface;
 }
 
 void
 pl_graphics_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCount)
 {
-    *puDeviceCount = 1;
-
-    if(atDeviceInfo == NULL)
+    id<MTLDevice> tDevice = MTLCreateSystemDefaultDevice();
+    *puDeviceCount = tDevice ? 1 : 0;
+    if(!tDevice || !atDeviceInfo)
+    {
+        [tDevice release];
         return;
-
+    }
     memset(&atDeviceInfo[0], 0, sizeof(atDeviceInfo[0]));
-
-    plIO* ptIOCtx = gptIOI->get_io();
-    plPlatformExtData* ptBackendData = ptIOCtx->pBackendPlatformData;
-    id<MTLDevice> tDevice =  MTLCreateSystemDefaultDevice();
-    ptBackendData->tDevice = tDevice;
 
     strncpy(atDeviceInfo[0].acName, [tDevice.name UTF8String], 256);
     atDeviceInfo[0].eVendorId = PL_VENDOR_ID_APPLE;
@@ -1579,6 +1570,7 @@ pl_graphics_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCoun
     else if([tDevice supportsTextureSampleCount:4])  atDeviceInfo[0].eMaxSampleCount = 4;
     else if([tDevice supportsTextureSampleCount:2])  atDeviceInfo[0].eMaxSampleCount = 2;
     else atDeviceInfo[0].eMaxSampleCount = 1;
+    [tDevice release];
     
 }
 
@@ -1586,6 +1578,13 @@ plDevice*
 pl_graphics_create_device(const plDeviceInit* ptInit)
 {
     plIO* ptIOCtx = gptIOI->get_io();
+
+    if(ptInit->uDeviceIdx != 0)
+        return NULL;
+
+    id<MTLDevice> tDevice = MTLCreateSystemDefaultDevice();
+    if(!tDevice)
+        return NULL;
 
     plDevice* ptDevice = PL_ALLOC(sizeof(plDevice));
     memset(ptDevice, 0, sizeof(plDevice));
@@ -1627,8 +1626,7 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     pl_sb_back(ptDevice->sbtBindGroupsCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtBindGroupLayoutsCold)._uGeneration = 1;
 
-    plPlatformExtData* ptBackendData = ptIOCtx->pBackendPlatformData;
-    ptDevice->tDevice = ptBackendData->tDevice;
+    ptDevice->tDevice = tDevice;
 
     uint32_t uDeviceCount = 16;
     plDeviceInfo atDeviceInfos[16] = {0};
@@ -1703,12 +1701,17 @@ plSwapchain*
 pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainInit* ptInit)
 {
 
+    if(!ptSurface || !ptSurface->ptLayer)
+        return NULL;
+    ptSurface->ptLayer.device = ptDevice->tDevice;
+    pl_sb_push(ptDevice->sbptMetalLayers, ptSurface->ptLayer);
+
     plSwapchain* ptSwap = PL_ALLOC(sizeof(plSwapchain));
     memset(ptSwap, 0, sizeof(plSwapchain));
 
     ptSwap->tInfo.bVSync = ptInit->bVSync;
-    ptSwap->tInfo.uWidth = ptInit->uWidth ? ptInit->uWidth : (uint32_t)(gptIO->tMainViewportSize.x * gptIO->tMainFramebufferScale.x);
-    ptSwap->tInfo.uHeight = ptInit->uHeight ? ptInit->uHeight : (uint32_t)(gptIO->tMainViewportSize.y * gptIO->tMainFramebufferScale.y);
+    ptSwap->tInfo.uWidth = ptInit->uWidth ? ptInit->uWidth : (uint32_t)ptSurface->ptLayer.drawableSize.width;
+    ptSwap->tInfo.uHeight = ptInit->uHeight ? ptInit->uHeight : (uint32_t)ptSurface->ptLayer.drawableSize.height;
     ptSwap->ptSurface = ptSurface;
     ptSwap->ptDevice = ptDevice;
     ptSwap->uImageCount = gptGraphics->uFramesInFlight;
@@ -1918,18 +1921,15 @@ pl_graphics_acquire_swapchain_image(plSwapchain* ptSwapchain)
 
     plDevice* ptDevice = ptSwapchain->ptDevice;
 
-    plIO* ptIOCtx = gptIOI->get_io();
-    plPlatformExtData* ptBackendData = ptIOCtx->pBackendPlatformData;
-    gptGraphics->pMetalLayer = ptBackendData->ptLayer;
-    gptGraphics->pMetalLayer.device = ptBackendData->tDevice;
-    gptGraphics->pMetalLayer.displaySyncEnabled = ptSwapchain->tInfo.bVSync;
+    CAMetalLayer* ptLayer = ptSwapchain->ptSurface->ptLayer;
+    ptLayer.displaySyncEnabled = ptSwapchain->tInfo.bVSync;
 
     // get next drawable
     // if(ptSwapchain->tCurrentDrawable)
     //     [ptSwapchain->tCurrentDrawable release];
 
     ptSwapchain->uCurrentImageIndex = gptGraphics->uCurrentFrameIndex;
-    ptSwapchain->tCurrentDrawable = [gptGraphics->pMetalLayer nextDrawable];
+    ptSwapchain->tCurrentDrawable = [ptLayer nextDrawable];
     if(ptSwapchain->tCurrentDrawable == nil)
     {
         PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
@@ -1961,10 +1961,8 @@ pl_graphics_begin_command_recording(plCommandBuffer* ptCommandBuffer)
     [ptDevice->tResidencySet requestResidency];
 
     [ptCommandBuffer->tCmdBuffer4 beginCommandBufferWithAllocator:ptCommandBuffer->ptPool->tCmdAllocator];
-    if(gptGraphics->pMetalLayer)
-    {
-        [ptCommandBuffer->tCmdBuffer4 useResidencySet:gptGraphics->pMetalLayer.residencySet];
-    }
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbptMetalLayers); i++)
+        [ptCommandBuffer->tCmdBuffer4 useResidencySet:ptDevice->sbptMetalLayers[i].residencySet];
 }
 
 void
@@ -1980,7 +1978,8 @@ pl_graphics_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubm
 
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
 
-    [ptDevice->tCmdQueue4 waitForDrawable:ptSwaps[0]->tCurrentDrawable];
+    for(uint32_t i = 0; i < uSwapchainCount; i++)
+        [ptDevice->tCmdQueue4 waitForDrawable:ptSwaps[i]->tCurrentDrawable];
 
     if (ptSubmitInfo)
     {
@@ -1999,9 +1998,12 @@ pl_graphics_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubm
 
     pl__gpu_timing_submit(ptCommandBuffer);
     [ptDevice->tCmdQueue4 commit:&ptCommandBuffer->tCmdBuffer4 count:1];
-    [ptDevice->tCmdQueue4 signalDrawable:ptSwaps[0]->tCurrentDrawable];
-    
-    [ptSwaps[0]->tCurrentDrawable present];
+    for(uint32_t i = 0; i < uSwapchainCount; i++)
+    {
+        [ptDevice->tCmdQueue4 signalDrawable:ptSwaps[i]->tCurrentDrawable];
+        [ptSwaps[i]->tCurrentDrawable present];
+        ptSwaps[i]->tCurrentDrawable = nil;
+    }
 
     if(ptSubmitInfo)
     {
@@ -2745,12 +2747,33 @@ pl_graphics_cleanup(void)
 void
 pl_graphics_cleanup_surface(plSurface* ptSurface)
 {
+    [ptSurface->ptLayer release];
     PL_FREE(ptSurface);
 }
 
 void
 pl_graphics_cleanup_swapchain(plSwapchain* ptSwap)
 {
+    // The caller has retired GPU work before destroying a window's swapchain.
+    for(uint32_t i = 0; i < pl_sb_size(ptSwap->sbtSwapchainTextureViews); i++)
+    {
+        const plTextureHandle tHandle = ptSwap->sbtSwapchainTextureViews[i];
+        // The drawable owns this texture; do not release it as a normal texture.
+        memset(&ptSwap->ptDevice->sbtTexturesHot[tHandle.uIndex], 0, sizeof(plMetalTexture));
+        ptSwap->ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
+        pl_sb_push(ptSwap->ptDevice->sbtTextureFreeIndices, tHandle.uIndex);
+    }
+
+    plDevice* ptDevice = ptSwap->ptDevice;
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbptMetalLayers); i++)
+    {
+        if(ptDevice->sbptMetalLayers[i] == ptSwap->ptSurface->ptLayer)
+        {
+            pl_sb_del(ptDevice->sbptMetalLayers, i);
+            break;
+        }
+    }
+    ptSwap->tCurrentDrawable = nil;
     pl__cleanup_common_swapchain(ptSwap);
 }
 
@@ -2775,6 +2798,8 @@ pl_graphics_cleanup_device(plDevice* ptDevice)
     }
     pl_sb_free(ptDevice->sbtFrames);
 
+    pl_sb_free(ptDevice->sbptMetalLayers);
+    [ptDevice->tDevice release];
     pl__cleanup_common_device(ptDevice);
 }
 

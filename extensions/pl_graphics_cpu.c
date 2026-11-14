@@ -33,6 +33,7 @@ typedef int plCpuCommandBufferItemType;
 enum _plCpuCommandBufferItemType
 {
     PL_CPU_COMMAND_BUFFER_ITEM_TYPE_NONE = 0,
+    PL_CPU_COMMAND_BUFFER_ITEM_TYPE_BEGIN_RENDER_PASS,
     PL_CPU_COMMAND_BUFFER_ITEM_TYPE_DRAW_INDEXED,
     PL_CPU_COMMAND_BUFFER_ITEM_TYPE_COPY_BUFFER_TO_TEXTURE,
     PL_CPU_COMMAND_BUFFER_ITEM_TYPE_SET_VIEWPORT,
@@ -258,6 +259,7 @@ typedef struct _plGraphics
 typedef struct _plSurface
 {
     plWindowSurface* ptWindowSurface;
+    plWindow*        ptWindow;
 } plSurface;
 
 typedef struct _plSwapchain
@@ -715,7 +717,8 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 plTextureHandle*
 pl_graphics_get_swapchain_images(plSwapchain* ptSwap, uint32_t* puSizeOut)
 {
-    *puSizeOut = ptSwap->uImageCount;
+    if(puSizeOut)
+        *puSizeOut = ptSwap->uImageCount;
     return ptSwap->sbtSwapchainTextureViews;
 }
 
@@ -747,10 +750,11 @@ pl_graphics_begin_render_pass(plCommandBuffer* ptCmdBuffer, const plRenderInfo* 
     };
     pl_graphics_set_viewport(ptCmdBuffer, &tViewport);
 
-    plDevice* ptDevice = ptCmdBuffer->ptDevice;
-    plTexture* ptTexture = &ptDevice->sbtTexturesCold[ptInfo->atColorAttachments[0].tTexture.uIndex];
-    plCpuTexture* ptCpuTexture = &ptDevice->sbtTexturesHot[ptInfo->atColorAttachments[0].tTexture.uIndex];
-    memset(ptCpuTexture->pData, 0, (uint32_t)ptTexture->tDesc.tDimensions.x * (uint32_t)ptTexture->tDesc.tDimensions.y * pl__format_stride(ptTexture->tDesc.eFormat));
+    ptCmdBuffer->uCurrentStreamItem++;
+    pl_sb_add(ptCmdBuffer->sbtStream);
+    plCommandBufferItem* ptItem = &ptCmdBuffer->sbtStream[ptCmdBuffer->uCurrentStreamItem];
+    ptItem->eType = PL_CPU_COMMAND_BUFFER_ITEM_TYPE_BEGIN_RENDER_PASS;
+    ptItem->tRenderInfo = *ptInfo;
 }
 
 void
@@ -1036,11 +1040,16 @@ pl_graphics_create_surface(plWindow* ptWindow)
     plSurface* ptSurface = PL_ALLOC(sizeof(plSurface));
     memset(ptSurface, 0, sizeof(plSurface));
 
+    ptSurface->ptWindow = ptWindow;
     plWindowSurfaceDesc tSurfaceDesc = {
         .tFormat     = PL_WINDOW_SURFACE_FORMAT_B8G8R8A8_UNORM,
         .uImageCount = 2
     };
-    gptWindows->create_surface(ptWindow, &tSurfaceDesc, &ptSurface->ptWindowSurface);
+    if(gptWindows->create_surface(ptWindow, &tSurfaceDesc, &ptSurface->ptWindowSurface) != PL_WINDOW_RESULT_SUCCESS)
+    {
+        PL_FREE(ptSurface);
+        return NULL;
+    }
     return ptSurface;
 }
 
@@ -1052,14 +1061,15 @@ pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plS
     ptSwap->ptSurface = ptSurface;
     ptSwap->uImageCount = gptGraphics->uFramesInFlight;
     ptSwap->tInfo.eFormat = PL_FORMAT_B8G8R8A8_UNORM;
-    ptSwap->tInfo.uWidth = ptInit->uWidth;
-    ptSwap->tInfo.uHeight = ptInit->uHeight;
+    plWindowAttributeValue tSize = {.tuVec2 = {ptSurface->ptWindow->_uRequestedWidth, ptSurface->ptWindow->_uRequestedHeight}};
+    gptWindows->get_attribute(ptSurface->ptWindow, PL_WINDOW_ATTRIBUTE_SIZE, &tSize);
+    ptSwap->tInfo.uWidth = ptInit->uWidth ? ptInit->uWidth : tSize.tuVec2.x;
+    ptSwap->tInfo.uHeight = ptInit->uHeight ? ptInit->uHeight : tSize.tuVec2.y;
     ptSwap->ptDevice = ptDevice;
     ptSwap->tInfo.eSampleCount = pl_min(ptInit->eSampleCount, ptSwap->ptDevice->tInfo.eMaxSampleCount);
     if(ptSwap->tInfo.eSampleCount == 0)
         ptSwap->tInfo.eSampleCount = 1;
-    ptSwap->tInfo.uWidth = (uint32_t)gptIO->tMainViewportSize.x;
-    ptSwap->tInfo.uHeight = (uint32_t)gptIO->tMainViewportSize.y;
+
 
     for(uint32_t i = 0; i < ptSwap->uImageCount; i++)
     {
@@ -1097,6 +1107,13 @@ pl_graphics_acquire_swapchain_image(plSwapchain* ptSwap)
         ptTexture->tDesc.tDimensions.y = (float)ptSwap->tCurrentSurfaceImage.uHeight;
         ptCpuTexture->pData = ptSwap->tCurrentSurfaceImage.pPixels;
         ptSwap->uCurrentImageIndex = ptSwap->tCurrentSurfaceImage.uImageIndex;
+        ptSwap->tInfo.uWidth = ptSwap->tCurrentSurfaceImage.uWidth;
+        ptSwap->tInfo.uHeight = ptSwap->tCurrentSurfaceImage.uHeight;
+    }
+    else
+    {
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        return false;
     }
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
@@ -1115,7 +1132,8 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
 
     pl_graphics_submit_command_buffer(ptCmdBuffer, ptSubmitInfo);
 
-    gptWindows->present_surface_image(ptSwaps[0]->ptSurface->ptWindowSurface, ptSwaps[0]->tCurrentSurfaceImage.uImageIndex);
+    for(uint32_t i = 0; i < uSwapchainCount; i++)
+        gptWindows->present_surface_image(ptSwaps[i]->ptSurface->ptWindowSurface, ptSwaps[i]->tCurrentSurfaceImage.uImageIndex);
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
     ptCmdBuffer->ptDevice->sbtFrames[gptGraphics->uCurrentFrameIndex].uCurrentBufferIndex = 0;
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
@@ -1154,13 +1172,22 @@ pl_graphics_cleanup(void)
 void
 pl_graphics_cleanup_surface(plSurface* ptSurface)
 {
+    gptWindows->destroy_surface(&ptSurface->ptWindowSurface);
     PL_FREE(ptSurface);
 }
 
 void
 pl_graphics_cleanup_swapchain(plSwapchain* ptSwap)
 {
-    gptWindows->destroy_surface(&ptSwap->ptSurface->ptWindowSurface);
+    // The caller has retired GPU work before destroying a window's swapchain.
+    for(uint32_t i = 0; i < pl_sb_size(ptSwap->sbtSwapchainTextureViews); i++)
+    {
+        const plTextureHandle tHandle = ptSwap->sbtSwapchainTextureViews[i];
+        ptSwap->ptDevice->sbtTexturesHot[tHandle.uIndex].pData = NULL;
+        ptSwap->ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
+        pl_sb_push(ptSwap->ptDevice->sbtTextureFreeIndices, tHandle.uIndex);
+    }
+
     pl__cleanup_common_swapchain(ptSwap);
 }
 
@@ -1262,6 +1289,41 @@ pl_graphics_submit_command_buffer(plCommandBuffer* ptCommandBuffer, const plSubm
                 ptFrame->aulTicks[uIndex] = (uint64_t)(gptGraphicsTimer->get_raw_time() * 1e9);
                 if(uIndex & 1)
                     ptFrame->abReady[uIndex / 2] = true;
+            }
+        }
+        else if(ptCmdBufferItem->eType == PL_CPU_COMMAND_BUFFER_ITEM_TYPE_BEGIN_RENDER_PASS)
+        {
+            const plRenderInfo* ptInfo = &ptCmdBufferItem->tRenderInfo;
+            const plRenderAttachment* ptAttachment = &ptInfo->atColorAttachments[0];
+            if(ptAttachment->eLoadOp != PL_LOAD_OP_CLEAR)
+                continue;
+            plTexture* ptTexture = &ptDevice->sbtTexturesCold[ptAttachment->tTexture.uIndex];
+            plCpuTexture* ptCpuTexture = &ptDevice->sbtTexturesHot[ptAttachment->tTexture.uIndex];
+            // These are the color formats supported by the CPU rasterizer.
+            if(ptTexture->tDesc.eFormat != PL_FORMAT_R8G8B8A8_UNORM && ptTexture->tDesc.eFormat != PL_FORMAT_B8G8R8A8_UNORM)
+            {
+                PL_ASSERT(false && "CPU color clear requires RGBA8 or BGRA8 UNORM");
+                continue;
+            }
+            uint8_t auColor[4];
+            for(uint32_t i = 0; i < 4; i++)
+                auColor[i] = (uint8_t)(pl_clampf(0.0f, ptAttachment->tClearColor.d[i], 1.0f) * 255.0f + 0.5f);
+            if(ptTexture->tDesc.eFormat == PL_FORMAT_B8G8R8A8_UNORM)
+            {
+                uint8_t uRed = auColor[0];
+                auColor[0] = auColor[2];
+                auColor[2] = uRed;
+            }
+            const int iWidth = (int)ptTexture->tDesc.tDimensions.x;
+            const int iHeight = (int)ptTexture->tDesc.tDimensions.y;
+            const int iMinX = pl_maxi(0, (int)ptInfo->tRenderArea.tMin.x);
+            const int iMinY = pl_maxi(0, (int)ptInfo->tRenderArea.tMin.y);
+            const int iMaxX = pl_mini(iWidth, (int)ptInfo->tRenderArea.tMax.x);
+            const int iMaxY = pl_mini(iHeight, (int)ptInfo->tRenderArea.tMax.y);
+            for(int y = iMinY; y < iMaxY; y++)
+            {
+                for(int x = iMinX; x < iMaxX; x++)
+                    memcpy((uint8_t*)ptCpuTexture->pData + ((size_t)y * iWidth + x) * 4, auColor, 4);
             }
         }
         else if(ptCmdBufferItem->eType == PL_CPU_COMMAND_BUFFER_ITEM_TYPE_SET_VIEWPORT)

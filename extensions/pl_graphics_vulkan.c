@@ -265,6 +265,7 @@ typedef struct _plGraphics
     size_t   szLocalMemoryInUse;
     size_t   szHostMemoryInUse;
     bool     bValidationActive;
+    bool     bSwapchainEnabled;
     bool     bDebugMessengerActive;
 
     // free lists
@@ -3201,6 +3202,7 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
     gptDataRegistry->set_data("plGraphics", gptGraphics);
 
     gptGraphics->bValidationActive = ptDesc->eFlags & PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
+    gptGraphics->bSwapchainEnabled = (ptDesc->eFlags & PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED) != 0;
 
     gptGraphics->bDebugMessengerActive = gptGraphics->bValidationActive;
 
@@ -3231,12 +3233,16 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
             apcExtensions[uExtensionCount++] = VK_KHR_ANDROID_SURFACE_EXTENSION_NAME;
     #elif defined(__APPLE__)
             apcExtensions[uExtensionCount++] = "VK_EXT_metal_surface";
-            apcExtensions[uExtensionCount++] = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+
     #else // linux
             apcExtensions[uExtensionCount++] = VK_KHR_XLIB_SURFACE_EXTENSION_NAME;
             apcExtensions[uExtensionCount++] = VK_KHR_XCB_SURFACE_EXTENSION_NAME;
     #endif
     }
+
+    #if defined(__APPLE__)
+        apcExtensions[uExtensionCount++] = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+    #endif
 
     // if debug messenger options is enabled, add required extensions
     if (gptGraphics->bDebugMessengerActive)
@@ -3553,37 +3559,18 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     memset(ptDevice, 0, sizeof(plDevice));
     ptDevice->tInit = *ptInit;
 
-    pl_sb_add(ptDevice->sbtShadersHot);
-    pl_sb_add(ptDevice->sbtComputeShadersHot);
-    pl_sb_add(ptDevice->sbtBuffersHot);
-    pl_sb_add(ptDevice->sbtTextureViewsHot);
-    pl_sb_add(ptDevice->sbtTexturesHot);
-    pl_sb_add(ptDevice->sbtSamplersHot);
-    pl_sb_add(ptDevice->sbtBindGroupsHot);
-    pl_sb_add(ptDevice->sbtBindGroupLayoutsHot);
-    
-    pl_sb_add(ptDevice->sbtShadersCold);
-    pl_sb_add(ptDevice->sbtComputeShadersCold);
-    pl_sb_add(ptDevice->sbtBuffersCold);
-    pl_sb_add(ptDevice->sbtTexturesCold);
-    pl_sb_add(ptDevice->sbtSamplersCold);
-    pl_sb_add(ptDevice->sbtBindGroupsCold);
-    pl_sb_add(ptDevice->sbtBindGroupLayoutsCold);
-
-    pl_sb_back(ptDevice->sbtShadersCold)._uGeneration = 1;
-    pl_sb_back(ptDevice->sbtComputeShadersCold)._uGeneration = 1;
-    pl_sb_back(ptDevice->sbtBuffersCold)._uGeneration = 1;
-    pl_sb_back(ptDevice->sbtTexturesCold)._uGeneration = 1;
-    pl_sb_back(ptDevice->sbtSamplersCold)._uGeneration = 1;
-    pl_sb_back(ptDevice->sbtBindGroupsCold)._uGeneration = 1;
-    pl_sb_back(ptDevice->sbtBindGroupLayoutsCold)._uGeneration = 1;
-
     uint32_t uDeviceCount = 16;
     VkPhysicalDevice atDevices[16] = {0};
     PL_VULKAN(vkEnumeratePhysicalDevices(gptGraphics->tInstance, &uDeviceCount, atDevices));
 
     plDeviceInfo atDeviceInfos[16] = {0};
     pl_graphics_enumerate_devices(atDeviceInfos, &uDeviceCount);
+
+    if(ptInit->uDeviceIdx >= uDeviceCount)
+    {
+        PL_FREE(ptDevice);
+        return NULL;
+    }
 
     // user decided on device
     ptDevice->tPhysicalDevice = atDevices[ptInit->uDeviceIdx];
@@ -3613,7 +3600,10 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
             ptDevice->iGraphicsQueueFamily = i;
 
         VkBool32 tPresentSupport = false;
-        PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptDevice->tPhysicalDevice, i, ptInit->ptSurface->tSurface, &tPresentSupport));
+        if(ptInit->ptSurface)
+            PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptDevice->tPhysicalDevice, i, ptInit->ptSurface->tSurface, &tPresentSupport));
+        else
+            tPresentSupport = (auQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
 
         if (tPresentSupport)
             ptDevice->iPresentQueueFamily = i;
@@ -3621,6 +3611,38 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
         if (ptDevice->iGraphicsQueueFamily > -1 && ptDevice->iPresentQueueFamily > -1) // complete
             break;
     }
+
+    if(ptDevice->iGraphicsQueueFamily < 0 || ptDevice->iPresentQueueFamily < 0)
+    {
+        PL_LOG_ERROR_API(gptLog, uLogChannelGraphics, "No suitable graphics/presentation queue family");
+        PL_FREE(ptDevice);
+        return NULL;
+    }
+
+    pl_sb_add(ptDevice->sbtShadersHot);
+    pl_sb_add(ptDevice->sbtComputeShadersHot);
+    pl_sb_add(ptDevice->sbtBuffersHot);
+    pl_sb_add(ptDevice->sbtTextureViewsHot);
+    pl_sb_add(ptDevice->sbtTexturesHot);
+    pl_sb_add(ptDevice->sbtSamplersHot);
+    pl_sb_add(ptDevice->sbtBindGroupsHot);
+    pl_sb_add(ptDevice->sbtBindGroupLayoutsHot);
+
+    pl_sb_add(ptDevice->sbtShadersCold);
+    pl_sb_add(ptDevice->sbtComputeShadersCold);
+    pl_sb_add(ptDevice->sbtBuffersCold);
+    pl_sb_add(ptDevice->sbtTexturesCold);
+    pl_sb_add(ptDevice->sbtSamplersCold);
+    pl_sb_add(ptDevice->sbtBindGroupsCold);
+    pl_sb_add(ptDevice->sbtBindGroupLayoutsCold);
+
+    pl_sb_back(ptDevice->sbtShadersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtComputeShadersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtBuffersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtTexturesCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtSamplersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtBindGroupsCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtBindGroupLayoutsCold)._uGeneration = 1;
 
     const float fQueuePriority = 1.0f;
     VkDeviceQueueCreateInfo atQueueCreateInfos[] = {
@@ -3647,7 +3669,7 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
         apcDeviceExts[0] = VK_EXT_DEBUG_MARKER_EXTENSION_NAME;
         uDeviceExtensionCount++;
     }
-    if (ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_SWAPCHAIN)
+    if (gptGraphics->bSwapchainEnabled && (ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_SWAPCHAIN))
         apcDeviceExts[uDeviceExtensionCount++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
     #if defined(__APPLE__)
         apcDeviceExts[uDeviceExtensionCount++] = "VK_KHR_portability_subset";
@@ -3918,6 +3940,9 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
 plSurface*
 pl_graphics_create_surface(plWindow* ptWindow)
 {
+    if(!gptGraphics->bSwapchainEnabled || !ptWindow)
+        return NULL;
+
     plSurface* ptSurface = PL_ALLOC(sizeof(plSurface));
     memset(ptSurface, 0, sizeof(plSurface));
 
@@ -3937,15 +3962,14 @@ pl_graphics_create_surface(plWindow* ptWindow)
             .window = };
         PL_VULKAN(vkCreateAndroidSurfaceKHR(gptGraphics->tInstance, &tSurfaceCreateInfo, gptGraphics->ptAllocationCallbacks, &ptSurface->tSurface));
     #elif defined(__APPLE__)
-        typedef struct _plWindowData
+        if(!ptWindow->_pGraphicsSurface)
         {
-            void* ptWindow;
-            void* ptViewController;
-            CAMetalLayer* ptLayer;
-        } plWindowData;
+            PL_FREE(ptSurface);
+            return NULL;
+        }
         const VkMetalSurfaceCreateInfoEXT tSurfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT,
-            .pLayer = ((plWindowData *)ptWindow->_pBackendData)->ptLayer};
+            .pLayer = (const CAMetalLayer*)ptWindow->_pGraphicsSurface};
         PL_VULKAN(vkCreateMetalSurfaceEXT(gptGraphics->tInstance, &tSurfaceCreateInfo, gptGraphics->ptAllocationCallbacks, &ptSurface->tSurface));
     #else // linux
         const uint32_t uHeader = *(uint32_t*)ptWindow->_pBackendData;
@@ -3991,6 +4015,16 @@ pl_graphics_create_surface(plWindow* ptWindow)
 plSwapchain*
 pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainInit* ptInit)
 {
+    if(!gptGraphics->bSwapchainEnabled || !ptSurface || !(ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_SWAPCHAIN))
+        return NULL;
+    VkBool32 tPresentSupport = VK_FALSE;
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptDevice->tPhysicalDevice, (uint32_t)ptDevice->iPresentQueueFamily, ptSurface->tSurface, &tPresentSupport));
+    if(!tPresentSupport)
+    {
+        PL_LOG_ERROR_API(gptLog, uLogChannelGraphics, "Device presentation queue does not support this window surface");
+        return NULL;
+    }
+
 
     plSwapchain* ptSwap = PL_ALLOC(sizeof(plSwapchain));
     memset(ptSwap, 0, sizeof(plSwapchain));
@@ -4008,7 +4042,7 @@ pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plS
         ptSwap->tInfo.eSampleCount = 1;
 
     plIO* ptIOCtx = gptIOI->get_io();
-    pl__create_swapchain((uint32_t)ptIOCtx->tMainViewportSize.x, (uint32_t)ptIOCtx->tMainViewportSize.y, ptSwap);
+    pl__create_swapchain(ptInit->uWidth, ptInit->uHeight, ptSwap);
 
     const VkSemaphoreCreateInfo tSemaphoreInfo = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
@@ -4072,7 +4106,13 @@ bool
 pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwapchain **ptSwaps, uint32_t uSwapchainCount)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
-    plIO* ptIOCtx = gptIOI->get_io();
+    if(uSwapchainCount > 64 || (uSwapchainCount && !ptSwaps) || (ptSubmitInfo && (ptSubmitInfo->uWaitSemaphoreCount > PL_MAX_TIMELINE_SEMAPHORES || ptSubmitInfo->uSignalSemaphoreCount > PL_MAX_TIMELINE_SEMAPHORES || ptSubmitInfo->uWaitSemaphoreCount + uSwapchainCount > 64)))
+    {
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        return false;
+    }
+    const uint32_t uPresentSignalCount = uSwapchainCount ? 1 : 0;
+    const VkSemaphore tPresentSemaphore = uSwapchainCount ? ptSwaps[0]->sbtRenderFinish[ptSwaps[0]->uCurrentImageIndex] : VK_NULL_HANDLE;
 
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
@@ -4090,8 +4130,8 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
         .pWaitDstStageMask    = atWaitStages,
         .commandBufferCount   = 1,
         .pCommandBuffers      = atCmdBuffers,
-        .signalSemaphoreCount = 1,
-        .pSignalSemaphores    = &ptSwaps[0]->sbtRenderFinish[ptSwaps[0]->uCurrentImageIndex]
+        .signalSemaphoreCount = uPresentSignalCount,
+        .pSignalSemaphores    = &tPresentSemaphore
     };
 
     VkTimelineSemaphoreSubmitInfo tTimelineInfo = {
@@ -4101,7 +4141,7 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
 
     VkSemaphore atSignalSemaphores[PL_MAX_TIMELINE_SEMAPHORES + 2] = {0};
     uint64_t aulSignalValues[PL_MAX_TIMELINE_SEMAPHORES + 2] = {0};
-    atSignalSemaphores[0] = ptSwaps[0]->sbtRenderFinish[ptSwaps[0]->uCurrentImageIndex];
+    atSignalSemaphores[0] = tPresentSemaphore;
     tSubmitInfo.pSignalSemaphores = atSignalSemaphores;
     tTimelineInfo.waitSemaphoreValueCount = uSwapchainCount;
 
@@ -4141,13 +4181,13 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
             aulSignalValues[i] = ptSubmitInfo->auSignalSemaphoreValues[i];
         }
         
-        atSignalSemaphores[ptSubmitInfo->uSignalSemaphoreCount] = ptSwaps[0]->sbtRenderFinish[ptSwaps[0]->uCurrentImageIndex];
-        tTimelineInfo.signalSemaphoreValueCount = ptSubmitInfo->uSignalSemaphoreCount + 1;
+        atSignalSemaphores[ptSubmitInfo->uSignalSemaphoreCount] = tPresentSemaphore;
+        tTimelineInfo.signalSemaphoreValueCount = ptSubmitInfo->uSignalSemaphoreCount + uPresentSignalCount;
         tTimelineInfo.pSignalSemaphoreValues = aulSignalValues;
 
         tSubmitInfo.pNext = &tTimelineInfo;
         tSubmitInfo.pSignalSemaphores = atSignalSemaphores;
-        tSubmitInfo.signalSemaphoreCount = ptSubmitInfo->uSignalSemaphoreCount + 1;
+        tSubmitInfo.signalSemaphoreCount = ptSubmitInfo->uSignalSemaphoreCount + uPresentSignalCount;
     }
 
     pl__vulkan_submit_timing(ptCmdBuffer, &tSubmitInfo, &tTimelineInfo, atSignalSemaphores, aulSignalValues);
@@ -4165,12 +4205,12 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
     const VkPresentInfoKHR tPresentInfo = {
         .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores    = &ptSwaps[0]->sbtRenderFinish[ptSwaps[0]->uCurrentImageIndex],
+        .pWaitSemaphores    = &tPresentSemaphore,
         .swapchainCount     = uSwapchainCount,
         .pSwapchains        = atSwapchains,
         .pImageIndices      = auImageIndices
     };
-    tResult = vkQueuePresentKHR(ptDevice->tPresentQueue, &tPresentInfo);
+    tResult = uSwapchainCount ? vkQueuePresentKHR(ptDevice->tPresentQueue, &tPresentInfo) : VK_SUCCESS;
     bool bRecreate = tResult == VK_ERROR_OUT_OF_DATE_KHR || tResult == VK_SUBOPTIMAL_KHR;
     for(uint32_t i = 0; i < uSwapchainCount; i++)
         bRecreate |= ptSwaps[i]->bSuboptimal;
@@ -4232,6 +4272,17 @@ pl_graphics_cleanup_surface(plSurface* ptSurface)
 void
 pl_graphics_cleanup_swapchain(plSwapchain* ptSwap)
 {
+    // The caller has retired GPU work before destroying a window's swapchain.
+    for(uint32_t i = 0; i < pl_sb_size(ptSwap->sbtSwapchainTextureViews); i++)
+    {
+        const plTextureHandle tHandle = ptSwap->sbtSwapchainTextureViews[i];
+        plVulkanTexture* ptTexture = &ptSwap->ptDevice->sbtTexturesHot[tHandle.uIndex];
+        vkDestroyImageView(ptSwap->ptDevice->tLogicalDevice, ptTexture->tImageView, gptGraphics->ptAllocationCallbacks);
+        memset(ptTexture, 0, sizeof(*ptTexture));
+        ptSwap->ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
+        pl_sb_push(ptSwap->ptDevice->sbtTextureFreeIndices, tHandle.uIndex);
+    }
+
     pl_sb_free(ptSwap->sbtSurfaceFormats);
     vkDestroySwapchainKHR(ptSwap->ptDevice->tLogicalDevice, ptSwap->tSwapChain, gptGraphics->ptAllocationCallbacks);
     for (uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
@@ -5491,7 +5542,7 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
     pl_sb_resize(ptSwap->sbtSurfaceFormats, uFormatCount);
 
     VkBool32 tPresentSupport = false;
-    PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptDevice->tPhysicalDevice, 0, ptSwap->ptSurface->tSurface, &tPresentSupport));
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptDevice->tPhysicalDevice, (uint32_t)ptDevice->iPresentQueueFamily, ptSwap->ptSurface->tSurface, &tPresentSupport));
     PL_ASSERT(uFormatCount > 0);
     PL_VULKAN(vkGetPhysicalDeviceSurfaceFormatsKHR(ptDevice->tPhysicalDevice, ptSwap->ptSurface->tSurface, &uFormatCount, ptSwap->sbtSurfaceFormats));
 

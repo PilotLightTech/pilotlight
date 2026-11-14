@@ -351,6 +351,8 @@ typedef struct _plGraphicsI
     void                (*flush_device)     (plDevice*);
     const plDeviceInfo* (*get_device_info)  (plDevice*);
 
+    // Surface/swapchain/window lifetime: flush device, destroy swapchain, then
+    // surface, then native window. Cocoa window/layer operations use the main thread.
     // surface
     plSurface* (*create_surface) (plWindow*);
     void       (*cleanup_surface)(plSurface*);
@@ -371,6 +373,11 @@ typedef struct _plGraphicsI
     size_t   (*get_local_memory_in_use)(void);
 
     // per frame
+    // present() submits the final command buffer and advances the frame even with
+    // no windows: pass NULL, 0 for headless rendering (no surface is required).
+    // Acquire each participating swapchain once and pass only successful acquisitions.
+    // If another acquire fails, still finish the successfully acquired subset before
+    // retrying/recreating. Vulkan supports up to 64 combined acquisition/timeline waits.
     void (*begin_frame)(plDevice*);
     bool (*present)    (plCommandBuffer*, const plSubmitInfo*, plSwapchain**, uint32_t uSwapchainCount);
 
@@ -1117,7 +1124,7 @@ typedef struct _plDeviceInit
     uint32_t          uDeviceIdx;
     size_t            szDynamicBufferBlockSize;
     size_t            szDynamicDataMaxSize;
-    plSurface*        ptSurface;
+    plSurface*        ptSurface; // optional; NULL selects a graphics queue for headless use
 } plDeviceInit;
 
 //-----------------------------------------------------------------------------
