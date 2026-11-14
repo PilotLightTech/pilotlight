@@ -308,6 +308,26 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                 gptUI->tree_pop();
             }
 
+            if(gptUI->tree_node("Text Editing", 0))
+            {
+                static char acNotes[4096] = "Pilot Light notes\n\nEnter adds a line. Ctrl+Enter finishes editing.\nSelect text with the mouse or Shift+arrows.\nPaste, undo and redo work across lines.\nUse the wheel or scrollbar for longer notes.";
+                static bool bReadOnly = false;
+                static bool bCtrlEnter = false;
+                gptUI->layout_dynamic(0.0f, 1);
+                gptUI->checkbox("Read only", &bReadOnly);
+                gptUI->checkbox("Ctrl+Enter inserts newline", &bCtrlEnter);
+                plUiInputTextFlags tFlags = PL_UI_INPUT_TEXT_FLAGS_ALLOW_TAB_INPUT;
+                if(bReadOnly)
+                    tFlags |= PL_UI_INPUT_TEXT_FLAGS_READ_ONLY;
+                if(bCtrlEnter)
+                    tFlags |= PL_UI_INPUT_TEXT_FLAGS_CTRL_ENTER_FOR_NEW_LINE;
+                gptUI->layout_dynamic(160.0f, 1);
+                gptUI->input_text_multiline("##notes", acNotes, sizeof(acNotes), tFlags);
+                gptUI->layout_dynamic(0.0f, 1);
+                gptUI->text("Fixed UTF-8 buffer; explicit newlines, no word wrapping.");
+                gptUI->tree_pop();
+            }
+
             if(gptUI->tree_node("Multi Widgets", 0))
             {
                 gptUI->layout_dynamic(0.0f, 1);

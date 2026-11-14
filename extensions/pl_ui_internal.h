@@ -37,6 +37,7 @@ Index of this file:
 #include <stdarg.h>  // arg vars
 #include <stdio.h>   // vsprintf
 #include <float.h> // FLT_MAX
+#include <limits.h> // INT_MAX
 #include <assert.h>
 #include <math.h>
 #include "pl.h"

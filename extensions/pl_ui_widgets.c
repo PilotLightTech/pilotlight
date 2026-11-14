@@ -5,11 +5,11 @@
 //-----------------------------------------------------------------------------
 
 static plVec2
-pl__input_text_calc_text_size_w(const plUiWChar* text_begin, const plUiWChar* text_end, const plUiWChar** remaining, plVec2* out_offset, bool stop_on_new_line)
+pl__input_text_calc_text_size_w(const plUiWChar* text_begin, const plUiWChar* text_end, const plUiWChar** remaining, plVec2* out_offset, bool stop_on_new_line, bool bPassword)
 {
     plFont* font = gptCtx->tFont;
-    const float line_height = gptCtx->tStyle.fFontSize;
-    const float scale = line_height / font->fSize;
+    const float scale = gptCtx->tStyle.fFontSize / font->fSize;
+    const float line_height = font->_fLineSpacing * scale;
 
     plVec2 text_size = {0};
     float line_width = 0.0f;
@@ -30,6 +30,8 @@ pl__input_text_calc_text_size_w(const plUiWChar* text_begin, const plUiWChar* te
         if (c == '\r')
             continue;
 
+        if(bPassword)
+            c = '*';
         const float char_width = font->_sbtGlyphs[font->_auCodePoints[(plUiWChar)c]].fXAdvance * scale;
         line_width += char_width;
     }
@@ -68,6 +70,8 @@ STB_TEXTEDIT_GETWIDTH(plUiInputTextState* obj, int line_start_idx, int char_idx)
     plUiWChar c = obj->sbTextW[line_start_idx + char_idx];
     if (c == '\n')
         return STB_TEXTEDIT_GETWIDTH_NEWLINE;
+    if(obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_PASSWORD)
+        c = '*';
     plFont* font = gptCtx->tFont;
     return font->_sbtGlyphs[font->_auCodePoints[c]].fXAdvance * (gptCtx->tStyle.fFontSize / font->fSize);
 }
@@ -85,12 +89,12 @@ STB_TEXTEDIT_LAYOUTROW(StbTexteditRow* r, plUiInputTextState* obj, int line_star
 {
     const plUiWChar* text = obj->sbTextW;
     const plUiWChar* text_remaining = NULL;
-    const plVec2 size = pl__input_text_calc_text_size_w(text + line_start_idx, text + obj->iCurrentLengthW, &text_remaining, NULL, true);
+    const plVec2 size = pl__input_text_calc_text_size_w(text + line_start_idx, text + obj->iCurrentLengthW, &text_remaining, NULL, true, (obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_PASSWORD) != 0);
     r->x0 = 0.0f;
     r->x1 = size.x;
-    r->baseline_y_delta = size.y;
+    r->baseline_y_delta = (obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_MULTILINE) ? size.y : gptCtx->tStyle.fFontSize;
     r->ymin = 0.0f;
-    r->ymax = size.y;
+    r->ymax = r->baseline_y_delta;
     r->num_chars = (int)(text_remaining - (text + line_start_idx));
 }
 
@@ -113,7 +117,7 @@ pl__is_word_boundary_from_right(plUiInputTextState* obj, int idx)
     // if ((obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_PASSWORD) || idx <= 0)
     //     return 0;
 
-    if(idx <= 0)
+    if((obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_PASSWORD) || idx <= 0)
         return 0;
 
     bool prev_white = pl__char_is_blank_w(obj->sbTextW[idx - 1]);
@@ -126,8 +130,8 @@ pl__is_word_boundary_from_right(plUiInputTextState* obj, int idx)
 static int
 pl__is_word_boundary_from_left(plUiInputTextState* obj, int idx)
 {
-    // if ((obj->Flags & ImGuiInputTextFlags_Password) || idx <= 0)
-    //     return 0;
+    if((obj->tFlags & PL_UI_INPUT_TEXT_FLAGS_PASSWORD) || idx <= 0)
+        return 0;
 
     bool prev_white = pl__char_is_blank_w(obj->sbTextW[idx]);
     bool prev_separ = pl__is_separator(obj->sbTextW[idx]);
@@ -421,7 +425,8 @@ pl__input_text_calc_text_len_and_line_count(const char* text_begin, const char**
     s--;
     if (s[0] != '\n' && s[0] != '\r')
         line_count++;
-    *out_text_end = s;
+    if(out_text_end)
+        *out_text_end = s;
     return line_count;
 }
 
@@ -1682,6 +1687,17 @@ pl_ui_input_text(const char* pcLabel, char* pcBuffer, size_t szBufferSize, plUiI
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
     pl__add_widget(uHash);
+    return bResult;
+}
+
+bool
+pl_ui_input_text_multiline(const char* pcLabel, char* pcBuffer, size_t szBufferSize, plUiInputTextFlags tFlags)
+{
+    const plVec2 tWidgetSize = pl__calculate_item_size(gptCtx->tFont->_fLineSpacing * (gptCtx->tStyle.fFontSize / gptCtx->tFont->fSize) * 8.0f + gptCtx->tStyle.tFramePadding.y * 2.0f);
+    const plVec2 tStartPos = pl__get_cursor_pos();
+    const bool bResult = pl__input_text_ex(pcLabel, NULL, pcBuffer, szBufferSize, tFlags | PL_UI_INPUT_TEXT_FLAGS_MULTILINE, &tWidgetSize, &tStartPos);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__add_widget(pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack)));
     return bResult;
 }
 

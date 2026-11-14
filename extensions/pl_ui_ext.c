@@ -1106,6 +1106,9 @@ pl_ui_begin_frame(void)
     pl_sb_reset(gptCtx->sbDrawlists);
 
     gptCtx->bWantTextInput = false;
+    gptCtx->bInputTextWheeling = false;
+    if(!gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
+        gptCtx->uInputTextScrollId = 0;
     const bool bHadOpenPopup = pl_sb_size(gptCtx->sbtOpenPopupStack) != 0;
 
     // update state id's from previous frame
@@ -4114,7 +4117,7 @@ pl_ui_end_frame(void)
         pl__focus_window(gptCtx->ptHoveredWindow->ptRootWindow);
 
     // scroll window
-    if(gptCtx->ptWheelingWindow)
+    if(gptCtx->ptWheelingWindow && !gptCtx->bInputTextWheeling)
     {
         gptCtx->ptWheelingWindow->tScroll.y -= gptIOI->get_mouse_wheel() * 10.0f;
         gptCtx->ptWheelingWindow->tScroll.y = pl_clampf(0.0f, gptCtx->ptWheelingWindow->tScroll.y, gptCtx->ptWheelingWindow->tScrollMax.y);
@@ -4346,6 +4349,7 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .end_combo                               = pl_ui_end_combo,
         .input_text                              = pl_ui_input_text,
         .input_text_hint                         = pl_ui_input_text_hint,
+        .input_text_multiline                    = pl_ui_input_text_multiline,
         .input_float                             = pl_ui_input_float,
         .input_float_ex                          = pl_ui_input_float_ex,
         .input_float2                            = pl_ui_input_float2,
