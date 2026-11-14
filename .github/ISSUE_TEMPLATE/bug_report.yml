@@ -1,5 +1,5 @@
-name: Bug Report
-description: File a bug report
+name: Bug report
+description: Report a reproducible Pilot Light problem.
 title: "[BUG]: "
 labels: ["type: Bug", "state: Pending"]
 assignees:
@@ -8,135 +8,83 @@ body:
   - type: markdown
     attributes:
       value: |
-        Any images or screenshots can be added in the comments.
-  - type: input
-    id: contact
-    attributes:
-      label: Contact Details
-      description: How can we get in touch with you if we need more info?
-      placeholder: ex. email@example.com
-    validations:
-      required: false
+        Please search existing issues first. Attach a small example, screenshots,
+        or a capture when useful. Remove private paths and credentials from logs.
   - type: textarea
-    id: alleged-issue
+    id: problem
     attributes:
-      label: What is the issue?
-      description: Also tell us, what did you expect to happen?
-      placeholder: Tell us what you see!
-      value: "A bug happened!"
+      label: Expected and actual behavior
+      description: Describe what should happen and what happens instead.
     validations:
       required: true
   - type: textarea
-    id: how-to-reproduce
+    id: reproduce
     attributes:
-      label: How to reproduce?
-      description: Step by step instructions on how to reproduce
-      value: "Steps to reproduce the behavior:"
+      label: Reproduction
+      description: Include exact steps, a minimal code example or scene, and whether it happens every time.
+      placeholder: "1. Build with ...\n2. Run ...\n3. ..."
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Pilot Light revision
+      description: Commit hash or release tag, plus relevant local changes and API versions.
+      placeholder: "git rev-parse HEAD"
     validations:
       required: true
   - type: dropdown
     id: platform
     attributes:
       label: Platform
-      description: What platform are you running?
       multiple: true
       options:
-        - All
         - Windows
         - Linux
-        - MacOS
+        - macOS
+        - Other
     validations:
       required: true
   - type: dropdown
-    id: graphics-api
+    id: backend
     attributes:
-      label: Graphics Backend
+      label: Graphics backend
       multiple: true
       options:
-        - All
-        - NA
+        - Not applicable
         - Vulkan
         - Metal
-        - Directx 12
         - CPU
+        - Other / custom backend
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - Core / extension loading
+        - Build / scripts / CI
+        - Platform / windows / input
+        - Graphics / GPU allocation
+        - Renderer / terrain / water / atmosphere
+        - UI / drawing / tools
+        - Assets / importers / VFS / PAK
+        - ECS / transforms / animation / physics
+        - Math / standalone libraries
+        - Other / unsure
   - type: textarea
-    id: logs
+    id: environment
     attributes:
-      label: Relevant log output
-      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
-      render: shell
-  - type: dropdown
-    id: extension
+      label: Environment and build configuration
+      description: OS version, architecture, compiler/SDK, debug/release, C/C++, build command, GPU and driver. For window issues include DPI, monitor count, and windowed/headless mode.
+  - type: textarea
+    id: diagnostics
     attributes:
-      label: Extension
-      options:
-        - Animation
-        - Audio
-        - BVH
-        - Camera
-        - Collision
-        - Compression
-        - Config
-        - Console
-        - Date Time
-        - DDS
-        - Draw
-        - DXT
-        - ECS
-        - ECS Tools
-        - Free List
-        - Gizmo
-        - GJK
-        - GPU Allocators
-        - Graphics
-        - Image
-        - Image Ops
-        - Job
-        - Log
-        - Mesh
-        - Model Loader
-        - Pak
-        - Path
-        - Physics
-        - Platform
-        - Profile
-        - Rect Pack
-        - Renderer
-        - Resource Manager
-        - Screen Log
-        - Script
-        - Shader
-        - Shader Variant
-        - Stage
-        - Starter
-        - Stats
-        - String Intern
-        - Terrain
-        - Tools
-        - UI
-        - Virtual File System
-  - type: dropdown
-    id: libraries
+      label: Logs, assertions, validation errors or call stack
+      description: Paste relevant text. Attach large logs or GPU captures separately.
+      render: text
+  - type: input
+    id: regression
     attributes:
-      label: Libraries
-      options:
-        - pl_ds.h
-        - pl_json.h
-        - pl_log.h
-        - pl_math.h
-        - pl_memory.h
-        - pl_profile.h
-        - pl_stl.h
-        - pl_string.h
-        - pl_test.h
-  - type: dropdown
-    id: system
-    attributes:
-      label: System
-      options:
-        - Core Framework
-        - Build System
-        - Scripts
-        - Examples
-        - Window API
-        - Library API
+      label: Last known working revision
+      description: Optional; include any workaround or configuration that avoids the problem.

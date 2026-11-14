@@ -1,5 +1,5 @@
-name: Feature Request
-description: File a feature request
+name: Feature request
+description: Propose a capability or API improvement with a concrete use case.
 title: "[FEATURE]: "
 labels: ["type: Feature", "state: Pending"]
 assignees:
@@ -8,106 +8,50 @@ body:
   - type: markdown
     attributes:
       value: |
-        Any images or screenshots can be added in the comments.
-  - type: input
-    id: contact
-    attributes:
-      label: Contact Details
-      description: How can we get in touch with you if we need more info?
-      placeholder: ex. email@example.com
-    validations:
-      required: false
+        Please search existing requests first. A small example of the workflow
+        you want to enable is more useful than a list of features from another engine.
   - type: textarea
-    id: alleged-feature
+    id: use-case
     attributes:
-      label: What is the feature?
-      description: Describe the feature
-      value: "I would like x"
+      label: Problem or use case
+      description: What are you trying to build, and what makes it difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior or API
+      description: Describe the result you want. A short C API sketch or example is welcome.
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: Desribe alternatives you have considered?
-      description: A clear and concise description of any alternative solutions or features you have considered.
-      value: "Other potential solutions"
-    validations:
-      required: true
+      label: Alternatives considered
+      description: Existing APIs, application-side workarounds, and their limitations.
   - type: dropdown
-    id: extension
+    id: area
     attributes:
-      label: Extension
+      label: Affected area
+      multiple: true
       options:
-        - New
-        - Animation
-        - Audio
-        - BVH
-        - Camera
-        - Collision
-        - Compression
-        - Config
-        - Console
-        - Date Time
-        - DDS
-        - Draw
-        - DXT
-        - ECS
-        - ECS Tools
-        - Free List
-        - Gizmo
-        - GJK
-        - GPU Allocators
-        - Graphics
-        - Image
-        - Image Ops
-        - Job
-        - Log
-        - Mesh
-        - Model Loader
-        - Pak
-        - Path
-        - Physics
-        - Platform
-        - Profile
-        - Rect Pack
-        - Renderer
-        - Resource Manager
-        - Screen Log
-        - Script
-        - Shader
-        - Shader Variant
-        - Stage
-        - Starter
-        - Stats
-        - String Intern
-        - Terrain
-        - Tools
-        - UI
-        - Virtual File System
-  - type: dropdown
-    id: libraries
+        - Core / extension loading
+        - Build / scripts / CI
+        - Platform / windows / input
+        - Graphics / GPU allocation
+        - Renderer / terrain / water / atmosphere
+        - UI / drawing / tools
+        - Assets / importers / VFS / PAK
+        - ECS / transforms / animation / physics
+        - Math / standalone libraries
+        - New extension / other
+  - type: textarea
+    id: constraints
     attributes:
-      label: Libraries
-      options:
-        - New
-        - pl_ds.h
-        - pl_json.h
-        - pl_log.h
-        - pl_math.h
-        - pl_memory.h
-        - pl_profile.h
-        - pl_stl.h
-        - pl_string.h
-        - pl_test.h
-  - type: dropdown
-    id: system
+      label: Constraints and compatibility
+      description: Relevant backends/platforms, performance or memory budgets, dependencies, API compatibility and asset migration concerns.
+  - type: textarea
+    id: success
     attributes:
-      label: System
-      options:
-        - New
-        - Core Framework
-        - Build System
-        - Scripts
-        - Examples
-        - Window API
-        - Library API
+      label: What would demonstrate success?
+      description: A small example, measurable behavior, or acceptance criteria. Links and screenshots are welcome.
