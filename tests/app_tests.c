@@ -39,6 +39,7 @@ Index of this file:
 
 // unstable extensions
 #include "pl_collision_ext.h"
+#include "pl_bvh_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global apis
@@ -53,6 +54,7 @@ const plPakI*          gptPak       = NULL;
 const plCompressI*     gptCompress  = NULL;
 const plFileI*         gptFile      = NULL;
 const plStringInternI* gptString    = NULL;
+const plBVHI*          gptBvh       = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -77,6 +79,8 @@ typedef struct _plAppData
 //-----------------------------------------------------------------------------
 
 void collision_only_tests_0(void*);
+void collision_cylinder_tests(void*);
+void bvh_tests(void*);
 void datetime_tests_0(void*);
 void vfs_tests_0(void*);
 void file_tests_0(void*);
@@ -182,6 +186,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptCompress  = pl_get_api_latest(ptApiRegistry, plCompressI);
     gptFile      = pl_get_api_latest(ptApiRegistry, plFileI);
     gptString    = pl_get_api_latest(ptApiRegistry, plStringInternI);
+    gptBvh       = pl_get_api_latest(ptApiRegistry, plBVHI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
@@ -226,7 +231,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plTestContext* ptTestContext = pl_create_test_context(tOptions);
 
     pl_test_register_test(collision_only_tests_0, ptAppData);
+    pl_test_register_test(collision_cylinder_tests, ptAppData);
     pl_test_run_suite("pl_collision_ext.h");
+
+    pl_test_register_test(bvh_tests, ptAppData);
+    pl_test_run_suite("pl_bvh_ext.h");
 
     pl_test_register_test(datetime_tests_0, ptAppData);
     pl_test_run_suite("pl_datetime_ext.h");
@@ -290,6 +299,126 @@ pl_app_update(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 // [SECTION] test implementations
 //-----------------------------------------------------------------------------
+
+void
+collision_cylinder_tests(void* pData)
+{
+    // Repeat cap entry along each axis, translated away from the origin.
+    for(int iAxis = 0; iAxis < 3; iAxis++)
+    {
+        plCylinder tCylinder = {.tBasePos = {10.0f, -4.0f, 7.0f}, .fRadius = 1.0f};
+        tCylinder.tTipPos = tCylinder.tBasePos;
+        tCylinder.tTipPos.d[iAxis] += 2.0f;
+        plVec3 tA = tCylinder.tTipPos;
+        tA.d[iAxis] += 1.0f;
+        plVec3 tB = tCylinder.tBasePos;
+        tB.d[iAxis] += 1.0f;
+        float fT = -1.0f;
+        pl_test_expect_true(gptCollision->intersect_line_segment_cylinder(tA, tB, &tCylinder, &fT), "tip cap hit");
+        pl_test_expect_true(fT == 0.5f, "tip cap segment parameter");
+        pl_test_expect_true(gptCollision->intersect_line_segment_cylinder(tA, tB, &tCylinder, NULL), "optional hit parameter");
+        tA = tCylinder.tBasePos;
+        tA.d[iAxis] -= 1.0f;
+        pl_test_expect_true(gptCollision->intersect_line_segment_cylinder(tA, tB, &tCylinder, &fT), "base cap hit");
+        pl_test_expect_true(fT == 0.5f, "base cap segment parameter");
+        tA.d[(iAxis + 1) % 3] += 0.5f;
+        tB.d[(iAxis + 1) % 3] += 0.5f;
+        pl_test_expect_true(gptCollision->intersect_line_segment_cylinder(tA, tB, &tCylinder, &fT), "off-axis parallel hit");
+        pl_test_expect_true(fT == 0.5f, "off-axis segment parameter");
+        tA.d[(iAxis + 1) % 3] += 1.0f;
+        tB.d[(iAxis + 1) % 3] += 1.0f;
+        pl_test_expect_true(!gptCollision->intersect_line_segment_cylinder(tA, tB, &tCylinder, &fT), "parallel segment outside radius misses");
+    }
+}
+
+typedef struct _plBvhTestQuery
+{
+    const plAABB* ptBoxes;
+    plAABB tQuery;
+    uint32_t uSeen;
+    uint32_t uHits;
+} plBvhTestQuery;
+
+static bool
+bvh_test_query(uint32_t uIndex, void* pData)
+{
+    plBvhTestQuery* ptQuery = pData;
+    pl_test_expect_true(uIndex < 4, "valid candidate index");
+    if(uIndex >= 4)
+        return false;
+    pl_test_expect_true((ptQuery->uSeen & (1u << uIndex)) == 0, "candidate visited once");
+    ptQuery->uSeen |= 1u << uIndex;
+    // Leaf callbacks are candidates, so apply the actual primitive test.
+    bool bHit = gptCollision->aabb_aabb(&ptQuery->ptBoxes[uIndex], &ptQuery->tQuery);
+    if(bHit)
+        ptQuery->uHits |= 1u << uIndex;
+    return bHit;
+}
+
+void
+bvh_tests(void* pData)
+{
+    plBVH tBvh = {0};
+    // Translate the same evenly spaced set to positive, negative and mixed coordinates.
+    const float afOffsets[] = {0.0f, 100.0f, -108.0f};
+    for(int iSet = 0; iSet < 3; iSet++)
+    {
+        plAABB atBoxes[4];
+        for(int i = 0; i < 4; i++)
+        {
+            float fX = afOffsets[iSet] + 1.0f + 2.0f * (float)i;
+            atBoxes[i] = (plAABB){.tMin = {fX - 0.5f, 2.0f, 3.0f}, .tMax = {fX + 0.5f, 3.0f, 4.0f}};
+        }
+        gptBvh->build(&tBvh, atBoxes, 4);
+        pl_test_expect_true(tBvh._uNodeCount == 3, "midpoint creates two two-item leaves");
+        for(uint32_t i = 0; i < tBvh._uNodeCount; i++)
+        {
+            plBVHNode* ptNode = &tBvh._ptNodes[i];
+            plAABB tExpected;
+            if(ptNode->_uCount)
+            {
+                tExpected = atBoxes[tBvh._puLeafIndices[ptNode->_uOffset]];
+                for(uint32_t j = 1; j < ptNode->_uCount; j++)
+                    tExpected = pl_aabb_merge(&tExpected, &atBoxes[tBvh._puLeafIndices[ptNode->_uOffset + j]]);
+            }
+            else
+            {
+                tExpected = pl_aabb_merge(&tBvh._ptNodes[ptNode->_uLeft].tAABB, &tBvh._ptNodes[ptNode->_uLeft + 1].tAABB);
+                pl_test_expect_true(tBvh._ptNodes[ptNode->_uLeft]._uCount == 2, "balanced midpoint left leaf");
+                pl_test_expect_true(tBvh._ptNodes[ptNode->_uLeft + 1]._uCount == 2, "balanced midpoint right leaf");
+            }
+            for(int j = 0; j < 3; j++)
+            {
+                pl_test_expect_true(ptNode->tAABB.tMin.d[j] == tExpected.tMin.d[j], "tight node minimum");
+                pl_test_expect_true(ptNode->tAABB.tMax.d[j] == tExpected.tMax.d[j], "tight node maximum");
+            }
+        }
+        for(int i = 0; i < 12; i++)
+        {
+            float fX = afOffsets[iSet] - 1.0f + (float)i;
+            plBvhTestQuery tQuery = {.ptBoxes = atBoxes, .tQuery = {.tMin = {fX, 2.0f, 3.0f}, .tMax = {fX + 1.0f, 3.0f, 4.0f}}};
+            uint32_t uExpected = 0;
+            for(uint32_t j = 0; j < 4; j++)
+            {
+                if(gptCollision->aabb_aabb(&atBoxes[j], &tQuery.tQuery))
+                    uExpected |= 1u << j;
+            }
+            gptBvh->intersects_aabb(&tBvh, tQuery.tQuery, bvh_test_query, &tQuery);
+            pl_test_expect_true(tQuery.uHits == uExpected, "BVH query matches brute force");
+            tQuery.uSeen = tQuery.uHits = 0;
+            pl_test_expect_true(gptBvh->intersects_aabb_first(&tBvh, tQuery.tQuery, bvh_test_query, &tQuery) == (uExpected != 0), "first-hit query matches brute force");
+        }
+        gptBvh->build(&tBvh, atBoxes, 1);
+        pl_test_expect_true(tBvh._uNodeCount == 1, "single-box rebuild");
+        pl_test_expect_true(tBvh._ptNodes[0].tAABB.tMin.x == atBoxes[0].tMin.x, "single-box bounds");
+        gptBvh->build(&tBvh, NULL, 0);
+        plBvhTestQuery tEmpty = {.ptBoxes = atBoxes, .tQuery = atBoxes[0]};
+        gptBvh->intersects_aabb(&tBvh, tEmpty.tQuery, bvh_test_query, &tEmpty);
+        pl_test_expect_true(tEmpty.uSeen == 0, "empty rebuild has no candidates");
+        pl_test_expect_true(!gptBvh->intersects_aabb_first(&tBvh, tEmpty.tQuery, bvh_test_query, &tEmpty), "empty rebuild has no first hit");
+    }
+    gptBvh->cleanup(&tBvh);
+}
 
 void
 collision_only_tests_0(void* pAppData)

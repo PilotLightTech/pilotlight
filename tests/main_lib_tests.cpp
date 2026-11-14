@@ -5,6 +5,7 @@
 #include "pl_json_tests.h"
 #include "pl_memory_tests.h"
 #include "pl_string_tests.h"
+#include "pl_math_tests.h"
 
 int main()
 {
@@ -29,6 +30,10 @@ int main()
     // pl_string.h tests
     pl_string_tests(NULL);
     pl_test_run_suite("pl_string.h");
+
+    // pl_math.h tests
+    pl_math_tests(NULL);
+    pl_test_run_suite("pl_math.h");
 
     bool bResult = pl_test_finish();
 
