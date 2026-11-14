@@ -51,8 +51,8 @@ void
 pl_bvh_update_node_bounds(plBVH* ptBvh, uint32_t uNodeIndex, const plAABB* ptAABBs)
 {
     plBVHNode* ptNode = &ptBvh->_ptNodes[uNodeIndex];
-    ptNode->tAABB = (plAABB){0};
-    for(uint32_t i = 0; i < ptNode->_uCount; i++)
+    ptNode->tAABB = ptAABBs[ptBvh->_puLeafIndices[ptNode->_uOffset]];
+    for(uint32_t i = 1; i < ptNode->_uCount; i++)
     {
         uint32_t uOffset = ptNode->_uOffset + i;
         uint32_t uIndex = ptBvh->_puLeafIndices[uOffset];
@@ -73,7 +73,7 @@ pl_bvh_subdivide(plBVH* ptBvh, uint32_t uNodeIndex, const plAABB* ptAABBs)
     if(tExtent.y > tExtent.x) iAxis = 1;
     if(tExtent.z > tExtent.d[iAxis]) iAxis = 2;
 
-    float fSplitPos = tMin.d[iAxis] + tExtent.d[iAxis] * 0.5f;
+    float fSplitPos = tMin.d[iAxis] + tExtent.d[iAxis];
 
     // in-place partition
     int i = ptNode->_uOffset;
@@ -147,9 +147,9 @@ pl_bvh_build(plBVH* ptBvh, const plAABB* ptAABBs, uint32_t uCount)
     ptNode->_uCount = uCount;
     for(uint32_t i = 0; i < uCount; ++i)
     {
-        ptNode->tAABB = pl_aabb_merge(&ptNode->tAABB, &ptAABBs[i]);
         ptBvh->_puLeafIndices[i] = i;
     }
+    pl_bvh_update_node_bounds(ptBvh, 0, ptAABBs);
     pl_bvh_subdivide(ptBvh, 0, ptAABBs);
 }
 
