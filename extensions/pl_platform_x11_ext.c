@@ -372,6 +372,55 @@ pl_window_destroy(plWindow* ptWindow)
     PL_FREE(ptWindow);
 }
 
+bool
+pl_window_set_icon(plWindow* ptWindow, uint32_t uCount, const plWindowIcon* atIcons)
+{
+    if(!ptWindow || !pl__window_icons_valid(uCount, atIcons))
+        return false;
+
+    plWindowData* ptData = ptWindow->_pBackendData;
+    xcb_connection_t* ptConnection = gptPlatformExtCtx->ptConnection;
+    xcb_intern_atom_reply_t* ptReply = xcb_intern_atom_reply(ptConnection, xcb_intern_atom(ptConnection, false, 12, "_NET_WM_ICON"), NULL);
+    if(!ptReply)
+        return false;
+    const xcb_atom_t tAtom = ptReply->atom;
+    free(ptReply);
+
+    uint32_t uLength = 0;
+    for(uint32_t i = 0; i < uCount; i++)
+        uLength += 2 + atIcons[i].uWidth * atIcons[i].uHeight;
+    if(uLength + 7 > xcb_get_maximum_request_length(ptConnection))
+        return false;
+
+    uint32_t* auData = uLength ? PL_ALLOC(uLength * sizeof(uint32_t)) : NULL;
+    if(uLength && !auData)
+        return false;
+    uint32_t uOffset = 0;
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        auData[uOffset++] = atIcons[i].uWidth;
+        auData[uOffset++] = atIcons[i].uHeight;
+        for(uint32_t j = 0; j < atIcons[i].uWidth * atIcons[i].uHeight; j++)
+        {
+            const uint8_t* pucPixel = &atIcons[i].pucPixels[j * 4];
+            auData[uOffset++] = ((uint32_t)pucPixel[3] << 24) | ((uint32_t)pucPixel[0] << 16) | ((uint32_t)pucPixel[1] << 8) | pucPixel[2];
+        }
+    }
+    const xcb_void_cookie_t tCookie = uCount ? xcb_change_property_checked(ptConnection, XCB_PROP_MODE_REPLACE, ptData->tWindow, tAtom, XCB_ATOM_CARDINAL, 32, uLength, auData) : xcb_delete_property_checked(ptConnection, ptData->tWindow, tAtom);
+    PL_FREE(auData);
+    xcb_generic_error_t* ptError = xcb_request_check(ptConnection, tCookie);
+    const bool bSuccess = ptError == NULL;
+    free(ptError);
+    xcb_flush(ptConnection);
+    return bSuccess;
+}
+
+bool
+pl_window_set_title_bar(plWindow* ptWindow, const plWindowTitleBarDesc* ptDesc)
+{
+    return false;
+}
+
 void
 pl_window_show(plWindow* ptWindow)
 {
@@ -556,7 +605,7 @@ pl_window_get_capabilities(void)
     tCapabilities.atCursorModes = atSupportedCursorModes;
     tCapabilities.atFullScreenModes = atSupportedScreenModes;
     tCapabilities.atWindowAttributes = atSupportedAttributes;
-    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_NONE;
+    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_WINDOW_ICON;
 
     return &tCapabilities;
 }

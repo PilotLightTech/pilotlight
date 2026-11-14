@@ -44,7 +44,9 @@ Index of this file:
 #include <ws2tcpip.h>
 #include <windowsx.h>   // GET_X_LPARAM(), GET_Y_LPARAM()
 #include <wchar.h>    // mbsrtowcs, wcsrtombs
+#include <dwmapi.h>
 #pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "dwmapi.lib")
 
 #include "pl_platform_internal.c"
 
@@ -100,6 +102,16 @@ typedef struct _plWindowSurface
 
 static plPlatformExtData* gptPlatformExtCtx = NULL;
 
+typedef struct _plWindowDecorationData
+{
+    HICON                tSmallIcon;
+    HICON                tLargeIcon;
+    plWindowTitleBarDesc tTitleBar;
+    bool                 bCustomTitleBar;
+    int                  iHoveredButton;
+    int                  iPressedButton;
+} plWindowDecorationData;
+
 //-----------------------------------------------------------------------------
 // [SECTION] timer api
 //-----------------------------------------------------------------------------
@@ -151,6 +163,364 @@ pl_platform_cleanup(plPlatformExtData* ptPlatformData)
     gptPlatformExtCtx = NULL;
 }
 
+static inline UINT
+pl__window_dpi(HWND tHandle)
+{
+    typedef UINT (WINAPI *plGetDpiForWindow)(HWND);
+    plGetDpiForWindow pGetDpi = (plGetDpiForWindow)(void*)GetProcAddress(GetModuleHandleW(L"user32.dll"), "GetDpiForWindow");
+    const UINT uDpi = pGetDpi ? pGetDpi(tHandle) : 96;
+    return uDpi ? uDpi : 96;
+}
+
+static inline int
+pl__title_bar_height(plWindow* ptWindow)
+{
+    plWindowDecorationData* ptData = ptWindow->_pDecorationData;
+    return MulDiv((int)ptData->tTitleBar.uHeight, (int)pl__window_dpi(ptWindow->_pBackendData), 96);
+}
+
+static inline bool
+pl__custom_title_bar(plWindow* ptWindow)
+{
+    plWindowDecorationData* ptData = ptWindow ? ptWindow->_pDecorationData : NULL;
+    return ptData && ptData->bCustomTitleBar && (GetWindowLongPtrW(ptWindow->_pBackendData, GWL_STYLE) & WS_CAPTION) == WS_CAPTION;
+}
+
+static plWindowDecorationData*
+pl__window_decoration_data(plWindow* ptWindow)
+{
+    if(!ptWindow->_pDecorationData)
+    {
+        ptWindow->_pDecorationData = PL_ALLOC(sizeof(plWindowDecorationData));
+        if(ptWindow->_pDecorationData)
+            memset(ptWindow->_pDecorationData, 0, sizeof(plWindowDecorationData));
+    }
+    return ptWindow->_pDecorationData;
+}
+
+// Non-client coordinates: the graphics surface and mouse input remain unchanged.
+static RECT
+pl__title_bar_rect(plWindow* ptWindow)
+{
+    HWND tHandle = ptWindow->_pBackendData;
+    RECT tWindow;
+    RECT tClient;
+    POINT tOrigin = {0};
+    GetWindowRect(tHandle, &tWindow);
+    GetClientRect(tHandle, &tClient);
+    ClientToScreen(tHandle, &tOrigin);
+    RECT tRect = {tOrigin.x - tWindow.left, tOrigin.y - tWindow.top - pl__title_bar_height(ptWindow), tOrigin.x - tWindow.left + tClient.right, tOrigin.y - tWindow.top};
+    return tRect;
+}
+
+static RECT
+pl__title_button_rect(plWindow* ptWindow, int iButton)
+{
+    RECT tRect = pl__title_bar_rect(ptWindow);
+    const int iWidth = MulDiv(34, (int)pl__window_dpi(ptWindow->_pBackendData), 96);
+    const int iIndex = iButton == HTCLOSE ? 0 : iButton == HTMAXBUTTON ? 1 : 2;
+    tRect.right -= iIndex * iWidth;
+    tRect.left = tRect.right - iWidth;
+    return tRect;
+}
+
+static int
+pl__title_bar_hit_test(plWindow* ptWindow, POINT tScreenPoint)
+{
+    HWND tHandle = ptWindow->_pBackendData;
+    RECT tWindow;
+    GetWindowRect(tHandle, &tWindow);
+    POINT tPoint = {tScreenPoint.x - tWindow.left, tScreenPoint.y - tWindow.top};
+    const RECT tTitle = pl__title_bar_rect(ptWindow);
+    if(!PtInRect(&tTitle, tPoint))
+        return HTNOWHERE;
+
+    const LONG_PTR tStyle = GetWindowLongPtrW(tHandle, GWL_STYLE);
+    const int aiButtons[] = {HTCLOSE, HTMAXBUTTON, HTMINBUTTON};
+    for(uint32_t i = 0; i < 3; i++)
+    {
+        const RECT tButton = pl__title_button_rect(ptWindow, aiButtons[i]);
+        const bool bEnabled = i == 0 ? (tStyle & WS_SYSMENU) != 0 : i == 1 ? (tStyle & WS_MAXIMIZEBOX) != 0 : (tStyle & WS_MINIMIZEBOX) != 0;
+        if(bEnabled && PtInRect(&tButton, tPoint))
+            return aiButtons[i];
+    }
+    if((tStyle & WS_SYSMENU) && tPoint.x < tTitle.left + MulDiv(42, (int)pl__window_dpi(tHandle), 96))
+        return HTSYSMENU;
+    return HTCAPTION;
+}
+
+static void
+pl__paint_title_bar(plWindow* ptWindow)
+{
+    HWND tHandle = ptWindow->_pBackendData;
+    if(IsIconic(tHandle))
+        return;
+    plWindowDecorationData* ptData = ptWindow->_pDecorationData;
+    const bool bActive = GetForegroundWindow() == tHandle;
+    const UINT uDpi = pl__window_dpi(tHandle);
+    const COLORREF tBackground = (bActive ? ptData->tTitleBar.uBackgroundColor : ptData->tTitleBar.uInactiveBackgroundColor) & 0x00ffffff;
+    const COLORREF tText = ptData->tTitleBar.uTextColor & 0x00ffffff;
+    const RECT tTitle = pl__title_bar_rect(ptWindow);
+    RECT tWindow;
+    RECT tClient;
+    GetWindowRect(tHandle, &tWindow);
+    GetClientRect(tHandle, &tClient);
+    OffsetRect(&tWindow, -tWindow.left, -tWindow.top);
+    OffsetRect(&tClient, tTitle.left, tTitle.bottom);
+    HDC tDC = GetWindowDC(tHandle);
+    if(!tDC)
+        return;
+    const int iSavedDC = SaveDC(tDC);
+    ExcludeClipRect(tDC, tClient.left, tClient.top, tClient.right, tClient.bottom);
+    HBRUSH tBrush = CreateSolidBrush(tBackground);
+    FillRect(tDC, &tWindow, tBrush);
+    DeleteObject(tBrush);
+
+    const int iIconSize = MulDiv(20, (int)uDpi, 96);
+    const int iPadding = MulDiv(10, (int)uDpi, 96);
+    HICON tIcon = ptData->tSmallIcon ? ptData->tSmallIcon : ptData->tLargeIcon;
+    if(tIcon)
+        DrawIconEx(tDC, tTitle.left + iPadding, tTitle.top + (tTitle.bottom - tTitle.top - iIconSize) / 2, tIcon, iIconSize, iIconSize, 0, NULL, DI_NORMAL);
+
+    RECT tTextRect = tTitle;
+    // Equal margins keep the title centered on the window, not the free space
+    // between the icon and controls. Long titles are ellipsized before buttons.
+    const int iTitleMargin = tTitle.right - pl__title_button_rect(ptWindow, HTMINBUTTON).left + iPadding;
+    tTextRect.left += iTitleMargin;
+    tTextRect.right -= iTitleMargin;
+    wchar_t awTitle[1024];
+    GetWindowTextW(tHandle, awTitle, PL_ARRAYSIZE(awTitle));
+    HFONT tFont = CreateFontW(-MulDiv(12, (int)uDpi, 96), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI");
+    HGDIOBJ tOldFont = SelectObject(tDC, tFont);
+    SetBkMode(tDC, TRANSPARENT);
+    SetTextColor(tDC, bActive ? tText : RGB(110, 110, 110));
+    DrawTextW(tDC, awTitle, -1, &tTextRect, DT_SINGLELINE | DT_VCENTER | DT_CENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+    SelectObject(tDC, tOldFont);
+    DeleteObject(tFont);
+
+    const LONG_PTR tStyle = GetWindowLongPtrW(tHandle, GWL_STYLE);
+    const int aiButtons[] = {HTMINBUTTON, HTMAXBUTTON, HTCLOSE};
+    for(uint32_t i = 0; i < 3; i++)
+    {
+        const RECT tButton = pl__title_button_rect(ptWindow, aiButtons[i]);
+        const bool bEnabled = i == 0 ? (tStyle & WS_MINIMIZEBOX) != 0 : i == 1 ? (tStyle & WS_MAXIMIZEBOX) != 0 : (tStyle & WS_SYSMENU) != 0;
+        if(bEnabled && ptData->iHoveredButton == aiButtons[i])
+        {
+            const COLORREF tHover = i == 2 ? RGB(190, 48, 55) : ptData->iPressedButton == aiButtons[i] ? RGB(48, 48, 48) : RGB(35, 35, 35);
+            tBrush = CreateSolidBrush(tHover);
+            FillRect(tDC, &tButton, tBrush);
+            DeleteObject(tBrush);
+        }
+        const int iHalf = MulDiv(5, (int)uDpi, 96);
+        const int iX = (tButton.left + tButton.right) / 2;
+        const int iY = (tButton.top + tButton.bottom) / 2;
+        HPEN tPen = CreatePen(PS_SOLID, MulDiv(1, (int)uDpi, 96), bEnabled ? tText : RGB(83, 83, 90));
+        HGDIOBJ tOldPen = SelectObject(tDC, tPen);
+        HGDIOBJ tOldBrush = SelectObject(tDC, GetStockObject(NULL_BRUSH));
+        if(i == 0)
+        {
+            MoveToEx(tDC, iX - iHalf, iY, NULL);
+            LineTo(tDC, iX + iHalf, iY);
+        }
+        else if(i == 1)
+        {
+            if(IsZoomed(tHandle))
+            {
+                const int iOffset = MulDiv(3, (int)uDpi, 96);
+                MoveToEx(tDC, iX - iHalf + iOffset, iY - iHalf, NULL);
+                LineTo(tDC, iX + iHalf, iY - iHalf);
+                LineTo(tDC, iX + iHalf, iY + iHalf - iOffset);
+                Rectangle(tDC, iX - iHalf, iY - iHalf + iOffset, iX + iHalf - iOffset + 1, iY + iHalf + 1);
+            }
+            else
+                Rectangle(tDC, iX - iHalf, iY - iHalf, iX + iHalf + 1, iY + iHalf + 1);
+        }
+        else
+        {
+            MoveToEx(tDC, iX - iHalf, iY - iHalf, NULL);
+            LineTo(tDC, iX + iHalf + 1, iY + iHalf + 1);
+            MoveToEx(tDC, iX + iHalf, iY - iHalf, NULL);
+            LineTo(tDC, iX - iHalf - 1, iY + iHalf + 1);
+        }
+        SelectObject(tDC, tOldBrush);
+        SelectObject(tDC, tOldPen);
+        DeleteObject(tPen);
+    }
+    RECT tAccent = {tTitle.left, tTitle.bottom - 1, tTitle.right, tTitle.bottom};
+    tBrush = CreateSolidBrush(ptData->tTitleBar.uAccentColor & 0x00ffffff);
+    FillRect(tDC, &tAccent, tBrush);
+    // One physical pixel, including at high DPI; no thick painted resize frame.
+    FrameRect(tDC, &tWindow, tBrush);
+    DeleteObject(tBrush);
+    RestoreDC(tDC, iSavedDC);
+    ReleaseDC(tHandle, tDC);
+}
+
+static void
+pl__title_bar_hover(plWindow* ptWindow, POINT tPoint)
+{
+    plWindowDecorationData* ptData = ptWindow->_pDecorationData;
+    const int iHit = pl__title_bar_hit_test(ptWindow, tPoint);
+    if(ptData->iHoveredButton != iHit)
+    {
+        ptData->iHoveredButton = iHit;
+        pl__paint_title_bar(ptWindow);
+    }
+}
+
+static void
+pl__adjust_window_rect(plWindow* ptWindow, RECT* ptRect)
+{
+    HWND tHandle = ptWindow->_pBackendData;
+    if(pl__custom_title_bar(ptWindow))
+    {
+        InflateRect(ptRect, 1, 1);
+        ptRect->top -= pl__title_bar_height(ptWindow);
+        return;
+    }
+    typedef BOOL (WINAPI *plAdjustWindowRectExForDpi)(LPRECT, DWORD, BOOL, DWORD, UINT);
+    plAdjustWindowRectExForDpi pAdjust = (plAdjustWindowRectExForDpi)(void*)GetProcAddress(GetModuleHandleW(L"user32.dll"), "AdjustWindowRectExForDpi");
+    const DWORD uStyle = (DWORD)GetWindowLongPtrW(tHandle, GWL_STYLE);
+    const DWORD uExStyle = (DWORD)GetWindowLongPtrW(tHandle, GWL_EXSTYLE);
+    if(pAdjust)
+        pAdjust(ptRect, uStyle, FALSE, uExStyle, pl__window_dpi(tHandle));
+    else
+        AdjustWindowRectEx(ptRect, uStyle, FALSE, uExStyle);
+}
+
+static bool
+pl__title_bar_message(plWindow* ptWindow, UINT tMsg, WPARAM tWParam, LPARAM tLParam, LRESULT* ptResult)
+{
+    HWND tHandle = ptWindow->_pBackendData;
+    plWindowDecorationData* ptData = ptWindow->_pDecorationData;
+    *ptResult = 0;
+    switch(tMsg)
+    {
+        case WM_NCCALCSIZE:
+        {
+            RECT* ptRect = tWParam ? &((NCCALCSIZE_PARAMS*)tLParam)->rgrc[0] : (RECT*)tLParam;
+            const RECT tOriginal = *ptRect;
+            if(IsZoomed(tHandle))
+            {
+                // Windows places the maximized resize frame outside the work
+                // area. Keep those insets so content does not cover the taskbar.
+                DefWindowProcW(tHandle, tMsg, tWParam, tLParam);
+                ptRect->top = tOriginal.top + (ptRect->left - tOriginal.left);
+            }
+            else
+                InflateRect(ptRect, -1, -1);
+            ptRect->top += pl__title_bar_height(ptWindow);
+            return true;
+        }
+        case WM_NCPAINT:
+            pl__paint_title_bar(ptWindow);
+            return true;
+        case WM_NCACTIVATE:
+            *ptResult = DefWindowProcW(tHandle, tMsg, tWParam, -1);
+            pl__paint_title_bar(ptWindow);
+            return true;
+        case WM_SETTEXT:
+        case WM_SETICON:
+            *ptResult = DefWindowProcW(tHandle, tMsg, tWParam, tLParam);
+            pl__paint_title_bar(ptWindow);
+            return true;
+        case WM_NCHITTEST:
+        {
+            const POINT tPoint = {GET_X_LPARAM(tLParam), GET_Y_LPARAM(tLParam)};
+            RECT tWindow;
+            GetWindowRect(tHandle, &tWindow);
+            if(!PtInRect(&tWindow, tPoint))
+                return true;
+            if(!IsZoomed(tHandle) && (GetWindowLongPtrW(tHandle, GWL_STYLE) & WS_THICKFRAME))
+            {
+                // Keep comfortable resize targets independent of the visible
+                // one-pixel border. Do not use native caption/button bounds.
+                const int iGrip = MulDiv(5, (int)pl__window_dpi(tHandle), 96);
+                const bool bLeft = tPoint.x < tWindow.left + iGrip;
+                const bool bRight = tPoint.x >= tWindow.right - iGrip;
+                const bool bTop = tPoint.y < tWindow.top + iGrip;
+                const bool bBottom = tPoint.y >= tWindow.bottom - iGrip;
+                if(bTop)
+                    *ptResult = bLeft ? HTTOPLEFT : bRight ? HTTOPRIGHT : HTTOP;
+                else if(bBottom)
+                    *ptResult = bLeft ? HTBOTTOMLEFT : bRight ? HTBOTTOMRIGHT : HTBOTTOM;
+                else if(bLeft || bRight)
+                    *ptResult = bLeft ? HTLEFT : HTRIGHT;
+                if(*ptResult)
+                    return true;
+            }
+            const int iHit = pl__title_bar_hit_test(ptWindow, tPoint);
+            *ptResult = iHit == HTNOWHERE ? HTCLIENT : iHit;
+            return true;
+        }
+        case WM_NCMOUSEMOVE:
+        {
+            const POINT tPoint = {GET_X_LPARAM(tLParam), GET_Y_LPARAM(tLParam)};
+            pl__title_bar_hover(ptWindow, tPoint);
+            TRACKMOUSEEVENT tTrack = {sizeof(tTrack), TME_LEAVE | TME_NONCLIENT, tHandle, 0};
+            TrackMouseEvent(&tTrack);
+            return true;
+        }
+        case WM_NCMOUSELEAVE:
+            ptData->iHoveredButton = HTNOWHERE;
+            pl__paint_title_bar(ptWindow);
+            return true;
+        case WM_NCLBUTTONDOWN:
+        case WM_NCLBUTTONDBLCLK:
+            if(tWParam == HTMINBUTTON || tWParam == HTMAXBUTTON || tWParam == HTCLOSE)
+            {
+                ptData->iPressedButton = (int)tWParam;
+                ptData->iHoveredButton = (int)tWParam;
+                SetCapture(tHandle);
+                pl__paint_title_bar(ptWindow);
+                return true;
+            }
+            break;
+        case WM_MOUSEMOVE:
+            if(ptData->iPressedButton)
+            {
+                POINT tPoint = {GET_X_LPARAM(tLParam), GET_Y_LPARAM(tLParam)};
+                ClientToScreen(tHandle, &tPoint);
+                pl__title_bar_hover(ptWindow, tPoint);
+                return true;
+            }
+            break;
+        case WM_LBUTTONUP:
+            if(ptData->iPressedButton)
+            {
+                POINT tPoint = {GET_X_LPARAM(tLParam), GET_Y_LPARAM(tLParam)};
+                ClientToScreen(tHandle, &tPoint);
+                const int iHit = pl__title_bar_hit_test(ptWindow, tPoint);
+                const int iPressed = ptData->iPressedButton;
+                ptData->iPressedButton = 0;
+                ReleaseCapture();
+                pl__paint_title_bar(ptWindow);
+                if(iHit == iPressed)
+                    SendMessageW(tHandle, WM_SYSCOMMAND, iPressed == HTCLOSE ? SC_CLOSE : iPressed == HTMINBUTTON ? SC_MINIMIZE : IsZoomed(tHandle) ? SC_RESTORE : SC_MAXIMIZE, 0);
+                return true;
+            }
+            break;
+        case WM_CANCELMODE:
+            if(ptData->iPressedButton && GetCapture() == tHandle)
+                ReleaseCapture();
+            // fall through
+        case WM_CAPTURECHANGED:
+            ptData->iPressedButton = 0;
+            ptData->iHoveredButton = HTNOWHERE;
+            pl__paint_title_bar(ptWindow);
+            break;
+        case WM_GETMINMAXINFO:
+        {
+            *ptResult = DefWindowProcW(tHandle, tMsg, tWParam, tLParam);
+            MINMAXINFO* ptInfo = (MINMAXINFO*)tLParam;
+            ptInfo->ptMinTrackSize.x = max(ptInfo->ptMinTrackSize.x, MulDiv(240, (int)pl__window_dpi(tHandle), 96));
+            ptInfo->ptMinTrackSize.y = max(ptInfo->ptMinTrackSize.y, pl__title_bar_height(ptWindow) + 64);
+            return true;
+        }
+    }
+    return false;
+}
+
 LRESULT CALLBACK 
 pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 {
@@ -167,10 +537,24 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
         }
     }
 
+    if(pl__custom_title_bar(ptWindow))
+    {
+        LRESULT tResult;
+        if(pl__title_bar_message(ptWindow, tMsg, tWParam, tLParam, &tResult))
+            return tResult;
+    }
+
     const bool bMainWindow = ptWindow && ptWindow == gptPlatformExtCtx->ptMainWindow;
     static UINT_PTR puIDEvent = 0;
     switch (tMsg)
     {
+
+        case WM_DPICHANGED:
+        {
+            const RECT* ptSuggested = (const RECT*)tLParam;
+            SetWindowPos(tHwnd, NULL, ptSuggested->left, ptSuggested->top, ptSuggested->right - ptSuggested->left, ptSuggested->bottom - ptSuggested->top, SWP_NOZORDER | SWP_NOACTIVATE);
+            return 0;
+        }
 
         case WM_SYSCOMMAND:
         {
@@ -617,7 +1001,162 @@ pl_window_destroy(plWindow* ptWindow)
     if(gptPlatformExtCtx->ptMainWindow == ptWindow)
         gptPlatformExtCtx->ptMainWindow = NULL;
     DestroyWindow(ptWindow->_pBackendData);
+    plWindowDecorationData* ptDecoration = ptWindow->_pDecorationData;
+    if(ptDecoration)
+    {
+        if(ptDecoration->tSmallIcon)
+            DestroyIcon(ptDecoration->tSmallIcon);
+        if(ptDecoration->tLargeIcon)
+            DestroyIcon(ptDecoration->tLargeIcon);
+        PL_FREE(ptDecoration);
+    }
     PL_FREE(ptWindow);
+}
+
+static HICON
+pl__create_window_icon(const plWindowIcon* ptIcon)
+{
+    BITMAPV5HEADER tHeader = {0};
+    tHeader.bV5Size = sizeof(tHeader);
+    tHeader.bV5Width = (LONG)ptIcon->uWidth;
+    tHeader.bV5Height = -(LONG)ptIcon->uHeight;
+    tHeader.bV5Planes = 1;
+    tHeader.bV5BitCount = 32;
+    tHeader.bV5Compression = BI_BITFIELDS;
+    tHeader.bV5RedMask = 0x00ff0000;
+    tHeader.bV5GreenMask = 0x0000ff00;
+    tHeader.bV5BlueMask = 0x000000ff;
+    tHeader.bV5AlphaMask = 0xff000000;
+    uint8_t* pucPixels = NULL;
+    HBITMAP tColor = CreateDIBSection(NULL, (BITMAPINFO*)&tHeader, DIB_RGB_COLORS, (void**)&pucPixels, NULL, 0);
+    if(!tColor)
+        return NULL;
+
+    // Win32 alpha icons use premultiplied BGRA; the public API accepts RGBA.
+    for(uint32_t i = 0; i < ptIcon->uWidth * ptIcon->uHeight; i++)
+    {
+        const uint8_t* pucSource = &ptIcon->pucPixels[i * 4];
+        pucPixels[i * 4 + 0] = (uint8_t)((pucSource[2] * pucSource[3] + 127) / 255);
+        pucPixels[i * 4 + 1] = (uint8_t)((pucSource[1] * pucSource[3] + 127) / 255);
+        pucPixels[i * 4 + 2] = (uint8_t)((pucSource[0] * pucSource[3] + 127) / 255);
+        pucPixels[i * 4 + 3] = pucSource[3];
+    }
+    const size_t szMask = ((ptIcon->uWidth + 15) / 16) * 2 * ptIcon->uHeight;
+    uint8_t* pucMask = PL_ALLOC(szMask);
+    if(!pucMask)
+    {
+        DeleteObject(tColor);
+        return NULL;
+    }
+    memset(pucMask, 0, szMask);
+    for(uint32_t y = 0; y < ptIcon->uHeight; y++)
+    {
+        for(uint32_t x = 0; x < ptIcon->uWidth; x++)
+        {
+            if(ptIcon->pucPixels[(y * ptIcon->uWidth + x) * 4 + 3] == 0)
+                pucMask[y * ((ptIcon->uWidth + 15) / 16) * 2 + x / 8] |= (uint8_t)(0x80 >> (x % 8));
+        }
+    }
+    HBITMAP tMask = CreateBitmap((int)ptIcon->uWidth, (int)ptIcon->uHeight, 1, 1, pucMask);
+    PL_FREE(pucMask);
+    ICONINFO tInfo = {.fIcon = TRUE, .hbmMask = tMask, .hbmColor = tColor};
+    HICON tIcon = tMask ? CreateIconIndirect(&tInfo) : NULL;
+    if(tMask)
+        DeleteObject(tMask);
+    DeleteObject(tColor);
+    return tIcon;
+}
+
+bool
+pl_window_set_icon(plWindow* ptWindow, uint32_t uCount, const plWindowIcon* atIcons)
+{
+    if(!ptWindow || !pl__window_icons_valid(uCount, atIcons))
+        return false;
+    plWindowDecorationData* ptData = pl__window_decoration_data(ptWindow);
+    if(!ptData)
+        return false;
+
+    HICON tSmall = NULL;
+    HICON tLarge = NULL;
+    if(uCount)
+    {
+        uint32_t uSmall = 0;
+        uint32_t uLarge = 0;
+        const int iSmallSize = MulDiv(24, (int)pl__window_dpi(ptWindow->_pBackendData), 96);
+        for(uint32_t i = 1; i < uCount; i++)
+        {
+            if(abs((int)atIcons[i].uWidth - iSmallSize) < abs((int)atIcons[uSmall].uWidth - iSmallSize))
+                uSmall = i;
+            if(atIcons[i].uWidth * atIcons[i].uHeight > atIcons[uLarge].uWidth * atIcons[uLarge].uHeight)
+                uLarge = i;
+        }
+        tSmall = pl__create_window_icon(&atIcons[uSmall]);
+        tLarge = pl__create_window_icon(&atIcons[uLarge]);
+        if(!tSmall || !tLarge)
+        {
+            if(tSmall)
+                DestroyIcon(tSmall);
+            if(tLarge)
+                DestroyIcon(tLarge);
+            return false;
+        }
+    }
+    HICON tOldSmall = ptData->tSmallIcon;
+    HICON tOldLarge = ptData->tLargeIcon;
+    ptData->tSmallIcon = tSmall;
+    ptData->tLargeIcon = tLarge;
+    SendMessageW(ptWindow->_pBackendData, WM_SETICON, ICON_SMALL, (LPARAM)tSmall);
+    SendMessageW(ptWindow->_pBackendData, WM_SETICON, ICON_BIG, (LPARAM)tLarge);
+    if(tOldSmall)
+        DestroyIcon(tOldSmall);
+    if(tOldLarge)
+        DestroyIcon(tOldLarge);
+    return true;
+}
+
+bool
+pl_window_set_title_bar(plWindow* ptWindow, const plWindowTitleBarDesc* ptDesc)
+{
+    if(!ptWindow || (ptDesc && ptDesc->uHeight && (ptDesc->uHeight < 24 || ptDesc->uHeight > 96)))
+        return false;
+    HWND tHandle = ptWindow->_pBackendData;
+    if(ptDesc && (GetWindowLongPtrW(tHandle, GWL_STYLE) & WS_CAPTION) != WS_CAPTION)
+        return false;
+    plWindowDecorationData* ptData = pl__window_decoration_data(ptWindow);
+    if(!ptData)
+        return false;
+
+    RECT tClient;
+    GetClientRect(tHandle, &tClient);
+    const enum DWMNCRENDERINGPOLICY tPolicy = ptDesc ? DWMNCRP_DISABLED : DWMNCRP_USEWINDOWSTYLE;
+    if(FAILED(DwmSetWindowAttribute(tHandle, DWMWA_NCRENDERING_POLICY, &tPolicy, sizeof(tPolicy))))
+        return false;
+    if(ptData->iPressedButton && GetCapture() == tHandle)
+        ReleaseCapture();
+    ptData->iPressedButton = 0;
+    ptData->iHoveredButton = HTNOWHERE;
+    ptData->bCustomTitleBar = ptDesc != NULL;
+    if(ptDesc)
+    {
+        ptData->tTitleBar = *ptDesc;
+        if(!ptData->tTitleBar.uHeight)
+            ptData->tTitleBar.uHeight = 32;
+        if(!ptData->tTitleBar.uBackgroundColor)
+            ptData->tTitleBar.uBackgroundColor = 0xff111111;
+        if(!ptData->tTitleBar.uInactiveBackgroundColor)
+            ptData->tTitleBar.uInactiveBackgroundColor = 0xff151515;
+        if(!ptData->tTitleBar.uTextColor)
+            ptData->tTitleBar.uTextColor = 0xffbdbdbd;
+        if(!ptData->tTitleBar.uAccentColor)
+            ptData->tTitleBar.uAccentColor = 0xff2b2b2b;
+    }
+    pl__adjust_window_rect(ptWindow, &tClient);
+    const UINT uFlags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED;
+    // Maximized/minimized placement belongs to Windows; only resize normal windows.
+    const bool bPlaced = IsZoomed(tHandle) || IsIconic(tHandle);
+    const bool bSuccess = SetWindowPos(tHandle, NULL, 0, 0, tClient.right - tClient.left, tClient.bottom - tClient.top, uFlags | (bPlaced ? SWP_NOSIZE : 0)) != 0;
+    RedrawWindow(tHandle, NULL, NULL, RDW_INVALIDATE | RDW_FRAME | RDW_UPDATENOW);
+    return bSuccess;
 }
 
 void
@@ -761,7 +1300,7 @@ pl_window_set_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const 
             if(!ptValue->tuVec2.x || !ptValue->tuVec2.y || ptValue->tuVec2.x > INT_MAX || ptValue->tuVec2.y > INT_MAX)
                 return false;
             RECT tRect = {0, 0, (LONG)ptValue->tuVec2.x, (LONG)ptValue->tuVec2.y};
-            AdjustWindowRectEx(&tRect, (DWORD)GetWindowLongPtrW(tHandle, GWL_STYLE), FALSE, (DWORD)GetWindowLongPtrW(tHandle, GWL_EXSTYLE));
+            pl__adjust_window_rect(ptWindow, &tRect);
             return SetWindowPos(tHandle, NULL, 0, 0, tRect.right - tRect.left, tRect.bottom - tRect.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE) != 0;
         }
         case PL_WINDOW_ATTRIBUTE_POSITION:
@@ -905,7 +1444,7 @@ pl_window_get_capabilities(void)
     tCapabilities.atCursorModes = atSupportedCursorModes;
     tCapabilities.atFullScreenModes = atSupportedScreenModes;
     tCapabilities.atWindowAttributes = atSupportedAttributes;
-    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_NONE;
+    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_WINDOW_ICON | PL_WINDOW_CAPABILITY_FLAGS_CUSTOM_TITLE_BAR;
 
     return &tCapabilities;
 }

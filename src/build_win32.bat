@@ -407,11 +407,18 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light
 
 :Build_pilot_light
+rc /nologo /fo"../out/pilot_light.res" "pilot_light.rc"
+@if errorlevel 1 (
+    @set PL_BUILD_STATUS=1
+    @set PL_RESULT=Failed.
+    @goto Cleanupdebug
+)
+
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -D_DEBUG -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-incremental:no 
+@set PL_LINKER_FLAGS=-incremental:no "../out/pilot_light.res"
 @set PL_STATIC_LINK_LIBRARIES=user32.lib Ole32.lib 
 @set PL_SOURCES="pl_main_win32.c" 
 
@@ -1019,11 +1026,18 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light
 
 :Build_pilot_light
+rc /nologo /fo"../out/pilot_light.res" "pilot_light.rc"
+@if errorlevel 1 (
+    @set PL_BUILD_STATUS=1
+    @set PL_RESULT=Failed.
+    @goto Cleanuptest
+)
+
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -DPL_CONFIG_TEST -D_DEBUG -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
-@set PL_LINKER_FLAGS=-incremental:no 
+@set PL_LINKER_FLAGS=-incremental:no "../out/pilot_light.res"
 @set PL_STATIC_LINK_LIBRARIES=user32.lib Ole32.lib 
 @set PL_SOURCES="pl_main_win32.c" 
 
@@ -1633,11 +1647,18 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light
 
 :Build_pilot_light
+rc /nologo /fo"../out/pilot_light.res" "pilot_light.rc"
+@if errorlevel 1 (
+    @set PL_BUILD_STATUS=1
+    @set PL_RESULT=Failed.
+    @goto Cleanuprelease
+)
+
 @set PL_DEFINES=-DPL_PLATFORM_WINDOWS -DNDEBUG -DPL_CONFIG_RELEASE 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
-@set PL_LINKER_FLAGS=-incremental:no 
+@set PL_LINKER_FLAGS=-incremental:no "../out/pilot_light.res"
 @set PL_STATIC_LINK_LIBRARIES=ucrt.lib user32.lib Ole32.lib 
 @set PL_SOURCES="pl_main_win32.c" 
 

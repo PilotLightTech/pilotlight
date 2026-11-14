@@ -1099,6 +1099,44 @@ pl_window_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* ptDesc)
     return ptDesc && ptDesc->tMode == PL_FULLSCREEN_MODE_NONE;
 }
 
+bool
+pl_window_set_icon(plWindow* ptWindow, uint32_t uCount, const plWindowIcon* atIcons)
+{
+    if(!ptWindow || ![NSThread isMainThread] || !pl__window_icons_valid(uCount, atIcons))
+        return false;
+    if(!uCount)
+    {
+        [NSApp setApplicationIconImage:nil];
+        return true;
+    }
+
+    NSImage* ptImage = [[NSImage alloc] initWithSize:NSMakeSize(256, 256)];
+    if(!ptImage)
+        return false;
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        NSBitmapImageRep* ptRep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL pixelsWide:atIcons[i].uWidth pixelsHigh:atIcons[i].uHeight bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace bitmapFormat:NSBitmapFormatAlphaNonpremultiplied bytesPerRow:atIcons[i].uWidth * 4 bitsPerPixel:32];
+        if(!ptRep)
+        {
+            [ptImage release];
+            return false;
+        }
+        memcpy([ptRep bitmapData], atIcons[i].pucPixels, (size_t)atIcons[i].uWidth * atIcons[i].uHeight * 4);
+        [ptRep setSize:NSMakeSize(256, 256)];
+        [ptImage addRepresentation:ptRep];
+        [ptRep release];
+    }
+    [NSApp setApplicationIconImage:ptImage];
+    [ptImage release];
+    return true;
+}
+
+bool
+pl_window_set_title_bar(plWindow* ptWindow, const plWindowTitleBarDesc* ptDesc)
+{
+    return false;
+}
+
 const plWindowCapabilities*
 pl_window_get_capabilities(void)
 {
@@ -1123,7 +1161,7 @@ pl_window_get_capabilities(void)
     tCapabilities.atCursorModes = atSupportedCursorModes;
     tCapabilities.atFullScreenModes = atSupportedScreenModes;
     tCapabilities.atWindowAttributes = atSupportedAttributes;
-    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_NONE;
+    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_APP_ICON;
 
     return &tCapabilities;
 }

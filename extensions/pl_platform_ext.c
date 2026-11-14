@@ -13,6 +13,8 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .show                  = pl_window_show,
         .set_callback          = pl_window_set_callback,
         .get_callback          = pl_window_get_callback,
+        .set_icon              = pl_window_set_icon,
+        .set_title_bar         = pl_window_set_title_bar,
         .set_attribute         = pl_window_set_attribute,
         .get_attribute         = pl_window_get_attribute,
         .set_cursor_mode       = pl_window_set_cursor_mode,

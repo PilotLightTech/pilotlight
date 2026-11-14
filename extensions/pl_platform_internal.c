@@ -14,6 +14,19 @@
 #endif
 #include "pl_platform_ext.h"
 
+static inline bool
+pl__window_icons_valid(uint32_t uCount, const plWindowIcon* atIcons)
+{
+    if(uCount > 16 || (uCount && !atIcons))
+        return false;
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        if(!atIcons[i].pucPixels || !atIcons[i].uWidth || !atIcons[i].uHeight || atIcons[i].uWidth > 256 || atIcons[i].uHeight > 256)
+            return false;
+    }
+    return true;
+}
+
 static int
 pl__file_seek(FILE* ptFile, int64_t iOffset, int iOrigin)
 {

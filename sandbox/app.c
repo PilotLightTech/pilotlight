@@ -337,7 +337,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plPhysicsEngineSettings tPhysicsSettings = {0};
     gptPhysics->initialize(tPhysicsSettings);
 
-    // create window (only 1 allowed currently)
+    // create sandbox window
     gptLog->info(guLogChannel, "Creating sandbox window and initializing graphics");
     plWindowDesc tWindowDesc = {
         .tMode = PL_WINDOW_PRESENTATION_MODE_GRAPHICS_API,
@@ -349,6 +349,41 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .iYPos = 50
     };
     gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
+
+    const plWindowCapabilities* ptWindowCapabilities = gptWindows->get_capabilities();
+    if(ptWindowCapabilities->tFlags & (PL_WINDOW_CAPABILITY_FLAGS_WINDOW_ICON | PL_WINDOW_CAPABILITY_FLAGS_APP_ICON))
+    {
+        const plImageI* ptImage = pl_get_api_latest(ptApiRegistry, plImageI);
+        const char* apcIconPaths[] = {"/resources/icons/pilot-light-32.png", "/resources/icons/pilot-light-256.png"};
+        plWindowIcon atIcons[2] = {0};
+        uint32_t uIconCount = 0;
+        for(uint32_t i = 0; i < PL_ARRAYSIZE(apcIconPaths); i++)
+        {
+            int iWidth = 0;
+            int iHeight = 0;
+            int iChannels = 0;
+            unsigned char* pucPixels = ptImage->load_from_file(apcIconPaths[i], &iWidth, &iHeight, &iChannels, 4);
+            if(pucPixels)
+                atIcons[uIconCount++] = (plWindowIcon){(uint32_t)iWidth, (uint32_t)iHeight, pucPixels};
+        }
+        if(!uIconCount || !gptWindows->set_icon(ptAppData->ptWindow, uIconCount, atIcons))
+            gptLog->warn(guLogChannel, "Unable to set the Pilot Light window icon");
+        for(uint32_t i = 0; i < uIconCount; i++)
+            ptImage->free((void*)atIcons[i].pucPixels);
+    }
+
+    if(ptWindowCapabilities->tFlags & PL_WINDOW_CAPABILITY_FLAGS_CUSTOM_TITLE_BAR)
+    {
+        const plWindowTitleBarDesc tTitleBar = {
+            .uHeight = 32,
+            .uBackgroundColor = PL_COLOR_32_RGBA(17.0f / 255.0f, 17.0f / 255.0f, 17.0f / 255.0f, 1.0f),
+            .uInactiveBackgroundColor = PL_COLOR_32_RGBA(21.0f / 255.0f, 21.0f / 255.0f, 21.0f / 255.0f, 1.0f),
+            .uTextColor = PL_COLOR_32_RGBA(189.0f / 255.0f, 189.0f / 255.0f, 189.0f / 255.0f, 1.0f),
+            .uAccentColor = PL_COLOR_32_RGBA(43.0f / 255.0f, 43.0f / 255.0f, 43.0f / 255.0f, 1.0f)
+        };
+        if(!gptWindows->set_title_bar(ptAppData->ptWindow, &tTitleBar))
+            gptLog->warn(guLogChannel, "Custom title bar unavailable; using the native title bar");
+    }
     gptWindows->show(ptAppData->ptWindow);
 
     plFullScreenDesc tFullScreen = {

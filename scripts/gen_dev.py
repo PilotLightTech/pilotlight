@@ -38,6 +38,16 @@ output_directory = "../out"
 if len(sys.argv) > 1:
     output_directory = sys.argv[1]
 
+def add_windows_icon(configuration):
+    pl.set_pre_target_build_step(
+        f'rc /nologo /fo"{output_directory}/pilot_light.res" "pilot_light.rc"\n'
+        '@if errorlevel 1 (\n'
+        '    @set PL_BUILD_STATUS=1\n'
+        '    @set PL_RESULT=Failed.\n'
+        f'    @goto Cleanup{configuration}\n'
+        ')')
+    pl.add_linker_flags(f'"{output_directory}/pilot_light.res"')
+
 with pl.project("pilotlight"):
     
     # used to decide hot reloading
@@ -637,6 +647,7 @@ with pl.project("pilotlight"):
                     pl.add_static_link_libraries("user32", "Ole32")
                     pl.add_source_files("pl_main_win32.c")
                     pl.add_compiler_flags("-std:c11")
+                    add_windows_icon("debug")
                     
             # linux
             with pl.platform("Linux"):
@@ -656,6 +667,7 @@ with pl.project("pilotlight"):
                     pl.add_static_link_libraries("user32", "Ole32")
                     pl.add_source_files("pl_main_win32.c")
                     pl.add_compiler_flags("-std:c11")
+                    add_windows_icon("test")
                     
             # linux
             with pl.platform("Linux"):
@@ -678,6 +690,7 @@ with pl.project("pilotlight"):
                     pl.add_static_link_libraries("ucrt", "user32", "Ole32")
                     pl.add_source_files("pl_main_win32.c")
                     pl.add_compiler_flags("-std:c11")
+                    add_windows_icon("release")
 
             # linux
             with pl.platform("Linux"):

@@ -59,7 +59,7 @@ extern "C" {
 #define plNetworkI_version       {1, 0, 0}
 #define plThreadsI_version       {1, 0, 1}
 #define plVirtualMemoryI_version {2, 0, 0}
-#define plWindowI_version        {2, 2, 0}
+#define plWindowI_version        {2, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -83,6 +83,8 @@ typedef union _plWindowAttributeValue  plWindowAttributeValue; // catch all for 
 typedef struct _plWindowSurfaceImage   plWindowSurfaceImage;   // represents a drawable surface for the window
 typedef struct _plWindowSurfaceDesc    plWindowSurfaceDesc;    // description for creating a window surface
 typedef struct _plWindowSurface        plWindowSurface;        // opaque
+typedef struct _plWindowIcon           plWindowIcon;
+typedef struct _plWindowTitleBarDesc   plWindowTitleBarDesc;
 
 // basic types (atomics)
 typedef struct _plAtomicCounter plAtomicCounter; // opaque type
@@ -193,6 +195,17 @@ typedef struct _plWindowI
     // until after the callback and release graphics swapchains/surfaces first.
     void                  (*set_callback)(plWindow*, plWindowEventCallback, void* userData);
     plWindowEventCallback (*get_callback)(plWindow*);
+
+    // Copies tightly packed, straight-alpha RGBA8 images; caller may free pixels
+    // after return. Supply up to 16 sizes (each dimension 1..256). Count 0 resets
+    // to the OS default. Win32/X11: per-window icon. Cocoa: application/Dock icon.
+    // Unsupported backends return false. Call on the window/event-pump thread.
+    bool (*set_icon)(plWindow*, uint32_t count, const plWindowIcon*);
+
+    // Optional platform-drawn non-client title bar (currently Win32 only).
+    // NULL restores the native bar. Preserves client size and client coordinates.
+    // The descriptor is copied. Query CUSTOM_TITLE_BAR before using this API.
+    bool (*set_title_bar)(plWindow*, const plWindowTitleBarDesc*);
 
 } plWindowI;
 
@@ -432,7 +445,10 @@ enum _plCursorMode
  enum _plWindowCapabilityFlags
  {
     PL_WINDOW_CAPABILITY_FLAGS_NONE            = 0,
-    PL_WINDOW_CAPABILITY_FLAGS_RAW_MOUSE_INPUT = 1 << 0
+    PL_WINDOW_CAPABILITY_FLAGS_RAW_MOUSE_INPUT = 1 << 0,
+    PL_WINDOW_CAPABILITY_FLAGS_WINDOW_ICON     = 1 << 1,
+    PL_WINDOW_CAPABILITY_FLAGS_APP_ICON        = 1 << 2,
+    PL_WINDOW_CAPABILITY_FLAGS_CUSTOM_TITLE_BAR = 1 << 3
  };
 
 enum _plAtomicsResult
@@ -524,6 +540,22 @@ typedef struct _plWindowDesc
     const void*              pNext;
 } plWindowDesc;
 
+typedef struct _plWindowIcon
+{
+    uint32_t       uWidth;
+    uint32_t       uHeight;
+    const uint8_t* pucPixels;
+} plWindowIcon;
+
+typedef struct _plWindowTitleBarDesc
+{
+    uint32_t uHeight;                  // logical pixels at 96 DPI; 0 = 32, otherwise 24..96
+    uint32_t uBackgroundColor;         // colors: 0 = default; otherwise 0xAABBGGRR (PL_COLOR_32_RGBA), alpha ignored
+    uint32_t uInactiveBackgroundColor;
+    uint32_t uTextColor;
+    uint32_t uAccentColor;             // thin window border and title-bar separator
+} plWindowTitleBarDesc;
+
 typedef struct _plWindow
 {
     void* pUserData;
@@ -539,6 +571,7 @@ typedef struct _plWindow
     void*                 _pGraphicsSurface; // native presentation layer, owned by the window
     plWindowEventCallback _tCallback;
     void*                 _pCallbackUserData;
+    void*                 _pDecorationData; // owned by platform; icons and custom frame state
 } plWindow;
 
 typedef struct _plWindowEvent

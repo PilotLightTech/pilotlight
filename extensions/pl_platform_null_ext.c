@@ -371,6 +371,18 @@ pl_window_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* tDesc)
     return tDesc->tMode == PL_FULLSCREEN_MODE_NONE;
 }
 
+bool
+pl_window_set_icon(plWindow* ptWindow, uint32_t uCount, const plWindowIcon* atIcons)
+{
+    return false;
+}
+
+bool
+pl_window_set_title_bar(plWindow* ptWindow, const plWindowTitleBarDesc* ptDesc)
+{
+    return false;
+}
+
 const plWindowCapabilities*
 pl_window_get_capabilities(void)
 {
