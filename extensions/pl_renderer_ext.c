@@ -519,7 +519,7 @@ pl_renderer_load_component_library(plScene* ptScene, plComponentLibrary* ptLibra
     
     if(uEnvironmentCount > 0)
     {
-        plEnvironmentComponent* ptEnvironmentComp = gptEcs->get_component(ptLibrary, gptData->tEnvironmentComponentType, ptRendererEntities[0]);
+        plEnvironmentComponent* ptEnvironmentComp = gptEcs->get_component(ptLibrary, gptData->tEnvironmentComponentType, ptEnvironmentEntities[0]);
 
         if(ptEnvironmentComp)
             ptScene->tEnvironment = ptEnvironmentComp->tEnvironment;
@@ -3848,7 +3848,109 @@ pl__renderer_deserialize_environment(const char* pcName, void* pEnvironment)
 static bool
 pl__renderer_serialize_settings(const char* pcName, const void* pSettings, plAssetEncoding eEncoding)
 {
-    return false;
+    if(eEncoding == PL_ASSET_ENCODING_BINARY) return false;
+    const plRenderSettings* ptSettings = pSettings;
+    plJsonObject* ptRoot = gptJson->new_root_object("root");
+    gptJson->add_string_member(ptRoot, "format", "plrenderer");
+    gptJson->add_uint32_member(ptRoot, "version", 1);
+
+    plJsonObject* ptLighting = gptJson->add_member(ptRoot, "lighting");
+    gptJson->add_bool_member(ptLighting, "image_based", ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED);
+    gptJson->add_bool_member(ptLighting, "normal_mapping", ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING);
+    gptJson->add_bool_member(ptLighting, "punctual_lights", ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS);
+    gptJson->add_bool_member(ptLighting, "shadows", !(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_NO_SHADOWS));
+
+    plJsonObject* ptSky = gptJson->add_member(ptRoot, "sky");
+    gptJson->add_float_array(ptSky, "sky_lut_resolution", ptSettings->tSky.tSkyLutResolution.d, 2);
+    gptJson->add_float_array(ptSky, "transmission_lut_resolution", ptSettings->tSky.tTransmissionLutResolution.d, 2);
+    gptJson->add_float_array(ptSky, "multiscatter_lut_resolution", ptSettings->tSky.tMultiscatterLutResolution.d, 2);
+    gptJson->add_float_array(ptSky, "aerial_lut_resolution", ptSettings->tSky.tAerialLutResolution.d, 3);
+
+    plJsonObject* ptShadows = gptJson->add_member(ptRoot, "shadows");
+    gptJson->add_float_member(ptShadows, "max_range", ptSettings->tShadows.fMaxShadowRange);
+    gptJson->add_float_member(ptShadows, "constant_bias", ptSettings->tShadows.fConstantDepthBias);
+    gptJson->add_float_member(ptShadows, "slope_bias", ptSettings->tShadows.fSlopeDepthBias);
+    gptJson->add_uint32_member(ptShadows, "resolution", ptSettings->tShadows.uShadowResolution);
+    gptJson->add_uint32_member(ptShadows, "cascade_count", ptSettings->tShadows.uShadowCascadeCount);
+    gptJson->add_float_member(ptShadows, "contact_length", ptSettings->tShadows.fContactShadowLength);
+    gptJson->add_float_member(ptShadows, "contact_thickness", ptSettings->tShadows.fContactShadowThickness);
+    gptJson->add_float_member(ptShadows, "contact_bias", ptSettings->tShadows.fContactShadowBias);
+    gptJson->add_uint32_member(ptShadows, "contact_steps", ptSettings->tShadows.uContactShadowSteps);
+    gptJson->add_bool_member(ptShadows, "contact_shadows", ptSettings->tShadows.tFlags & PL_RENDERER_SHADOW_FLAGS_CONTACT);
+    gptJson->add_bool_member(ptShadows, "pcf", ptSettings->tShadows.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF);
+    gptJson->add_bool_member(ptShadows, "multiviewport", ptSettings->tShadows.tFlags & PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT);
+
+    plJsonObject* ptFXAA = gptJson->add_member(ptRoot, "fxaa");
+    gptJson->add_bool_member(ptFXAA, "enabled", ptSettings->bFXAAEnabled);
+
+    plJsonObject* ptAO = gptJson->add_member(ptRoot, "ambient_occlusion");
+    gptJson->add_float_member(ptAO, "radius", ptSettings->tAO.fRadius);
+    gptJson->add_float_member(ptAO, "strength", ptSettings->tAO.fStrength);
+    gptJson->add_float_member(ptAO, "bias", ptSettings->tAO.fBias);
+
+    plJsonObject* ptSSGI = gptJson->add_member(ptRoot, "ssgi");
+    gptJson->add_bool_member(ptSSGI, "enabled", ptSettings->tSSGI.bEnabled);
+    gptJson->add_float_member(ptSSGI, "strength", ptSettings->tSSGI.fStrength);
+    gptJson->add_float_member(ptSSGI, "radius", ptSettings->tSSGI.fRadius);
+    gptJson->add_float_member(ptSSGI, "thickness", ptSettings->tSSGI.fThickness);
+    gptJson->add_uint32_member(ptSSGI, "ray_count", ptSettings->tSSGI.uRayCount);
+    gptJson->add_uint32_member(ptSSGI, "step_count", ptSettings->tSSGI.uStepCount);
+
+    plJsonObject* ptBloom = gptJson->add_member(ptRoot, "bloom");
+    gptJson->add_float_member(ptBloom, "radius", ptSettings->tBloom.fRadius);
+    gptJson->add_float_member(ptBloom, "strength", ptSettings->tBloom.fStrength);
+    gptJson->add_uint32_member(ptBloom, "chain_length", ptSettings->tBloom.uChainLength);
+    gptJson->add_bool_member(ptBloom, "enabled", ptSettings->tBloom.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE);
+
+    plJsonObject* ptFog = gptJson->add_member(ptRoot, "fog");
+    gptJson->add_bool_member(ptFog, "enabled", ptSettings->tFog.tFlags & PL_RENDERER_FOG_FLAGS_ACTIVE);
+    gptJson->add_float_member(ptFog, "start", ptSettings->tFog.fStart);
+    gptJson->add_float_member(ptFog, "cutoff_distance", ptSettings->tFog.fCutOffDistance);
+    gptJson->add_float_array(ptFog, "color", ptSettings->tFog.tColor.d, 3);
+    gptJson->add_float_member(ptFog, "density", ptSettings->tFog.fDensity);
+    gptJson->add_float_member(ptFog, "height", ptSettings->tFog.fHeight);
+    gptJson->add_float_member(ptFog, "max_opacity", ptSettings->tFog.fMaxOpacity);
+    gptJson->add_float_member(ptFog, "height_falloff", ptSettings->tFog.fHeightFalloff);
+
+    plJsonObject* ptTonemap = gptJson->add_member(ptRoot, "tonemap");
+    gptJson->add_float_member(ptTonemap, "exposure", ptSettings->tTonemap.fExposure);
+    gptJson->add_float_member(ptTonemap, "brightness", ptSettings->tTonemap.fBrightness);
+    gptJson->add_float_member(ptTonemap, "contrast", ptSettings->tTonemap.fContrast);
+    gptJson->add_float_member(ptTonemap, "saturation", ptSettings->tTonemap.fSaturation);
+
+    // Adding siblings may relocate the root's member storage.
+    ptAO = gptJson->member(ptRoot, "ambient_occlusion");
+    ptFog = gptJson->member(ptRoot, "fog");
+    gptJson->add_string_member(ptAO, "mode", ptSettings->tAO.tMode == PL_RENDERER_AO_SSAO ? "ssao" :
+        ptSettings->tAO.tMode == PL_RENDERER_AO_HBAO ? "hbao" : ptSettings->tAO.tMode == PL_RENDERER_AO_MSAO ? "msao" : "none");
+    gptJson->add_string_member(ptFog, "mode", ptSettings->tFog.tMode == PL_RENDERER_FOG_MODE_LINEAR ? "linear" : "exponential");
+    const char* pcTonemap = "pbr_neutral";
+    switch(ptSettings->tTonemap.tMode)
+    {
+        case PL_TONEMAP_MODE_SIMPLE: pcTonemap = "simple"; break;
+        case PL_TONEMAP_MODE_REINHARD: pcTonemap = "reinhard"; break;
+        case PL_TONEMAP_MODE_ACES_NARKOWICZ: pcTonemap = "aces_narkowicz"; break;
+        case PL_TONEMAP_MODE_ACES_HILL: pcTonemap = "aces_hill"; break;
+        case PL_TONEMAP_MODE_ACES_HILL_EXPOSURE_BOOST: pcTonemap = "aces_hill_exposure_boost"; break;
+        default: break;
+    }
+    gptJson->add_string_member(ptTonemap, "mode", pcTonemap);
+
+    uint32_t uSize = 0;
+    gptJson->write(ptRoot, NULL, &uSize);
+    char* pcBuffer = PL_ALLOC((size_t)uSize + 1);
+    memset(pcBuffer, 0, (size_t)uSize + 1);
+    gptJson->write(ptRoot, pcBuffer, &uSize);
+    plVfsFileHandle tFile = gptVfs->open_file(pcName, PL_VFS_FILE_MODE_WRITE);
+    bool bOk = gptVfs->is_file_valid(tFile);
+    if(bOk)
+    {
+        bOk = gptVfs->write_file(tFile, pcBuffer, uSize) == uSize;
+        gptVfs->close_file(tFile);
+    }
+    PL_FREE(pcBuffer);
+    gptJson->unload(&ptRoot);
+    return bOk;
 }
 
 static bool
