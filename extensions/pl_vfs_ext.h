@@ -116,6 +116,10 @@ typedef struct _plVfsI
     plVfsResult (*mount_pak)      (const char* directory, const char* pakFilePath, plVfsMountFlags);
     plVfsResult (*mount_memory)   (const char* directory, plVfsMountFlags);
 
+    // Fails without changes while files on the mount are open. Invalidates all
+    // registered handles on success. Does not delete physical files.
+    plVfsResult (*unmount)(const char* directory);
+
     // basic file usage
     bool            (*does_file_exist)  (const char* file);
     size_t          (*get_file_size_str)(const char* file);
@@ -139,6 +143,8 @@ typedef struct _plVfsI
     bool   (*increment_file_stream_position)(plVfsFileHandle, size_t);
     size_t (*read_file_stream)              (plVfsFileHandle, size_t elementSize, size_t elementCount, void*);
     size_t (*write_file_stream)             (plVfsFileHandle, size_t elementSize, size_t elementCount, void*);
+
+
 } plVfsI;
 
 //-----------------------------------------------------------------------------

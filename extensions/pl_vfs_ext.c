@@ -354,15 +354,70 @@ pl_vfs_register_file(const char* pcFile, bool bMustExist)
 //-----------------------------------------------------------------------------
 
 plVfsResult
+pl_vfs_unmount(const char* pcDirectory)
+{
+    if(!pcDirectory || !pcDirectory[0] || strlen(pcDirectory) > PL_VFS_MAX_PATH_LENGTH - 2)
+        return PL_VFS_RESULT_FAIL;
+    char acMount[PL_VFS_MAX_PATH_LENGTH];
+    snprintf(acMount, sizeof(acMount), "%s%s", pcDirectory, pcDirectory[strlen(pcDirectory) - 1] == '/' ? "" : "/");
+    for(uint32_t i = 1; i < pl_sb_size(gptVfsCtx->sbtFileSystems); i++)
+    {
+        plVfsFileSystem* ptSystem = &gptVfsCtx->sbtFileSystems[i];
+        if(strcmp(acMount, ptSystem->acMountDirectory))
+            continue;
+        for(uint32_t j = 0; j < pl_sb_size(gptVfsCtx->sbtFiles); j++)
+        {
+            if(gptVfsCtx->sbtFiles[j].bActive && gptVfsCtx->sbtFiles[j].bOpen && gptVfsCtx->sbtFiles[j].uFileSystemIndex == i)
+                return PL_VFS_RESULT_FAIL;
+        }
+        for(uint32_t j = 0; j < pl_sb_size(gptVfsCtx->sbtFiles); j++)
+        {
+            plVfsFile* ptFile = &gptVfsCtx->sbtFiles[j];
+            if(!ptFile->bActive)
+                continue;
+            if(ptFile->uFileSystemIndex == i)
+            {
+                pl_hm32_remove_str(&gptVfsCtx->tFileHashmap, ptFile->acPath);
+                ptFile->bActive = false;
+                ptFile->uGeneration++;
+            }
+            else if(ptFile->uFileSystemIndex > i)
+                ptFile->uFileSystemIndex--;
+        }
+        for(uint32_t j = 0; j < pl_sb_size(ptSystem->sbtMemoryFiles); j++)
+        {
+            if(ptSystem->sbtMemoryFiles[j].puData)
+            {
+                PL_FREE(ptSystem->sbtMemoryFiles[j].puData);
+            }
+        }
+        pl_sb_free(ptSystem->sbtMemoryFiles);
+        if(ptSystem->tType == PL_FILE_SYSTEM_TYPE_PAK)
+            gptPak->unload(&ptSystem->ptPakFile);
+        pl_sb_del(gptVfsCtx->sbtFileSystems, i);
+        for(uint32_t j = i; j < pl_sb_size(gptVfsCtx->sbtFileSystems); j++)
+            gptVfsCtx->sbtFileSystems[j].uIndex = j;
+        return PL_VFS_RESULT_SUCCESS;
+    }
+    return PL_VFS_RESULT_FAIL;
+}
+
+plVfsResult
 pl_vfs_mount_directory(const char* pcDirectory, const char* pcPhysicalDirectory, plVfsMountFlags tFlags)
 {
+    if(!pcPhysicalDirectory || !pcPhysicalDirectory[0] || strlen(pcPhysicalDirectory) >= PL_VFS_MAX_PATH_LENGTH)
+        return PL_VFS_RESULT_FAIL;
+    if(!pcDirectory || !pcDirectory[0] || strlen(pcDirectory) > PL_VFS_MAX_PATH_LENGTH - 2)
+        return PL_VFS_RESULT_FAIL;
+    char acMount[PL_VFS_MAX_PATH_LENGTH];
+    snprintf(acMount, sizeof(acMount), "%s%s", pcDirectory, pcDirectory[strlen(pcDirectory) - 1] == '/' ? "" : "/");
 
     const uint32_t uFileSystemIndexCount = pl_sb_size(gptVfsCtx->sbtFileSystems);
     for(uint32_t i = 1; i < uFileSystemIndexCount; i++)
     {
         plVfsFileSystem* ptFileSystem = &gptVfsCtx->sbtFileSystems[i];
 
-        if(pl_str_equal(pcDirectory, ptFileSystem->acMountDirectory))
+        if(pl_str_equal(acMount, ptFileSystem->acMountDirectory))
         {
             return PL_VFS_RESULT_FAIL;
         }
@@ -450,13 +505,17 @@ pl_vfs_mount_pak(const char* pcDirectory, const char* pcPakFilePath, plVfsMountF
 plVfsResult
 pl_vfs_mount_memory(const char* pcDirectory, plVfsMountFlags tFlags)
 {
+    if(!pcDirectory || !pcDirectory[0] || strlen(pcDirectory) > PL_VFS_MAX_PATH_LENGTH - 2)
+        return PL_VFS_RESULT_FAIL;
+    char acMount[PL_VFS_MAX_PATH_LENGTH] = {0};
+    snprintf(acMount, sizeof(acMount), "%s%s", pcDirectory, pcDirectory[strlen(pcDirectory) - 1] == '/' ? "" : "/");
 
     const uint32_t uFileSystemIndexCount = pl_sb_size(gptVfsCtx->sbtFileSystems);
     for(uint32_t i = 1; i < uFileSystemIndexCount; i++)
     {
         plVfsFileSystem* ptFileSystem = &gptVfsCtx->sbtFileSystems[i];
 
-        if(pl_str_equal(pcDirectory, ptFileSystem->acMountDirectory))
+        if(pl_str_equal(acMount, ptFileSystem->acMountDirectory))
         {
             return PL_VFS_RESULT_FAIL;
         }
@@ -1120,6 +1179,7 @@ pl_load_vfs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .open_file                      = pl_vfs_open_file,
         .close_file                     = pl_vfs_close_file,
         .mount_directory                = pl_vfs_mount_directory,
+        .unmount                        = pl_vfs_unmount,
         .mount_pak                      = pl_vfs_mount_pak,
         .mount_memory                   = pl_vfs_mount_memory,
         .write_file                     = pl_vfs_write_file,
