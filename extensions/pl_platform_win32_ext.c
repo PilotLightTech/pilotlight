@@ -1696,6 +1696,9 @@ pl_file_cleanup_directory_info(plDirectoryInfo* ptInfoOut)
 plFileResult
 pl_file_get_directory_info(const char* pcPath, plDirectoryInfo* ptInfoOut)
 {
+    if(!pcPath || !pcPath[0] || strlen(pcPath) > PL_MAX_PATH_LENGTH - 3)
+        return PL_FILE_RESULT_FAIL;
+    pl_file_reset_directory_info(ptInfoOut);
     char acFixedName[PL_MAX_PATH_LENGTH] = {0};
     size_t szLen = strnlen(pcPath, PL_MAX_PATH_LENGTH);
     if(pcPath[szLen - 1] == '/')
@@ -1703,16 +1706,19 @@ pl_file_get_directory_info(const char* pcPath, plDirectoryInfo* ptInfoOut)
     else
         sprintf(acFixedName, "%s/*", pcPath);
     WIN32_FIND_DATAA tFindData = {0};
-    HANDLE tFoundHandle = FindFirstFileA(acFixedName, &tFindData); // should be "."
-
-    BOOL bResult = FindNextFileA(tFoundHandle, &tFindData); // should be ".."
-    bResult = FindNextFileA(tFoundHandle, &tFindData);
-
-    pl_sb_reset(ptInfoOut->sbtEntries);
+    HANDLE tFoundHandle = FindFirstFileA(acFixedName, &tFindData);
+    if(tFoundHandle == INVALID_HANDLE_VALUE)
+        return PL_FILE_RESULT_FAIL;
+    BOOL bResult = TRUE;
 
     while(bResult != 0)
     {
-        
+        // Drive roots do not necessarily enumerate '.' and '..' first.
+        if(strcmp(tFindData.cFileName, ".") == 0 || strcmp(tFindData.cFileName, "..") == 0)
+        {
+            bResult = FindNextFileA(tFoundHandle, &tFindData);
+            continue;
+        }
 
         pl_sb_add(ptInfoOut->sbtEntries);
         plDirectoryEntry* ptNewEntry = &pl_sb_top(ptInfoOut->sbtEntries);
