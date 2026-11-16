@@ -170,6 +170,23 @@ typedef struct _plWindowData
     xcb_connection_t* ptConnection;
     xcb_window_t      tWindow;
     GC                gc;
+    char              acOriginalTitle[1024];
+    // Keep the prefix above stable: graphics backends use tWindow as the drawable.
+    // Custom decorations live in a separate parent; content coordinates stay local.
+    xcb_window_t      tFrame;
+    plWindowTitleBarDesc tTitleBar;
+    XFontSet          tFont;
+    uint32_t*         puIcon;
+    uint32_t          uIconLength;
+    int               iFrameWidth, iFrameHeight;
+    int               iHover, iPressed;
+    bool              bActive, bMaximized, bWmDrag, bShown;
+    xcb_cursor_t      atResizeCursors[9];
+    int               iCursor;
+    xcb_timestamp_t   tLastClick;
+    int               iLastClickX, iLastClickY;
+    int               iDrag, iDragX, iDragY;
+    int               iStartX, iStartY, iStartWidth, iStartHeight;
 } plWindowData;
 
 static plWindow*
@@ -178,7 +195,8 @@ pl__window_from_xcb(xcb_window_t tWindow)
     for(uint32_t i = 0; i < pl_sb_size(gptPlatformExtCtx->sbtWindows); i++)
     {
         plWindow* ptWindow = gptPlatformExtCtx->sbtWindows[i];
-        if(((plWindowData*)ptWindow->_pBackendData)->tWindow == tWindow)
+        plWindowData* ptData = ptWindow->_pBackendData;
+        if(ptData->tWindow == tWindow || (ptData->tFrame && ptData->tFrame == tWindow))
             return ptWindow;
     }
     return NULL;
@@ -187,6 +205,10 @@ pl__window_from_xcb(xcb_window_t tWindow)
 void pl__linux_procedure(xcb_generic_event_t* event);
 void pl__update_mouse_cursor(void);
 static void pl__linux_handle_selection_request(const xcb_selection_request_event_t* ptRequest);
+static xcb_atom_t pl__intern_atom(const char* pcName);
+static void pl__x11_paint_caption(plWindowData* ptData);
+static bool pl__x11_caption_event(xcb_generic_event_t* ptEvent);
+static bool pl__x11_set_decoration(plWindow* ptWindow, const plWindowTitleBarDesc* ptDesc);
 
 void*
 pl_platform_setup(void)
@@ -248,6 +270,7 @@ plWindowResult
 pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
 {
     plWindowData* ptData = PL_ALLOC(sizeof(plWindowData));
+    memset(ptData, 0, sizeof(*ptData));
 
     ptData->header = 0; //-V522
     ptData->tWindow = xcb_generate_id(gptPlatformExtCtx->ptConnection); //-V522
@@ -288,6 +311,7 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
         event_mask,
         value_list);
 
+    snprintf(ptData->acOriginalTitle, sizeof(ptData->acOriginalTitle), "%s", tDesc.pcTitle ? tDesc.pcTitle : "Pilot Light");
     // Change the title
     xcb_change_property(
         gptPlatformExtCtx->ptConnection,
@@ -332,8 +356,8 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
         1,
         &wm_delete_reply->atom);
 
-    // Map the window to the screen
-    xcb_map_window(gptPlatformExtCtx->ptConnection, ptData->tWindow);
+    // Map in show(), after the application has selected its decorations and icon.
+    // This also avoids briefly displaying a native caption before the custom one.
 
     int stream_result = xcb_flush(gptPlatformExtCtx->ptConnection);
 
@@ -367,15 +391,132 @@ pl_window_destroy(plWindow* ptWindow)
     if(gptPlatformExtCtx->ptMainWindow == ptWindow)
         gptPlatformExtCtx->ptMainWindow = NULL;
     XFreeGC(gptPlatformExtCtx->ptDisplay, ptData->gc);
-    xcb_destroy_window(gptPlatformExtCtx->ptConnection, ptData->tWindow);
+    if(ptData->tFont)
+        XFreeFontSet(gptPlatformExtCtx->ptDisplay, ptData->tFont);
+    for(int i = 0; i < 9; i++)
+        if(ptData->atResizeCursors[i]) xcb_free_cursor(ptData->ptConnection, ptData->atResizeCursors[i]);
+    PL_FREE(ptData->puIcon);
+    xcb_destroy_window(gptPlatformExtCtx->ptConnection, ptData->tFrame ? ptData->tFrame : ptData->tWindow);
     PL_FREE(ptData);
     PL_FREE(ptWindow);
+}
+
+bool
+pl_window_set_icon(plWindow* ptWindow, uint32_t uCount, const plWindowIcon* atIcons)
+{
+    if(!ptWindow || !pl__window_icons_valid(uCount, atIcons))
+        return false;
+
+    plWindowData* ptData = ptWindow->_pBackendData;
+    xcb_connection_t* ptConnection = gptPlatformExtCtx->ptConnection;
+    xcb_intern_atom_reply_t* ptReply = xcb_intern_atom_reply(ptConnection, xcb_intern_atom(ptConnection, false, 12, "_NET_WM_ICON"), NULL);
+    if(!ptReply)
+        return false;
+    const xcb_atom_t tAtom = ptReply->atom;
+    free(ptReply);
+
+    uint32_t uLength = 0;
+    for(uint32_t i = 0; i < uCount; i++)
+        uLength += 2 + atIcons[i].uWidth * atIcons[i].uHeight;
+    if(uLength + 7 > xcb_get_maximum_request_length(ptConnection))
+        return false;
+
+    uint32_t* auData = uLength ? PL_ALLOC(uLength * sizeof(uint32_t)) : NULL;
+    if(uLength && !auData)
+        return false;
+    uint32_t uOffset = 0;
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        auData[uOffset++] = atIcons[i].uWidth;
+        auData[uOffset++] = atIcons[i].uHeight;
+        for(uint32_t j = 0; j < atIcons[i].uWidth * atIcons[i].uHeight; j++)
+        {
+            const uint8_t* pucPixel = &atIcons[i].pucPixels[j * 4];
+            auData[uOffset++] = ((uint32_t)pucPixel[3] << 24) | ((uint32_t)pucPixel[0] << 16) | ((uint32_t)pucPixel[1] << 8) | pucPixel[2];
+        }
+    }
+    const xcb_void_cookie_t tCookie = uCount ? xcb_change_property_checked(ptConnection, XCB_PROP_MODE_REPLACE, ptData->tWindow, tAtom, XCB_ATOM_CARDINAL, 32, uLength, auData) : xcb_delete_property_checked(ptConnection, ptData->tWindow, tAtom);
+    xcb_generic_error_t* ptError = xcb_request_check(ptConnection, tCookie);
+    const bool bSuccess = ptError == NULL;
+    free(ptError);
+    if(bSuccess)
+    {
+        PL_FREE(ptData->puIcon);
+        ptData->puIcon = auData;
+        ptData->uIconLength = uLength;
+        if(ptData->tFrame)
+        {
+            xcb_change_property(ptConnection, XCB_PROP_MODE_REPLACE, ptData->tFrame, tAtom, XCB_ATOM_CARDINAL, 32, uLength, auData);
+            pl__x11_paint_caption(ptData);
+        }
+    }
+    else
+        PL_FREE(auData);
+    xcb_flush(ptConnection);
+    return bSuccess;
+}
+
+bool
+pl_window_set_title_bar(plWindow* ptWindow, const plWindowTitleBarDesc* ptDesc)
+{
+    if(!ptWindow)
+        return false;
+    plWindowData* ptData = ptWindow->_pBackendData;
+    if(!pl__x11_set_decoration(ptWindow, ptDesc))
+        return false;
+    char acTitle[1280];
+    const char* pcTitle = ptData->acOriginalTitle;
+    if(ptDesc)
+    {
+        snprintf(acTitle, sizeof(acTitle), "%.*s%s%.*s%s%.*s",
+            63, ptDesc->acBrand, ptDesc->acBrand[0] ? " / " : "",
+            ptDesc->acTitle[0] ? 255 : 1023, ptDesc->acTitle[0] ? ptDesc->acTitle : ptData->acOriginalTitle,
+            ptDesc->acStatus[0] ? " - " : "",
+            63, ptDesc->acStatus);
+        pcTitle = acTitle;
+    }
+    xcb_connection_t* ptConnection = gptPlatformExtCtx->ptConnection;
+    xcb_intern_atom_reply_t* ptName = xcb_intern_atom_reply(ptConnection,
+        xcb_intern_atom(ptConnection, false, 12, "_NET_WM_NAME"), NULL);
+    xcb_intern_atom_reply_t* ptUtf8 = xcb_intern_atom_reply(ptConnection,
+        xcb_intern_atom(ptConnection, false, 11, "UTF8_STRING"), NULL);
+    if(!ptName || !ptUtf8)
+    {
+        free(ptName);
+        free(ptUtf8);
+        return false;
+    }
+    const xcb_void_cookie_t tCookie = xcb_change_property_checked(ptConnection,
+        XCB_PROP_MODE_REPLACE, ptData->tWindow, ptName->atom, ptUtf8->atom,
+        8, (uint32_t)strlen(pcTitle), pcTitle);
+    xcb_change_property(ptConnection, XCB_PROP_MODE_REPLACE, ptData->tWindow,
+        XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, (uint32_t)strlen(pcTitle), pcTitle);
+    if(ptData->tFrame)
+    {
+        xcb_change_property(ptConnection, XCB_PROP_MODE_REPLACE, ptData->tFrame,
+            ptName->atom, ptUtf8->atom, 8, (uint32_t)strlen(pcTitle), pcTitle);
+        xcb_change_property(ptConnection, XCB_PROP_MODE_REPLACE, ptData->tFrame,
+            XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, (uint32_t)strlen(pcTitle), pcTitle);
+        pl__x11_paint_caption(ptData);
+    }
+    free(ptName);
+    free(ptUtf8);
+    xcb_generic_error_t* ptError = xcb_request_check(ptConnection, tCookie);
+    const bool bSuccess = ptError == NULL;
+    free(ptError);
+    xcb_flush(ptConnection);
+    return bSuccess;
 }
 
 void
 pl_window_show(plWindow* ptWindow)
 {
-    
+    if(!ptWindow) return;
+    plWindowData* ptData = ptWindow->_pBackendData;
+    ptData->bShown = true;
+    xcb_map_window(ptData->ptConnection, ptData->tWindow);
+    if(ptData->tFrame) xcb_map_window(ptData->ptConnection, ptData->tFrame);
+    xcb_flush(ptData->ptConnection);
 }
 
 plWindowResult
@@ -556,7 +697,7 @@ pl_window_get_capabilities(void)
     tCapabilities.atCursorModes = atSupportedCursorModes;
     tCapabilities.atFullScreenModes = atSupportedScreenModes;
     tCapabilities.atWindowAttributes = atSupportedAttributes;
-    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_NONE;
+    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_WINDOW_ICON | PL_WINDOW_CAPABILITY_FLAGS_TITLE_BAR_TEXT | PL_WINDOW_CAPABILITY_FLAGS_CUSTOM_TITLE_BAR;
 
     return &tCapabilities;
 }
@@ -762,6 +903,11 @@ pl__xcb_key_to_pl_key(uint32_t x_keycode)
 void
 pl__linux_procedure(xcb_generic_event_t* event)
 {
+    if(pl__x11_caption_event(event))
+    {
+        free(event);
+        return;
+    }
     xcb_client_message_event_t* cm;
 
     switch (event->response_type & ~0x80) 
@@ -896,6 +1042,18 @@ pl__linux_procedure(xcb_generic_event_t* event)
             ptWindow->_uRequestedHeight = ptConfigure->height;
             ptWindow->_iXPos = ptConfigure->x;
             ptWindow->_iYPos = ptConfigure->y;
+            plWindowData* ptData = ptWindow->_pBackendData;
+            if(ptData->tFrame)
+            {
+                xcb_translate_coordinates_reply_t* ptPosition = xcb_translate_coordinates_reply(ptData->ptConnection,
+                    xcb_translate_coordinates(ptData->ptConnection, ptData->tWindow, gptPlatformExtCtx->ptScreen->root, 0, 0), NULL);
+                if(ptPosition)
+                {
+                    ptWindow->_iXPos = ptPosition->dst_x;
+                    ptWindow->_iYPos = ptPosition->dst_y;
+                    free(ptPosition);
+                }
+            }
             if(bResized && ptWindow == gptPlatformExtCtx->ptMainWindow)
             {
                 gptIO->tMainViewportSize = (plVec2){ptConfigure->width, ptConfigure->height};
@@ -932,6 +1090,445 @@ pl__intern_atom(const char* pcName)
     free(ptReply);
 
     return tAtom;
+}
+
+// The frame is a normal managed top-level window (never override_redirect).
+// EWMH requests preserve the desktop's snapping/workspace behavior. Older WMs
+// without _NET_WM_MOVERESIZE use the pointer-grab fallback below.
+enum { PL_X11_BORDER = 4, PL_X11_BUTTON = 36 };
+
+static void
+pl__x11_wm_request(plWindowData* ptData, const char* pcName, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e)
+{
+    xcb_client_message_event_t tEvent = {0};
+    tEvent.response_type = XCB_CLIENT_MESSAGE;
+    tEvent.format = 32;
+    tEvent.window = ptData->tFrame;
+    tEvent.type = pl__intern_atom(pcName);
+    tEvent.data.data32[0] = a; tEvent.data.data32[1] = b;
+    tEvent.data.data32[2] = c; tEvent.data.data32[3] = d; tEvent.data.data32[4] = e;
+    xcb_send_event(ptData->ptConnection, false, gptPlatformExtCtx->ptScreen->root,
+        XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY, (const char*)&tEvent);
+    xcb_flush(ptData->ptConnection);
+}
+
+static bool
+pl__x11_wm_supports(const char* pcName)
+{
+    xcb_connection_t* c = gptPlatformExtCtx->ptConnection;
+    xcb_atom_t tAtom = pl__intern_atom(pcName);
+    xcb_get_property_reply_t* p = xcb_get_property_reply(c, xcb_get_property(c, false,
+        gptPlatformExtCtx->ptScreen->root, pl__intern_atom("_NET_SUPPORTED"), XCB_ATOM_ATOM, 0, 4096), NULL);
+    bool bFound = false;
+    if(p && p->format == 32)
+    {
+        xcb_atom_t* a = xcb_get_property_value(p);
+        for(int i = 0; i < xcb_get_property_value_length(p) / 4; i++)
+            bFound |= a[i] == tAtom;
+    }
+    free(p);
+    return bFound;
+}
+
+static unsigned long
+pl__x11_channel(uint32_t uValue, unsigned long uMask)
+{
+    if(!uMask) return 0;
+    unsigned int uShift = 0;
+    while(!(uMask & 1)) { uMask >>= 1; uShift++; }
+    return ((uValue * uMask + 127) / 255) << uShift;
+}
+
+static void
+pl__x11_color(plWindowData* p, uint32_t uColor)
+{
+    Visual* v = DefaultVisual(gptPlatformExtCtx->ptDisplay, gptPlatformExtCtx->screen);
+    XSetForeground(gptPlatformExtCtx->ptDisplay, p->gc,
+        pl__x11_channel(uColor & 255, v->red_mask) |
+        pl__x11_channel((uColor >> 8) & 255, v->green_mask) |
+        pl__x11_channel((uColor >> 16) & 255, v->blue_mask));
+}
+
+static void
+pl__x11_paint_caption(plWindowData* p)
+{
+    if(!p->tFrame) return;
+    Display* d = gptPlatformExtCtx->ptDisplay;
+    const int w = p->iFrameWidth, h = (int)p->tTitleBar.uHeight;
+    if(w <= 0 || h <= 0) return;
+    // A pixmap prevents intermediate caption draws appearing during status updates.
+    Pixmap tPixmap = XCreatePixmap(d, p->tFrame, w, h, DefaultDepth(d, gptPlatformExtCtx->screen));
+    uint32_t uBackground = p->bActive ? p->tTitleBar.uBackgroundColor : p->tTitleBar.uInactiveBackgroundColor;
+    pl__x11_color(p, uBackground);
+    XFillRectangle(d, tPixmap, p->gc, 0, 0, w, h);
+    int iTextX = 14;
+    if(p->puIcon && p->uIconLength > 2)
+    {
+        // Box-filter the small source icon and composite its alpha against the caption.
+        const int s = 20, sw = (int)p->puIcon[0], sh = (int)p->puIcon[1];
+        Visual* v = DefaultVisual(d, gptPlatformExtCtx->screen);
+        XImage* im = XCreateImage(d, v, DefaultDepth(d, gptPlatformExtCtx->screen), ZPixmap, 0, NULL, s, s, 32, 0);
+        if(im)
+        {
+            im->data = calloc(s, im->bytes_per_line);
+            if(im->data)
+            {
+                for(int y = 0; y < s; y++) for(int x = 0; x < s; x++)
+                {
+                    uint64_t r = 0, g = 0, b = 0, n = 0;
+                    int x1 = x * sw / s, x2 = (x + 1) * sw / s;
+                    int y1 = y * sh / s, y2 = (y + 1) * sh / s;
+                    if(x2 <= x1) x2 = x1 + 1;
+                    if(y2 <= y1) y2 = y1 + 1;
+                    for(int sy = y1; sy < y2; sy++) for(int sx = x1; sx < x2; sx++)
+                    {
+                        uint32_t c = p->puIcon[2 + sy * sw + sx], a = c >> 24;
+                        r += (((c >> 16) & 255) * a + (uBackground & 255) * (255 - a)) / 255;
+                        g += (((c >> 8) & 255) * a + ((uBackground >> 8) & 255) * (255 - a)) / 255;
+                        b += ((c & 255) * a + ((uBackground >> 16) & 255) * (255 - a)) / 255;
+                        n++;
+                    }
+                    XPutPixel(im, x, y, pl__x11_channel(r / n, v->red_mask) | pl__x11_channel(g / n, v->green_mask) | pl__x11_channel(b / n, v->blue_mask));
+                }
+                XPutImage(d, tPixmap, p->gc, im, 0, 0, 12, (h - s) / 2, s, s);
+            }
+            XDestroyImage(im);
+        }
+        iTextX = 42;
+    }
+    int iRight = w - PL_X11_BORDER - 3 * PL_X11_BUTTON - 12;
+    if(p->tFont)
+    {
+        XFontSetExtents* ex = XExtentsOfFontSet(p->tFont);
+        int baseline = (h - ex->max_logical_extent.height) / 2 - ex->max_logical_extent.y;
+        if(w >= 560 && p->tTitleBar.acStatus[0])
+        {
+            int len = (int)strlen(p->tTitleBar.acStatus);
+            int tw = Xutf8TextEscapement(p->tFont, p->tTitleBar.acStatus, len);
+            pl__x11_color(p, p->tTitleBar.uTextColor);
+            Xutf8DrawString(d, tPixmap, p->tFont, p->gc, iRight - tw, baseline, p->tTitleBar.acStatus, len);
+            pl__x11_color(p, p->tTitleBar.uStatusColor);
+            XFillArc(d, tPixmap, p->gc, iRight - tw - 14, h / 2 - 3, 6, 6, 0, 360 * 64);
+            iRight -= tw + 30;
+        }
+        char acText[384];
+        snprintf(acText, sizeof(acText), "%s / %s", p->tTitleBar.acBrand, p->tTitleBar.acTitle);
+        size_t len = strlen(acText);
+        while(len && Xutf8TextEscapement(p->tFont, acText, (int)len) > iRight - iTextX)
+        {
+            do { len--; } while(len && ((unsigned char)acText[len] & 0xc0) == 0x80);
+            acText[len] = 0;
+        }
+        pl__x11_color(p, p->tTitleBar.uTextColor);
+        Xutf8DrawString(d, tPixmap, p->tFont, p->gc, iTextX, baseline, acText, (int)len);
+    }
+    for(int i = 1; i <= 3; i++) // minimize, maximize/restore, close
+    {
+        int x = w - PL_X11_BORDER - (4 - i) * PL_X11_BUTTON;
+        if(p->iHover == i)
+        {
+            pl__x11_color(p, i == 3 ? 0xff332ac4 : p->tTitleBar.uAccentColor);
+            XFillRectangle(d, tPixmap, p->gc, x, PL_X11_BORDER, PL_X11_BUTTON, h - PL_X11_BORDER - 1);
+        }
+        pl__x11_color(p, p->tTitleBar.uTextColor);
+        x += PL_X11_BUTTON / 2 - 4;
+        int y = h / 2 - 4;
+        if(i == 1) XDrawLine(d, tPixmap, p->gc, x, y + 4, x + 8, y + 4);
+        if(i == 2)
+        {
+            if(p->bMaximized) XDrawRectangle(d, tPixmap, p->gc, x + 2, y - 2, 7, 7);
+            XDrawRectangle(d, tPixmap, p->gc, x, y, 7, 7);
+        }
+        if(i == 3)
+        {
+            XDrawLine(d, tPixmap, p->gc, x, y, x + 8, y + 8);
+            XDrawLine(d, tPixmap, p->gc, x + 8, y, x, y + 8);
+        }
+    }
+    pl__x11_color(p, p->tTitleBar.uAccentColor);
+    XDrawLine(d, tPixmap, p->gc, 0, h - 1, w, h - 1);
+    pl__x11_color(p, p->tTitleBar.uBrandColor);
+    XDrawLine(d, tPixmap, p->gc, 0, h - 1, w < 160 ? w : 160, h - 1);
+    XCopyArea(d, tPixmap, p->tFrame, p->gc, 0, 0, w, h, 0, 0);
+    XFreePixmap(d, tPixmap);
+    XFlush(d);
+}
+
+static bool
+pl__x11_set_decoration(plWindow* ptWindow, const plWindowTitleBarDesc* ptDesc)
+{
+    plWindowData* p = ptWindow->_pBackendData;
+    xcb_connection_t* c = p->ptConnection;
+    if(!ptDesc)
+    {
+        if(p->tFrame)
+        {
+            if(p->iDrag >= 0) xcb_ungrab_pointer(c, XCB_CURRENT_TIME);
+            xcb_translate_coordinates_reply_t* pos = xcb_translate_coordinates_reply(c,
+                xcb_translate_coordinates(c, p->tWindow, gptPlatformExtCtx->ptScreen->root, 0, 0), NULL);
+            xcb_unmap_window(c, p->tFrame);
+            xcb_reparent_window(c, p->tWindow, gptPlatformExtCtx->ptScreen->root, pos ? pos->dst_x : 0, pos ? pos->dst_y : 0);
+            free(pos);
+            xcb_destroy_window(c, p->tFrame);
+            p->tFrame = XCB_NONE;
+            p->iDrag = -1; p->iHover = p->iPressed = 0; p->bWmDrag = false;
+            if(p->bShown) xcb_map_window(c, p->tWindow);
+        }
+        return true;
+    }
+    if(!p->tFont)
+    {
+        char** ppcMissing = NULL; int iMissing = 0; char* pcDefault = NULL;
+        p->tFont = XCreateFontSet(gptPlatformExtCtx->ptDisplay,
+            "-*-helvetica-medium-r-normal--14-*-*-*-*-*-*-*,fixed", &ppcMissing, &iMissing, &pcDefault);
+        if(ppcMissing) XFreeStringList(ppcMissing);
+        if(!p->tFont) return false; // Keep the native decoration if fonts are unavailable.
+    }
+    const bool bNew = !p->tFrame;
+    const uint32_t uOldHeight = p->tTitleBar.uHeight;
+    p->tTitleBar = *ptDesc;
+    p->tTitleBar.acBrand[63] = 0; p->tTitleBar.acTitle[255] = 0; p->tTitleBar.acStatus[63] = 0;
+    p->tTitleBar.uHeight = ptDesc->uHeight ? ptDesc->uHeight : 32;
+    if(p->tTitleBar.uHeight < 24) p->tTitleBar.uHeight = 24;
+    if(p->tTitleBar.uHeight > 96) p->tTitleBar.uHeight = 96;
+    int w = ptWindow->_uRequestedWidth + 2 * PL_X11_BORDER;
+    int h = ptWindow->_uRequestedHeight + p->tTitleBar.uHeight + PL_X11_BORDER;
+    if(!p->tFrame)
+    {
+        xcb_translate_coordinates_reply_t* pos = xcb_translate_coordinates_reply(c,
+            xcb_translate_coordinates(c, p->tWindow, gptPlatformExtCtx->ptScreen->root, 0, 0), NULL);
+        p->tFrame = xcb_generate_id(c);
+        uint32_t values[] = {gptPlatformExtCtx->ptScreen->black_pixel,
+            XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE |
+            XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
+            XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_LEAVE_WINDOW | XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_KEY_RELEASE};
+        xcb_generic_error_t* error = xcb_request_check(c, xcb_create_window_checked(c, XCB_COPY_FROM_PARENT,
+            p->tFrame, gptPlatformExtCtx->ptScreen->root, pos ? pos->dst_x : 0, pos ? pos->dst_y : 0,
+            w, h, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, gptPlatformExtCtx->ptScreen->root_visual,
+            XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK, values));
+        free(pos);
+        if(error) { free(error); p->tFrame = 0; return false; }
+        xcb_atom_t motif = pl__intern_atom("_MOTIF_WM_HINTS");
+        uint32_t hints[] = {2, 0, 0, 0, 0}; // MWM_HINTS_DECORATIONS, decorations = none
+        xcb_change_property(c, XCB_PROP_MODE_REPLACE, p->tFrame, motif, motif, 32, 5, hints);
+        xcb_change_property(c, XCB_PROP_MODE_REPLACE, p->tFrame, gptPlatformExtCtx->tWmProtocols,
+            XCB_ATOM_ATOM, 32, 1, &gptPlatformExtCtx->tWmDeleteWin);
+        if(p->puIcon)
+            xcb_change_property(c, XCB_PROP_MODE_REPLACE, p->tFrame, pl__intern_atom("_NET_WM_ICON"), XCB_ATOM_CARDINAL, 32, p->uIconLength, p->puIcon);
+        xcb_unmap_window(c, p->tWindow);
+        xcb_reparent_window(c, p->tWindow, p->tFrame, PL_X11_BORDER, p->tTitleBar.uHeight);
+        xcb_map_window(c, p->tWindow);
+        if(p->bShown) xcb_map_window(c, p->tFrame);
+        p->bActive = true;
+        p->iDrag = -1;
+        p->iCursor = -1;
+    }
+    // Updating READY/LOADING must not undo a pending WM resize or maximize.
+    if(bNew || uOldHeight != p->tTitleBar.uHeight)
+    {
+        p->iFrameWidth = w; p->iFrameHeight = h;
+        uint32_t size[] = {(uint32_t)w, (uint32_t)h};
+        xcb_configure_window(c, p->tFrame, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, size);
+        uint32_t offset[] = {PL_X11_BORDER, p->tTitleBar.uHeight};
+        xcb_configure_window(c, p->tWindow, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, offset);
+        xcb_flush(c);
+        XSizeHints hints = {0};
+        hints.flags = PMinSize;
+        hints.min_width = 180; hints.min_height = p->tTitleBar.uHeight + 64;
+        XSetWMNormalHints(gptPlatformExtCtx->ptDisplay, p->tFrame, &hints);
+        XClassHint classHint = {"pilotlight", "PilotLight"};
+        XSetClassHint(gptPlatformExtCtx->ptDisplay, p->tFrame, &classHint);
+        XFlush(gptPlatformExtCtx->ptDisplay);
+    }
+    xcb_flush(c);
+    return true;
+}
+
+static int
+pl__x11_caption_hit(plWindowData* p, int x, int y)
+{
+    // EWMH resize directions 0..7, move 8; caption buttons 9..11.
+    bool l = x < PL_X11_BORDER, r = x >= p->iFrameWidth - PL_X11_BORDER;
+    bool t = y < PL_X11_BORDER, b = y >= p->iFrameHeight - PL_X11_BORDER;
+    if(!p->bMaximized)
+    {
+        if(t) return l ? 0 : r ? 2 : 1;
+        if(b) return l ? 6 : r ? 4 : 5;
+        if(l) return 7;
+        if(r) return 3;
+    }
+    if(y >= (int)p->tTitleBar.uHeight) return -1;
+    int start = p->iFrameWidth - PL_X11_BORDER - 3 * PL_X11_BUTTON;
+    return x >= start && x < p->iFrameWidth - PL_X11_BORDER ? 9 + (x - start) / PL_X11_BUTTON : 8;
+}
+
+static void
+pl__x11_maximize(plWindowData* p)
+{
+    pl__x11_wm_request(p, "_NET_WM_STATE", 2, pl__intern_atom("_NET_WM_STATE_MAXIMIZED_VERT"),
+        pl__intern_atom("_NET_WM_STATE_MAXIMIZED_HORZ"), 1, 0);
+}
+
+static bool
+pl__x11_caption_event(xcb_generic_event_t* event)
+{
+    uint8_t type = event->response_type & 0x7f;
+    xcb_window_t window = XCB_NONE;
+    switch(type)
+    {
+        case XCB_EXPOSE: window = ((xcb_expose_event_t*)event)->window; break;
+        case XCB_CONFIGURE_NOTIFY: window = ((xcb_configure_notify_event_t*)event)->window; break;
+        case XCB_PROPERTY_NOTIFY: window = ((xcb_property_notify_event_t*)event)->window; break;
+        case XCB_FOCUS_IN: case XCB_FOCUS_OUT: window = ((xcb_focus_in_event_t*)event)->event; break;
+        case XCB_LEAVE_NOTIFY: window = ((xcb_leave_notify_event_t*)event)->event; break;
+        case XCB_BUTTON_PRESS: case XCB_BUTTON_RELEASE: case XCB_MOTION_NOTIFY:
+            window = ((xcb_button_press_event_t*)event)->event; break;
+        default: return false;
+    }
+    plWindow* pw = pl__window_from_xcb(window);
+    if(!pw) return false;
+    plWindowData* p = pw->_pBackendData;
+    if(!p->tFrame || window != p->tFrame) return false;
+    xcb_connection_t* c = p->ptConnection;
+    switch(type)
+    {
+        case XCB_EXPOSE: pl__x11_paint_caption(p); break;
+        case XCB_CONFIGURE_NOTIFY:
+        {
+            xcb_configure_notify_event_t* e = (void*)event;
+            p->iFrameWidth = e->width; p->iFrameHeight = e->height;
+            int w = e->width - 2 * PL_X11_BORDER, h = e->height - (int)p->tTitleBar.uHeight - PL_X11_BORDER;
+            uint32_t size[] = {(uint32_t)(w > 0 ? w : 1), (uint32_t)(h > 0 ? h : 1)};
+            xcb_configure_window(c, p->tWindow, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, size);
+            // Only the child's ConfigureNotify publishes content resize events.
+            pl__x11_paint_caption(p);
+            break;
+        }
+        case XCB_PROPERTY_NOTIFY:
+        {
+            if(((xcb_property_notify_event_t*)event)->atom != pl__intern_atom("_NET_WM_STATE")) break;
+            xcb_get_property_reply_t* r = xcb_get_property_reply(c, xcb_get_property(c, false, p->tFrame,
+                pl__intern_atom("_NET_WM_STATE"), XCB_ATOM_ATOM, 0, 64), NULL);
+            p->bMaximized = false;
+            if(r && r->format == 32)
+            {
+                xcb_atom_t* atoms = xcb_get_property_value(r);
+                xcb_atom_t max = pl__intern_atom("_NET_WM_STATE_MAXIMIZED_VERT");
+                for(int i = 0; i < xcb_get_property_value_length(r) / 4; i++) p->bMaximized |= atoms[i] == max;
+            }
+            free(r); pl__x11_paint_caption(p); break;
+        }
+        case XCB_FOCUS_IN: case XCB_FOCUS_OUT:
+            p->bActive = type == XCB_FOCUS_IN; pl__x11_paint_caption(p); break;
+        case XCB_LEAVE_NOTIFY:
+            p->iHover = 0; pl__x11_paint_caption(p); break;
+        case XCB_MOTION_NOTIFY:
+        {
+            xcb_motion_notify_event_t* e = (void*)event;
+            if(p->iDrag >= 0)
+            {
+                int dx = e->root_x - p->iDragX, dy = e->root_y - p->iDragY;
+                int x = p->iStartX, y = p->iStartY, w = p->iStartWidth, h = p->iStartHeight, dir = p->iDrag;
+                bool l = dir == 0 || dir == 6 || dir == 7, t = dir <= 2;
+                if(dir == 8) { x += dx; y += dy; }
+                else
+                {
+                    if(l) { x += dx; w -= dx; }
+                    if(t) { y += dy; h -= dy; }
+                    if(dir == 2 || dir == 3 || dir == 4) w += dx;
+                    if(dir == 4 || dir == 5 || dir == 6) h += dy;
+                    if(w < 180) { if(l) x -= 180 - w; w = 180; }
+                    int minHeight = p->tTitleBar.uHeight + 64;
+                    if(h < minHeight) { if(t) y -= minHeight - h; h = minHeight; }
+                }
+                uint32_t values[] = {(uint32_t)x, (uint32_t)y, (uint32_t)w, (uint32_t)h};
+                xcb_configure_window(c, p->tFrame, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+                xcb_flush(c);
+            }
+            int hit = pl__x11_caption_hit(p, e->event_x, e->event_y);
+            int cursor = hit >= 0 && hit < 8 ? hit : 8;
+            if(p->iCursor != cursor && gptPlatformExtCtx->ptCursorContext)
+            {
+                static const char* apcCursors[] = {"top_left_corner", "top_side", "top_right_corner", "right_side",
+                    "bottom_right_corner", "bottom_side", "bottom_left_corner", "left_side", "left_ptr"};
+                if(!p->atResizeCursors[cursor])
+                    p->atResizeCursors[cursor] = xcb_cursor_load_cursor(gptPlatformExtCtx->ptCursorContext, apcCursors[cursor]);
+                xcb_change_window_attributes(c, p->tFrame, XCB_CW_CURSOR, &p->atResizeCursors[cursor]);
+                p->iCursor = cursor;
+                xcb_flush(c);
+            }
+            int hover = hit >= 9 ? hit - 8 : 0;
+            if(hover != p->iHover) { p->iHover = hover; pl__x11_paint_caption(p); }
+            break;
+        }
+        case XCB_BUTTON_PRESS:
+        {
+            xcb_button_press_event_t* e = (void*)event;
+            if(e->detail != 1) break;
+            p->bWmDrag = false;
+            int hit = pl__x11_caption_hit(p, e->event_x, e->event_y);
+            p->iPressed = hit >= 9 ? hit - 8 : 0;
+            if(hit >= 9 || hit < 0) break;
+            if(hit == 8 && p->tLastClick && e->time - p->tLastClick < 400 &&
+                abs(e->root_x - p->iLastClickX) < 5 && abs(e->root_y - p->iLastClickY) < 5)
+            {
+                p->tLastClick = 0; pl__x11_maximize(p); break;
+            }
+            p->tLastClick = hit == 8 ? e->time : 0;
+            p->iLastClickX = e->root_x; p->iLastClickY = e->root_y;
+            if(pl__x11_wm_supports("_NET_WM_MOVERESIZE"))
+            {
+                xcb_ungrab_pointer(c, e->time);
+                p->bWmDrag = true;
+                pl__x11_wm_request(p, "_NET_WM_MOVERESIZE", e->root_x, e->root_y, hit, 1, 1);
+            }
+            else if(!p->bMaximized)
+            {
+                xcb_translate_coordinates_reply_t* pos = xcb_translate_coordinates_reply(c,
+                    xcb_translate_coordinates(c, p->tFrame, gptPlatformExtCtx->ptScreen->root, 0, 0), NULL);
+                xcb_grab_pointer_reply_t* grab = xcb_grab_pointer_reply(c, xcb_grab_pointer(c, false, p->tFrame,
+                    XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC,
+                    XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE, e->time), NULL);
+                if(pos && grab && grab->status == XCB_GRAB_STATUS_SUCCESS)
+                {
+                    p->iDrag = hit; p->iDragX = e->root_x; p->iDragY = e->root_y;
+                    p->iStartX = pos->dst_x; p->iStartY = pos->dst_y;
+                    p->iStartWidth = p->iFrameWidth; p->iStartHeight = p->iFrameHeight;
+                }
+                free(pos); free(grab);
+            }
+            break;
+        }
+        case XCB_BUTTON_RELEASE:
+        {
+            xcb_button_release_event_t* e = (void*)event;
+            if(e->detail != 1) break;
+            // A fast release can precede the WM's grab; cancel that race explicitly.
+            if(p->bWmDrag)
+            {
+                pl__x11_wm_request(p, "_NET_WM_MOVERESIZE", e->root_x, e->root_y, 11, 1, 1);
+                p->bWmDrag = false;
+            }
+            if(p->iDrag >= 0) { xcb_ungrab_pointer(c, e->time); p->iDrag = -1; }
+            int pressed = p->iPressed; p->iPressed = 0;
+            if(pressed && pl__x11_caption_hit(p, e->event_x, e->event_y) == pressed + 8)
+            {
+                if(pressed == 1) pl__x11_wm_request(p, "WM_CHANGE_STATE", IconicState, 0, 0, 0, 0);
+                if(pressed == 2) pl__x11_maximize(p);
+                if(pressed == 3)
+                {
+                    // Use the same close path as the window manager, including app callbacks.
+                    xcb_client_message_event_t close = {0};
+                    close.response_type = XCB_CLIENT_MESSAGE; close.format = 32;
+                    close.window = p->tFrame; close.type = gptPlatformExtCtx->tWmProtocols;
+                    close.data.data32[0] = gptPlatformExtCtx->tWmDeleteWin;
+                    xcb_send_event(c, false, p->tFrame, XCB_EVENT_MASK_NO_EVENT, (const char*)&close);
+                }
+            }
+            xcb_flush(c); break;
+        }
+    }
+    return true;
 }
 
 static uint64_t

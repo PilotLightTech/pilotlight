@@ -173,7 +173,94 @@ struct _plWindowData
     CGFloat               fPendingScale;
     bool                  bResizePending;
     bool                  bClosePending;
+    NSTitlebarAccessoryViewController* ptTitleAccessory;
+    NSWindowTitleVisibility tOriginalTitleVisibility;
 };
+
+static NSColor*
+pl__caption_color(uint32_t uColor)
+{
+    return [NSColor colorWithSRGBRed:(uColor & 255) / 255.0
+        green:((uColor >> 8) & 255) / 255.0 blue:((uColor >> 16) & 255) / 255.0 alpha:1.0];
+}
+
+@interface plNSTitleBarView : NSView
+{
+@public
+    plWindowTitleBarDesc tDescriptor;
+}
+@end
+
+@implementation plNSTitleBarView
+- (BOOL)isFlipped { return YES; }
+- (BOOL)isOpaque { return YES; }
+- (void)viewDidMoveToWindow
+{
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    if(self.window)
+    {
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(windowFocusChanged:)
+            name:NSWindowDidBecomeKeyNotification object:self.window];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(windowFocusChanged:)
+            name:NSWindowDidResignKeyNotification object:self.window];
+    }
+}
+- (void)windowFocusChanged:(NSNotification*)notification
+{
+    (void)notification;
+    [self setNeedsDisplay:YES];
+}
+- (void)dealloc
+{
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [super dealloc];
+}
+- (void)mouseDown:(NSEvent*)event
+{
+    [self.window performWindowDragWithEvent:event];
+}
+- (void)drawRect:(NSRect)dirtyRect
+{
+    (void)dirtyRect;
+    const BOOL bActive = self.window.isKeyWindow;
+    const NSRect tBounds = self.bounds;
+    const CGFloat fHeight = NSHeight(tBounds);
+    const CGFloat fWidth = NSWidth(tBounds);
+    [pl__caption_color(bActive ? tDescriptor.uBackgroundColor : tDescriptor.uInactiveBackgroundColor) setFill];
+    NSRectFill(tBounds);
+    const CGFloat fPixel = 1.0 / MAX(1.0, self.window.backingScaleFactor);
+    [pl__caption_color(tDescriptor.uAccentColor) setFill];
+    NSRectFill(NSMakeRect(0, fHeight - fPixel, fWidth, fPixel));
+    if(bActive && tDescriptor.uBrandColor)
+    {
+        [pl__caption_color(tDescriptor.uBrandColor) setFill];
+        NSRectFill(NSMakeRect(0, fHeight - fPixel, MIN(160, fWidth), fPixel));
+    }
+    [NSApp.applicationIconImage drawInRect:NSMakeRect(10, (fHeight - 20) / 2, 20, 20)
+        fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:bActive ? 1.0 : 0.55
+        respectFlipped:YES hints:nil];
+    NSMutableParagraphStyle* ptParagraph = [[[NSMutableParagraphStyle alloc] init] autorelease];
+    ptParagraph.lineBreakMode = NSLineBreakByTruncatingTail;
+    NSFont* ptFont = [NSFont systemFontOfSize:13];
+    NSDictionary* ptAttributes = @{NSFontAttributeName:ptFont,
+        NSForegroundColorAttributeName:bActive ? pl__caption_color(tDescriptor.uTextColor) : NSColor.secondaryLabelColor,
+        NSParagraphStyleAttributeName:ptParagraph};
+    CGFloat fRight = fWidth - 12;
+    if(tDescriptor.acStatus[0] && fWidth >= 560)
+    {
+        NSString* ptStatus = [NSString stringWithUTF8String:tDescriptor.acStatus] ?: @"";
+        CGFloat fStatusWidth = MIN(160, [ptStatus sizeWithAttributes:ptAttributes].width);
+        [ptStatus drawInRect:NSMakeRect(fRight - fStatusWidth, (fHeight - 17) / 2, fStatusWidth, 18) withAttributes:ptAttributes];
+        [pl__caption_color(bActive ? tDescriptor.uStatusColor : 0xff69736b) setFill];
+        [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(fRight - fStatusWidth - 15, (fHeight - 6) / 2, 6, 6)] fill];
+        fRight -= fStatusWidth + 28;
+    }
+    NSString* ptBrand = [NSString stringWithUTF8String:tDescriptor.acBrand] ?: @"";
+    NSString* ptTitle = tDescriptor.acTitle[0] ? ([NSString stringWithUTF8String:tDescriptor.acTitle] ?: @"") : self.window.title;
+    NSString* ptBreadcrumb = ptBrand.length ? [NSString stringWithFormat:@"%@ / %@", ptBrand, ptTitle] : ptTitle;
+    [ptBreadcrumb drawInRect:NSMakeRect(40, (fHeight - 17) / 2, MAX(0, fRight - 40), 18) withAttributes:ptAttributes];
+}
+@end
 
 @interface plNSAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @end
@@ -218,6 +305,16 @@ static plMacWindowEvent*      gsbtWindowEvents = NULL;
 // } plPlatformExtData;
 
 @implementation plNSAppDelegate
+
+- (void)applicationDidFinishLaunching:(NSNotification*)notification
+{
+    (void)notification;
+    // Icons supplied during pl_app_load() precede Cocoa launch completion.
+    // Publish the current image again once the Dock tile is established.
+    NSImage* ptIcon = [NSApp.applicationIconImage retain];
+    [NSApp setApplicationIconImage:ptIcon];
+    [ptIcon release];
+}
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)application
 {
@@ -635,6 +732,7 @@ pl_window_destroy(plWindow* ptWindow)
         }
 
         [ptData->ptKeyResponder removeFromSuperview];
+        [ptData->ptTitleAccessory release];
         [ptData->ptInputContext release];
         [ptData->ptKeyResponder release];
         [ptData->ptNativeWindow release];
@@ -918,7 +1016,6 @@ pl_window_create(plWindowDesc tDesc, plWindow** pptWindowOut)
     const NSPoint tOrigin = NSMakePoint(tDesc.iXPos, fScreenHeight - tDesc.iYPos);
     [ptData->ptNativeWindow setFrameTopLeftPoint:tOrigin];
 
-    [ptData->ptNativeWindow center];
     [ptData->ptNativeWindow orderFront:nil];
     [ptData->ptNativeWindow makeKeyWindow];
 
@@ -1099,6 +1196,91 @@ pl_window_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* ptDesc)
     return ptDesc && ptDesc->tMode == PL_FULLSCREEN_MODE_NONE;
 }
 
+bool
+pl_window_set_icon(plWindow* ptWindow, uint32_t uCount, const plWindowIcon* atIcons)
+{
+    if(!ptWindow || ![NSThread isMainThread] || !pl__window_icons_valid(uCount, atIcons))
+        return false;
+    if(!uCount)
+    {
+        [NSApp setApplicationIconImage:nil];
+        return true;
+    }
+
+    NSImage* ptImage = [[NSImage alloc] initWithSize:NSMakeSize(256, 256)];
+    if(!ptImage)
+        return false;
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        NSBitmapImageRep* ptRep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL pixelsWide:atIcons[i].uWidth pixelsHigh:atIcons[i].uHeight bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace bitmapFormat:NSBitmapFormatAlphaNonpremultiplied bytesPerRow:atIcons[i].uWidth * 4 bitsPerPixel:32];
+        if(!ptRep)
+        {
+            [ptImage release];
+            return false;
+        }
+        memcpy([ptRep bitmapData], atIcons[i].pucPixels, (size_t)atIcons[i].uWidth * atIcons[i].uHeight * 4);
+        [ptRep setSize:NSMakeSize(256, 256)];
+        [ptImage addRepresentation:ptRep];
+        [ptRep release];
+    }
+    [NSApp setApplicationIconImage:ptImage];
+    [ptImage release];
+    return true;
+}
+
+bool
+pl_window_set_title_bar(plWindow* ptWindow, const plWindowTitleBarDesc* ptDesc)
+{
+    if(!ptWindow || ![NSThread isMainThread] ||
+        (ptDesc && ptDesc->uHeight && (ptDesc->uHeight < 24 || ptDesc->uHeight > 96)))
+        return false;
+    plWindowData* ptData = ptWindow->_pBackendData;
+    NSWindow* ptNative = ptData->ptNativeWindow;
+    if(!ptDesc)
+    {
+        if(ptData->ptTitleAccessory)
+        {
+            NSUInteger uIndex = [ptNative.titlebarAccessoryViewControllers indexOfObjectIdenticalTo:ptData->ptTitleAccessory];
+            if(uIndex != NSNotFound)
+                [ptNative removeTitlebarAccessoryViewControllerAtIndex:uIndex];
+            [ptData->ptTitleAccessory release];
+            ptData->ptTitleAccessory = nil;
+            ptNative.titleVisibility = ptData->tOriginalTitleVisibility;
+        }
+        return true;
+    }
+    if(!ptData->ptTitleAccessory)
+    {
+        ptData->tOriginalTitleVisibility = ptNative.titleVisibility;
+        ptData->ptTitleAccessory = [[NSTitlebarAccessoryViewController alloc] init];
+        plNSTitleBarView* ptView = [[plNSTitleBarView alloc] initWithFrame:NSMakeRect(0, 0, NSWidth(ptNative.contentView.bounds), 38)];
+        ptView.autoresizingMask = NSViewWidthSizable;
+        ptData->ptTitleAccessory.view = ptView;
+        [ptView release];
+        ptData->ptTitleAccessory.layoutAttribute = NSLayoutAttributeBottom;
+        [ptNative addTitlebarAccessoryViewController:ptData->ptTitleAccessory];
+        ptNative.titleVisibility = NSWindowTitleHidden;
+    }
+    plNSTitleBarView* ptView = (plNSTitleBarView*)ptData->ptTitleAccessory.view;
+    ptView->tDescriptor = *ptDesc;
+    plWindowTitleBarDesc* ptCopy = &ptView->tDescriptor;
+    ptCopy->acBrand[sizeof(ptCopy->acBrand) - 1] = 0;
+    ptCopy->acTitle[sizeof(ptCopy->acTitle) - 1] = 0;
+    ptCopy->acStatus[sizeof(ptCopy->acStatus) - 1] = 0;
+    if(!ptCopy->uBackgroundColor) ptCopy->uBackgroundColor = 0xff1c1917;
+    if(!ptCopy->uInactiveBackgroundColor) ptCopy->uInactiveBackgroundColor = 0xff201e1c;
+    if(!ptCopy->uTextColor) ptCopy->uTextColor = 0xffe5e2de;
+    if(!ptCopy->uAccentColor) ptCopy->uAccentColor = 0xff383430;
+    if(!ptCopy->uStatusColor) ptCopy->uStatusColor = 0xffa3b85e;
+    const CGFloat fHeight = ptCopy->uHeight ? ptCopy->uHeight : 32;
+    if(NSHeight(ptView.frame) != fHeight)
+        [ptView setFrameSize:NSMakeSize(NSWidth(ptView.frame), fHeight)];
+    ptData->ptTitleAccessory.fullScreenMinHeight = fHeight;
+    [ptView setNeedsDisplay:YES];
+    [ptView displayIfNeeded]; // synchronous load/compile notifications must be visible before work starts
+    return true;
+}
+
 const plWindowCapabilities*
 pl_window_get_capabilities(void)
 {
@@ -1123,7 +1305,7 @@ pl_window_get_capabilities(void)
     tCapabilities.atCursorModes = atSupportedCursorModes;
     tCapabilities.atFullScreenModes = atSupportedScreenModes;
     tCapabilities.atWindowAttributes = atSupportedAttributes;
-    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_NONE;
+    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_APP_ICON | PL_WINDOW_CAPABILITY_FLAGS_CUSTOM_TITLE_BAR;
 
     return &tCapabilities;
 }

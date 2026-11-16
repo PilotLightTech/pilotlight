@@ -185,6 +185,8 @@ typedef struct _plAppData
 {
     // windows
     plWindow* ptWindow;
+    plWindowTitleBarDesc tTitleBar;
+    bool bLoading;
 
     // graphics
     plDevice*    ptDevice;
@@ -237,12 +239,13 @@ typedef struct _plAppData
 // [SECTION] helper forward declarations
 //-----------------------------------------------------------------------------
 
-void pl__show_ui_demo_window(plAppData* ptAppData);
-
-void pl__load_apis(plApiRegistryI*);
-static void pl__initialize_logging(void);
-void pl__refresh_files(plAppData*);
-void pl__load_assets(plAppData*);
+void         pl__show_ui_demo_window(plAppData*);
+void         pl__load_apis(plApiRegistryI*);
+static void  pl__initialize_logging(void);
+void         pl__refresh_files(plAppData*);
+void         pl__load_assets(plAppData*);
+static void  pl__update_title_bar(plAppData*);
+static void  pl__set_loading(plAppData*, bool bLoading);
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -267,6 +270,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         // a different dll/so
         pl__load_apis(ptApiRegistry);
         pl__initialize_logging();
+        pl__update_title_bar(ptAppData);
         gptLog->info(guLogChannel, "App hot reloaded");
 
         gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
@@ -337,7 +341,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plPhysicsEngineSettings tPhysicsSettings = {0};
     gptPhysics->initialize(tPhysicsSettings);
 
-    // create window (only 1 allowed currently)
+    // create sandbox window
     gptLog->info(guLogChannel, "Creating sandbox window and initializing graphics");
     plWindowDesc tWindowDesc = {
         .tMode = PL_WINDOW_PRESENTATION_MODE_GRAPHICS_API,
@@ -349,6 +353,30 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .iYPos = 50
     };
     gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
+
+    const plWindowCapabilities* ptWindowCapabilities = gptWindows->get_capabilities();
+    if(ptWindowCapabilities->tFlags & (PL_WINDOW_CAPABILITY_FLAGS_WINDOW_ICON | PL_WINDOW_CAPABILITY_FLAGS_APP_ICON))
+    {
+        const plImageI* ptImage = pl_get_api_latest(ptApiRegistry, plImageI);
+        const char* apcIconPaths[] = {"/resources/pilot-light-32.png", "/resources/pilot-light-256.png"};
+        plWindowIcon atIcons[2] = {0};
+        uint32_t uIconCount = 0;
+        for(uint32_t i = 0; i < PL_ARRAYSIZE(apcIconPaths); i++)
+        {
+            int iWidth = 0;
+            int iHeight = 0;
+            int iChannels = 0;
+            unsigned char* pucPixels = ptImage->load_from_file(apcIconPaths[i], &iWidth, &iHeight, &iChannels, 4);
+            if(pucPixels)
+                atIcons[uIconCount++] = (plWindowIcon){(uint32_t)iWidth, (uint32_t)iHeight, pucPixels};
+        }
+        if(!uIconCount || !gptWindows->set_icon(ptAppData->ptWindow, uIconCount, atIcons))
+            gptLog->warn(guLogChannel, "Unable to set the Pilot Light window icon");
+        for(uint32_t i = 0; i < uIconCount; i++)
+            ptImage->free((void*)atIcons[i].pucPixels);
+    }
+
+    pl__set_loading(ptAppData, true);
     gptWindows->show(ptAppData->ptWindow);
 
     plFullScreenDesc tFullScreen = {
@@ -646,6 +674,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->ptDrawLayer = gptDraw->request_2d_layer(ptAppData->ptDrawList);
 
     gptLog->info(guLogChannel, "Sandbox ready");
+    pl__set_loading(ptAppData, false);
     return ptAppData;
 }
 
@@ -916,6 +945,7 @@ pl_app_update(plAppData* ptAppData)
                 gptRenderer->destroy_scene(ptAppData->ptScene);
                 ptAppData->ptView = NULL;
                 ptAppData->ptScene = NULL;
+                pl__update_title_bar(ptAppData);
                 gptAsset->destroy(ptAppData->tSceneHandle);
                 pl__refresh_files(ptAppData);
                 gptScreenLog->add_message_ex(565168477883, 2.0, PL_COLOR_32_RED, 0.1f, "reset");
@@ -983,6 +1013,7 @@ pl_app_update(plAppData* ptAppData)
                         bool bPlaceHolder = false;
                         if(gptUI->button(gacImportFiles[n]))
                         {
+                            pl__set_loading(ptAppData, true);
                             gptLog->info_p(guLogChannel, "Importing: %s", gacImportFiles[n]);
                             if(gptGltf->import(gacImportFiles[n], NULL))
                             {
@@ -994,6 +1025,7 @@ pl_app_update(plAppData* ptAppData)
                                 gptLog->error_p(guLogChannel, "Import failed: %s", gacImportFiles[n]);
                                 gptScreenLog->add_message_ex(0, 10.0, PL_COLOR_32_RED, 1.0f, "Import failed: %s", gacImportFiles[n]);
                             }
+                            pl__set_loading(ptAppData, false);
                         }
                     }
                 }
@@ -1010,6 +1042,7 @@ pl_app_update(plAppData* ptAppData)
                             pl_sprintf(ptAppData->acCurrentScene, "%s", ptAppData->sbtSceneFilesCore[n].acTemplate);
 
                             gptLog->info_p(guLogChannel, "Loading scene: %s", ptAppData->acCurrentScene);
+                            pl__set_loading(ptAppData, true);
                             ptAppData->tSceneHandle = gptAsset->load(ptAppData->acCurrentScene);
 
                             if(gptAsset->is_valid(ptAppData->tSceneHandle))
@@ -1040,6 +1073,7 @@ pl_app_update(plAppData* ptAppData)
                                 gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_RED, 1.0f, "%s", "Ensure assets are downloaded");
                                 gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_RED, 1.0f, "%s", "Ensure assets are imported");
                             }
+                            pl__set_loading(ptAppData, false);
                         }
                     }
                 }
@@ -1313,6 +1347,7 @@ pl__refresh_files(plAppData* ptAppData)
 void
 pl__load_assets(plAppData* ptAppData)
 {
+    pl__set_loading(ptAppData, true);
     gptLog->info(guLogChannel, "Bulk asset loading started");
     char* sbcBuffer = NULL;
 
@@ -1469,6 +1504,47 @@ pl__load_assets(plAppData* ptAppData)
     pl_sb_free(sbcBuffer);
     gptAsset->clear_changes();
     gptLog->info(guLogChannel, "Bulk asset loading finished; individual failures are reported on the Assets channel");
+    pl__set_loading(ptAppData, false);
+}
+
+static void
+pl__update_title_bar(plAppData* ptAppData)
+{
+    if(!(gptWindows->get_capabilities()->tFlags & (PL_WINDOW_CAPABILITY_FLAGS_CUSTOM_TITLE_BAR | PL_WINDOW_CAPABILITY_FLAGS_TITLE_BAR_TEXT)))
+        return;
+    plWindowTitleBarDesc tTitleBar = {
+        .uHeight = 38,
+        .uBackgroundColor = 0xff1c1917,
+        .uInactiveBackgroundColor = 0xff201e1c,
+        .uTextColor = 0xffe5e2de,
+        .uAccentColor = 0xff383430,
+        .uBrandColor = 0xff46a6f2,
+        .uStatusColor = 0xffa3b85e,
+        .acBrand = "Pilot Light",
+        .acTitle = "Sandbox"
+    };
+    snprintf(tTitleBar.acStatus, sizeof(tTitleBar.acStatus), "%s",
+        ptAppData->bLoading ? "LOADING" : "READY");
+    if(ptAppData->bLoading)
+        tTitleBar.uStatusColor = tTitleBar.uBrandColor;
+    if(ptAppData->ptScene)
+    {
+        const char* pcName = strrchr(ptAppData->acCurrentScene, '/');
+        pcName = pcName ? pcName + 1 : ptAppData->acCurrentScene;
+        snprintf(tTitleBar.acTitle, sizeof(tTitleBar.acTitle), "Sandbox / %s", pcName);
+        char* pcExtension = strrchr(tTitleBar.acTitle, '.');
+        if(pcExtension) *pcExtension = 0;
+    }
+    ptAppData->tTitleBar = tTitleBar;
+    if(!gptWindows->set_title_bar(ptAppData->ptWindow, &tTitleBar))
+        gptLog->warn(guLogChannel, "Custom title bar unavailable; using the native title bar");
+}
+
+static void
+pl__set_loading(plAppData* ptAppData, bool bLoading)
+{
+    ptAppData->bLoading = bLoading;
+    pl__update_title_bar(ptAppData);
 }
 
 //-----------------------------------------------------------------------------

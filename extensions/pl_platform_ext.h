@@ -83,6 +83,8 @@ typedef union _plWindowAttributeValue  plWindowAttributeValue; // catch all for 
 typedef struct _plWindowSurfaceImage   plWindowSurfaceImage;   // represents a drawable surface for the window
 typedef struct _plWindowSurfaceDesc    plWindowSurfaceDesc;    // description for creating a window surface
 typedef struct _plWindowSurface        plWindowSurface;        // opaque
+typedef struct _plWindowIcon           plWindowIcon;           // window icon information
+typedef struct _plWindowTitleBarDesc   plWindowTitleBarDesc;   // window title bar information
 
 // basic types (atomics)
 typedef struct _plAtomicCounter plAtomicCounter; // opaque type
@@ -193,6 +195,19 @@ typedef struct _plWindowI
     // until after the callback and release graphics swapchains/surfaces first.
     void                  (*set_callback)(plWindow*, plWindowEventCallback, void* userData);
     plWindowEventCallback (*get_callback)(plWindow*);
+
+    // Copies tightly packed, straight-alpha RGBA8 images; caller may free pixels
+    // after return. Supply up to 16 sizes (each dimension 1..256). Count 0 resets
+    // to the OS default. Win32/X11: per-window icon. Cocoa: application/Dock icon.
+    // Unsupported backends return false. Call on the window/event-pump thread.
+    bool (*set_icon)(plWindow*, uint32_t count, const plWindowIcon*);
+
+    // Optional title-bar presentation: Win32 custom frame, Cocoa accessory,
+    // or X11 native title text (colors/height ignored with TITLE_BAR_TEXT).
+    // NULL restores the native presentation. The descriptor is copied.
+    // Query CUSTOM_TITLE_BAR or TITLE_BAR_TEXT. Call on the window thread.
+    // Cocoa accessory layout may resize the content through normal resize events.
+    bool (*set_title_bar)(plWindow*, const plWindowTitleBarDesc*);
 
 } plWindowI;
 
@@ -431,8 +446,12 @@ enum _plCursorMode
 
  enum _plWindowCapabilityFlags
  {
-    PL_WINDOW_CAPABILITY_FLAGS_NONE            = 0,
-    PL_WINDOW_CAPABILITY_FLAGS_RAW_MOUSE_INPUT = 1 << 0
+    PL_WINDOW_CAPABILITY_FLAGS_NONE             = 0,
+    PL_WINDOW_CAPABILITY_FLAGS_RAW_MOUSE_INPUT  = 1 << 0,
+    PL_WINDOW_CAPABILITY_FLAGS_WINDOW_ICON      = 1 << 1,
+    PL_WINDOW_CAPABILITY_FLAGS_APP_ICON         = 1 << 2,
+    PL_WINDOW_CAPABILITY_FLAGS_CUSTOM_TITLE_BAR = 1 << 3,
+    PL_WINDOW_CAPABILITY_FLAGS_TITLE_BAR_TEXT   = 1 << 4 // set_title_bar updates native title text only
  };
 
 enum _plAtomicsResult
@@ -524,6 +543,27 @@ typedef struct _plWindowDesc
     const void*              pNext;
 } plWindowDesc;
 
+typedef struct _plWindowIcon
+{
+    uint32_t       uWidth;
+    uint32_t       uHeight;
+    const uint8_t* pucPixels;
+} plWindowIcon;
+
+typedef struct _plWindowTitleBarDesc
+{
+    uint32_t uHeight;                  // logical pixels at 96 DPI; 0 = 32, otherwise 24..96
+    uint32_t uBackgroundColor;         // colors: 0 = default; otherwise 0xAABBGGRR (PL_COLOR_32_RGBA), alpha ignored
+    uint32_t uInactiveBackgroundColor;
+    uint32_t uTextColor;
+    uint32_t uAccentColor;             // thin window border and title-bar separator
+    uint32_t uBrandColor;              // optional short accent below the brand
+    uint32_t uStatusColor;             // status dot; 0 = muted teal
+    char     acBrand[64];              // optional UTF-8 brand; enables left-aligned breadcrumb layout
+    char     acTitle[256];             // optional UTF-8 title override; empty uses window title
+    char     acStatus[64];             // optional UTF-8 status; hidden when space is limited
+} plWindowTitleBarDesc;
+
 typedef struct _plWindow
 {
     void* pUserData;
@@ -539,6 +579,7 @@ typedef struct _plWindow
     void*                 _pGraphicsSurface; // native presentation layer, owned by the window
     plWindowEventCallback _tCallback;
     void*                 _pCallbackUserData;
+    void*                 _pDecorationData; // owned by platform; icons and custom frame state
 } plWindow;
 
 typedef struct _plWindowEvent

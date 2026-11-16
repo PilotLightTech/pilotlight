@@ -235,8 +235,9 @@ main(int argc, char* argv[])
     gptIOCtx->apArgv = argv;
 
     [NSApplication sharedApplication];
-    
-    
+    // Register with the Dock before pl_app_load() creates windows and sets
+    // the application icon.
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 
     // Load the application library. The application is free to create its
     // windows during pl_app_load().
@@ -282,7 +283,6 @@ main(int argc, char* argv[])
         return 3;
     }
 
-    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
     [NSApp activateIgnoringOtherApps:YES];
 
     if(!pl__start_application_render_loop())
