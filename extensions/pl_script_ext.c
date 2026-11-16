@@ -77,9 +77,10 @@ pl_script_create(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlag
 
     const plScriptInterface* ptScriptApi = gptApiRegistry->get_api(pcFile, (plVersion)plScriptInterface_version);
     ptScript->_ptApi = ptScriptApi;
-    PL_ASSERT(ptScriptApi->run);
+    if(!ptScriptApi || !ptScriptApi->run)
+        gptLog->error_p(gptEcs->get_log_channel(), "Script unavailable: %s", ptScript->pcPath);
 
-    if(ptScriptApi->setup)
+    if(ptScriptApi && ptScriptApi->setup)
         ptScriptApi->setup(ptLibrary, tNewEntity);
 
     if(pptCompOut)
@@ -99,9 +100,10 @@ pl_script_attach(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlag
 
     const plScriptInterface* ptScriptApi = gptApiRegistry->get_api(pcFile, (plVersion)plScriptInterface_version);
     ptScript->_ptApi = ptScriptApi;
-    PL_ASSERT(ptScriptApi->run);
+    if(!ptScriptApi || !ptScriptApi->run)
+        gptLog->error_p(gptEcs->get_log_channel(), "Script unavailable: %s", ptScript->pcPath);
 
-    if(ptScriptApi->setup)
+    if(ptScriptApi && ptScriptApi->setup)
         ptScriptApi->setup(ptLibrary, tEntity);
 
     if(pptCompOut)
@@ -118,9 +120,10 @@ pl_script_load(plComponentLibrary* ptLibrary, plEntity tEntity)
 
     const plScriptInterface* ptScriptApi = gptApiRegistry->get_api(ptScript->pcPath, (plVersion)plScriptInterface_version);
     ptScript->_ptApi = ptScriptApi;
-    PL_ASSERT(ptScriptApi->run);
+    if(!ptScriptApi || !ptScriptApi->run)
+        gptLog->error_p(gptEcs->get_log_channel(), "Script unavailable: %s", ptScript->pcPath);
 
-    if(ptScriptApi->setup)
+    if(ptScriptApi && ptScriptApi->setup)
         ptScriptApi->setup(ptLibrary, tEntity);
 }
 
@@ -182,7 +185,7 @@ pl_script_run_update_system(plComponentLibrary* ptLibrary)
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
         const plEntity tEnitity = ptEntities[i];
-        if(ptComponents[i].tFlags == 0)
+        if(ptComponents[i].tFlags == 0 || !ptComponents[i]._ptApi || !ptComponents[i]._ptApi->run)
             continue;
 
         if(ptComponents[i].tFlags & PL_SCRIPT_FLAG_PLAYING)
