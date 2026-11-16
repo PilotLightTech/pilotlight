@@ -185,12 +185,14 @@ typedef struct _plUiI
 
     // window utilities
     // - refers to current window (between "begin_window()" & "end_window()")
-    bool   (*is_window_appearing)  (void);
-    plVec2 (*get_window_pos)       (void);
-    plVec2 (*get_window_size)      (void);
-    plVec2 (*get_window_scroll)    (void);
-    plVec2 (*get_window_scroll_max)(void);
-    void   (*set_window_scroll)    (plVec2 scroll);
+    bool   (*is_window_appearing)         (void);
+    bool   (*is_window_hovered)           (void); // current window is under the mouse and not blocked by a popup
+    plVec2 (*get_window_pos)              (void);
+    plVec2 (*get_window_size)             (void);
+    plVec2 (*get_window_scroll)           (void);
+    plVec2 (*get_window_scroll_max)       (void);
+    void   (*set_window_scroll)           (plVec2 scroll);
+    plVec2 (*get_content_region_available)(void); // Remaining space from the current cursor to the padded content boundary.
 
     // window manipulation
     // - call before "begin_window()"
@@ -450,11 +452,14 @@ typedef struct _plUiI
 
     // Floating windows dock into each other automatically. Explicit dock spaces
     // use viewport coordinates; submit them before their windows every frame.
+    // The button left of the dock tabs hides the tab bar; the corner handle restores it.
+    // Hidden tab bars keep their selected window visible and are saved with the layout.
     // Split a leaf once; direction: 0=left, 1=right, 2=up, 3=down.
     uint32_t (*dock_space)          (const char* name, plVec2 pos, plVec2 size);
     uint32_t (*dock_split)          (uint32_t node, int direction, float ratio, uint32_t* opposite);
     void     (*set_next_window_dock)(uint32_t node, plUiConditionFlags); // node=0 undocks
     uint32_t (*get_window_dock)     (void);
+    void     (*set_docking_enabled) (bool enabled); // Temporarily float docked tools without changing the saved layout. Call before windows.
 
     // Defaults to "pl_ui.ini" in the working directory. Set before the first frame;
     // NULL disables persistence. Loaded settings override ONCE defaults, not ALWAYS.
@@ -527,6 +532,7 @@ enum plUiWindowFlags_
     PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR = 1 << 7,
     PL_UI_WINDOW_FLAGS_NO_SAVED_SETTINGS    = 1 << 11,
     PL_UI_WINDOW_FLAGS_NO_DOCKING           = 1 << 12,
+    PL_UI_WINDOW_FLAGS_NO_INPUT_CAPTURE     = 1 << 15, // Empty content receives application input; window chrome and active widgets still capture.
 
     // [INTERNAL]
     PL_UI_WINDOW_FLAGS_CHILD_WINDOW  = 1 << 8,

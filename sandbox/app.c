@@ -192,8 +192,27 @@ typedef struct _plAppData
     plDevice*    ptDevice;
     plDeviceInfo tDeviceInfo;
 
-    // swapchains
-    bool bResize;
+    // docked scene viewport
+    uint32_t uSceneDock;
+    uint32_t uToolsDock;
+    bool bDockLayoutInitialized;
+    bool bGameMode;
+    plVec2 tViewOffset;
+    plVec2 tViewSize;
+    plVec2 tRenderSize;
+    bool bSceneClickStarted;
+    plVec2 tSceneClickPos;
+
+    // optional second viewport (camera pose is independent of the scene asset)
+    bool bShowSecondaryView;
+    bool bSecondaryDockInitialized;
+    bool bSecondaryHovered;
+    uint32_t uSecondaryDock;
+    plView* ptSecondaryView;
+    plCamera tSecondaryCamera;
+    plVec2 tSecondaryOffset;
+    plVec2 tSecondarySize;
+    float fSecondarySpeed;
 
     // ui options
     // bool bContinuousBVH;
@@ -203,6 +222,7 @@ typedef struct _plAppData
     bool* pbShowDeviceMemoryAnalyzer;
     bool* pbShowMemoryAllocations;
     bool* pbShowProfiling;
+    bool* pbShowGpuProfiling;
     bool* pbShowStats;
     bool* pbShowLogging;
     bool* pbShowAssets;
@@ -216,10 +236,6 @@ typedef struct _plAppData
     plView*  ptView;
     plAssetHandle tSceneHandle;
     bool bShowImportOptions;
-
-    // drawing
-    plDrawList2D*  ptDrawList;
-    plDrawLayer2D* ptDrawLayer;
 
     // selection stuff
     plEntity tSelectedEntity;
@@ -246,6 +262,10 @@ void         pl__refresh_files(plAppData*);
 void         pl__load_assets(plAppData*);
 static void  pl__update_title_bar(plAppData*);
 static void  pl__set_loading(plAppData*, bool bLoading);
+static float pl__show_main_menu(plAppData*);
+static bool  pl__show_secondary_view(plAppData*);
+static void  pl__update_secondary_camera(plAppData*);
+static void  pl__show_sandbox_tools(plAppData*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -617,6 +637,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->pbShowLogging              = (bool*)gptConsole->get_variable("t.LogTool", NULL, NULL);
     ptAppData->pbShowStats                = (bool*)gptConsole->get_variable("t.StatTool", NULL, NULL);
     ptAppData->pbShowProfiling            = (bool*)gptConsole->get_variable("t.ProfileTool", NULL, NULL);
+    ptAppData->pbShowGpuProfiling         = (bool*)gptConsole->get_variable("t.GPUProfileTool", NULL, NULL);
     ptAppData->pbShowMemoryAllocations    = (bool*)gptConsole->get_variable("t.MemoryAllocationTool", NULL, NULL);
     ptAppData->pbShowDeviceMemoryAnalyzer = (bool*)gptConsole->get_variable("t.DeviceMemoryAnalyzerTool", NULL, NULL);
     ptAppData->pbShowAssets               = (bool*)gptConsole->get_variable("t.Assets", NULL, NULL);
@@ -625,6 +646,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     *ptAppData->pbShowLogging = gptConfig->load_bool("pbShowLogging", *ptAppData->pbShowLogging);
     *ptAppData->pbShowStats = gptConfig->load_bool("pbShowStats", *ptAppData->pbShowStats);
     *ptAppData->pbShowProfiling = gptConfig->load_bool("pbShowProfiling", *ptAppData->pbShowProfiling);
+    *ptAppData->pbShowGpuProfiling = gptConfig->load_bool("pbShowGpuProfiling", *ptAppData->pbShowGpuProfiling);
     *ptAppData->pbShowMemoryAllocations = gptConfig->load_bool("pbShowMemoryAllocations", *ptAppData->pbShowMemoryAllocations);
     *ptAppData->pbShowDeviceMemoryAnalyzer = gptConfig->load_bool("pbShowDeviceMemoryAnalyzer", *ptAppData->pbShowDeviceMemoryAnalyzer);
     *ptAppData->pbShowAssets = gptConfig->load_bool("pbShowAssets", *ptAppData->pbShowAssets);
@@ -669,9 +691,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~app stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    // temporary draw layer for submitting fullscreen quad of offscreen render
-    ptAppData->ptDrawList = gptDraw->request_2d_drawlist();
-    ptAppData->ptDrawLayer = gptDraw->request_2d_layer(ptAppData->ptDrawList);
+    // Keep the sandbox layout separate from other Pilot Light applications.
+    gptUI->set_settings_file("../cache/sandbox_ui.ini");
 
     gptLog->info(guLogChannel, "Sandbox ready");
     pl__set_loading(ptAppData, false);
@@ -698,6 +719,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptConfig->set_bool("pbShowLogging", *ptAppData->pbShowLogging);
     gptConfig->set_bool("pbShowStats", *ptAppData->pbShowStats);
     gptConfig->set_bool("pbShowProfiling", *ptAppData->pbShowProfiling);
+    gptConfig->set_bool("pbShowGpuProfiling", *ptAppData->pbShowGpuProfiling);
     gptConfig->set_bool("pbShowMemoryAllocations", *ptAppData->pbShowMemoryAllocations);
     gptConfig->set_bool("pbShowDeviceMemoryAnalyzer", *ptAppData->pbShowDeviceMemoryAnalyzer);
 
@@ -708,6 +730,8 @@ pl_app_shutdown(plAppData* ptAppData)
 
     if(ptAppData->ptScene)
     {
+        if(ptAppData->ptSecondaryView)
+            gptRenderer->destroy_view(ptAppData->ptSecondaryView);
         gptRenderer->destroy_view(ptAppData->ptView);
         gptRenderer->destroy_scene(ptAppData->ptScene);
     }
@@ -731,8 +755,6 @@ pl_app_shutdown(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
-    plIO* ptIO = gptIO->get_io();
-    ptAppData->bResize = true;
     gptStarter->resize();
 }
 
@@ -760,45 +782,115 @@ pl_app_update(plAppData* ptAppData)
 
     gptRenderer->begin_frame();
 
-    if(ptAppData->bResize)
+    const bool bWasGameMode = ptAppData->bGameMode;
+    if(!ptAppData->ptScene)
+        ptAppData->bGameMode = false;
+    else if(gptIO->is_key_pressed(PL_KEY_F5, false) && !gptGizmo->active())
+        ptAppData->bGameMode = !ptAppData->bGameMode;
+    const float fMenuHeight = ptAppData->bGameMode ? 0.0f : pl__show_main_menu(ptAppData);
+    if(bWasGameMode != ptAppData->bGameMode)
     {
-        if(ptAppData->ptScene)
-            gptRenderer->resize_view(ptAppData->ptView, ptIO->tMainViewportSize);
-        ptAppData->bResize = false;
+        ptAppData->bSceneClickStarted = false;
+        gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+        gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_RIGHT);
     }
+    gptUI->set_docking_enabled(!ptAppData->bGameMode);
+    if(!ptAppData->bGameMode)
+    {
+        const uint32_t uDockRoot = gptUI->dock_space("Sandbox Dockspace", (plVec2){0, fMenuHeight}, (plVec2){ptIO->tMainViewportSize.x, pl_maxf(1.0f, ptIO->tMainViewportSize.y - fMenuHeight)});
+        if(!ptAppData->bDockLayoutInitialized)
+        {
+            ptAppData->uSceneDock = uDockRoot;
+            uint32_t uCenter = 0;
+            ptAppData->uToolsDock = gptUI->dock_split(uDockRoot, 0, 0.22f, &uCenter);
+            if(uCenter)
+                ptAppData->uSceneDock = uCenter;
+            // Saved window docking overrides these ONCE defaults on subsequent runs.
+            ptAppData->bDockLayoutInitialized = true;
+        }
 
+        pl__show_sandbox_tools(ptAppData);
+    }
     gptAssetTools->run();
 
+    if(!ptAppData->bShowSecondaryView && ptAppData->ptSecondaryView)
+    {
+        gptRenderer->destroy_view(ptAppData->ptSecondaryView);
+        ptAppData->ptSecondaryView = NULL;
+    }
+    const bool bSecondaryVisible = !ptAppData->bGameMode && ptAppData->ptScene && ptAppData->bShowSecondaryView && pl__show_secondary_view(ptAppData);
+    bool bSceneWindow = ptAppData->bGameMode;
+    if(ptAppData->ptScene && !ptAppData->bGameMode)
+    {
+        gptUI->set_next_window_dock(ptAppData->uSceneDock, PL_UI_COND_ONCE);
+        bSceneWindow = gptUI->begin_window("Scene", NULL,
+            PL_UI_WINDOW_FLAGS_NO_COLLAPSE | PL_UI_WINDOW_FLAGS_NO_SCROLLBAR | PL_UI_WINDOW_FLAGS_NO_INPUT_CAPTURE);
+    }
     if(ptAppData->ptScene)
     {
+        if(bSceneWindow)
+        {
+            if(!ptAppData->bGameMode)
+                ptAppData->uSceneDock = gptUI->get_window_dock();
+            ptAppData->tViewOffset = ptAppData->bGameMode ? (plVec2){0} : gptUI->get_cursor_pos();
+            const plVec2 tAvailable = ptAppData->bGameMode ? ptIO->tMainViewportSize : gptUI->get_content_region_available();
+            ptAppData->tViewSize = (plVec2){pl_maxf(1.0f, floorf(tAvailable.x)), pl_maxf(1.0f, floorf(tAvailable.y))};
+            if(ptAppData->tRenderSize.x != ptAppData->tViewSize.x || ptAppData->tRenderSize.y != ptAppData->tViewSize.y)
+            {
+                gptRenderer->resize_view(ptAppData->ptView, ptAppData->tViewSize);
+                ptAppData->tRenderSize = ptAppData->tViewSize;
+            }
+        }
+        const plVec2 tViewScale = pl_div_vec2(ptAppData->tViewSize, ptIO->tMainViewportSize);
         plComponentLibrary* ptLibrary = (plComponentLibrary*)gptAsset->get_data(ptAppData->tSceneHandle);
         plCamera* ptCamera = (plCamera*)gptEcs->get_component(ptLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera);
 
-        gptCamera->set_viewport(ptCamera, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y);
+        if(bSceneWindow)
+            gptCamera->set_viewport(ptCamera, ptAppData->tViewSize.x, ptAppData->tViewSize.y);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~selection stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         plVec2 tMousePos = gptIO->get_mouse_pos();
 
-        if(!gptUI->wants_mouse_capture() && !gptGizmo->active())
+        const bool bViewHovered = bSceneWindow && (ptAppData->bGameMode ? !gptUI->wants_mouse_capture() : gptUI->is_window_hovered()) && gptIO->is_mouse_hovering_rect(ptAppData->tViewOffset,
+            pl_add_vec2(ptAppData->tViewOffset, ptAppData->tViewSize));
+        if(!ptAppData->bGameMode && bViewHovered && !gptUI->wants_mouse_capture() && !gptGizmo->active())
         {
-            static plVec2 tClickPos = {0};
             if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
             {
-                tClickPos = tMousePos;
+                ptAppData->tSceneClickPos = tMousePos;
+                ptAppData->bSceneClickStarted = true;
             }
             else if(gptIO->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
             {
                 plVec2 tReleasePos = tMousePos;
 
-                if(tReleasePos.x == tClickPos.x && tReleasePos.y == tClickPos.y)
-                    gptRenderer->update_hovered_entity(ptAppData->ptView, (plVec2){0}, (plVec2){1.0f, 1.0f});
+                if(ptAppData->bSceneClickStarted && tReleasePos.x == ptAppData->tSceneClickPos.x && tReleasePos.y == ptAppData->tSceneClickPos.y)
+                    // Picking uses display/render scale. Both sizes match; the gizmo
+                    // instead takes display/main-window scale below.
+                    gptRenderer->update_hovered_entity(ptAppData->ptView, ptAppData->tViewOffset, (plVec2){1.0f, 1.0f});
             }
         }
+        if(gptIO->is_mouse_released(PL_MOUSE_BUTTON_LEFT) || gptGizmo->active())
+            ptAppData->bSceneClickStarted = false;
 
         // run ecs system
         PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Run ECS");
+        // Pause only the main camera controller while another viewport owns input.
+        // Other scene scripts and simulation still run once per frame.
+        plScriptComponent* ptCameraScript = gptEcs->get_component(ptLibrary, gptScript->get_ecs_type_key(), ptAppData->tMainCamera);
+        const plScriptFlags tCameraScriptFlags = ptCameraScript ? ptCameraScript->tFlags : 0;
+        if(ptCameraScript && !bViewHovered)
+            ptCameraScript->tFlags = PL_SCRIPT_FLAG_NONE;
         gptScript->run_update_system(ptLibrary);
+        if(ptCameraScript && !bViewHovered)
+        {
+            ptCameraScript = gptEcs->get_component(ptLibrary, gptScript->get_ecs_type_key(), ptAppData->tMainCamera);
+            if(ptCameraScript)
+                ptCameraScript->tFlags = tCameraScriptFlags;
+        }
+        if(bSecondaryVisible)
+            pl__update_secondary_camera(ptAppData);
         gptAnimation->run_animation_update_system(ptLibrary, ptIO->fDeltaTime);
         plDrawList3D* ptDrawlist = gptRenderer->get_drawlist(ptAppData->ptView);
         gptPhysics->update(ptIO->fDeltaTime, ptLibrary, ptDrawlist);
@@ -902,38 +994,55 @@ pl_app_update(plAppData* ptAppData)
         gptAsset->clear_changes();
 
         bool bGizmoWasActive = gptGizmo->active();
-        if(gptEcs->is_entity_valid(ptLibrary, ptAppData->tSelectedEntity))
+        if(!ptAppData->bGameMode && bSceneWindow && (bViewHovered || bGizmoWasActive) && gptEcs->is_entity_valid(ptLibrary, ptAppData->tSelectedEntity))
         {
             plDrawList3D* ptGizmoDrawlist =  gptRenderer->get_gizmo_drawlist(ptAppData->ptView);
             
             if(gptEcs->has_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), ptAppData->tSelectedEntity))
             {
-                gptGizmo->gizmo(ptLibrary, ptAppData->tSelectedEntity, ptGizmoDrawlist, ptCamera, (plVec2){0}, (plVec2){1.0f, 1.0f});
+                gptGizmo->gizmo(ptLibrary, ptAppData->tSelectedEntity, ptGizmoDrawlist, ptCamera, ptAppData->tViewOffset, tViewScale);
             }
             else if(gptEcs->has_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity))
             {
                 plObjectComponent* ptSelectedObject = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
-                gptGizmo->gizmo(ptLibrary, ptSelectedObject->tTransform, ptGizmoDrawlist, ptCamera, (plVec2){0}, (plVec2){1.0f, 1.0f});
+                gptGizmo->gizmo(ptLibrary, ptSelectedObject->tTransform, ptGizmoDrawlist, ptCamera, ptAppData->tViewOffset, tViewScale);
             }
         }
 
         // render scene
-        const plCamera* atCameras[] = {ptCamera}; //ptSecondaryCamera};
-        gptRenderer->prepare_scene(ptAppData->ptScene, atCameras, 1);
+        const plCamera* atCameras[2];
+        uint32_t uCameraCount = 0;
+        if(bSceneWindow) atCameras[uCameraCount++] = ptCamera;
+        if(bSecondaryVisible) atCameras[uCameraCount++] = &ptAppData->tSecondaryCamera;
+        if(uCameraCount)
+            gptRenderer->prepare_scene(ptAppData->ptScene, atCameras, uCameraCount);
         
-        // single view
-        plRenderViewDesc tViewDesc0 = {
-            .ptCamera     = ptCamera
-        };
-        gptRenderer->prepare_view(ptAppData->ptView, ptCamera);
-        
-        gptRenderer->render_view(ptAppData->ptView, &tViewDesc0);
+        if(bSceneWindow)
+        {
+            plRenderViewDesc tViewDesc0 = {
+                .ptCamera     = ptCamera
+            };
+            gptRenderer->prepare_view(ptAppData->ptView, ptCamera);
 
-        plVec2 tStartPos = {0};
-        plVec2 tEndPos = ptIO->tMainViewportSize;
-        plVec2 tUV = {0};
-        plBindGroupHandle tTexture = gptRenderer->get_view_color_bind_group(ptAppData->ptView, &tUV);
-        gptDraw->add_image_ex(ptAppData->ptDrawLayer, tTexture.uData, tStartPos, tEndPos, (plVec2){0}, tUV, PL_COLOR_32_WHITE);
+            gptRenderer->render_view(ptAppData->ptView, &tViewDesc0);
+
+            plVec2 tUV = {0};
+            plBindGroupHandle tTexture = gptRenderer->get_view_color_bind_group(ptAppData->ptView, &tUV);
+            if(ptAppData->bGameMode)
+                gptDraw->add_image_ex(gptStarter->get_background_layer(), tTexture.uData,
+                    (plVec2){0}, ptAppData->tViewSize, (plVec2){0}, tUV, PL_COLOR_32_WHITE);
+            else
+            {
+                gptUI->image_ex(tTexture.uData, ptAppData->tViewSize, (plVec2){0}, tUV, (plVec4){1,1,1,1}, (plVec4){0});
+                gptUI->end_window();
+            }
+        }
+        if(bSecondaryVisible)
+        {
+            plRenderViewDesc tViewDesc = {.ptCamera = &ptAppData->tSecondaryCamera};
+            gptRenderer->prepare_view(ptAppData->ptSecondaryView, &ptAppData->tSecondaryCamera);
+            gptRenderer->render_view(ptAppData->ptSecondaryView, &tViewDesc);
+        }
 
         if(!bGizmoWasActive && gptIO->is_key_pressed(PL_KEY_ESCAPE, false))
         {
@@ -941,10 +1050,15 @@ pl_app_update(plAppData* ptAppData)
             {
                 gptLog->info_p(guLogChannel, "Unloading scene: %s", ptAppData->acCurrentScene);
                 gptPhysics->reset();
+                if(ptAppData->ptSecondaryView)
+                    gptRenderer->destroy_view(ptAppData->ptSecondaryView);
+                ptAppData->ptSecondaryView = NULL;
                 gptRenderer->destroy_view(ptAppData->ptView);
                 gptRenderer->destroy_scene(ptAppData->ptScene);
                 ptAppData->ptView = NULL;
                 ptAppData->ptScene = NULL;
+                ptAppData->tRenderSize = (plVec2){0};
+                ptAppData->bSceneClickStarted = false;
                 pl__update_title_bar(ptAppData);
                 gptAsset->destroy(ptAppData->tSceneHandle);
                 pl__refresh_files(ptAppData);
@@ -954,39 +1068,14 @@ pl_app_update(plAppData* ptAppData)
     }
 
 
-    plDrawTextOptions tTextOptions = {
-        .fSize = 13.0f,
-        .ptFont = ptAppData->tDefaultFont,
-        .uColor = PL_COLOR_32_GREEN
-    };
-
-    if(ptIO->fFrameRate < 10.0f) tTextOptions.uColor = PL_COLOR_32_RED;
-    if(ptIO->fFrameRate < 28.0f) tTextOptions.uColor = PL_COLOR_32_YELLOW;
-    if(ptIO->fFrameRate < 58.0f) tTextOptions.uColor = PL_COLOR_32_ORANGE;
-
-    float fCurrentY = 10.0f;
-    float fSpacing = 15.0f;
-    char acTextBuffer[64] = {0};
-    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "%0.1f FPS / %0.1f ms", ptIO->fFrameRate, ptIO->fDeltaTime * 1000.0f); fCurrentY += fSpacing;
-    tTextOptions.uColor = PL_COLOR_32_WHITE;
-
-    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, PILOT_LIGHT_VERSION_STRING); fCurrentY += fSpacing;
-    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Gizmo: %s space (L) | Cycle operation (M)", gptGizmo->get_space() == PL_GIZMO_SPACE_LOCAL ? "Local" : "World"); fCurrentY += fSpacing;
-    gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Backend: %s", gptGfx->get_backend_string()); fCurrentY += fSpacing;
-
     // ui windows
-    if(ptAppData->ptScene == NULL)
+    if(ptAppData->ptScene == NULL && !bSceneWindow)
     {  
-        gptUI->push_theme_color(PL_UI_COLOR_WINDOW_BG, (plVec4){0});
-        gptUI->push_theme_color(PL_UI_COLOR_TITLE_BG, (plVec4){0});
-        gptUI->push_theme_color(PL_UI_COLOR_TITLE_ACTIVE, (plVec4){0});
-        gptUI->set_next_window_pos((plVec2){ptIO->tMainViewportSize.x * 0.4f, ptIO->tMainViewportSize.y * 0.25f}, PL_UI_COND_ALWAYS);
-        gptUI->set_next_window_size((plVec2){ptIO->tMainViewportSize.x * 0.3f, ptIO->tMainViewportSize.y * 0.5f}, PL_UI_COND_ALWAYS);
-        if(gptUI->begin_window("Select Dev Scene", NULL, PL_UI_WINDOW_FLAGS_NO_MOVE | PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE))
+        gptUI->set_next_window_dock(ptAppData->uSceneDock, PL_UI_COND_ONCE);
+        if(gptUI->begin_window("Scene", NULL, PL_UI_WINDOW_FLAGS_NO_COLLAPSE | PL_UI_WINDOW_FLAGS_NO_SCROLLBAR))
         { 
             // gptUI->layout_static(0.0f, 100.0f, 2);
-            float afSizes[] = {100.0f, 100.0f, 120.0f, 120.0f};
-            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 4, afSizes);
+            gptUI->layout_dynamic(0.0f, 2);
             if(gptUI->button("Refresh"))
                 pl__refresh_files(ptAppData);
             if(gptUI->button("Clear Assets"))
@@ -997,7 +1086,7 @@ pl_app_update(plAppData* ptAppData)
             if(gptUI->button("Load Assets"))
                 pl__load_assets(ptAppData);
             gptUI->checkbox("Imports", &ptAppData->bShowImportOptions);
-            gptUI->layout_dynamic(ptIO->tMainViewportSize.y * 0.35f, 1);
+            gptUI->layout_dynamic(pl_maxf(1.0f, gptUI->get_content_region_available().y), 1);
 
             if(gptUI->begin_child("Scenes", 0, 0))
             {
@@ -1081,88 +1170,7 @@ pl_app_update(plAppData* ptAppData)
             }
             gptUI->end_window();
         }
-        gptUI->pop_theme_color(3);
     }
-    else
-    {
-        plComponentLibrary* ptLibrary = (plComponentLibrary*)gptAsset->get_data(ptAppData->tSceneHandle);
-
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Controls"); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* F1  - bring up console"); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* M   - change gizmo mode"); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* ESC - unload scene"); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Camera Controls"); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* LMB + Drag: Moves camera forward & backward and rotates left & right."); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* RMB + Drag: Rotates camera."); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* LMB + RMB + Drag: Pans Camera"); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Mouse Wheel: Speed"); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "Game style (when holding RMB)"); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* W    Moves the camera forward."); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* S    Moves the camera backward."); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* A    Moves the camera left."); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* D    Moves the camera right."); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* E    Moves the camera up."); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* Q    Moves the camera down."); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* Z    Zooms the camera out (raises FOV)."); fCurrentY += fSpacing;
-        gptDraw->add_text(ptAppData->ptDrawLayer, (plVec2){10.0f, fCurrentY}, tTextOptions, "* C    Zooms the camera in (lowers FOV)."); fCurrentY += fSpacing;
-
-#if 0
-        if(gptUI->begin_window("Add Object", NULL, 0))
-        {
-            if(gptUI->button("add object")) 
-            {
-                plEntity tNewEntity = gptEcs->create_entity_with_id(ptLibrary, "New Object 0", 8008);
-
-                plTransformComponent* ptNewTransform = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity);
-                ptNewTransform->tTranslation.x = 10.0f;
-
-                plObjectComponent* ptNewObject = gptEcs->add_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), tNewEntity);
-                ptNewObject->tMesh = gptAsset->load("/assets/meshes/sphere.plmesh");
-                ptNewObject->tTransformId = 8008;
-                ptNewObject->uFirstSubmesh = 0;
-                ptNewObject->uSubmeshCount = 1;
-                ptNewObject->tTransform = tNewEntity;
-            }
-
-            if(gptUI->button("add light")) 
-            {
-                plEntity tNewEntity = gptEcs->create_entity_with_id(ptLibrary, "New Light 0", 8009);
-
-                plLightComponent* ptNewLight = gptEcs->add_component(ptLibrary, gptRenderer->get_ecs_type_key_light(), tNewEntity);
-                ptNewLight->tType = PL_LIGHT_TYPE_POINT;
-                ptNewLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-                ptNewLight->tColor = (plVec3){1.0f, 0.0f, 1.0f};
-                ptNewLight->fIntensity = 20.0f;
-                ptNewLight->fRange = 10.0f;
-                ptNewLight->fRadius = 0.25f;
-                ptNewLight->uShadowResolution = 256;
-                ptNewLight->tPosition = (plVec3){0.0f, 0.0f, 0.0f};
-
-                plTransformComponent* ptNewTransform = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity);
-                ptNewTransform->tTranslation.y = 8.0f;
-
-            }
-
-            if(gptUI->button("add probe")) 
-            {
-                plEntity tNewEntity = gptEcs->create_entity_with_id(ptLibrary, "New Probe 0", 8010);
-
-                plEnvironmentProbeComponent* ptNewProbe = gptEcs->add_component(ptLibrary, gptRenderer->get_ecs_type_key_environment_probe(), tNewEntity);
-                ptNewProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_REALTIME | PL_ENVIRONMENT_PROBE_FLAGS_DIRTY | PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
-                ptNewProbe->fRange = 10.0f;
-                ptNewProbe->uResolution = 128;
-                ptNewProbe->uSamples = 128;
-                ptNewProbe->uInterval = 6;
-
-                plTransformComponent* ptNewTransform = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity);
-                ptNewTransform->tTranslation.y = 8.0f;
-
-            }
-            gptUI->end_window();
-        }
-#endif
-    }
-
     // if(gptUI->begin_window("Debug", NULL, 0))
     // {
     //     if(gptUI->button("Select File"))
@@ -1182,20 +1190,7 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowUiDemo)
         pl__show_ui_demo_window(ptAppData);
 
-    gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
-
-    plCommandBuffer* ptCommandBuffer = gptStarter->begin_main_pass();
-
-    float fWidth = ptIO->tMainViewportSize.x;
-    float fHeight = ptIO->tMainViewportSize.y;
-    plRenderAttachmentInfo tRenderInfo = {0};
-    gptStarter->get_render_attachment_info(&tRenderInfo);
-
-    plSwapchain* ptSwapchain = gptStarter->get_swapchain();
-    gptDraw->submit_2d_drawlist(ptAppData->ptDrawList, ptCommandBuffer,
-    ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(ptSwapchain).eSampleCount,
-        &tRenderInfo);
-        
+    gptStarter->begin_main_pass();
     gptStarter->end_main_pass();
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
@@ -1205,6 +1200,152 @@ pl_app_update(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 // [SECTION] helper implementations
 //-----------------------------------------------------------------------------
+
+static bool
+pl__show_secondary_view(plAppData* ptAppData)
+{
+    if(!ptAppData->bSecondaryDockInitialized)
+    {
+        uint32_t uMainDock = 0;
+        ptAppData->uSecondaryDock = gptUI->dock_split(ptAppData->uSceneDock, 1, 0.5f, &uMainDock);
+        if(uMainDock)
+            ptAppData->uSceneDock = uMainDock;
+        ptAppData->bSecondaryDockInitialized = true;
+    }
+    gptUI->set_next_window_dock(ptAppData->uSecondaryDock, PL_UI_COND_ONCE);
+    gptUI->set_next_window_size((plVec2){640, 480}, PL_UI_COND_ONCE);
+    ptAppData->bSecondaryHovered = false;
+    if(!gptUI->begin_window("Secondary View", &ptAppData->bShowSecondaryView,
+        PL_UI_WINDOW_FLAGS_NO_COLLAPSE | PL_UI_WINDOW_FLAGS_NO_SCROLLBAR | PL_UI_WINDOW_FLAGS_NO_INPUT_CAPTURE))
+        return false;
+    ptAppData->uSecondaryDock = gptUI->get_window_dock();
+
+    plComponentLibrary* ptLibrary = gptAsset->get_data(ptAppData->tSceneHandle);
+    const plCamera* ptMainCamera = gptEcs->get_component(ptLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera);
+    gptUI->layout_dynamic(0.0f, 1);
+    const bool bCopyCamera = gptUI->button("Copy Main Camera");
+    gptUI->text("RMB: look + WASD/QE move | Wheel: speed");
+    if(!ptMainCamera)
+    {
+        gptUI->text("No camera available in this scene.");
+        gptUI->end_window();
+        return false;
+    }
+    const plVec2 tAvailable = gptUI->get_content_region_available();
+    const plVec2 tSize = {pl_maxf(1.0f, floorf(tAvailable.x)), pl_maxf(1.0f, floorf(tAvailable.y))};
+    if(!ptAppData->ptSecondaryView)
+    {
+        const plViewDesc tDesc = {.uWidth = (uint32_t)tSize.x, .uHeight = (uint32_t)tSize.y};
+        ptAppData->ptSecondaryView = gptRenderer->create_view(ptAppData->ptScene, &tDesc);
+        ptAppData->tSecondaryCamera = *ptMainCamera;
+        ptAppData->fSecondarySpeed = 4.0f;
+    }
+    else if(tSize.x != ptAppData->tSecondarySize.x || tSize.y != ptAppData->tSecondarySize.y)
+        gptRenderer->resize_view(ptAppData->ptSecondaryView, tSize);
+    if(bCopyCamera)
+        ptAppData->tSecondaryCamera = *ptMainCamera;
+    ptAppData->tSecondarySize = tSize;
+    ptAppData->tSecondaryOffset = gptUI->get_cursor_pos();
+    ptAppData->bSecondaryHovered = gptUI->is_window_hovered() && gptIO->is_mouse_hovering_rect(
+        ptAppData->tSecondaryOffset, pl_add_vec2(ptAppData->tSecondaryOffset, tSize));
+    gptCamera->set_viewport(&ptAppData->tSecondaryCamera, tSize.x, tSize.y);
+    gptCamera->update(&ptAppData->tSecondaryCamera);
+
+    // The view renders later this frame, before the main pass consumes this image.
+    plVec2 tUV = {0};
+    const plBindGroupHandle tTexture = gptRenderer->get_view_color_bind_group(ptAppData->ptSecondaryView, &tUV);
+    gptUI->image_ex(tTexture.uData, tSize, (plVec2){0}, tUV, (plVec4){1,1,1,1}, (plVec4){0});
+    gptUI->end_window();
+    return true;
+}
+
+static void
+pl__update_secondary_camera(plAppData* ptAppData)
+{
+    if(!ptAppData->bSecondaryHovered || gptUI->wants_mouse_capture() ||
+       gptUI->wants_keyboard_capture() || gptGizmo->active())
+        return;
+    plCamera* ptCamera = &ptAppData->tSecondaryCamera;
+    const float fWheel = gptIO->get_mouse_wheel();
+    if(fWheel != 0.0f)
+        ptAppData->fSecondarySpeed = pl_clampf(0.1f, ptAppData->fSecondarySpeed * (fWheel > 0.0f ? 2.0f : 0.5f), 10000.0f);
+    if(gptIO->is_mouse_down(PL_MOUSE_BUTTON_RIGHT))
+    {
+        const float fStep = ptAppData->fSecondarySpeed * gptIO->get_io()->fDeltaTime;
+        const plVec2 tDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_RIGHT, 1.0f);
+        gptCamera->rotate_euler(ptCamera, -tDelta.y * 0.005f, -tDelta.x * 0.005f, 0.0f);
+        gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_RIGHT);
+        if(gptIO->is_key_down(PL_KEY_W)) gptCamera->translate_local(ptCamera, (plVec3d){0, 0, fStep});
+        if(gptIO->is_key_down(PL_KEY_S)) gptCamera->translate_local(ptCamera, (plVec3d){0, 0, -fStep});
+        if(gptIO->is_key_down(PL_KEY_A)) gptCamera->translate_local(ptCamera, (plVec3d){fStep, 0, 0});
+        if(gptIO->is_key_down(PL_KEY_D)) gptCamera->translate_local(ptCamera, (plVec3d){-fStep, 0, 0});
+        if(gptIO->is_key_down(PL_KEY_Q)) gptCamera->translate(ptCamera, (plVec3d){0, -fStep, 0});
+        if(gptIO->is_key_down(PL_KEY_E)) gptCamera->translate(ptCamera, (plVec3d){0, fStep, 0});
+    }
+    gptCamera->update(ptCamera);
+}
+
+static float
+pl__show_main_menu(plAppData* ptAppData)
+{
+    float fHeight = 0.0f;
+    if(gptUI->begin_main_menu_bar())
+    {
+        fHeight = gptUI->get_window_size().y;
+        if(gptUI->begin_menu("View", true))
+        {
+            gptUI->menu_item_toggle("Game Mode", "F5", &ptAppData->bGameMode, ptAppData->ptScene != NULL && !gptGizmo->active());
+            gptUI->menu_item_toggle("Secondary View", NULL, &ptAppData->bShowSecondaryView, ptAppData->ptScene != NULL);
+            gptUI->end_menu();
+        }
+        if(gptUI->begin_menu("Tools", true))
+        {
+            gptUI->menu_item_toggle("Assets", NULL, ptAppData->pbShowAssets, true);
+            gptUI->menu_item_toggle("Renderer", NULL, ptAppData->pbShowRenderer, true);
+            gptUI->separator();
+            gptUI->menu_item_toggle("Logging", NULL, ptAppData->pbShowLogging, true);
+            gptUI->menu_item_toggle("GPU Profiling", NULL, ptAppData->pbShowGpuProfiling, true);
+            gptUI->menu_item_toggle("CPU Profiling", NULL, ptAppData->pbShowProfiling, true);
+            gptUI->menu_item_toggle("Statistics", NULL, ptAppData->pbShowStats, true);
+            gptUI->menu_item_toggle("Memory Allocations", NULL, ptAppData->pbShowMemoryAllocations, true);
+            gptUI->menu_item_toggle("Device Memory", NULL, ptAppData->pbShowDeviceMemoryAnalyzer, true);
+
+            gptUI->separator_text("UI");
+            bool* pbStyle = (bool*)gptConsole->get_variable("t.UiStyle", NULL, NULL);
+            bool* pbDebug = (bool*)gptConsole->get_variable("t.UiDebug", NULL, NULL);
+            gptUI->menu_item_toggle("Demo", NULL, &ptAppData->bShowUiDemo, true);
+            gptUI->menu_item_toggle("Style Editor", NULL, pbStyle, pbStyle != NULL);
+            gptUI->menu_item_toggle("Debugger", NULL, pbDebug, pbDebug != NULL);
+            gptUI->end_menu();
+        }
+        gptUI->end_main_menu_bar();
+    }
+    return fHeight;
+}
+
+static void
+pl__show_sandbox_tools(plAppData* ptAppData)
+{
+    gptUI->set_next_window_dock(ptAppData->uToolsDock, PL_UI_COND_ONCE);
+    if(gptUI->begin_window("Sandbox", NULL, PL_UI_WINDOW_FLAGS_NO_COLLAPSE))
+    {
+        plIO* ptIO = gptIO->get_io();
+        gptUI->layout_dynamic(0.0f, 1);
+        gptUI->text("%0.1f FPS / %0.1f ms", ptIO->fFrameRate, ptIO->fDeltaTime * 1000.0f);
+        gptUI->text("%s", PILOT_LIGHT_VERSION_STRING);
+        gptUI->text("Backend: %s", gptGfx->get_backend_string());
+        gptUI->separator_text("Controls");
+        gptUI->text("F1: console | Escape: unload scene");
+        gptUI->text("F5: game mode");
+        gptUI->text("M: gizmo operation | L: local/world");
+        gptUI->text("LMB drag: move and turn");
+        gptUI->text("RMB drag: look | LMB + RMB: pan");
+        gptUI->text("Wheel: camera speed");
+        gptUI->text("Hold RMB: WASD move, Q/E down/up");
+        gptUI->text("Hold RMB + Z/C: zoom");
+        gptUI->end_window();
+    }
+}
 
 void
 pl__load_apis(plApiRegistryI* ptApiRegistry)

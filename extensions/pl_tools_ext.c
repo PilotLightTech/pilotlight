@@ -567,7 +567,7 @@ pl__show_profiling(bool* bValue)
     };
 
     gptUI->set_next_window_size((plVec2){750, 700}, PL_UI_COND_ONCE);
-    if(gptUI->begin_window("Profiling (WIP)", bValue, 0))
+    if(gptUI->begin_window("CPU Profiling", bValue, 0))
     {
         plProfileCpuSample* ptSamples = NULL;
         uint32_t uSampleSize = 0;

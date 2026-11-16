@@ -362,6 +362,7 @@ typedef struct _plUiDockNode
     plVec2   tHostPos;
     plVec2   tHostSize;
     bool     bHostCollapsed;
+    bool     bTabBarHidden;
     char     acHostTitle[256];
 } plUiDockNode;
 
@@ -476,6 +477,7 @@ typedef struct _plUiWindow
     plUiStorage                tStorage;                // state storage
     uint64_t                   uLastFrameActive;        // last frame active
     uint32_t                   uDockId;
+    uint32_t                   uSuspendedDockId;
     bool                       bDockConditionOnce;
     plVec2                     tUndockedPos;
     plVec2                     tUndockedSize;
@@ -571,6 +573,7 @@ typedef struct _plUiContext
 
     // docking
     plUiDockNode*      sbtDockNodes;
+    bool               bDockingDisabled;
     uint32_t           uNextDockId;
     uint32_t           uDockSplitterActive;
     plUiWindow*        ptDockDragWindow;

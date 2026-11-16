@@ -126,11 +126,6 @@ void
 pl__show_ui_demo_window(plAppData* ptAppData)
 {
     static bool bMainMenuBar = false;
-    if(bMainMenuBar && gptUI->begin_main_menu_bar())
-    {
-        pl__show_demo_menus(&bMainMenuBar);
-        gptUI->end_main_menu_bar();
-    }
 
     if(gptUI->begin_window("UI Demo", &ptAppData->bShowUiDemo, PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR))
     {
@@ -143,8 +138,6 @@ pl__show_ui_demo_window(plAppData* ptAppData)
             pl__show_demo_menus(&bMainMenuBar);
             gptUI->end_menu_bar();
         }
-        gptUI->separator();
-        gptUI->checkbox("Main menu bar", &bMainMenuBar);
 
         if(gptUI->collapsing_header("Help", 0))
         {
