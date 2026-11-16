@@ -580,6 +580,11 @@ pl_json_new_root_object(const char* pcName)
 bool
 pl_json_load(const char* pcJson, plJsonObject** pptJsonOut)
 {
+    if(!pptJsonOut)
+        return false;
+        
+    *pptJsonOut = NULL;
+    if(!pcJson) return false;
     jsmn_parser tP = {0};
     jsmntok_t* sbtTokens = NULL;
     pl_sb_resize(sbtTokens, 512);
@@ -594,7 +599,6 @@ pl_json_load(const char* pcJson, plJsonObject** pptJsonOut)
         if(iResult == JSMN_ERROR_INVAL)
         {
             pl_sb_free(sbtTokens);
-            PL_ASSERT(false);
             return false;
             
         }
@@ -605,13 +609,18 @@ pl_json_load(const char* pcJson, plJsonObject** pptJsonOut)
         else if(iResult == JSMN_ERROR_PART)
         {
             pl_sb_free(sbtTokens);
-            PL_ASSERT(false);
             return false;
         }
         else
         {
             break;
         }
+    }
+
+    if(iResult <= 0)
+    {
+        pl_sb_free(sbtTokens);
+        return false;
     }
 
     uint32_t uLayer = 0;
