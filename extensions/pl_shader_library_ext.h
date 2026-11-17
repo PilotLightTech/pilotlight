@@ -108,6 +108,8 @@ typedef struct _plShaderLibraryI
     void (*unregister_compute_shaders)(plShaderLibrary*);
 
     // retrieval/variants
+    //   - variants are created on first request & cached by graphics state, attachment info, & constants
+    //   - returns an invalid handle (uData = UINT32_MAX) if "name" is not registered
     plShaderHandle          (*get_shader)           (plShaderLibrary*, const char* name, const plShaderVariantDesc*);
     plComputeShaderHandle   (*get_compute_shader)   (plShaderLibrary*, const char* name, const plComputeShaderVariantDesc*);
     plBindGroupLayoutHandle (*get_bind_group_layout)(plShaderLibrary*, const char* name);
@@ -125,8 +127,8 @@ typedef struct _plShaderLibraryInit
 
 typedef struct _plShaderVariantDesc
 {
-    const plGraphicsState*        ptGraphicsState;
-    const plRenderAttachmentInfo* ptAttachmentInfo;
+    const plGraphicsState*        ptGraphicsState;  // NULL: use registered graphics state
+    const plRenderAttachmentInfo* ptAttachmentInfo; // NULL: use registered attachment info
     const void*                   pVertexConstants;
     const void*                   pFragmentConstants;
 } plShaderVariantDesc;

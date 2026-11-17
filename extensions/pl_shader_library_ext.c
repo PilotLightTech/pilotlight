@@ -261,6 +261,7 @@ pl_shader_library_get_shader(plShaderLibrary* ptLibrary, const char* pcName, con
     plShaderLibraryGraphicsEntry* ptEntry = &ptLibrary->sbtShaderEntries[uEntryIndex];
 
     const plGraphicsState* ptGraphicsState = ptDesc->ptGraphicsState ? ptDesc->ptGraphicsState : &ptEntry->tDesc.tGraphicsState;
+    const plRenderAttachmentInfo* ptAttachmentInfo = ptDesc->ptAttachmentInfo ? ptDesc->ptAttachmentInfo : &ptEntry->tDesc.tRenderAttachmentInfo;
 
     plDevice* ptDevice = gptShaderLibraryCtx->ptDevice;
 
@@ -285,6 +286,7 @@ pl_shader_library_get_shader(plShaderLibrary* ptLibrary, const char* pcName, con
 
     uint64_t ulVariantHash = pl_hm_hash(ptDesc->pVertexConstants, szVertexSpecializationSize, ptGraphicsState->ulValue);
     ulVariantHash = pl_hm_hash(ptDesc->pFragmentConstants, szFragmentSpecializationSize, ulVariantHash);
+    ulVariantHash = pl_hm_hash(ptAttachmentInfo, sizeof(plRenderAttachmentInfo), ulVariantHash);
     const uint64_t ulIndex = pl_hm_lookup(&ptEntry->tVariantHashmap, ulVariantHash);
 
     if(ulIndex != UINT64_MAX)
@@ -294,6 +296,7 @@ pl_shader_library_get_shader(plShaderLibrary* ptLibrary, const char* pcName, con
 
     plShaderDesc tDesc = ptEntry->tDesc;
     tDesc.tGraphicsState = *ptGraphicsState;
+    tDesc.tRenderAttachmentInfo = *ptAttachmentInfo;
     tDesc.pVertexTempConstantData = ptDesc->pVertexConstants;
     tDesc.pFragmentTempConstantData = ptDesc->pFragmentConstants;
     tDesc.pcDebugName = pcName;
