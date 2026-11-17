@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_LOG_VERSION    "1.0.1"
-#define PL_LOG_VERSION_NUM 10001
+#define PL_LOG_VERSION    "1.1.0"
+#define PL_LOG_VERSION_NUM 10100
 
 /*
 Index of this file:
@@ -58,7 +58,7 @@ CHANNELS
 
     pl_add_log_channel:
         uint64_t pl_add_log_channel(const char* pcName, plLogChannelInit tInfo);
-            Creates a new log channel and returns the ID.
+            Creates a new log channel and returns the ID. pcName is copied.
 
     pl_set_log_level:
         void pl_set_log_level(uID, uLevel);
@@ -753,6 +753,8 @@ pl__cleanup_log_context(void)
         for(uint64_t i = 0; i < gptLogContext->uChannelCount; i++)
         {
             plLogChannel* ptChannel = &gptLogContext->atChannels[i];
+            if(ptChannel->pcName)
+                PL_LOG_FREE((char*)ptChannel->pcName);
             if(ptChannel->pcBuffer)
                 PL_LOG_FREE(ptChannel->pcBuffer);
             if(ptChannel->ptEntries)
@@ -796,7 +798,15 @@ pl__add_log_channel(const char* pcName, plLogChannelInit tInit)
     }
     
     plLogChannel* ptChannel = &gptLogContext->atChannels[uID];
-    ptChannel->pcName = pcName;
+
+    // copy the name so callers (hot reloaded libraries, language bindings)
+    // don't need to keep it alive; freed in pl__cleanup_log_context
+    const size_t szNameLength = pcName ? strlen(pcName) : 0;
+    char* pcNameCopy = (char*)PL_LOG_ALLOC(szNameLength + 1);
+    if(szNameLength)
+        memcpy(pcNameCopy, pcName, szNameLength);
+    pcNameCopy[szNameLength] = 0;
+    ptChannel->pcName = pcNameCopy;
     if(tInit.tType & PL_CHANNEL_TYPE_BUFFER)
     {
         ptChannel->ptEntries       = (plLogEntry*)PL_LOG_ALLOC(tInit.uEntryCount * sizeof(plLogEntry));

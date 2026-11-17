@@ -54,7 +54,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plLogI_version {2, 1, 0}
+#define plLogI_version {2, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -100,7 +100,7 @@ PL_API void pl_unload_log_ext(plApiRegistryI*, bool reload);
 typedef struct _plLogI
 {
 
-    uint64_t (*add_channel)      (const char* name, plLogExtChannelInit);
+    uint64_t (*add_channel)      (const char* name, plLogExtChannelInit); // name is copied
     void     (*set_level)        (uint64_t channelId, uint64_t level);
     void     (*clear_channel)    (uint64_t channelId);
     void     (*reset_channel)    (uint64_t channelId);
