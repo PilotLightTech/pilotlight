@@ -108,6 +108,17 @@ static void         pl__set_max_frames  (uint32_t);
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
+// counter names are copied so callers (hot reloaded libraries, language
+// bindings) don't need to keep them alive; freed when the extension unloads
+static const char*
+pl__stats_copy_name(const char* pcName)
+{
+    const size_t szLength = strlen(pcName);
+    char* pcCopy = PL_ALLOC(szLength + 1);
+    memcpy(pcCopy, pcName, szLength + 1);
+    return pcCopy;
+}
+
 double*
 pl_stats_get_counter(char const* pcName)
 {
@@ -116,7 +127,8 @@ pl_stats_get_counter(char const* pcName)
     uint64_t ulIndex = UINT64_MAX;
     if(!pl_hm_has_key_ex(&gptStatsCtx->tHashmap, ulHash, &ulIndex))
     {
-        pl_sb_push(gptStatsCtx->sbtNames, pcName);
+        const char* pcNameCopy = pl__stats_copy_name(pcName);
+        pl_sb_push(gptStatsCtx->sbtNames, pcNameCopy);
         ulIndex = pl_hm_get_free_index(&gptStatsCtx->tHashmap);
         if(ulIndex == PL_DS_HASH_INVALID)
         {
@@ -139,9 +151,11 @@ pl_stats_get_counter(char const* pcName)
             pl_sb_push(gptStatsCtx->sbtBlocks, &gptStatsCtx->tInitialBlock);
 
         pl_hm_insert(&gptStatsCtx->tHashmap, ulHash, ulIndex);
+
+        const uint64_t ulNewBlockIndex = (uint64_t)floor((double)ulIndex / (double)PL_STATS_BLOCK_COUNT);
+        gptStatsCtx->sbtBlocks[ulNewBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].pcName = pcNameCopy;
     }
     const uint64_t ulBlockIndex = (uint64_t)floor((double)ulIndex / (double)PL_STATS_BLOCK_COUNT);
-    gptStatsCtx->sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].pcName = pcName;
     return &gptStatsCtx->sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].dFrameValue;
 }
 
@@ -203,7 +217,8 @@ pl_stats_get_counter_data(char const* pcName)
     uint64_t ulIndex = UINT64_MAX;
     if(!pl_hm_has_key_ex(&gptStatsCtx->tHashmap, ulHash, &ulIndex))
     {
-        pl_sb_push(gptStatsCtx->sbtNames, pcName);
+        const char* pcNameCopy = pl__stats_copy_name(pcName);
+        pl_sb_push(gptStatsCtx->sbtNames, pcNameCopy);
         ulIndex = pl_hm_get_free_index(&gptStatsCtx->tHashmap);
         if(ulIndex == PL_DS_HASH_INVALID)
         {
@@ -226,9 +241,11 @@ pl_stats_get_counter_data(char const* pcName)
             pl_sb_push(gptStatsCtx->sbtBlocks, &gptStatsCtx->tInitialBlock);
 
         pl_hm_insert(&gptStatsCtx->tHashmap, ulHash, ulIndex);
+
+        const uint64_t ulNewBlockIndex = (uint64_t)floor((double)ulIndex / (double)PL_STATS_BLOCK_COUNT);
+        gptStatsCtx->sbtBlocks[ulNewBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].pcName = pcNameCopy;
     }
     const uint64_t ulBlockIndex = (uint64_t)floor((double)ulIndex / (double)PL_STATS_BLOCK_COUNT);
-    gptStatsCtx->sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].pcName = pcName;
     return &gptStatsCtx->sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].dFrameValues;
 }
 
@@ -278,6 +295,8 @@ pl_unload_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     ptApiRegistry->remove_api(ptApi);
 
     pl_sb_free(gptStatsCtx->sbtBlocks);
+    for(uint32_t i = 0; i < pl_sb_size(gptStatsCtx->sbtNames); i++)
+        PL_FREE((char*)gptStatsCtx->sbtNames[i]);
     pl_sb_free(gptStatsCtx->sbtNames);
     pl_hm_free(&gptStatsCtx->tHashmap);
 }

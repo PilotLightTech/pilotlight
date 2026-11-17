@@ -48,7 +48,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plStatsI_version {1, 1, 0}
+#define plStatsI_version {1, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -69,7 +69,7 @@ typedef struct _plStatsI
 
     // provides a pointer to a value for the counter
     // (user should store this pointer to prevent lookups every frame)
-    double* (*get_counter)(char const* name);
+    double* (*get_counter)(char const* name); // name is copied
 
     // provides stat data back to user for analysis/display/etc.
     double**     (*get_counter_data)(char const* name);
