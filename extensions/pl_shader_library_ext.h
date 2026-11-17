@@ -1,5 +1,7 @@
 /*
    pl_shader_library_ext.h
+     - named shader registry
+     - creates & caches pipeline variants (graphics state + specialization constants) on demand
 */
 
 /*
@@ -24,10 +26,10 @@ Index of this file:
         are included; this lists direct dependencies, not their dependencies.
 
         * plDataRegistryI (v1.x)
-        * plGraphicsI (v2.x)
+        * plGraphicsI (v3.x)
         * plMemoryI (v1.x)
         * plProfileI (v2.x)
-        * plShaderI (v2.x)
+        * plShaderI (v3.x)
         * plVfsI (v3.x)
 */
 

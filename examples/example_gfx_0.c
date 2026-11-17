@@ -1,4 +1,5 @@
 /*
+   example_gfx_0.c
      - demonstrates loading APIs
      - demonstrates loading extensions
      - demonstrates hot reloading
@@ -35,7 +36,7 @@ Index of this file:
     sake of abstraction.
 
     The graphics extension does not hold your hand. You are expected to be
-    familar with either Vulkan or Metal 3.0 concepts.
+    familiar with either Vulkan or Metal 4.0 concepts.
 
     These examples mostly assume you understand low level graphics and will
     not attempt to explain those concepts (i.e. what is a vertex buffer?)
@@ -51,12 +52,13 @@ Index of this file:
     the differences between the APIs. This is accomplished by careful
     consideration of the APIs and their common concepts and features. In some
     cases, the API is required to be stricter than the underlying API. For
-    example, Vulkan makes it easy to issue draw calls and compute dispatches
-    directly to command buffers while Metal requires these to be submitted
-    to different "encoders" which can't be recording simutaneously. So the
-    graphics extension introduces the concept of encoder to match the stricter
-    API at the cost of some freedom Vulkan would normally allow. There is only
-    a few cases like this but we will note them in these examples.
+    example, Vulkan makes it easy to issue draw calls, compute dispatches, and
+    copies directly to command buffers while Metal requires these to be
+    recorded inside specific passes. So the graphics extension requires draws
+    to be recorded inside render passes and dispatches & copies inside compute
+    passes, matching the stricter API at the cost of some freedom Vulkan would
+    normally allow. There are only a few cases like this but we will note them
+    in these examples.
 
     EXAMPLE:
     
@@ -64,7 +66,7 @@ Index of this file:
     utilize the starter extension introduced in the "basic" examples. Yes, one
     of the starter extension's main goals is to help with graphics extension
     but for learning purposes it will help to narrow the scope of each example
-    since the graphics API contains alot of boilerplate and is very verbose.
+    since the graphics API contains a lot of boilerplate and is very verbose.
 */
 
 //-----------------------------------------------------------------------------
@@ -124,10 +126,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // NOTE: on first load, "ptAppData" will be NULL but on reloads
     //       it will be the value returned from this function
 
-    // retrieve the data registry API, this is the API used for sharing data
-    // between extensions & the runtime
-    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
     if(ptAppData)
@@ -163,7 +161,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
 
-    // load required apis (these are provided though extensions)
+    // load required apis (these are provided through extensions)
     gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
@@ -171,6 +169,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
 
     // create cache directories
+    //   - the shader & resource extensions write to VFS paths "/cache/shaders" &
+    //     "/cache/textures" so those must exist & be mounted (see below)
     gptFile->create_directory("../cache");
     gptFile->create_directory("../cache/shaders");
     gptFile->create_directory("../cache/imports");
@@ -223,7 +223,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // setup the shader extension
     gptStarter->finalize();
 
-    // for convience
+    // for convenience
     plDevice* ptDevice = gptStarter->get_device();
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -1,3 +1,9 @@
+/*
+   pl_ui_widgets.c
+     - widget implementations for the ui extension
+     - included by pl_ui_ext.c (not compiled directly)
+*/
+
 #include "pl_ui_internal.h"
 
 //-----------------------------------------------------------------------------
@@ -2415,7 +2421,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         memcpy(ptState->sbInitialTextA, pcBuffer, iBufferLength + 1);
 
         // Preserve cursor position and undo/redo stack if we come back to same widget
-        // FIXME: Since we reworked this on 2022/06, may want to differenciate recycle_cursor vs recycle_undostate?
+        // FIXME: Since we reworked this on 2022/06, may want to differentiate recycle_cursor vs recycle_undostate?
         bool bRecycleState = (ptState->uId == uHash && !bInitChangedSpecs);
         if (bRecycleState && (ptState->iCurrentLengthA != iBufferLength || (strncmp(ptState->sbTextA, pcBuffer, iBufferLength) != 0)))
             bRecycleState = false;

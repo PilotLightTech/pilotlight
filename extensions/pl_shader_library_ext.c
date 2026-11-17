@@ -7,9 +7,7 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] internal structs
 // [SECTION] global data
-// [SECTION] internal api
-// [SECTION] public implementation
-// [SECTION] internal api implementation
+// [SECTION] public api implementation
 // [SECTION] extension loading
 */
 
@@ -107,7 +105,7 @@ typedef struct _plShaderToolsContext
 static plShaderToolsContext* gptShaderLibraryCtx = NULL;
 
 //-----------------------------------------------------------------------------
-// [SECTION] public implementation
+// [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 void

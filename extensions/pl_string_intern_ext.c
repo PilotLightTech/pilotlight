@@ -7,6 +7,7 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] internal structs
+// [SECTION] global data
 // [SECTION] internal api implementation
 // [SECTION] extension loading
 */

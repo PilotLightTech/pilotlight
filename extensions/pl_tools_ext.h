@@ -1,5 +1,7 @@
 /*
    pl_tools_ext.h
+     - debug tool windows (logging, stats, profiling, memory, etc.)
+     - toggled through console variables (i.e. "t.LogTool")
 */
 
 /*
@@ -27,7 +29,7 @@ Index of this file:
         * plDataRegistryI (v1.x)
         * plDrawI (v4.x)
         * plGPUAllocatorsI (v2.x)
-        * plGraphicsI (v2.x)
+        * plGraphicsI (v3.x)
         * plIOI (v1.x)
         * plLogI (v2.x)
         * plMemoryI (v1.x)
@@ -83,7 +85,7 @@ PL_API void pl_unload_tools_ext(plApiRegistryI*, bool reload);
 
 typedef struct _plToolsI
 {
-    void (*initialize)(plToolsInit);
+    void (*initialize)(plToolsInit); // registers console variables to toggle each tool
     void (*update)    (void); // call after beginning ui frame
 } plToolsI;
 

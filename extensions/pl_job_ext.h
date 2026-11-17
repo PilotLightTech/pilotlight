@@ -66,7 +66,7 @@ typedef struct _plJobDesc        plJobDesc;
 typedef struct _plInvocationData plInvocationData;
 
 // external
-typedef struct _plAtomicCounter plAtomicCounter; // pl_os.h
+typedef struct _plAtomicCounter plAtomicCounter; // pl_platform_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -106,6 +106,7 @@ typedef struct _plJobI
     // long running jobs should check this & exit themselves
     bool (*is_shutting_down)(void);
 
+    // number of worker threads
     uint32_t (*get_thread_count)(void);
 } plJobI;
 
@@ -123,7 +124,7 @@ typedef struct _plInvocationData
 {
     uint32_t uBatchIndex;
     uint32_t uLocalIndex;        // index within batch
-    uint32_t uGlobalIndex;       // job index (uBatchIndex + uLocalIndex)
+    uint32_t uGlobalIndex;       // job index (uBatchIndex * groupSize + uLocalIndex)
     uint32_t uBatchSize;         // size of current batch
     size_t   szSharedMemorySize; // size of groupSharedMemory
 } plInvocationData;

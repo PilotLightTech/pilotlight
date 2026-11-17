@@ -8,7 +8,6 @@ Index of this file:
 // [SECTION] global data
 // [SECTION] public api implementations
 // [SECTION] extension loading
-// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------

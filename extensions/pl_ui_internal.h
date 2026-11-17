@@ -97,7 +97,7 @@ Index of this file:
 // Helper: Unicode defines
 
 #define PLU_PI_2 1.57079632f // pi/2
-#define PLU_2PI  6.28318530f // pi
+#define PLU_2PI  6.28318530f // 2pi
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -418,13 +418,13 @@ typedef struct _plUiTempWindowData
     float         fDockTabsEndX;
     plVec2        tCursorStartPos;   // position where widgets begin drawing (could be outside window if scrolling)
     plVec2        tCursorMaxPos;     // maximum cursor position (could be outside window if scrolling)
-    plVec2        tRowCursorLastPos; // current row starting position
+    plVec2        tRowCursorLastPos; // previous row starting position
     plVec2        tRowCursorPos;     // current row starting position
     plUiLayoutRow tLayoutRow;        // current layout row to use
     bool          bMenuBar;
     plUiLayoutRow tMenuBarBackupRow;
     plVec2        tMenuBarStart;
-    float         fExtraIndent;      // extra indent added by pl_indent
+    float         fExtraIndent;      // extra indent added by pl_ui_indent
     float         fTempMinWidth;     // template layout system
     float         fTempStaticWidth;  // template layout system
 } plUiTempWindowData;
@@ -449,8 +449,8 @@ typedef struct _plUiWindow
     plRect                     tInnerClipRect;                // inner rect clipped by parent window & viewport (includes horizontal padding on each side)
     plUiWindow*                ptParentWindow;                // parent window if child
     plUiWindow*                ptRootWindow;                  // root window or self if this is the root window
-    plUiWindow*                ptRootWindowPopupTree;         // root window or self if this is the root window
-    plUiWindow*                ptRootWindowTitleBarHighlight; // root window or self if this is the root window
+    plUiWindow*                ptRootWindowPopupTree;         // parent for popups (popup chains), otherwise root window
+    plUiWindow*                ptRootWindowTitleBarHighlight; // window whose title bar stays highlighted while this one is focused
     bool                       bAppearing;
     bool                       bVisible;                // true if visible (only for child windows at the moment)
     bool                       bActive;                 // window has been "seen" this frame
@@ -464,16 +464,16 @@ typedef struct _plUiWindow
     plUiTreeNodeStackItem*     sbtTreeNodeStack;
     float*                     sbfAvailableSizeStack;
     float*                     sbfMaxCursorYStack;
-    plUiLayoutSortLevel*       sbtTempLayoutSort;       // blah
-    uint32_t*                  sbuTempLayoutIndexSort;  // blah
+    plUiLayoutSortLevel*       sbtTempLayoutSort;       // template layout system: variable entries grouped by width
+    uint32_t*                  sbuTempLayoutIndexSort;  // template layout system: entry indices sorted by width
     plUiLayoutRowEntry*        sbtRowTemplateEntries;   // row template entries (shared and reset every frame)
     float*                     sbfRowSizesOrRatios;     // copies of layout_row() sizes/ratios (shared and reset every frame)
     plDrawList2D*              ptDrawlist;              // window draw list           
     plDrawLayer2D*             ptBgLayer;               // background draw layer
     plDrawLayer2D*             ptFgLayer;               // foreground draw layer
-    plUiConditionFlags         tPosAllowableFlags;      // acceptable condition flags for "pl_set_next_window_pos()"
-    plUiConditionFlags         tSizeAllowableFlags;     // acceptable condition flags for "pl_set_next_window_size()"
-    plUiConditionFlags         tCollapseAllowableFlags; // acceptable condition flags for "pl_set_next_window_collapse()"
+    plUiConditionFlags         tPosAllowableFlags;      // acceptable condition flags for "pl_ui_set_next_window_pos()"
+    plUiConditionFlags         tSizeAllowableFlags;     // acceptable condition flags for "pl_ui_set_next_window_size()"
+    plUiConditionFlags         tCollapseAllowableFlags; // acceptable condition flags for "pl_ui_set_next_window_collapse()"
     uint8_t                    uHideFrames;             // hide window for this many frames (useful for autosizing)
     uint32_t                   uFocusOrder;             // display rank
     plUiStorage                tStorage;                // state storage
@@ -527,8 +527,8 @@ typedef struct _plUiContext
     bool abMouseOwned[5];
     
     // prev/next state
-    plUiNextWindowData tNextWindowData;        // info based on pl_set_next_window_* functions
-    plUiPrevItemData   tPrevItemData;          // data for use by pl_was_last_item_* functions
+    plUiNextWindowData tNextWindowData;        // info based on pl_ui_set_next_window_* functions
+    plUiPrevItemData   tPrevItemData;          // data for use by pl_ui_was_last_item_* functions
     uint32_t*          sbuIdStack;             // id stack for hashing IDs, container items usually push/pop these
 
     // widget state
@@ -540,8 +540,8 @@ typedef struct _plUiContext
     uint32_t           uActiveId;              // set by pl__set_active_id(...) function
     uint32_t           uActiveIdIsAlive;       // id of active item if seen this frame
     uint32_t           uNextHoveredId;         // set during current frame (by end of frame, should be last item hovered)
-    bool               bActiveIdJustActivated; // window was just activated, so bring it to the front
-    bool               bActiveIdAllowsOverlap; // window was just activated, so bring it to the front
+    bool               bActiveIdJustActivated; // active id changed this frame
+    bool               bActiveIdAllowsOverlap; // other items may become active/hovered over the active item
     uint32_t           uMenuDepth;
     uint32_t           uComboDepth;
 

@@ -123,14 +123,14 @@ typedef struct _plVfsI
     // basic file usage
     bool            (*does_file_exist)  (const char* file);
     size_t          (*get_file_size_str)(const char* file);
-    plVfsFileHandle (*register_file)    (const char* file, bool mustExist);
+    plVfsFileHandle (*register_file)    (const char* file, bool mustExist); // metadata handle (not opened)
     plVfsFileHandle (*open_file)        (const char* file, plVfsFileMode);
     void            (*close_file)       (plVfsFileHandle);
     plVfsResult     (*delete_file)      (plVfsFileHandle);
     bool            (*is_file_open)     (plVfsFileHandle);
     const char*     (*get_real_path)    (plVfsFileHandle);
     bool            (*is_file_valid)    (plVfsFileHandle);
-    plVfsResult     (*read_file)        (plVfsFileHandle, void*, size_t*);
+    plVfsResult     (*read_file)        (plVfsFileHandle, void*, size_t*); // entire file; pass NULL buffer to get size
     size_t          (*write_file)       (plVfsFileHandle, const void*, size_t);
 
     // stream usage: read/write return complete elements, matching fread/fwrite.

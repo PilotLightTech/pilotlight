@@ -1,5 +1,6 @@
 /*
    pl_stage_ext.h
+     - batches buffer & texture uploads through staging buffers
 */
 
 /*
@@ -25,7 +26,7 @@ Index of this file:
 
         * plDataRegistryI (v1.x)
         * plGPUAllocatorsI (v2.x)
-        * plGraphicsI (v2.x)
+        * plGraphicsI (v3.x)
         * plIOI (v1.x)
         * plMemoryI (v1.x)
 */
@@ -89,7 +90,7 @@ typedef struct _plStageI
     // staging
     void (*stage_buffer_upload) (plBufferHandle, uint64_t offset, const void* data, uint64_t size);
     void (*stage_texture_upload)(plTextureHandle, const plBufferImageCopy*, const void* data, uint64_t size, bool generateMips);
-    void (*flush)               (void);
+    void (*flush)               (void); // records, submits & waits on all pending uploads
 
     // Synchronous, preserves existing bytes. Call between submissions, never
     // while recording commands using the buffer. Rebind descriptors afterwards.

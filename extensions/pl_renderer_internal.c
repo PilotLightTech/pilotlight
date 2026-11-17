@@ -8,6 +8,7 @@ Index of this file:
 // [SECTION] celestial lighting
 // [SECTION] job system tasks
 // [SECTION] scene render helpers
+// [SECTION] misc.
 // [SECTION] water simulation
 */
 
@@ -701,7 +702,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
-    // for convience
+    // for convenience
     plDevice*     ptDevice   = gptData->ptDevice;
     plDrawStream* ptStream   = &gptData->tDrawStream;
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -1324,7 +1325,7 @@ pl__renderer_generate_direction_view_map(plCommandBuffer* ptCommandBuffer, plSce
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
-    // for convience
+    // for convenience
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -1763,7 +1764,7 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
     int iY = ptScene->sbtShadowViewRects[0].iY;
     const uint32_t uCascadeCount = bProbe ? 1 : ptScene->tSceneData.iCascadeCount;
 
-    // for convience
+    // for convenience
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -3150,10 +3151,10 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         gptGfx->end_command_recording(ptCommandBuffer);
         const plSubmitInfo tSubmitInfo33 = {
             .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {tSemHandle},
+            .atWaitSemaphores        = {tSemHandle},
             .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {tSemHandle},
+            .atSignalSemaphores      = {tSemHandle},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo33);
@@ -3204,10 +3205,10 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         gptGfx->end_command_recording(ptCommandBuffer);
         const plSubmitInfo tSubmitInfo = {
             .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {tSemHandle},
+            .atWaitSemaphores        = {tSemHandle},
             .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {tSemHandle},
+            .atSignalSemaphores      = {tSemHandle},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
@@ -3229,10 +3230,10 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         gptGfx->end_command_recording(ptCommandBuffer);
         const plSubmitInfo tSubmitInfo = {
             .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {tSemHandle},
+            .atWaitSemaphores      = {tSemHandle},
             .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {tSemHandle},
+            .atSignalSemaphores      = {tSemHandle},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
@@ -3353,10 +3354,10 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
 
         const plSubmitInfo tSubmitInfo0 = {
             .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {tSemHandle},
+            .atWaitSemaphores        = {tSemHandle},
             .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {tSemHandle},
+            .atSignalSemaphores      = {tSemHandle},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo0);
@@ -3382,10 +3383,10 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         gptGfx->end_command_recording(ptCommandBuffer);
         const plSubmitInfo tSubmitInfo = {
             .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {tSemHandle},
+            .atWaitSemaphores        = {tSemHandle},
             .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {tSemHandle},
+            .atSignalSemaphores      = {tSemHandle},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
@@ -3453,10 +3454,10 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
             gptGfx->end_command_recording(ptCommandBuffer);
             const plSubmitInfo tSubmitInfo = {
                 .uWaitSemaphoreCount     = 1,
-                .atWaitSempahores        = {tSemHandle},
+                .atWaitSemaphores        = {tSemHandle},
                 .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
                 .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {tSemHandle},
+                .atSignalSemaphores      = {tSemHandle},
                 .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
             };
             gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
@@ -3483,10 +3484,10 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
             gptGfx->end_command_recording(ptCommandBuffer);
             const plSubmitInfo tSubmitInfo0 = {
                 .uWaitSemaphoreCount     = 1,
-                .atWaitSempahores        = {tSemHandle},
+                .atWaitSemaphores        = {tSemHandle},
                 .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
                 .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {tSemHandle},
+                .atSignalSemaphores      = {tSemHandle},
                 .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
             };
             gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo0);
@@ -3557,10 +3558,10 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
             gptGfx->end_command_recording(ptCommandBuffer);
             const plSubmitInfo tSubmitInfo = {
                 .uWaitSemaphoreCount     = 1,
-                .atWaitSempahores        = {tSemHandle},
+                .atWaitSemaphores        = {tSemHandle},
                 .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
                 .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {tSemHandle},
+                .atSignalSemaphores      = {tSemHandle},
                 .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
             };
             gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
@@ -3587,10 +3588,10 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
             gptGfx->end_command_recording(ptCommandBuffer);
             const plSubmitInfo tSubmitInfo0 = {
                 .uWaitSemaphoreCount     = 1,
-                .atWaitSempahores        = {tSemHandle},
+                .atWaitSemaphores        = {tSemHandle},
                 .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
                 .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {tSemHandle},
+                .atSignalSemaphores      = {tSemHandle},
                 .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
             };
             gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo0);
@@ -3619,7 +3620,7 @@ typedef struct _plGbufferFillPassInfo
 static void
 pl__render_view_gbuffer_fill_pass(plScene* ptScene, plCommandBuffer* ptCommandBuffer, plGbufferFillPassInfo* ptInfo)
 {
-    // for convience
+    // for convenience
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
@@ -3974,7 +3975,7 @@ pl__render_view_skybox_pass(plScene* ptScene, plCommandBuffer* ptCommandBuffer, 
     ptSkyboxDynamicData->uGlobalIndex = uFace;
 
     plShaderVariantDesc tSkyboxVariant = {
-        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout
+        .ptAttachmentInfo = &gptData->tTransparentAttachmentInfo
     };
 
     plShaderHandle tSkyboxShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "skybox", &tSkyboxVariant);
@@ -4171,7 +4172,7 @@ pl__render_view_transmission_pass(plView* ptView, plCommandBuffer* ptCommandBuff
                 // to material features, lights, clouds or wireframe pick a new variant.
                 plShaderVariantDesc tVariant = {
                     .ptGraphicsState = &gptGfx->get_shader(ptDevice, tTransmissionShader)->tDesc.tGraphicsState,
-                    .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout,
+                    .ptAttachmentInfo = &gptData->tTransparentAttachmentInfo,
                     .pFragmentConstants = aiWaterConstants
                 };
                 tDrawShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "water", &tVariant);
@@ -4244,7 +4245,7 @@ pl__render_view_grid_pass(plView* ptView, plCommandBuffer* ptCommandBuffer, cons
     };
 
     plShaderVariantDesc tGridVariant = {
-        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout
+        .ptAttachmentInfo = &gptData->tTransparentAttachmentInfo
     };
 
     plShaderHandle tGridShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "grid", &tGridVariant);
@@ -4353,10 +4354,10 @@ pl__render_view_debug_pass(plView* ptView, const plCamera* ptCamera, const plCam
 
     const plSubmitInfo tPostSubmitInfo = {
         .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+        .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
@@ -4396,7 +4397,7 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
     };
 
     plShaderVariantDesc tPickingVariant = {
-        .ptAttachmentInfo = &gptData->tPickRenderPassLayout
+        .ptAttachmentInfo = &gptData->tPickAttachmentInfo
     };
 
     plShaderHandle tPickShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "picking", &tPickingVariant);
@@ -4524,7 +4525,7 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
 static void
 pl__render_view_uv_pass(plView* ptView)
 {
-    // for convience
+    // for convenience
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice* ptDevice  = gptData->ptDevice;
     plScene* ptScene = ptView->ptParentScene;
@@ -4568,7 +4569,7 @@ pl__render_view_uv_pass(plView* ptView)
     // submit nonindexed draw using basic API
 
     plShaderVariantDesc tUVMapVariant = {
-        .ptAttachmentInfo = &gptData->tUVRenderPassLayout
+        .ptAttachmentInfo = &gptData->tUVAttachmentInfo
     };
 
     plShaderHandle tUVShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "uvmap", &tUVMapVariant);
@@ -4604,10 +4605,10 @@ pl__render_view_uv_pass(plView* ptView)
 
     const plSubmitInfo tUVSubmitInfo = {
         .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+        .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     gptGfx->submit_command_buffer(ptUVCmdBuffer, &tUVSubmitInfo);
@@ -4617,7 +4618,7 @@ pl__render_view_uv_pass(plView* ptView)
 static void
 pl__render_view_jfa_pass(plView* ptView)
 {
-    // for convience
+    // for convenience
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice* ptDevice  = gptData->ptDevice;
     plScene* ptScene   = ptView->ptParentScene;
@@ -4704,10 +4705,10 @@ pl__render_view_jfa_pass(plView* ptView)
 
         const plSubmitInfo tJumpSubmitInfo = {
             .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+            .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
             .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()},
         };
         gptGfx->submit_command_buffer(ptJumpCmdBuffer, &tJumpSubmitInfo);
@@ -4729,7 +4730,7 @@ pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "Outline");
     gptGfx->begin_command_recording(ptCommandBuffer);
 
-    // for convience
+    // for convenience
     plDevice*     ptDevice   = gptData->ptDevice;
     plDrawStream* ptStream   = &gptData->tDrawStream;
     plScene*      ptScene    = ptView->ptParentScene;
@@ -4791,7 +4792,7 @@ pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
     ptDynamicData->fYScale = tUVScale.y;
 
     plShaderVariantDesc tTonemapVariant = {
-        .ptAttachmentInfo = &gptData->tPostProcessRenderPassLayout
+        .ptAttachmentInfo = &gptData->tPostProcessAttachmentInfo
     };
 
     plShaderHandle tTonemapShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "jumpfloodalgo2", &tTonemapVariant);
@@ -4817,10 +4818,10 @@ pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
 
     const plSubmitInfo tOutlineSubmitInfo = {
         .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+        .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     gptGfx->submit_command_buffer(ptCommandBuffer, &tOutlineSubmitInfo);
@@ -4856,7 +4857,7 @@ pl__render_view_forward_depth_normal_pass(plView* ptView, plCommandBuffer* ptCmd
             .bWireframe         = iFoliage ? false : ptScene->bWireframe
         };
         plShaderVariantDesc tVariant = {
-            .ptAttachmentInfo   = &gptData->tDeferredLightingRenderPassLayout,
+            .ptAttachmentInfo   = &gptData->tDeferredLightingAttachmentInfo,
             .ptGraphicsState    = &tState,
             .pFragmentConstants = &iFoliage
         };
@@ -5106,7 +5107,7 @@ pl__render_view_bloom_pass(plView* ptView)
     PL_RENDERER_STAT("renderer / bloom views", 1);
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "bloom");
 
-    // for convience
+    // for convenience
     // const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
@@ -5201,10 +5202,10 @@ pl__render_view_bloom_pass(plView* ptView)
 
         const plSubmitInfo tPostSubmitInfo = {
             .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+            .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
             .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
@@ -5297,10 +5298,10 @@ pl__render_view_bloom_pass(plView* ptView)
 
         const plSubmitInfo tPostSubmitInfo = {
             .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+            .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
             .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
@@ -5383,10 +5384,10 @@ pl__render_view_bloom_pass(plView* ptView)
 
         const plSubmitInfo tPostSubmitInfo = {
             .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+            .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
             .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
@@ -5686,9 +5687,9 @@ pl__cloud_shadow_render(plScene* ptScene)
     gptGfx->end_compute_pass(ptCmd);
     gptGfx->end_command_recording(ptCmd);
     const plSubmitInfo tSubmit = {
-        .uWaitSemaphoreCount     = 1, .atWaitSempahores = {gptStarter->get_current_timeline_semaphore()},
+        .uWaitSemaphoreCount     = 1, .atWaitSemaphores = {gptStarter->get_current_timeline_semaphore()},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
-        .uSignalSemaphoreCount   = 1, .atSignalSempahores = {gptStarter->get_current_timeline_semaphore()},
+        .uSignalSemaphoreCount   = 1, .atSignalSemaphores = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     gptGfx->submit_command_buffer(ptCmd, &tSubmit);
@@ -5884,10 +5885,10 @@ pl__render_view_aerial_pass(plView* ptView)
 
     const plSubmitInfo tPostSubmitInfo = {
         .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+        .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
@@ -5950,10 +5951,10 @@ pl__render_view_tonemap_pass(plView* ptView)
 
     const plSubmitInfo tPostSubmitInfo = {
         .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+        .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
@@ -6043,10 +6044,10 @@ pl__render_view_fxaa_pass(plView* ptView)
 
     const plSubmitInfo tSubmit = {
         .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+        .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
@@ -6063,7 +6064,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
 
     const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
 
-    // for convience
+    // for convenience
     plDevice* ptDevice = gptData->ptDevice;
     plDrawStream* ptStream = &gptData->tDrawStream;
 
@@ -6368,10 +6369,10 @@ pl__renderer_probe_update_all(plScene* ptScene)
 
                 const plSubmitInfo tSunTransmissionSubmitInfo = {
                     .uWaitSemaphoreCount     = 1,
-                    .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+                    .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
                     .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
                     .uSignalSemaphoreCount   = 1,
-                    .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+                    .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
                     .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
                 };
                 gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
@@ -6380,10 +6381,10 @@ pl__renderer_probe_update_all(plScene* ptScene)
 
             const plSubmitInfo tSubmitCSMInfo2 = {
                 .uWaitSemaphoreCount     = 1,
-                .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+                .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
                 .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
                 .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+                .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
                 .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
             };
             gptGfx->submit_command_buffer(ptCSMCommandBuffer, &tSubmitCSMInfo2);
@@ -6755,10 +6756,10 @@ pl__renderer_probe_update_all(plScene* ptScene)
 
             const plSubmitInfo tProbeSubmitInfo = {
                 .uWaitSemaphoreCount     = 1,
-                .atWaitSempahores        = {tSemHandle},
+                .atWaitSemaphores        = {tSemHandle},
                 .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
                 .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {tSemHandle},
+                .atSignalSemaphores      = {tSemHandle},
                 .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
             };
             gptGfx->submit_command_buffer(ptCmdBuffer, &tProbeSubmitInfo);
@@ -7779,7 +7780,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "skybox_2"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tTransparentAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "skybox", &tDesc);
     }
@@ -7810,7 +7811,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "jfa_1"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tPostProcessRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tPostProcessAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "jumpfloodalgo2", &tDesc);
     }
@@ -7842,7 +7843,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "sky_2"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tTransparentAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "sky", &tDesc);
     }
@@ -7883,7 +7884,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDeferredLightingAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "gbuffer_fill", &tDesc);
         int iFoliage = 0;
@@ -7939,7 +7940,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"))->tDesc
             },
             .pFragmentTempConstantData = &iDataHolder,
-            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDeferredLightingAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "gbuffer_fill_debug", &tDesc);
     }
@@ -7979,7 +7980,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tTransparentAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "foliage", &tDesc);
     }
@@ -8027,7 +8028,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tTransparentAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "forward", &tDesc);
     }
@@ -8080,7 +8081,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc
             },
             .pFragmentTempConstantData = &iPlaceHolder,
-            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tTransparentAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "forward_debug", &tDesc);
     }
@@ -8117,7 +8118,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                     .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
                 }
             },
-            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tTransparentAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "grid", &tDesc);
     }
@@ -8155,7 +8156,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tTransparentRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tTransparentAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "transmission", &tDesc);
         int aiWaterConstants[] = {-1, -1, 7, -1, -1, -1};
@@ -8187,7 +8188,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
             .atBlendStates = {
                 { .bBlendEnabled = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL }
             },
-            .tRenderAttachmentInfo = gptData->tUVRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tUVAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "uvmap", &tDesc);
     }
@@ -8225,7 +8226,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tPickRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tPickAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "picking", &tDesc);
     }
@@ -8262,7 +8263,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "shadow"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tDepthRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDepthAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "shadow", &tDesc);
     }
@@ -8309,7 +8310,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "shadow"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tDepthRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDepthAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "alphashadow", &tDesc);
     }
@@ -8353,7 +8354,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDeferredLightingAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting", &tDesc);
     }
@@ -8397,7 +8398,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDeferredLightingAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting_sun", &tDesc);
     }
@@ -8441,7 +8442,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDeferredLightingAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting_directional", &tDesc);
         tDesc.pcDebugName = "deferred_lighting_clustered";
@@ -8492,7 +8493,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDeferredLightingAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting_spot", &tDesc);
     }
@@ -8543,7 +8544,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDeferredLightingAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting_point", &tDesc);
     }
@@ -8600,7 +8601,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "deferred_lighting_2"))->tDesc
             },
             .pFragmentTempConstantData = aiPlaceHolder,
-            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDeferredLightingAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "deferred_lighting_debug", &tDesc);
     }
@@ -8643,7 +8644,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDeferredLightingAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "terrain", &tDesc);
     }
@@ -8691,7 +8692,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "gbuffer_fill_1"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tDeferredLightingRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDeferredLightingAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "terrain_debug", &tDesc);
     }
@@ -8730,7 +8731,7 @@ pl__renderer_scene_create_shaders(plScene* ptScene)
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "scene"))->tDesc,
                 gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "shadow"))->tDesc
             },
-            .tRenderAttachmentInfo = gptData->tDepthRenderPassLayout
+            .tRenderAttachmentInfo = gptData->tDepthAttachmentInfo
         };
         gptShaderLibrary->register_shader(ptScene->ptShaderLibrary, "terrain_shadow", &tDesc);
     }
@@ -8916,10 +8917,10 @@ pl__renderer_scene_create_brdf_lut(plScene* ptScene)
 
     const plSubmitInfo tSubmitInfo0 = {
         .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {tSemHandle},
+        .atWaitSemaphores        = {tSemHandle},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {tSemHandle},
+        .atSignalSemaphores      = {tSemHandle},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo0);
@@ -8943,10 +8944,10 @@ pl__renderer_scene_create_brdf_lut(plScene* ptScene)
     gptGfx->end_command_recording(ptCommandBuffer);
     const plSubmitInfo tSubmitInfo = {
         .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {tSemHandle},
+        .atWaitSemaphores        = {tSemHandle},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {tSemHandle},
+        .atSignalSemaphores      = {tSemHandle},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
@@ -9951,7 +9952,7 @@ pl__renderer_initialize(void)
     };
     gptData->tSamplerNearestRepeat = gptGfx->create_sampler(gptData->ptDevice, &tSamplerNearestRepeatDesc);
 
-    gptData->tRenderPassLayout = (plRenderAttachmentInfo){
+    gptData->tMainAttachmentInfo = (plRenderAttachmentInfo){
         .aeColorFormats = {
             PL_FORMAT_R16G16B16A16_FLOAT,
             PL_FORMAT_R8G8B8A8_UNORM,
@@ -9962,7 +9963,7 @@ pl__renderer_initialize(void)
         .eStencilFormat = PL_FORMAT_D32_FLOAT_S8_UINT
     };
 
-    gptData->tDeferredLightingRenderPassLayout = (plRenderAttachmentInfo){
+    gptData->tDeferredLightingAttachmentInfo = (plRenderAttachmentInfo){
         .aeColorFormats = {
             PL_FORMAT_R16G16B16A16_FLOAT,
             PL_FORMAT_R8G8B8A8_UNORM,
@@ -9973,7 +9974,7 @@ pl__renderer_initialize(void)
         .eStencilFormat = PL_FORMAT_D32_FLOAT_S8_UINT
     };
 
-    gptData->tTransparentRenderPassLayout = (plRenderAttachmentInfo){
+    gptData->tTransparentAttachmentInfo = (plRenderAttachmentInfo){
         .aeColorFormats = {
             PL_FORMAT_R16G16B16A16_FLOAT
         },
@@ -9981,11 +9982,11 @@ pl__renderer_initialize(void)
         .eStencilFormat = PL_FORMAT_D32_FLOAT_S8_UINT
     };
 
-    gptData->tDepthRenderPassLayout = (plRenderAttachmentInfo){
+    gptData->tDepthAttachmentInfo = (plRenderAttachmentInfo){
         .eDepthFormat = PL_FORMAT_D16_UNORM
     };
 
-    gptData->tPickRenderPassLayout = (plRenderAttachmentInfo){
+    gptData->tPickAttachmentInfo = (plRenderAttachmentInfo){
         .aeColorFormats = {
             PL_FORMAT_R8G8B8A8_UNORM
         },
@@ -9993,13 +9994,13 @@ pl__renderer_initialize(void)
         .eStencilFormat = PL_FORMAT_D32_FLOAT_S8_UINT
     };
 
-    gptData->tPostProcessRenderPassLayout = (plRenderAttachmentInfo){
+    gptData->tPostProcessAttachmentInfo = (plRenderAttachmentInfo){
         .aeColorFormats = {
             PL_FORMAT_R16G16B16A16_FLOAT
         }
     };
 
-    gptData->tFinalRenderPassLayout = (plRenderAttachmentInfo){
+    gptData->tFinalAttachmentInfo = (plRenderAttachmentInfo){
         .aeColorFormats = {
             PL_FORMAT_R16G16B16A16_FLOAT
         },
@@ -10007,7 +10008,7 @@ pl__renderer_initialize(void)
         .eStencilFormat = PL_FORMAT_D32_FLOAT_S8_UINT
     };
 
-    gptData->tUVRenderPassLayout = (plRenderAttachmentInfo){
+    gptData->tUVAttachmentInfo = (plRenderAttachmentInfo){
         .aeColorFormats = {
             PL_FORMAT_R32G32_FLOAT
         },
@@ -10421,7 +10422,7 @@ pl__renderer_load_shaders(plScene* ptScene)
     int aiLightingConstantData[] = {ptScene->tShaderDebugMode};
 
     plShaderVariantDesc tDeferredVariant = {
-        .ptAttachmentInfo = &gptData->tDeferredLightingRenderPassLayout,
+        .ptAttachmentInfo = &gptData->tDeferredLightingAttachmentInfo,
         .pFragmentConstants = aiLightingConstantData
     };
     
@@ -10439,7 +10440,7 @@ pl__renderer_load_shaders(plScene* ptScene)
     ptScene->tProbeLightingShader     = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "deferred_lighting", &tDeferredVariant);
 
     plShaderVariantDesc tTerrainVariant = {
-        .ptAttachmentInfo = &gptData->tRenderPassLayout,
+        .ptAttachmentInfo = &gptData->tDeferredLightingAttachmentInfo,
         .pFragmentConstants = aiLightingConstantData,
     };
     if(ptScene->tShaderDebugMode)
@@ -10448,13 +10449,13 @@ pl__renderer_load_shaders(plScene* ptScene)
         ptScene->tTerrainShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "terrain", &tTerrainVariant);
 
     plShaderVariantDesc tShadowVariant = {
-        .ptAttachmentInfo = &gptData->tDepthRenderPassLayout
+        .ptAttachmentInfo = &gptData->tDepthAttachmentInfo
     };
     ptScene->tTerrainShadowShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "terrain_shadow", &tShadowVariant);
     ptScene->tShadowShader        = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "shadow", &tShadowVariant);
 
     plShaderVariantDesc tTransparentVariant = {
-        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout
+        .ptAttachmentInfo = &gptData->tTransparentAttachmentInfo
     };
     ptScene->tSkyShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "sky", &tTransparentVariant);
 
@@ -10487,7 +10488,7 @@ pl__renderer_load_shaders(plScene* ptScene)
     };
 
     plShaderVariantDesc tAlphaShadowVariant = {
-        .ptAttachmentInfo = &gptData->tDepthRenderPassLayout,
+        .ptAttachmentInfo = &gptData->tDepthAttachmentInfo,
         .ptGraphicsState = &tAlphaShadowState
     };
     ptScene->tShadowAlphaShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "alphashadow", &tAlphaShadowVariant);
@@ -10506,7 +10507,7 @@ pl__renderer_load_shaders(plScene* ptScene)
     };
 
     plShaderVariantDesc tGBufferVariant = {
-        .ptAttachmentInfo = &gptData->tDeferredLightingRenderPassLayout,
+        .ptAttachmentInfo = &gptData->tDeferredLightingAttachmentInfo,
         .pVertexConstants = aiLightingConstantData,
         .pFragmentConstants = aiLightingConstantData,
         .ptGraphicsState = &tGBufferFileVariantTemp
@@ -10554,7 +10555,7 @@ pl__renderer_load_shaders(plScene* ptScene)
     };
 
     plShaderVariantDesc tForwardVariant = {
-        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout,
+        .ptAttachmentInfo = &gptData->tTransparentAttachmentInfo,
         .pVertexConstants = aiLightingConstantData,
         .pFragmentConstants = aiLightingConstantData,
         .ptGraphicsState = &tForwardVariantTemp
@@ -10624,7 +10625,7 @@ pl__renderer_load_shaders(plScene* ptScene)
     }
 
     plShaderVariantDesc tFoliageVariant = {
-        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout,
+        .ptAttachmentInfo = &gptData->tTransparentAttachmentInfo,
         .pVertexConstants = aiLightingConstantData,
         .pFragmentConstants = aiLightingConstantData,
         // .ptGraphicsState = &tForwardVariantTemp
@@ -10646,7 +10647,7 @@ pl__renderer_load_shaders(plScene* ptScene)
     };
 
     plShaderVariantDesc tTransmissionVariant = {
-        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout,
+        .ptAttachmentInfo = &gptData->tTransparentAttachmentInfo,
         .pVertexConstants = aiLightingConstantData,
         .pFragmentConstants = aiLightingConstantData,
         .ptGraphicsState = &tTransmissionVariantTemp
@@ -10680,7 +10681,7 @@ pl__renderer_load_shaders(plScene* ptScene)
     };
 
     plShaderVariantDesc tOutlineVariant = {
-        .ptAttachmentInfo = &gptData->tTransparentRenderPassLayout,
+        .ptAttachmentInfo = &gptData->tTransparentAttachmentInfo,
         .ptGraphicsState = &tOutlineVariantTemp
     };
 
@@ -10702,7 +10703,7 @@ pl__renderer_load_shaders(plScene* ptScene)
     };
 
     plShaderVariantDesc tTerrainWireframeVariant = {
-        .ptAttachmentInfo = &gptData->tRenderPassLayout,
+        .ptAttachmentInfo = &gptData->tMainAttachmentInfo,
         .ptGraphicsState = &tTerrainVariantTemp,
     };
     ptScene->tTerrainWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "terrain", &tTerrainWireframeVariant);
@@ -10924,7 +10925,7 @@ pl__renderer_update_sky_probe(plScene* ptScene)
 
     const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
 
-    // for convience
+    // for convenience
     plDevice* ptDevice = gptData->ptDevice;
     plDrawStream* ptStream = &gptData->tDrawStream;
 
@@ -11086,10 +11087,10 @@ pl__renderer_update_sky_probe(plScene* ptScene)
 
                 const plSubmitInfo tSunTransmissionSubmitInfo = {
                     .uWaitSemaphoreCount     = 1,
-                    .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+                    .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
                     .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
                     .uSignalSemaphoreCount   = 1,
-                    .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+                    .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
                     .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
                 };
                 gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
@@ -11165,10 +11166,10 @@ pl__renderer_update_sky_probe(plScene* ptScene)
 
             const plSubmitInfo tProbeSubmitInfo = {
                 .uWaitSemaphoreCount     = 1,
-                .atWaitSempahores        = {tSemHandle},
+                .atWaitSemaphores        = {tSemHandle},
                 .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
                 .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {tSemHandle},
+                .atSignalSemaphores      = {tSemHandle},
                 .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
             };
             gptGfx->submit_command_buffer(ptCmdBuffer, &tProbeSubmitInfo);

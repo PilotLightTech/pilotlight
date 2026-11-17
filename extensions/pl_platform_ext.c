@@ -1,3 +1,8 @@
+/*
+   pl_platform_ext.c
+     - shared api registration for all platform backends
+     - included at the end of each pl_platform_*_ext file (not compiled directly)
+*/
 
 void
 pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)

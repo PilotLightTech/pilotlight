@@ -81,7 +81,7 @@ void main()
 
     // find intersection with ground or atmosphere boundary (TODO: remove 0.01 properly)
     plIntersection tIntersection = pl_ray_intersection_planet(P + localUp * 0.01, V, tEarthCenter, tGpuScene.tData.planetRadius, tGpuScene.tData.atmosphereHeight);
-    float fPathLength = max(distance(tIntersection.tPos, P), 0.01); //avoid division trough zero at atmosphere top
+    float fPathLength = max(distance(tIntersection.tPos, P), 0.01); //avoid division through zero at atmosphere top
 
     // ray march and calculate attenuation through the atmosphere
 

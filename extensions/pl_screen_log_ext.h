@@ -1,5 +1,6 @@
 /*
    pl_screen_log_ext.h
+     - on screen debug messages
 */
 
 /*
@@ -8,10 +9,11 @@ Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] includes
-// [SECTION] forward declarations
+// [SECTION] forward declarations & basic types
 // [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] structs
+// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------

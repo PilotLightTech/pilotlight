@@ -24,6 +24,8 @@
 Index of this file:
 // [SECTION] header mess
 // [SECTION] includes
+// [SECTION] forward declarations & basic types
+// [SECTION] macros
 // [SECTION] public api
 // [SECTION] structs
 // [SECTION] private

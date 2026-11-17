@@ -5,8 +5,8 @@
 
 /*
 Index of this file:
-// [SECTION] implementation notes
 // [SECTION] quick notes
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] APIs
 // [SECTION] includes

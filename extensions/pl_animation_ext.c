@@ -8,10 +8,7 @@ Index of this file:
 // [SECTION] structs
 // [SECTION] global data
 // [SECTION] internal api
-// [SECTION] public api implementations
-// [SECTION] internal api implementations
 // [SECTION] extension loading
-// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------

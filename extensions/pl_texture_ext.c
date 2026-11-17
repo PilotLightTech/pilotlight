@@ -170,7 +170,7 @@ pl__texture_deserialize(const char* pcName, void* pTexture)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api implmentation
+// [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 void

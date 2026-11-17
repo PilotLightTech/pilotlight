@@ -12,12 +12,12 @@ Index of this file:
 // [SECTION] apis
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
-// [SECTION] declared structs (for C++)
+// [SECTION] pre-declared structs (for C++)
 // [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] structs
 // [SECTION] enums
-// [SECTION] internal enums
+// [SECTION] internal enums (NOT FOR PUBLIC CONSUMPTION)
 // [SECTION] inline API implementations
 */
 
@@ -57,12 +57,14 @@ Index of this file:
     the differences between the APIs. This is accomplished by careful
     consideration of the APIs and their common concepts and features. In some
     cases, the API is required to be stricter than the underlying API. For
-    example, Vulkan makes it easy to issue draw calls and compute dispatches
-    directly to command buffers while Metal requires these to be submitted
-    to different "encoders" which can't be recording simutaneously. So the
-    graphics extension matches the stricter API at the cost of some freedom
-    Vulkan would normally allow. There is only a few cases like this but you
-    should be aware of them.
+    example, Vulkan makes it easy to issue draw calls, compute dispatches, and
+    copies directly to command buffers while Metal requires these to be
+    recorded inside specific passes. So the graphics extension requires draws
+    to be recorded between "begin_render_pass" & "end_render_pass" and
+    dispatches & copies between "begin_compute_pass" & "end_compute_pass",
+    matching the stricter API at the cost of some freedom Vulkan would
+    normally allow. There are only a few cases like this but you should be
+    aware of them.
 
     WARNING:
 
@@ -73,9 +75,9 @@ Index of this file:
     sake of abstraction.
 
     The graphics extension does not hold your hand. You are expected to be
-    familar with either Vulkan or Metal 3.0 concepts.
+    familiar with either Vulkan or Metal 4.0 concepts.
 
-    This extension mostly assume you understand low level graphics and will
+    This extension mostly assumes you understand low level graphics and will
     not attempt to explain those concepts (i.e. what is a vertex buffer?)
 
 */
@@ -116,7 +118,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {2, 3, 0}
+#define plGraphicsI_version {3, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -133,7 +135,7 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 // devices
-typedef struct _plGraphicsInit plGraphicsInit; // graphics extension intialization options
+typedef struct _plGraphicsInit plGraphicsInit; // graphics extension initialization options
 typedef struct _plDevice       plDevice;       // represents a single GPU
 typedef struct _plDeviceInfo   plDeviceInfo;   // device information
 typedef struct _plDeviceInit   plDeviceInit;   // device creation options
@@ -163,9 +165,9 @@ typedef struct _plSurface       plSurface;       // used for creating swapchains
 typedef struct _plSwapchainInfo plSwapchainInfo; // swapchain information
 typedef struct _plSwapchainInit plSwapchainInit; // swapchain creation options
 
-// encoders
-typedef struct _plBufferImageCopy     plBufferImageCopy;     // used for copying between buffers & textures with blit encoder
-typedef struct _plImageCopy           plImageCopy;           // used for copying between textures with blit encoder
+// passes
+typedef struct _plBufferImageCopy     plBufferImageCopy;     // used for copying between buffers & textures (compute pass)
+typedef struct _plImageCopy           plImageCopy;           // used for copying between textures (compute pass)
 typedef struct _plPassTextureResource plPassTextureResource;
 typedef struct _plPassBufferResource  plPassBufferResource;
 typedef struct _plPassResources       plPassResources;
@@ -173,7 +175,7 @@ typedef struct _plPassResources       plPassResources;
 // bind groups
 typedef struct _plBindGroup                  plBindGroup;                  // bind group resource
 typedef struct _plBindGroupLayout            plBindGroupLayout;            // bind group layout
-typedef struct _plBindGroupLayoutDesc        plBindGroupLayoutDesc;        // bind group layout decription
+typedef struct _plBindGroupLayoutDesc        plBindGroupLayoutDesc;        // bind group layout description
 typedef struct _plBindGroupDesc              plBindGroupDesc;              // descriptor for creating bind groups
 typedef struct _plBindGroupPool              plBindGroupPool;              // opaque type for bind group pools
 typedef struct _plBindGroupPoolDesc          plBindGroupPoolDesc;          // descriptor for creating bind group pools
@@ -231,8 +233,6 @@ PL_DEFINE_HANDLE(plBindGroupHandle);
 PL_DEFINE_HANDLE(plBindGroupLayoutHandle);
 PL_DEFINE_HANDLE(plShaderHandle);
 PL_DEFINE_HANDLE(plComputeShaderHandle);
-PL_DEFINE_HANDLE(plRenderPassHandle);
-PL_DEFINE_HANDLE(plRenderPassLayoutHandle);
 
 // enums
 typedef int plMipmapMode;             // -> enum _plMipmapMode             // Enum: mipmap filter modes (PL_MIPMAP_MODE_XXXX)
@@ -240,20 +240,20 @@ typedef int plAddressMode;            // -> enum _plAddressMode            // En
 typedef int plFilter;                 // -> enum _plFilter                 // Enum: texture lookup filters (PL_FILTER_XXXX)
 typedef int plSampleCount;            // -> enum _plSampleCount            // Enum: texture sample count (PL_SAMPLE_COUNT_XXXX)
 typedef int plTextureType;            // -> enum _plTextureType            // Enum: texture type (PL_TEXTURE_TYPE_XXXX)
-typedef int plTextureUsage;           // -> enum _plTextureUsage           // Flag: texture type (PL_TEXTURE_USAGE_XXXX)
+typedef int plTextureUsage;           // -> enum _plTextureUsage           // Flag: texture usage flags (PL_TEXTURE_USAGE_XXXX)
 typedef int plCompareMode;            // -> enum _plCompareMode            // Enum: texture sampling comparison modes (PL_COMPARE_MODE_XXXX)
 typedef int plFormat;                 // -> enum _plFormat                 // Enum: formats (PL_FORMAT_XXXX)
 typedef int plVertexFormat;           // -> enum _plVertexFormat           // Enum: formats (PL_FORMAT_VERTEX_XXXX)
 typedef int plBufferUsage;            // -> enum _plBufferUsage            // Flag: buffer usage flags (PL_BUFFER_USAGE_XXXX)
-typedef int plShaderStageFlags;       // -> enum _plShaderStageFlags       // Flag: GPU pipeline stage (PL_SHADER_STAGE_XXXX)
-typedef int plPassResourceAccess;     // -> enum _plPassResourceAccess     // Flag: (PL_PASS_RESOURCE_ACCESS_XXXX)
+typedef int plShaderStageFlags;       // -> enum _plShaderStageFlags       // Flag: shader stage (PL_SHADER_STAGE_XXXX)
+typedef int plPassResourceAccess;     // -> enum _plPassResourceAccess     // Flag: pass resource access (PL_PASS_RESOURCE_ACCESS_XXXX)
 typedef int plBarrierScope;           // -> enum _plBarrierScope           // Flag: GPU resource barrier scope (PL_BARRIER_SCOPE_XXXX)
 typedef int plPipelineStageFlags;     // -> enum _plPipelineStageFlags     // Flag: GPU pipeline stage (PL_PIPELINE_STAGE_XXXX)
 typedef int plCullMode;               // -> enum _plCullMode               // Flag: face culling mode (PL_CULL_MODE_XXXX)
 typedef int plBufferBindingType;      // -> enum _plBufferBindingType      // Enum: buffer binding type for bind groups (PL_BUFFER_BINDING_TYPE_XXXX)
 typedef int plTextureBindingType;     // -> enum _plTextureBindingType     // Enum: image binding type for bind groups (PL_TEXTURE_BINDING_TYPE_XXXX)
 typedef int plBindGroupPoolFlags;     // -> enum _plBindGroupPoolFlags     // Flags: flags for creating bind group pools (PL_BIND_GROUP_POOL_FLAGS_XXXX)
-typedef int plMemoryFlags;            // -> enum _plMemoryFlags            // Enum: memory modes for allocating memory (PL_MEMORY_FLAGS_XXXX)
+typedef int plMemoryFlags;            // -> enum _plMemoryFlags            // Flags: memory modes for allocating memory (PL_MEMORY_FLAGS_XXXX)
 typedef int plStencilOp;              // -> enum _plStencilOp              // Enum: stencil operations (PL_STENCIL_OP_XXXX)
 typedef int plLoadOp;                 // -> enum _plLoadOp                 // Enum: render pass target load operations (PL_LOAD_OP_XXXX)
 typedef int plStoreOp;                // -> enum _plStoreOp                // Enum: render pass target store operations (PL_STORE_OP_XXXX)
@@ -265,13 +265,13 @@ typedef int plDeviceInitFlags;        // -> enum _plDeviceInitFlags        // Fl
 typedef int plVendorId;               // -> enum _plVendorId               // Enum: device vendors (PL_VENDOR_ID_XXXX)
 typedef int plDeviceType;             // -> enum _plDeviceType             // Enum: device type (PL_DEVICE_TYPE_XXXX)
 typedef int plDeviceCapability;       // -> enum _plDeviceCapability       // Flags: device capabilities (PL_DEVICE_CAPABILITY_XXXX)
-typedef int plCommandPoolResetFlags;  // -> enum _plCommandPoolResetFlags  // Flags: device capabilities (PL_DEVICE_CAPABILITY_XXXX)
+typedef int plCommandPoolResetFlags;  // -> enum _plCommandPoolResetFlags  // Flags: command pool reset flags (PL_COMMAND_POOL_RESET_FLAG_XXXX)
 typedef int plGraphicsBackend;        // -> enum _plGraphicsBackend        // Enum: graphics backend (PL_GRAPHICS_BACKEND_XXXX)
 typedef int plBlendMode;              // -> enum _plBlendMode              // Enum: blend state abstraction (PL_BLEND_MODE_XXXX)
 typedef int plBorderColor;            // -> enum _plBorderColor             // Enum: texture border color (PL_BORDER_COLOR_XXXX)
 
 // external
-typedef struct _plWindow plWindow; // pl_os.h
+typedef struct _plWindow plWindow; // pl_platform_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] pre-declared structs (for C++)
@@ -290,7 +290,7 @@ typedef struct _plDynamicDataBlock
 
 typedef struct _plDeviceMemoryAllocation
 {
-    plMemoryFlags             tMemoryFlags;  // memory mode used to allocate (i.e. PL_MEMORY_XXXX)
+    plMemoryFlags             tMemoryFlags;  // memory mode used to allocate (i.e. PL_MEMORY_FLAGS_XXXX)
     uint64_t                  ulMemoryType; // opaque but exposed so custom allocators can ensure memory types match
     uint64_t                  uHandle;      // opaque handle (e.g. VkDeviceMemory, index into metal heap)
     uint64_t                  ulOffset;     // offset into actual allocation (will be zero here, but allocators are free to use this)
@@ -299,7 +299,7 @@ typedef struct _plDeviceMemoryAllocation
     plDeviceMemoryAllocatorI* ptAllocator;  // if allocated from user allocator, this should be set so cleanup can delegate
     char                      acName[64];
 
-        // [INTERNAL]
+    // [INTERNAL]
     uint64_t _uFrameBoundaryValueForDeletion;
 } plDeviceMemoryAllocation;
 
@@ -400,11 +400,11 @@ typedef struct _plGraphicsI
     void             (*end_command_recording)  (plCommandBuffer*);
     void             (*submit_command_buffer)  (plCommandBuffer*, const plSubmitInfo*);
 
-    // render encoder
+    // render passes
     void (*begin_render_pass)(plCommandBuffer*, const plRenderInfo*, const plPassResources*);
     void (*end_render_pass) (plCommandBuffer*);
 
-    // render encoder: draw stream (preferred system)
+    // render pass: draw stream (preferred system)
     //   Notes:
     //     - call reset_draw_stream(...) with the maximum number of possible calls to
     //       pl_add_to_draw_stream before the next call to draw_stream so any memory
@@ -414,7 +414,7 @@ typedef struct _plGraphicsI
     void (*draw_stream)         (plCommandBuffer*, uint32_t areaCount, plDrawArea*); // decodes drawstream (does not reset draw stream)
     // INLINED -> void pl_add_to_draw_stream(plDrawStream*, plDrawStreamData);
 
-    // render encoder: direct (prefer draw stream system, this will be used for bindless mostly)
+    // render pass: direct (prefer draw stream system, this will be used for bindless mostly)
     void (*bind_graphics_bind_groups)(plCommandBuffer*, plShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
     void (*set_depth_bias)           (plCommandBuffer*, float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor);
     void (*set_viewport)             (plCommandBuffer*, const plRenderViewport*);
@@ -425,7 +425,7 @@ typedef struct _plGraphicsI
     void (*draw_indexed)             (plCommandBuffer*, uint32_t count, const plDrawIndex*);
     void (*bind_shader)              (plCommandBuffer*, plShaderHandle);
 
-    // compute encoder
+    // compute passes (also used for transfers: copies & mipmap generation)
     void (*begin_compute_pass)      (plCommandBuffer*, const plPassResources*); // do not store
     void (*end_compute_pass)        (plCommandBuffer*);
     void (*dispatch)                (plCommandBuffer*, uint32_t dispatchCount, const plDispatch*);
@@ -438,12 +438,20 @@ typedef struct _plGraphicsI
     void (*copy_buffer)             (plCommandBuffer*, plBufferHandle source, plBufferHandle destination, uint64_t sourceOffset, uint64_t destinationOffset, size_t);
 
     // barriers
+    //   - intra_pass_barrier: inside a pass, between dependent operations
+    //   - consumer_barrier  : outside of passes, makes earlier results visible to the next pass
+    //   - producer_barrier  : inside a pass, deferred until the pass ends (makes this pass's
+    //                         results visible to later work)
     void (*intra_pass_barrier)(plCommandBuffer*, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages, plBarrierScope, const plPassResources*);
     void (*consumer_barrier)  (plCommandBuffer*, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages, plBarrierScope);
     void (*producer_barrier)  (plCommandBuffer*, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages, plBarrierScope);
 
 
     //-----------------------------------------------------------------------------
+
+    // resource notes
+    //   - "queue_*_for_deletion": destroyed once the GPU is done with the current frame
+    //   - "destroy_*": destroyed immediately (make sure the GPU is no longer using it)
 
     // buffers
     plBufferHandle (*create_buffer)            (plDevice*, const plBufferDesc*, plBuffer**);
@@ -509,7 +517,7 @@ typedef struct _plGraphicsI
     //       blocks as needed)
     //     - do not store the plDynamicDataBlock returned from "allocate_dynamic_data_block"
     //       longer than a single frame (they are reset every frame)
-    plDynamicDataBlock (*allocate_dynamic_data_block)(plDevice*); // do not store longer than a single frame (this ar)
+    plDynamicDataBlock (*allocate_dynamic_data_block)(plDevice*); // do not store longer than a single frame
     void               (*reset_dynamic_data_blocks)(plDevice*);
     // INLINED -> plDynamicBinding pl_allocate_dynamic_data(const plGraphicsI*,  plDevice*, plDynamicDataBlock*, uint32_t size)
 
@@ -519,7 +527,7 @@ typedef struct _plGraphicsI
     plDeviceMemoryAllocation        (*allocate_memory)  (plDevice*, size_t, plMemoryFlags, uint32_t typeFilter, const char* debugName);
     void                            (*free_memory)      (plDevice*, plDeviceMemoryAllocation*);
     bool                            (*flush_memory)     (plDevice*, uint32_t rangeCount, const plDeviceMemoryRange*); // call after writing from host on non-coherent memory
-    bool                            (*invalidate_memory)(plDevice*, uint32_t rangeCount, const plDeviceMemoryRange*); // call after writing from device on non-coherent memory
+    bool                            (*invalidate_memory)(plDevice*, uint32_t rangeCount, const plDeviceMemoryRange*); // call before reading from host after device writes on non-coherent memory
     const plDeviceMemoryAllocation* (*get_allocations)(plDevice*, uint32_t* sizeOut);
 
     //------------------------------DEBUGGING--------------------------------------
@@ -784,7 +792,7 @@ typedef struct _plBindGroupPoolDesc
 typedef struct _plBindGroupDesc
 {
     plBindGroupLayoutHandle tLayout;
-    plBindGroupPool*        ptPool;     // pool to allocator from
+    plBindGroupPool*        ptPool;     // pool to allocate from
     const char*             pcDebugName; // default: "unnamed bind group"
 } plBindGroupDesc;
 
@@ -961,10 +969,10 @@ typedef struct _plCommandPoolDesc
 typedef struct _plSubmitInfo
 {
     uint32_t             uWaitSemaphoreCount;
-    plTimelineSemaphore* atWaitSempahores[PL_MAX_TIMELINE_SEMAPHORES];
+    plTimelineSemaphore* atWaitSemaphores[PL_MAX_TIMELINE_SEMAPHORES];
     uint64_t             auWaitSemaphoreValues[PL_MAX_TIMELINE_SEMAPHORES + 1];
     uint32_t             uSignalSemaphoreCount;
-    plTimelineSemaphore* atSignalSempahores[PL_MAX_TIMELINE_SEMAPHORES];
+    plTimelineSemaphore* atSignalSemaphores[PL_MAX_TIMELINE_SEMAPHORES];
     uint64_t             auSignalSemaphoreValues[PL_MAX_TIMELINE_SEMAPHORES + 1];
 } plSubmitInfo;
 
@@ -1035,6 +1043,7 @@ typedef struct _plDrawArea
 
 typedef struct _plDispatch
 {
+    // threads per group are only used by the metal backend (vulkan uses the shader's local size)
     uint32_t uThreadPerGroupX;
     uint32_t uThreadPerGroupY;
     uint32_t uThreadPerGroupZ;

@@ -1,5 +1,6 @@
 /*
    pl_bvh_ext.h
+     - bounding volume hierarchy for aabb queries
 */
 
 /*
@@ -89,6 +90,8 @@ typedef struct _plBVHI
     bool (*intersects_aabb_first)(plBVH*, plAABB, plBVHCallback, void* userData);
 
     // helpers
+    //   - iterates nodes & leaf indices; start with *nodeOut = NULL, returns false when done
+    //   - indexOut is UINT32_MAX for non-leaf nodes
     bool (*traverse)(plBVH*, plBVHNode** nodeOut, uint32_t* indexOut);
 } plBVHI;
 

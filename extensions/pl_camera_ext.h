@@ -1,5 +1,7 @@
 /*
    pl_camera_ext.h
+     - perspective & orthographic cameras (double precision position)
+     - optional camera ecs component (plCameraEcsI)
 */
 
 /*
@@ -123,7 +125,7 @@ typedef struct _plCameraI
     void (*rotate_euler)      (plCamera*, float pitch, float yaw, float roll);
 
     // derived data
-    void (*update)(plCamera*);
+    void (*update)(plCamera*); // recomputes cached matrices & vectors if dirty
 } plCameraI;
 
 typedef struct _plCameraEcsI
@@ -172,7 +174,7 @@ typedef struct _plCamera
     float                  fFarZ;
 
     // perspective
-    float fYFov;
+    float fYFov;        // radians
     float fAspectRatio; // width/height
 
     // orthographic

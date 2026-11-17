@@ -6,6 +6,7 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] global data
+// [SECTION] internal api
 // [SECTION] public api implementation
 // [SECTION] extension loading
 */

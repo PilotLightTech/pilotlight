@@ -1,5 +1,10 @@
-/* Shared binary file/stream implementation for Win32, X11, Cocoa and null.
-   Define _FILE_OFFSET_BITS=64 before system headers on 32-bit POSIX targets. */
+/*
+   pl_platform_internal.c
+     - shared binary file/stream & window icon helpers for win32, x11, cocoa, and null
+     - included by each pl_platform_*_ext file (not compiled directly)
+     - define _FILE_OFFSET_BITS=64 before system headers on 32-bit POSIX targets
+*/
+
 #include <stdio.h>
 #include <stdint.h>
 #include <errno.h>

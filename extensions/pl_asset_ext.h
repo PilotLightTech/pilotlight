@@ -1,5 +1,6 @@
 /*
    pl_asset_ext.h
+     - asset registry: typed, path addressed, serializable data (meshes, textures, etc.)
 */
 
 /*
@@ -95,7 +96,7 @@ typedef struct _plAssetI
 {
     // system
     void (*initialize)  (plAssetInit);
-    void (*finalize)    (void);
+    void (*finalize)    (void); // call after all asset types are registered
     void (*cleanup)     (void);
     void (*clear_assets)(void);
 
@@ -169,7 +170,7 @@ typedef struct _plAssetFileHeader // for binary assets
 {
     uint32_t uMagic;      // 'PLAS'
     uint32_t uVersion;    // type-specific file format version
-    uint32_t uAssetMagic;
+    uint32_t uAssetMagic; // type-specific magic (i.e. 'MESH')
 } plAssetFileHeader;
 
 typedef struct _plAssetChange

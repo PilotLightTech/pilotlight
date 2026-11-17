@@ -18,7 +18,6 @@ Index of this file:
 // [SECTION] extension registry implementation
 // [SECTION] io implementation
 // [SECTION] memory api implementation
-// [SECTION] partial window implementation
 // [SECTION] helper implementations
 // [SECTION] unity build
 */
@@ -354,7 +353,9 @@ pl__get_api(const char* pcName, plVersion tVersion)
         }
     }
 
-    // none found, create entry
+    // none found, create an empty entry; "set_api" will fill it in later. This
+    // lets callers retrieve APIs before they are registered & keeps the returned
+    // pointer stable across hot reloads
     ptCurrentEntry = (plApiEntry*)PL_ALLOC(sizeof(plApiEntry));
     memset(ptCurrentEntry, 0, sizeof(plApiEntry)); 
     ptCurrentEntry->pcName = pcName;
@@ -777,8 +778,8 @@ pl__get_key_data(plKey tKey)
         if     (tKey == PL_KEY_MOD_CTRL)  tKey = PL_KEY_RESERVED_MOD_CTRL;
         else if(tKey == PL_KEY_MOD_SHIFT) tKey = PL_KEY_RESERVED_MOD_SHIFT;
         else if(tKey == PL_KEY_MOD_ALT)   tKey = PL_KEY_RESERVED_MOD_ALT;
-        else if(tKey == PL_KEY_MOD_SUPER) tKey = PL_RESERVED_KEY_MOD_SUPER;
-        else if(tKey == PL_KEY_MOD_SHORTCUT) tKey = (gtIO.bConfigMacOSXBehaviors ? PL_RESERVED_KEY_MOD_SUPER : PL_KEY_RESERVED_MOD_CTRL);
+        else if(tKey == PL_KEY_MOD_SUPER) tKey = PL_KEY_RESERVED_MOD_SUPER;
+        else if(tKey == PL_KEY_MOD_SHORTCUT) tKey = (gtIO.bConfigMacOSXBehaviors ? PL_KEY_RESERVED_MOD_SUPER : PL_KEY_RESERVED_MOD_CTRL);
     }
     PL_ASSERT(tKey >= PL_KEY_NAMED_KEY_BEGIN && tKey < PL_KEY_NAMED_KEY_END && "Key not valid");
     return &gtIO._tKeyData[tKey - PL_KEY_NAMED_KEY_BEGIN];

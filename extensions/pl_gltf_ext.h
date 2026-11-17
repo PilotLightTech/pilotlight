@@ -1,5 +1,6 @@
 /*
    pl_gltf_ext.h
+     - gltf 2.0 importer (creates mesh, material, texture, animation, etc. assets)
 */
 
 /*
@@ -29,9 +30,9 @@ Index of this file:
         * plDataRegistryI (v1.x)
         * plEcsI (v3.x)
         * plImageI (v1.x)
-        * plMaterialI (v0.5.x)
+        * plMaterialI (v0.2.x)
         * plMemoryI (v1.x)
-        * plMeshI (v0.3.x)
+        * plMeshI (v0.2.x)
         * plRendererI (v0.3.x)
         * plSkeletonI (v0.1.x)
         * plStringInternI (v3.x)
@@ -67,7 +68,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plGltfI_version {0, 1, 1}
+#define plGltfI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -94,7 +95,8 @@ PL_API void pl_unload_gltf_ext(plApiRegistryI*, bool reload);
 typedef struct _plGltfI
 {
     // Supports .gltf/.glb, base64 data URI buffers/images and PNG/JPEG images
-    // in buffer views. Embedded image sources are saved under /assets/textures.
+    // in buffer views. Embedded image sources are extracted to /cache/imports
+    // and their texture assets are saved under /assets/textures.
     // Returns false on parse/read/decode/write failures; imports are not atomic.
     bool (*import)(const char* path, const plGltfImportOptions*);
 } plGltfI;

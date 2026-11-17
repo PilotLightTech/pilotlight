@@ -1,5 +1,6 @@
 /*
    pl_gizmo_ext.h
+     - translation, rotation, & scale gizmos for entity transforms
 */
 
 /*
@@ -55,7 +56,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plGizmoI_version {0, 3, 0}
+#define plGizmoI_version {0, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -86,7 +87,11 @@ typedef struct _plGizmoI
 {
     void         (*set_mode) (plGizmoMode);
     void         (*next_mode)(void);
-    bool         (*active)   (void);
+    bool         (*active)   (void); // true while dragging
+
+    // call once per frame for the selected entity (draws & handles interaction)
+    //   - viewOffset: top left of the view in screen pixels
+    //   - viewScale : view size as a fraction of the main viewport size
     void         (*gizmo)    (plComponentLibrary*, plEntity, plDrawList3D*, plCamera*, plVec2 viewOffset, plVec2 viewScale);
     void         (*set_space)(plGizmoSpace); // cancels an active drag
     plGizmoSpace (*get_space)(void);

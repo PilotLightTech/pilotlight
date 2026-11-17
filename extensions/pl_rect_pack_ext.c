@@ -1,13 +1,14 @@
 /*
-   pl_rect_packer_ext.c
+   pl_rect_pack_ext.c
 */
 
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] internal api implementation
+// [SECTION] internal structs
+// [SECTION] global data
+// [SECTION] internal api
 // [SECTION] extension loading
-// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -71,6 +72,7 @@ pl_rect_pack_pack(int iWidth, int iHeight, plPackRect* ptRects, uint32_t uRectCo
     }
     stbrp_init_target(&gptRectPackCtx->tStbContext, iWidth, iHeight,
         gptRectPackCtx->ptNodes, gptRectPackCtx->iNodeCount);
+    // plPackRect matches stbrp_rect layout so we can pass it directly
     stbrp_pack_rects(&gptRectPackCtx->tStbContext, (stbrp_rect*)ptRects, (int)uRectCount);
 }
 

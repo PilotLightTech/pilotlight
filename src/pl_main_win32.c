@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
                 gptIOCtx->bRunning = false;
                 break;
             }
-            // TranslateMessage will post auxilliary WM_CHAR messages from key msgs
+            // TranslateMessage will post auxiliary WM_CHAR messages from key msgs
             TranslateMessage(&tMsg);
             DispatchMessage(&tMsg);
         }

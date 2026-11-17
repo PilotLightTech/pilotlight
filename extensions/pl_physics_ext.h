@@ -1,5 +1,6 @@
 /*
    pl_physics_ext.h
+     - rigid body physics (spheres & boxes) & force fields
 */
 
 /*
@@ -9,8 +10,10 @@ Index of this file:
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] structs
+// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------
@@ -103,7 +106,7 @@ typedef struct _plPhysicsI
     void (*cleanup)(void);
     void (*reset)(void);
 
-    // setttings
+    // settings
     void (*set_settings)(plPhysicsEngineSettings);
     void (*get_settings)(plPhysicsEngineSettings* out);
 
@@ -112,11 +115,11 @@ typedef struct _plPhysicsI
 
     // forces/torques/impulses
     void (*apply_force)                (plComponentLibrary*, plEntity, plVec3);
-    void (*apply_force_at_point)       (plComponentLibrary*, plEntity, plVec3, plVec3 point);
-    void (*apply_force_at_body_point)  (plComponentLibrary*, plEntity, plVec3, plVec3 point);
+    void (*apply_force_at_point)       (plComponentLibrary*, plEntity, plVec3, plVec3 point); // point in world space
+    void (*apply_force_at_body_point)  (plComponentLibrary*, plEntity, plVec3, plVec3 point); // point in body (local) space
     void (*apply_impulse)              (plComponentLibrary*, plEntity, plVec3);
-    void (*apply_impulse_at_point)     (plComponentLibrary*, plEntity, plVec3, plVec3 point);
-    void (*apply_impulse_at_body_point)(plComponentLibrary*, plEntity, plVec3, plVec3 point);
+    void (*apply_impulse_at_point)     (plComponentLibrary*, plEntity, plVec3, plVec3 point); // point in world space
+    void (*apply_impulse_at_body_point)(plComponentLibrary*, plEntity, plVec3, plVec3 point); // point in body (local) space
     void (*apply_torque)               (plComponentLibrary*, plEntity, plVec3);
     void (*apply_impulse_torque)       (plComponentLibrary*, plEntity, plVec3);
 
@@ -158,7 +161,7 @@ typedef struct _plPhysicsEngineSettings
     uint32_t uMaxPositionIterations; // default: 256
     uint32_t uMaxVelocityIterations; // default: 256
     float    fSimulationMultiplier;  // default: 1.0f
-    float    fSimulationFrameRate;   // default: 60.0f;
+    float    fSimulationFrameRate;   // default: 60.0f
 } plPhysicsEngineSettings;
 
 typedef struct _plRigidBodyPhysicsComponent

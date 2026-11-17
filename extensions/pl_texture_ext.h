@@ -1,17 +1,17 @@
 /*
    pl_texture_ext.h
+     - texture asset type (source image + import settings)
 */
 
 /*
 Index of this file:
 // [SECTION] implementation notes
 // [SECTION] header mess
-// [SECTION] apis
 // [SECTION] includes
+// [SECTION] apis
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
 // [SECTION] public api struct
-// [SECTION] enums
 // [SECTION] structs
 */
 
@@ -26,7 +26,7 @@ Index of this file:
 
         * plAssetI (v1.x)
         * plDataRegistryI (v1.x)
-        * plGraphicsI (v2.x)
+        * plGraphicsI (v3.x)
         * plJsonI (v1.x)
         * plMemoryI (v1.x)
         * plStringInternI (v3.x)

@@ -1,12 +1,12 @@
 /*
-   pl_gpu_allocaters_ext.c
+   pl_gpu_allocators_ext.c
 */
 
 /*
 Index of this file:
 // [SECTION] includes
 // [SECTION] defines
-// [SECTION] internal api implementation
+// [SECTION] internal api
 // [SECTION] extension loading
 // [SECTION] unity build
 */
@@ -439,7 +439,7 @@ pl__coalesce_nodes(plDeviceAllocatorData* ptData, uint32_t uLevel, uint32_t uNod
         }
     }
     
-    if(bBothFree) // need to coalese
+    if(bBothFree) // need to coalesce
     {
 
         ptData->sbtNodes[uLeftNode].ulUsedSize = UINT64_MAX;

@@ -1,3 +1,8 @@
+/*
+   pl_unity_ext.inc
+     - shared api pointers & allocation macros for unity builds
+     - included by extensions when PL_UNITY_BUILD is defined
+*/
 
 //-----------------------------------------------------------------------------
 // [SECTION] header mess

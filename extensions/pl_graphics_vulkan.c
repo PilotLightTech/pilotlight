@@ -10,7 +10,6 @@ Index of this file:
 // [SECTION] opaque structs
 // [SECTION] internal api
 // [SECTION] public api implementation
-// [SECTION] drawing
 // [SECTION] internal api implementation
 */
 
@@ -126,7 +125,7 @@ typedef struct _plVulkanComputeShader
 typedef struct _plCommandBuffer
 {
     plGpuTimingCommand tTiming;
-    plDevice*          ptDevice; // for convience
+    plDevice*          ptDevice; // for convenience
     VkCommandBuffer    tCmdBuffer;
     plCommandPool*     ptPool; // parent pool
     plCommandBuffer*   ptNext; // for linked list
@@ -134,7 +133,7 @@ typedef struct _plCommandBuffer
 
 typedef struct _plCommandPool
 {
-    plDevice*        ptDevice; // for convience
+    plDevice*        ptDevice; // for convenience
     VkCommandPool    tCmdPool;
     VkCommandBuffer* sbtReadyCommandBuffers;   // completed command buffers
     VkCommandBuffer* sbtPendingCommandBuffers; // recently submitted command buffers
@@ -143,14 +142,14 @@ typedef struct _plCommandPool
 
 typedef struct _plBindGroupPool
 {
-    plDevice*           ptDevice; // for convience
+    plDevice*           ptDevice; // for convenience
     VkDescriptorPool    tDescriptorPool;
     plBindGroupPoolDesc tDesc;
 } plBindGroupPool;
 
 typedef struct _plTimelineSemaphore
 {
-    plDevice*            ptDevice; // for convience
+    plDevice*            ptDevice; // for convenience
     VkSemaphore          tSemaphore;
     plTimelineSemaphore* ptNext; // for linked list
 } plTimelineSemaphore;
@@ -289,7 +288,7 @@ typedef struct _plSurface
 
 typedef struct _plSwapchain
 {
-    plDevice*        ptDevice; // for convience
+    plDevice*        ptDevice; // for convenience
     plSwapchainInfo  tInfo;
     VkSemaphore      atImageAvailable[PL_MAX_FRAMES_IN_FLIGHT];
     uint32_t         uImageCount;
@@ -1601,18 +1600,6 @@ pl_graphics_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, 
 
     vkCmdPipelineBarrier(ptDevice->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
 
-    // if(tImageInfo.mipLevels != 1)
-    // {
-    //     plCommandBuffer tCommandBuffer = {
-    //         .ptDevice = ptDevice,
-    //         .tCmdBuffer = ptDevice->tCmdBuffer
-    //     };
-    //     plBlitEncoder tEncoder = {
-    //         .ptCommandBuffer = &tCommandBuffer
-    //     };
-    //     pl_graphics_generate_mipmaps(&tEncoder, tHandle);
-    // }
-
     VkSubmitInfo tSubmitInfo = {
         .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .commandBufferCount = 1,
@@ -1691,7 +1678,7 @@ pl_graphics_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc*
     // if(ptDescription->pcShaderEntryFunc == NULL)
     ptShader->tDesc.tShader.pcEntryFunc = "main";
 
-    // setup & count specilization constants
+    // setup & count specialization constants
     ptShader->tDesc._uConstantCount = 0;
     ptVulkanShader->szSpecializationSize = 0;
     uint32_t uConstantOffset = 0;
@@ -1898,7 +1885,7 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         .pVertexAttributeDescriptions    = atAttributeDescription
     };
 
-    // setup & count specilization constants
+    // setup & count specialization constants
     ptShader->tDesc._uVertexConstantCount = 0;
     ptShader->tDesc._uFragmentConstantCount = 0;
     ptVulkanShader->szVertexSpecializationSize = 0;
@@ -2052,7 +2039,6 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         }
     }
 
-    // const plRenderPassLayout* ptLayout = pl_graphics_get_render_pass_layout(ptDevice, ptDescription->tRenderPassLayout);
 
     uint32_t uColorCount = 0;
     for(uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
@@ -4160,7 +4146,7 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
     {
         for (uint32_t i = 0; i < ptSubmitInfo->uWaitSemaphoreCount; i++)
         {
-            atWaitSemaphores[i] = ptSubmitInfo->atWaitSempahores[i]->tSemaphore;
+            atWaitSemaphores[i] = ptSubmitInfo->atWaitSemaphores[i]->tSemaphore;
             atWaitStages[i] = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
         }
         for(uint32_t i = 0; i < ptSubmitInfo->uWaitSemaphoreCount; i++)
@@ -4177,7 +4163,7 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
 
         for (uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
         {
-            atSignalSemaphores[i] = ptSubmitInfo->atSignalSempahores[i]->tSemaphore;
+            atSignalSemaphores[i] = ptSubmitInfo->atSignalSemaphores[i]->tSemaphore;
             aulSignalValues[i] = ptSubmitInfo->auSignalSemaphoreValues[i];
         }
         
@@ -4620,7 +4606,6 @@ pl_graphics_end_compute_pass(plCommandBuffer* ptCmdBuffer)
 void
 pl_graphics_intra_pass_barrier(plCommandBuffer* ptCmdBuffer, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages, plBarrierScope tScope, const plPassResources* ptResources)
 {
-    // PL_ASSERT(gptGraphics->bGraphicsEncoderActive || gptGraphics->bComputeEncoderActive);
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     if(ptResources)
@@ -4847,6 +4832,7 @@ pl_graphics_producer_barrier(plCommandBuffer* ptCmdBuffer, plPipelineStageFlags 
         .tDstStages = tDstStages,
         .tScope = tScope
     };
+    // deferred until the current pass ends (see end_render_pass/end_compute_pass)
     pl_sb_push(ptCmdBuffer->ptDevice->sbtBarrierStack, tBarrier);
 }
 
@@ -4996,7 +4982,7 @@ pl_graphics_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitIn
     {
         for (uint32_t i = 0; i < ptSubmitInfo->uWaitSemaphoreCount; i++)
         {
-            atWaitSemaphores[i] = ptSubmitInfo->atWaitSempahores[i]->tSemaphore;
+            atWaitSemaphores[i] = ptSubmitInfo->atWaitSemaphores[i]->tSemaphore;
             atWaitStages[i] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
         }
 
@@ -5008,7 +4994,7 @@ pl_graphics_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitIn
 
         for (uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
         {
-            atSignalSemaphores[i] = ptSubmitInfo->atSignalSempahores[i]->tSemaphore;
+            atSignalSemaphores[i] = ptSubmitInfo->atSignalSemaphores[i]->tSemaphore;
             aulSignalValues[i] = ptSubmitInfo->auSignalSemaphoreValues[i];
         }
 
@@ -6442,8 +6428,6 @@ pl__garbage_collect(plDevice* ptDevice)
     pl_sb_reset(ptGarbage->sbtTextures);
     pl_sb_reset(ptGarbage->sbtShaders);
     pl_sb_reset(ptGarbage->sbtComputeShaders);
-    pl_sb_reset(ptGarbage->sbtRenderPasses);
-    pl_sb_reset(ptGarbage->sbtRenderPassLayouts);
     pl_sb_reset(ptGarbage->sbtMemory);
     pl_sb_reset(ptCurrentFrame->sbtRawFrameBuffers);
     pl_sb_reset(ptGarbage->sbtBuffers);

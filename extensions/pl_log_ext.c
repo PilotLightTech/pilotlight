@@ -9,7 +9,6 @@ Index of this file:
 // [SECTION] internal api
 // [SECTION] implementation
 // [SECTION] extension loading
-// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------

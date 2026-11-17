@@ -41,7 +41,7 @@ shutil.copy(file_directory + "/../src/pl_internal.h", target_directory + "/depen
 for file in glob.glob(file_directory + "/../extensions/pl_*_ext.h"):
     shutil.copy(file, target_directory + "/dependencies/pilotlight/include/")
 
-# implmentation files
+# implementation files
 shutil.copy(file_directory + "/../src/pl_main_macos.m", target_directory + "/dependencies/pilotlight/src/pl_main_macos.m")
 for file in glob.glob(file_directory + "/../src/*.c*"):
     shutil.copy(file, target_directory + "/dependencies/pilotlight/src/")

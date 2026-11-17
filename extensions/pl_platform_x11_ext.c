@@ -1,11 +1,14 @@
+/*
+   pl_platform_x11_ext.c
+     - linux (X11) platform backend
+*/
+
+// 64-bit file offsets on 32-bit POSIX targets (must come before any system header)
 #ifndef _WIN32
 #ifndef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 #endif
 #endif
-/*
-   pl_platform_x11_ext.c
-*/
 
 /*
 Index of this file:
@@ -2756,7 +2759,8 @@ pl_virtual_memory_decommit(void* pAddress, size_t szSize)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] unity build
+// [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
+// shared api registration (pl_load_platform_ext/pl_unload_platform_ext)
 #include "pl_platform_ext.c"

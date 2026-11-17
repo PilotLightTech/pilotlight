@@ -56,7 +56,7 @@ rand(inout uint state)
 {
     uint x = xorshift32(state);
     state = x;
-    return clamp(float(x)*uintBitsToFloat(0x2f800004u), 0, 1);	//clamped because rarely returns values otside of [0, 1]
+    return clamp(float(x)*uintBitsToFloat(0x2f800004u), 0, 1);	//clamped because rarely returns values outside of [0, 1]
 }
 
 #endif // #ifndef NOISE_INC

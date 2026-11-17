@@ -957,7 +957,7 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     pl_sb_reset(ptView->sbtBloomUpChain);
     ptView->uBloomChainLength = 0;
     
-    // for convience
+    // for convenience
     plDevice* ptDevice = gptData->ptDevice;
 
     if(tDimensions.x > ptTexture->tDesc.tDimensions.x || tDimensions.y > ptTexture->tDesc.tDimensions.y)
@@ -1351,7 +1351,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     if(ptScene->ptTerrain)
         pl_prepare_terrain(ptScene->ptTerrain);
 
-    // for convience
+    // for convenience
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
@@ -1714,10 +1714,10 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
     const plSubmitInfo tSkinningSubmitInfo = {
         .uWaitSemaphoreCount     = pl_min(2, PL_MAX_FRAMES_IN_FLIGHT),
-        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore(), gptStarter->get_last_timeline_semaphore()},
+        .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore(), gptStarter->get_last_timeline_semaphore()},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value(), gptStarter->get_last_timeline_value()},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     gptGfx->submit_command_buffer(ptSkinningCmdBuffer, &tSkinningSubmitInfo);
@@ -1756,10 +1756,10 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
     const plSubmitInfo tShadowSubmitInfo = {
         .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+        .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     gptGfx->submit_command_buffer(ptShadowCmdBuffer, &tShadowSubmitInfo);
@@ -1850,10 +1850,10 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
         const plSubmitInfo tSunTransmissionSubmitInfo = {
             .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+            .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
             .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
@@ -1888,7 +1888,7 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
         return;
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
-    // for convience
+    // for convenience
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
@@ -1976,10 +1976,10 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
 
     const plSubmitInfo tCSMSubmitInfo = {
         .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+        .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     gptGfx->submit_command_buffer(ptCSMCmdBuffer, &tCSMSubmitInfo);
@@ -2117,10 +2117,10 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
 
         const plSubmitInfo tSunTransmissionSubmitInfo = {
             .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+            .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
             .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
@@ -2190,10 +2190,10 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
 
         const plSubmitInfo tSunTransmissionSubmitInfo = {
             .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+            .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
             .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
@@ -2220,7 +2220,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     }
     const plCamera* ptCullCamera = ptView->bFrustumCulling ? &ptView->tCullCamera : NULL;
 
-    // for convience
+    // for convenience
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
@@ -2798,7 +2798,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
         const plSubmitInfo tScenePreSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptSceneCmdBuffer, &tScenePreSubmitInfo);
@@ -2872,10 +2872,10 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
     const plSubmitInfo tSceneSubmitInfo = {
         .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+        .atWaitSemaphores        = {gptStarter->get_current_timeline_semaphore()},
         .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .atSignalSemaphores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
     gptGfx->submit_command_buffer(ptSceneCmdBuffer, &tSceneSubmitInfo);

@@ -16,13 +16,7 @@ Index of this file:
 // [SECTION] globals
 // [SECTION] entry point
 // [SECTION] application host
-// [SECTION] Cocoa application delegate
-// [SECTION] Cocoa view
-// [SECTION] Cocoa view controller
-// [SECTION] input
 // [SECTION] library ext
-// [SECTION] window ext
-// [SECTION] clipboard
 // [SECTION] thread ext
 // [SECTION] unity build
 */

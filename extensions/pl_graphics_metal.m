@@ -7,12 +7,10 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] internal structs & types
-// [SECTION] global data
 // [SECTION] internal api
 // [SECTION] public api implementation
 // [SECTION] internal api implementation
-// [SECTION] extension loading
-// [SECTION] unity build
+// [SECTION] device memory allocators
 */
 
 //-----------------------------------------------------------------------------
@@ -1985,13 +1983,13 @@ pl_graphics_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubm
     {
         for(uint32_t i = 0; i < ptSubmitInfo->uWaitSemaphoreCount; i++)
         {
-            if(ptSubmitInfo->atWaitSempahores[i]->tEvent)
+            if(ptSubmitInfo->atWaitSemaphores[i]->tEvent)
             {
-                [ptDevice->tCmdQueue4 waitForEvent:ptSubmitInfo->atWaitSempahores[i]->tEvent value:ptSubmitInfo->auWaitSemaphoreValues[i]];
+                [ptDevice->tCmdQueue4 waitForEvent:ptSubmitInfo->atWaitSemaphores[i]->tEvent value:ptSubmitInfo->auWaitSemaphoreValues[i]];
             }
             else
             {
-                [ptDevice->tCmdQueue4 waitForEvent:ptSubmitInfo->atWaitSempahores[i]->tSharedEvent value:ptSubmitInfo->auWaitSemaphoreValues[i]];
+                [ptDevice->tCmdQueue4 waitForEvent:ptSubmitInfo->atWaitSemaphores[i]->tSharedEvent value:ptSubmitInfo->auWaitSemaphoreValues[i]];
             }
         }
     }
@@ -2009,13 +2007,13 @@ pl_graphics_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubm
     {
         for(uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
         {
-            if(ptSubmitInfo->atSignalSempahores[i]->tEvent)
+            if(ptSubmitInfo->atSignalSemaphores[i]->tEvent)
             {
-                [ptDevice->tCmdQueue4 signalEvent:ptSubmitInfo->atSignalSempahores[i]->tEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
+                [ptDevice->tCmdQueue4 signalEvent:ptSubmitInfo->atSignalSemaphores[i]->tEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
             }
             else
             {
-                [ptDevice->tCmdQueue4 signalEvent:ptSubmitInfo->atSignalSempahores[i]->tSharedEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
+                [ptDevice->tCmdQueue4 signalEvent:ptSubmitInfo->atSignalSemaphores[i]->tSharedEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
             }
         }
     }
@@ -2066,6 +2064,7 @@ pl_graphics_consumer_barrier(plCommandBuffer* ptCmdBuffer, plPipelineStageFlags 
         .tDstStages = tDstStages,
         .tScope = tScope
     };
+    // deferred until the current pass ends (see end_render_pass/end_compute_pass)
     pl_sb_push(ptCmdBuffer->ptDevice->sbtBarrierStack, tBarrier);
 }
 
@@ -2120,7 +2119,6 @@ pl_graphics_begin_render_pass(plCommandBuffer* ptCmdBuffer, const plRenderInfo* 
     }
 
     ptDevice->tRenderEncoder = [ptCmdBuffer->tCmdBuffer4 renderCommandEncoderWithDescriptor:ptDevice->ptRenderPassDescriptor];
-    // ptDevice->tRenderEncoder.label = [NSString stringWithUTF8String:ptRenderPass->tDesc.pcDebugName];
 
     for(uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
     {
@@ -2189,13 +2187,13 @@ pl_graphics_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitIn
     {
         for(uint32_t i = 0; i < ptSubmitInfo->uWaitSemaphoreCount; i++)
         {
-            if(ptSubmitInfo->atWaitSempahores[i]->tEvent)
+            if(ptSubmitInfo->atWaitSemaphores[i]->tEvent)
             {
-                [queue waitForEvent:ptSubmitInfo->atWaitSempahores[i]->tEvent value:ptSubmitInfo->auWaitSemaphoreValues[i]];
+                [queue waitForEvent:ptSubmitInfo->atWaitSemaphores[i]->tEvent value:ptSubmitInfo->auWaitSemaphoreValues[i]];
             }
             else
             {
-                [queue waitForEvent:ptSubmitInfo->atWaitSempahores[i]->tSharedEvent value:ptSubmitInfo->auWaitSemaphoreValues[i]];
+                [queue waitForEvent:ptSubmitInfo->atWaitSemaphores[i]->tSharedEvent value:ptSubmitInfo->auWaitSemaphoreValues[i]];
             }
         }
     }
@@ -2212,15 +2210,15 @@ pl_graphics_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitIn
         for(uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
         {
 
-            if(ptSubmitInfo->atSignalSempahores[i]->tEvent)
+            if(ptSubmitInfo->atSignalSemaphores[i]->tEvent)
             {
-                // [ptCmdBuffer->tCmdBuffer encodeSignalEvent:ptSubmitInfo->atSignalSempahores[i]->tEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
-                [queue signalEvent:ptSubmitInfo->atSignalSempahores[i]->tEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
+                // [ptCmdBuffer->tCmdBuffer encodeSignalEvent:ptSubmitInfo->atSignalSemaphores[i]->tEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
+                [queue signalEvent:ptSubmitInfo->atSignalSemaphores[i]->tEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
             }
             else
             {
-                // [ptCmdBuffer->tCmdBuffer encodeSignalEvent:ptSubmitInfo->atSignalSempahores[i]->tSharedEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
-                [queue signalEvent:ptSubmitInfo->atSignalSempahores[i]->tSharedEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
+                // [ptCmdBuffer->tCmdBuffer encodeSignalEvent:ptSubmitInfo->atSignalSemaphores[i]->tSharedEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
+                [queue signalEvent:ptSubmitInfo->atSignalSemaphores[i]->tSharedEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
             }
         }
     }
@@ -3374,8 +3372,6 @@ pl__garbage_collect(plDevice* ptDevice)
     // pl_sb_reset(ptGarbage->sbtTextures);
     pl_sb_reset(ptGarbage->sbtShaders);
     pl_sb_reset(ptGarbage->sbtComputeShaders);
-    pl_sb_reset(ptGarbage->sbtRenderPasses);
-    pl_sb_reset(ptGarbage->sbtRenderPassLayouts);
     // pl_sb_reset(ptGarbage->sbtMemory);
     // pl_sb_reset(ptGarbage->sbtBuffers);
     pl_sb_reset(ptGarbage->sbtBindGroups);

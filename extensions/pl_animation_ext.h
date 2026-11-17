@@ -1,5 +1,6 @@
 /*
    pl_animation_ext.h
+     - animation asset type & animation/humanoid ecs components
 */
 
 /*
@@ -168,7 +169,7 @@ enum _plHumanoidBone
     PL_HUMANOID_BONE_LEFT_TOES,
     PL_HUMANOID_BONE_RIGHT_UPPER_LEG, // required
     PL_HUMANOID_BONE_RIGHT_LOWER_LEG, // required
-    PL_HUMANOID_BONE_RIGHT_FOOT,	  // required
+    PL_HUMANOID_BONE_RIGHT_FOOT,      // required
     PL_HUMANOID_BONE_RIGHT_TOES,
 
     // arm
@@ -224,8 +225,8 @@ typedef struct _plAnimationChannel
 {
     plAnimationPath tPath;
     plAnimationMode tMode;
-    uint32_t        uDataIndex;
-    uint32_t        uTargetIndex;
+    uint32_t        uDataIndex;   // index into plAnimation::atData
+    uint32_t        uTargetIndex; // index into plAnimationComponent::atTargets
 } plAnimationChannel;
 
 typedef struct _plHumanoidComponent

@@ -1,3 +1,9 @@
+/*
+   pl_platform_null_ext.c
+     - headless platform backend (no window system)
+*/
+
+// 64-bit file offsets on 32-bit POSIX targets (must come before any system header)
 #ifndef _WIN32
 #ifndef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
@@ -2060,7 +2066,8 @@ pl_platform_cleanup(void* pPlatformData)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] unity build
+// [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
+// shared api registration (pl_load_platform_ext/pl_unload_platform_ext)
 #include "pl_platform_ext.c"

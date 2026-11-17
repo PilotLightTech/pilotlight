@@ -6,6 +6,7 @@
 /*
 Index of this file:
 // [SECTION] unity build #1
+// [SECTION] public api
 // [SECTION] extension loading
 // [SECTION] unity build #2
 */

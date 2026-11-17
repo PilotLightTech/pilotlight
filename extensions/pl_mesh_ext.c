@@ -5,12 +5,11 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] global data
 // [SECTION] structs
 // [SECTION] internal api
-// [SECTION] public api implementations
-// [SECTION] internal api implementations
+// [SECTION] public api implementation
 // [SECTION] extension loading
-// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -451,6 +450,10 @@ pl__mesh_cleanup(void* pMesh)
     ptMesh->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
     ptMesh->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api implementation
+//-----------------------------------------------------------------------------
 
 bool
 pl_mesh_generate_uvs(plMesh* ptMesh)

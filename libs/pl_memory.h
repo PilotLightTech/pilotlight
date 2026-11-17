@@ -31,7 +31,7 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
 // [SECTION] structs
-// [SECTION] c/c++ file start
+// [SECTION] C/C++ file start
 // [SECTION] revision history
 */
 
@@ -1027,3 +1027,6 @@ pl_general_allocator_aligned_free(plGeneralAllocator* ptAllocator, void* pData)
 //-----------------------------------------------------------------------------
 
 // 1.1.0  (2025-04-16) add simple linked list general allocator
+// 1.1.1  (2025-07-31) improve temp allocator performance
+// 1.1.2  (2025-11-07) temp allocator defaults to 8 byte alignment
+// 1.1.3  (2026-02-04) fix temp allocator cleanup issues

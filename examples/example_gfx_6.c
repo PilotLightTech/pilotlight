@@ -1,4 +1,5 @@
 /*
+   example_gfx_6.c
      - demonstrates loading APIs
      - demonstrates loading extensions
      - demonstrates hot reloading
@@ -91,12 +92,8 @@ const plVfsI*      gptVfs     = NULL;
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    // NOTE: on first load, "pAppData" will be NULL but on reloads
+    // NOTE: on first load, "ptAppData" will be NULL but on reloads
     //       it will be the value returned from this function
-
-    // retrieve the data registry API, this is the API used for sharing data
-    // between extensions & the runtime
-    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
@@ -135,7 +132,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
 
-    // load required apis (these are provided though extensions)
+    // load required apis (these are provided through extensions)
     gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
@@ -146,6 +143,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
 
     // create cache directories
+    //   - the shader & resource extensions write to VFS paths "/cache/shaders" &
+    //     "/cache/textures" so those must exist & be mounted (see below)
     gptFile->create_directory("../cache");
     gptFile->create_directory("../cache/shaders");
     gptFile->create_directory("../cache/imports");

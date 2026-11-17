@@ -13,6 +13,7 @@ Index of this file:
 // [SECTION] public api structs
 // [SECTION] enums
 // [SECTION] IO struct
+// [SECTION] structs (not for public use, subject to change)
 // [SECTION] defines
 */
 
@@ -63,10 +64,10 @@ typedef struct _plVersion // API version struct
 typedef struct _plAllocationEntry plAllocationEntry; // memory tracking allocation struct
 typedef union  _plDataID          plDataID;          // WIP
 typedef struct _plDataObject      plDataObject;      // opaque type
-typedef struct _plIO              plIO;              // configuration & IO between app & pilotlight ui
+typedef struct _plIO              plIO;              // configuration & IO between app & pilot light runtime
 typedef struct _plKeyData         plKeyData;         // individual key status (down, down duration, etc.)
 typedef struct _plInputEvent      plInputEvent;      // holds data for input events (opaque structure)
-typedef struct _plLibraryDesc     plLibraryDesc;     // description for librarys
+typedef struct _plLibraryDesc     plLibraryDesc;     // description for libraries
 typedef struct _plSharedLibrary   plSharedLibrary;   // opaque type
 
 // enums
@@ -76,7 +77,7 @@ typedef int plMouseCursor;         // -> enum plMouseCursor_         // Enum: Mo
 typedef int plInputEventType;      // -> enum plInputEventType_      // Enum: An input event type (PL_INPUT_EVENT_TYPE_XXX)
 typedef int plInputEventSource;    // -> enum plInputEventSource_    // Enum: An input event source (PL_INPUT_EVENT_SOURCE_XXX)
 typedef int plLibraryResult;       // -> enum _plLibraryResult       // Enum: Result returned from library API (PL_LIBRARY_RESULT_XXXX)
-typedef int plLibraryFlags;        // -> enum _plLibraryFlags        // Enum: Result returned from library API (PL_LIBRARY_FLAGS_XXXX)
+typedef int plLibraryFlags;        // -> enum _plLibraryFlags        // Flags: Library loading flags (PL_LIBRARY_FLAGS_XXXX)
 typedef int plKeyChord;
 
 // character types
@@ -104,6 +105,12 @@ typedef uint16_t plUiWChar;
 typedef struct _plApiRegistryI
 {
 
+    // notes
+    //   - "get_api" never returns NULL; if no compatible API is registered yet, an
+    //     empty entry is created & filled in later by "set_api" (so retrieved pointers
+    //     remain valid across hot reloads)
+    //   - stable APIs (major > 0) match any registered version with the same major
+    //     version & an equal or greater minor version
     void        (*set_api)   (const char* name, plVersion, const void* api, size_t interfaceSize);
     const void* (*get_api)   (const char* name, plVersion);
     void        (*remove_api)(const void* api);
@@ -113,14 +120,17 @@ typedef struct _plApiRegistryI
 typedef struct _plExtensionRegistryI
 {
 
+    // loadFunc/unloadFunc: pass NULL to use "pl_load_ext"/"pl_unload_ext"
     bool (*load)    (const char* name, const char* loadFunc, const char* unloadFunc, bool reloadable);
     bool (*unload)  (const char* name); 
-    void (*add_path)(const char* path); 
+    void (*add_path)(const char* path); // additional search path for extension libraries
     
 } plExtensionRegistryI;
 
 typedef struct _plMemoryI
 {
+    // standard realloc behavior (NULL to allocate, size 0 to free); prefer the
+    // tracked version (usually through PL_ALLOC/PL_FREE macros) for leak tracking
     void* (*realloc)        (void*, size_t);
     void* (*tracked_realloc)(void*, size_t, const char* file, int line);
 
@@ -177,7 +187,7 @@ typedef struct _plIOI
 typedef struct _plDataRegistryI
 {
 
-    // for convience, only use for infrequent operations (i.e. global extension data)
+    // for convenience, only use for infrequent operations (i.e. global extension data)
     void  (*set_data)(const char* name, void* data);
     void* (*get_data)(const char* name);
 
@@ -301,7 +311,7 @@ enum plKey_
     PL_KEY_KEYPAD_ENTER,
     PL_KEY_KEYPAD_EQUAL,
     
-    PL_KEY_RESERVED_MOD_CTRL, PL_KEY_RESERVED_MOD_SHIFT, PL_KEY_RESERVED_MOD_ALT, PL_RESERVED_KEY_MOD_SUPER,
+    PL_KEY_RESERVED_MOD_CTRL, PL_KEY_RESERVED_MOD_SHIFT, PL_KEY_RESERVED_MOD_ALT, PL_KEY_RESERVED_MOD_SUPER,
     PL_KEY_NAMED_KEY_END,
     PL_KEY_COUNT = PL_KEY_NAMED_KEY_END - PL_KEY_NAMED_KEY_BEGIN, // no valid plKey_ is ever greater than this value
 
@@ -366,7 +376,7 @@ typedef struct _plIO
     plVec2 tMainFramebufferScale;
 
     // miscellaneous options
-    bool bConfigMacOSXBehaviors;
+    bool bConfigMacOSXBehaviors; // use macOS style shortcuts (cmd instead of ctrl) & text editing
 
     //------------------------------------------------------------------
     // platform functions
@@ -407,7 +417,7 @@ typedef struct _plIO
 
     bool     bHotReloadActive;
     double   dTime;
-    float    fFrameRate; // rough estimate(rolling average of fDeltaTime over 120 frames)
+    float    fFrameRate; // rough estimate (rolling average of fDeltaTime over 120 frames)
     bool     bViewportSizeChanged;
     bool     bViewportMinimized;
     uint64_t ulFrameCount;

@@ -5,38 +5,81 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
-- v0.13.0 (2026-09-xx)(core)                   -added PL_FOURCC helper to pl.inc
+- v0.13.0 (2026-11-xx)(core)                   -added PL_FOURCC helper to pl.inc
+                                               -renamed "PL_RESERVED_KEY_MOD_SUPER" to "PL_KEY_RESERVED_MOD_SUPER"
                       (timer      v1.1.0)      -added "get_raw_time(...)"
                       (virt. mem. v2.0.0)      -removed optional starting address for commit/reserve
                                                -renamed "uncommit" to "decommit"
                                                -improved backends to be consistent in behavior
+                      (file       v2.1.0)      -added binary file streams, temp files, & atomic "replace_file(...)"
+                                               -added "reset_directory_info(...)"
+                      (window     v2.2.0)      -added resize/close window callbacks
+                                               -added "set_icon(...)" & "set_title_bar(...)" (custom title bars)
+                                               -fixed "PL_FULLSCREEN_MODE_COUNT" enum name
                       (ecs        v3.0.0)      -removed default library
                                                -added new component registration requirements (serialization)
                                                -added plEntityId (persistent identification)
                                                -moved hierarchy & transform to "pl_transform_ext"
                                                -removed layer component for now (was unused)
                                                -changed tag component "acName" to interned "pcName"
+                                               -added "copy_component(...)" & "clone_entity(...)"
+                      (log        v2.1.0)      -added file logging ("set_file", "flush_file", "close_file", etc.)
+                                               -channel names are now copied
+                                               -fixed disabled "PL_LOG"/"PL_LOG_API" macro arguments
+                                               -declared direct functions used by non "_API" macros (i.e. "pl_log_trace")
+                      (profile    v2.1.0)      -sample names are now copied
+                      (stats      v1.2.0)      -counter names are now copied
+                      (ui         v2.0.0)      -replaced begin/end collapsing header with "collapsing_header(...)"
+                                               -added tree node flags & "stash_layout"/"apply_layout"
+                                               -each window now uses its own drawlist
+                                               -added docking, menu bars, & settings persistence (pl_ui.ini)
+                                               -added multiline text input & native UTF-8 text editing
+                      (draw       v4.0.0)      -text functions now take format strings (& "_va" variants)
+                                               -added advanced primitive api
+                                               -added prefiltered (anti-aliased) lines & path api
+                                               -renamed "PL_DRAW_RECT_FLAG_ROUND_CORNERS_All" to "PL_DRAW_RECT_FLAG_ROUND_CORNERS_ALL"
+                      (graphics   v3.0.0)      -renamed plSubmitInfo "atWaitSempahores"/"atSignalSempahores" to "atWaitSemaphores"/"atSignalSemaphores"
+                                               -added "get_format_as_string(...)" helper
+                                               -added optional gpu timing ("set_gpu_timing_enabled", "get_gpu_timings")
+                                               -removed unused plRenderPassHandle & plRenderPassLayoutHandle
+                                               -fix wireframe in Metal backend
+                      (job        v2.4.0)      -added "get_thread_count(...)"
+                      (vfs        v3.0.0)      -stream positioning functions now return bool
+                                               -added "unmount(...)"
+                      (pak        v2.0.0)      -added 64 bit file support
+                                               -"add_from_memory" & "end_packing" now return bool
+                                               -removed obsolete "get_file"
+                      (compress   v1.1.1)      -fixed bounds checking issues
+                      (gpu alloc. v2.0.0)      -changed plDeviceAllocationRange "acName" to "pcName"
                       (json       v1.0.0)      -new json extension (similar to library)
                       (transform  v1.0.0)      -new transform extension
-                      (material   v0.3.0)      -new material extension
+                      (material   v0.2.0)      -reworked as an asset type (ecs component removed)
+                                               -added foliage & water material models
+                                               -added "sanitize(...)" helper
+                      (mesh       v0.2.0)      -reworked as an asset type (ecs component removed)
+                                               -added mesh splitting & generation helpers
                       (texture    v0.1.0)      -new texture extension
                       (asset      v1.0.0)      -new asset extension
                       (skeleton   v0.1.0)      -new skeleton extension
-                      (scene      v0.1.0)      -new scene extension
-                      (gltf       v0.1.0)      -new gltf importer extension
+                      (gltf       v0.1.0)      -new gltf importer extension (.gltf/.glb, embedded data)
                       (stl        v0.1.0)      -new stl importer extension
                       (ik         v0.3.0)      -new ik extension
                                                -hierarchy order no longer matters!
-                      (model loader)           -removed
+                      (dialog     v0.1.0)      -new dialog extension (ui based file dialogs)
+                      (shader lib v0.3.0)      -replaces shader variant extension
+                                               -variants now use & cache by "ptAttachmentInfo"
+                      (gizmo      v0.2.0)      -added local/world space & snapping
+                      (free list  v0.2.0)      -added "grow(...)"
+                      (stage      v0.3.0)      -added "grow_buffer(...)"
+                      (model loader)           -removed (see gltf & stl importer extensions)
                       (str. intern v3.0.0)     -removed string repo arg & added extended versions
                       (image       v1.2.1)     -fixed "write" to use vfs
-                      (resource    v1.6.0)     -made "pcCacheDirectory" obsolete & now REQUIRES VFS has "/cache/textures" mounted
-                      (shader      v2.1.0)     -made "pcCacheOutputDirectory" obsolete & now REQUIRES VFS has "/cache/shaders" mounted
-                      (graphics    v2.2.0)     -added "get_format_as_string(...)" helper
-                                               -fix wireframe in Metal backend
-
------------------------------------------------------------------------------
-
+                      (resource    v2.0.0)     -removed "pcCacheDirectory" & now REQUIRES VFS has "/cache/textures" mounted
+                      (shader      v3.0.0)     -removed "pcCacheOutputDirectory" & now REQUIRES VFS has "/cache/shaders" mounted
+                      (placeholders)           -audio, path, & voxel APIs are now v0.0.0
+                      (renderer)               -added clustered forward/deferred, SSAO, SSGI, contact shadows, FXAA
+                                               -added volumetric clouds, water, night sky, & deferred decals
+                      (libs)                   -pl_ds.h v1.1.0, pl_log.h v1.1.0, pl_math.h v1.3.1, pl_profile.h v1.1.0
 - v0.12.0 (2026-08-17)(renderer)          -add realistic sky/atmosphere rendering
                       (io        v1.2.0)  -added trickled IO support for low framerates
                       (shader    v2.0.1)  -moved shader extension to separate binary (pl_shader_ext.dll/.so/.dylib)
@@ -45,7 +88,7 @@ away, please see git history for details.
                       (graphics  v2.1.3)  -fix issue in vulkan backend where dynamic bindings didn't work without other
                                            bind groups being set
                                           -fixed issue where metal backend didn't set viewport/scissor on begin_render_pass
-                                           which caused inconsitent behavior between backends
+                                           which caused inconsistent behavior between backends
                                           -added initial cpu graphics backend
                                           -graphics extension now in separate binary (pl_graphics_ext.dll/.so/.dylib)
                       (windows   v2.1.0)  -added swapchain-like blit operation
@@ -179,7 +222,7 @@ away, please see git history for details.
                       (renderer) add index of refraction support
                       (renderer) add dispersion support
                       (renderer) add texture UV transforms
-                      (renderer) add normal & emissive strength paramaters
+                      (renderer) add normal & emissive strength parameters
                       (renderer) fix alpha mode support
                       (renderer) fix IBL filtering
                       (renderer) fix environment probe update schedule
@@ -195,7 +238,7 @@ away, please see git history for details.
                       (script)   add new script extension
                       (io)       fix IO initialize issues (v1.1.1)
                       (graphics) add debug groups and markers to graphics extension (v1.4.0)
-                      (graphics) add command buffer debug namming
+                      (graphics) add command buffer debug naming
                       (graphics) split vertex & fragment shader constants
                       (graphics) fix bind group out of order updating
                       (renderer) add several tonemapping options

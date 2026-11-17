@@ -1,16 +1,20 @@
 /*
-    pl_script_ext.h
-      - this is the interface script components must implement
+   pl_script_ext.h
+     - script ecs component & the interface script modules must implement
 */
 
 /*
 Index of this file:
 // [SECTION] implementation notes
 // [SECTION] header mess
+// [SECTION] includes
 // [SECTION] apis
 // [SECTION] forward declarations
 // [SECTION] public api
 // [SECTION] public api struct
+// [SECTION] structs
+// [SECTION] components
+// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------

@@ -127,7 +127,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
 
-    // load required apis (these are provided though extensions)
+    // load required apis (these are provided through extensions)
     gptDraw    = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
@@ -135,6 +135,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
 
     // create cache directories
+    //   - the shader & resource extensions write to VFS paths "/cache/shaders" &
+    //     "/cache/textures" so those must exist & be mounted (see below)
     gptFile->create_directory("../cache");
     gptFile->create_directory("../cache/shaders");
     gptFile->create_directory("../cache/imports");
@@ -224,15 +226,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~font atlas texture~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // draw extension handles creating the font atlas texture and
-    // uploading to the GPU but it requires a command buffer (in an non recording state).
+    // uploading to the GPU but it requires a command buffer (in a non-recording state).
     // Later examples will go into command buffers without using the starter ext
 
     plCommandBuffer* ptCmdBuffer = gptStarter->get_raw_command_buffer(); // not recording
 
-    // actually record building atlas
+    // actually record building atlas (records, submits, & waits on the upload)
     gptDraw->build_font_atlas(ptCmdBuffer, gptDraw->get_current_font_atlas());
 
-    // return back to the pool (this actually submits the work and waits)
+    // return command buffer back to the pool
     gptStarter->return_raw_command_buffer(ptCmdBuffer);
 
     // return app memory
@@ -408,8 +410,8 @@ pl_app_update(plAppData* ptAppData)
 
     // the starter extension will call begin/end main_pass if you don't but in this
     // case we are managing the draw extension so we must submit the drawlists
-    // ourself. The starter extension still handles alot of the process of dealing
-    // with command buffers, syncronization, submission, etc. but that is outside
+    // ourself. The starter extension still handles a lot of the process of dealing
+    // with command buffers, synchronization, submission, etc. but that is outside
     // the scope of the draw extension.
 
     // start main pass & return the command buffer being used

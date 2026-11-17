@@ -1,5 +1,6 @@
 /*
    pl_resource_ext.inl
+     - resource handle type (include without pulling in the full extension header)
 */
 
 /*

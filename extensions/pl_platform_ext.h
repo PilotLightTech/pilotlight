@@ -1,5 +1,7 @@
 /*
    pl_platform_ext.h
+     - platform abstraction APIs (timer, window, file, atomics, network, threads, & virtual memory)
+     - backends: win32, x11, macos (cocoa), & null
 */
 
 /*
@@ -76,7 +78,7 @@ extern "C" {
 // basic types (windows)
 typedef struct _plWindow               plWindow;               // mostly opaque type for windows
 typedef struct _plWindowDesc           plWindowDesc;           // description for window creation
-typedef struct _plWindowEvent          plWindowEvent;          // future window event type
+typedef struct _plWindowEvent          plWindowEvent;          // window event (see "set_callback")
 typedef struct _plFullScreenDesc       plFullScreenDesc;       // full screen options
 typedef struct _plWindowCapabilities   plWindowCapabilities;   // window capabilities for various settings
 typedef union _plWindowAttributeValue  plWindowAttributeValue; // catch all for windows attributes (basically a variant)
@@ -113,7 +115,7 @@ typedef void* (*plThreadProcedure)(void*); // thread procedure signature
 // enums (windows)
 typedef int plWindowEventType;        // -> enum _plWindowEventType        // Enum: A window event type (PL_WINDOW_EVENT_TYPE_XXX)
 typedef int plWindowAttribute;        // -> enum _plWindowAttribute        // Enum: window attribute (PL_WINDOW_ATTRIBUTE_XXX)
-typedef int plCursorMode;             // -> enum _plCursorMode             // Enum: window cursor mode (PL_CURSOR_MODE__XXX)
+typedef int plCursorMode;             // -> enum _plCursorMode             // Enum: window cursor mode (PL_CURSOR_MODE_XXX)
 typedef int plFullScreenMode;         // -> enum _plFullScreenMode         // Enum: window full screen mode (PL_FULLSCREEN_MODE_XXX)
 typedef int plWindowCapabilityFlags;  // -> enum _plWindowCapabilityFlags  // Flag: window capability flags (PL_WINDOW_CAPABILITY_FLAGS_XXX)
 typedef int plWindowResult;           // -> enum _plWindowResult           // Enum: Result returned from window API (PL_WINDOW_RESULT_XXXX)
@@ -156,8 +158,8 @@ PL_API void pl_unload_platform_ext(plApiRegistryI*, bool reload);
 
 typedef struct _plTimerI
 {
-    double (*get_time)(void);
-    double (*get_raw_time)(void);
+    double (*get_time)(void);     // seconds since the extension was loaded
+    double (*get_raw_time)(void); // seconds from the OS monotonic clock (arbitrary origin)
 } plTimerI;
 
 typedef struct _plWindowI
@@ -279,14 +281,14 @@ typedef struct _plNetworkI
     
     // sockets: udp usually
     plNetworkResult (*send_socket_data_to) (plSocket*, plNetworkAddress*, const void* data, size_t, size_t* sentPtrSizeOut);
-    plNetworkResult (*get_socket_data_from)(plSocket*, void* dataOut, size_t, size_t* recievedPtrSize, plSocketReceiverInfo*);
+    plNetworkResult (*get_socket_data_from)(plSocket*, void* dataOut, size_t, size_t* receivedSizeOut, plSocketReceiverInfo*);
 
     // sockets: tcp usually
     plNetworkResult (*select_sockets)  (plSocket** sockets, bool* selectedSockets, uint32_t socketCount, uint32_t timeOutMilliSec);
     plNetworkResult (*connect_socket)  (plSocket*, plNetworkAddress*);
     plNetworkResult (*listen_socket)   (plSocket*);
     plNetworkResult (*accept_socket)   (plSocket*, plSocket** socketPtrOut);
-    plNetworkResult (*get_socket_data) (plSocket*, void* dataOut, size_t, size_t* recievedPtrSize);
+    plNetworkResult (*get_socket_data) (plSocket*, void* dataOut, size_t, size_t* receivedSizeOut);
     plNetworkResult (*send_socket_data)(plSocket*, void* data, size_t, size_t* sentPtrSizeOut);
 
 } plNetworkI;
@@ -326,9 +328,9 @@ typedef struct _plThreadsI
     // semaphores
     plThreadResult (*create_semaphore)     (uint32_t value, plSemaphore** semaphorePtrOut);
     void           (*destroy_semaphore)    (plSemaphore**);
-    void           (*wait_on_semaphore)    (plSemaphore*); // waits until semaphore value is 0
-    bool           (*try_wait_on_semaphore)(plSemaphore*);
-    void           (*release_semaphore)    (plSemaphore*); // decrements semaphore value
+    void           (*wait_on_semaphore)    (plSemaphore*); // blocks until value > 0, then decrements
+    bool           (*try_wait_on_semaphore)(plSemaphore*); // non-blocking version; returns true if decremented
+    void           (*release_semaphore)    (plSemaphore*); // increments semaphore value
 
     // barriers
     plThreadResult (*create_barrier) (uint32_t threadCount, plBarrier** barrierPtrOut);
@@ -359,7 +361,7 @@ typedef struct _plVirtualMemoryI
     void*  (*alloc)        (size_t);                // reserves & commits a block of memory. szSize must be a multiple of memory page size.
     void*  (*reserve)      (size_t);                // reserves a block of memory. szSize must be a multiple of memory page size.
     void*  (*commit)       (void* address, size_t); // commits a block of reserved memory. szSize must be a multiple of memory page size.
-    void   (*decommit)     (void* address, size_t); // uncommits a block of committed memory.
+    void   (*decommit)     (void* address, size_t); // decommits a block of committed memory.
     void   (*free)         (void* address, size_t); // frees a block of previously reserved/committed memory. Must be the starting address returned from "reserve()" or "alloc()"
     
 } plVirtualMemoryI;
@@ -441,7 +443,7 @@ enum _plCursorMode
     PL_FULLSCREEN_MODE_EXCLUSIVE,
     PL_FULLSCREEN_MODE_BORDERLESS,
 
-    L_FULLSCREEN_MODE_COUNT
+    PL_FULLSCREEN_MODE_COUNT
  };
 
  enum _plWindowCapabilityFlags

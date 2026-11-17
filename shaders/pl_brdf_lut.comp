@@ -48,10 +48,10 @@ main()
     // The macro surface normal just points up.
     const vec3 tN = vec3(0.0, 0.0, 1.0);
 
-    // To make the LUT independant from the material's F0, which is part of the Fresnel term
+    // To make the LUT independent from the material's F0, which is part of the Fresnel term
     // when substituted by Schlick's approximation, we factor it out of the integral,
     // yielding to the form: F0 * I1 + I2
-    // I1 and I2 are slighlty different in the Fresnel term, but both only depend on
+    // I1 and I2 are slightly different in the Fresnel term, but both only depend on
     // NoL and roughness, so they are both numerically integrated and written into two channels.
     float fA = 0.0;
     float fB = 0.0;

@@ -12,7 +12,6 @@ Index of this file:
 // [SECTION] documentation
 // [SECTION] header mess
 // [SECTION] includes
-// [SECTION] forward declarations
 // [SECTION] public api (stretchy buffer)
 // [SECTION] public api (hashmap)
 // [SECTION] public api (static hashmaps)

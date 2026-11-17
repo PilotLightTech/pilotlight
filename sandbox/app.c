@@ -777,7 +777,7 @@ pl_app_update(plAppData* ptAppData)
         
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     
-    // for convience
+    // for convenience
     plIO* ptIO = gptIO->get_io();
 
     gptRenderer->begin_frame();

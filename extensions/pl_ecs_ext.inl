@@ -1,5 +1,6 @@
 /*
    pl_ecs_ext.inl
+     - entity & type key types (include without pulling in the full extension header)
 */
 
 /*
@@ -31,7 +32,7 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 typedef uint32_t plEcsTypeKey;
-typedef uint64_t plEntityId;
+typedef uint64_t plEntityId; // persistent (serialized) entity identifier
 
 typedef union _plEntity
 {

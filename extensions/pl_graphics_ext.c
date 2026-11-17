@@ -1,3 +1,8 @@
+/*
+   pl_graphics_ext.c
+     - backend agnostic graphics code (gpu timing, extension loading, etc.)
+     - includes the selected backend (cpu, vulkan, or metal)
+*/
 
 #include "pl_graphics_internal.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -688,8 +693,6 @@ pl__cleanup_common_device(plDevice* ptDevice)
         pl_sb_free(ptGarbage->sbtBuffers);
         pl_sb_free(ptGarbage->sbtComputeShaders);
         pl_sb_free(ptGarbage->sbtShaders);
-        pl_sb_free(ptGarbage->sbtRenderPasses);
-        pl_sb_free(ptGarbage->sbtRenderPassLayouts);
         pl_sb_free(ptGarbage->sbtBindGroups);
         pl_sb_free(ptGarbage->sbtBindGroupLayouts);
     }

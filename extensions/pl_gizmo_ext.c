@@ -6,10 +6,9 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] internal structs & enums
-// [SECTION] context
-// [SECTION] internal api declarations
+// [SECTION] global data
+// [SECTION] internal api
 // [SECTION] public api implementation
-// [SECTION] internal api implementation
 // [SECTION] extension loading
 // [SECTION] unity build
 */
@@ -28,7 +27,6 @@ Index of this file:
 #include "pl_animation_ext.h"
 #include "pl_collision_ext.h"
 #include "pl_transform_ext.h"
-#include "pl_ecs_ext.h"
 #include "pl_ui_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -68,7 +66,15 @@ typedef struct _plGizmoContext
     plMat4               tParentInverse;
 } plGizmoContext;
 
+//-----------------------------------------------------------------------------
+// [SECTION] global data
+//-----------------------------------------------------------------------------
+
 static plGizmoContext* gptGizmoCtx;
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api
+//-----------------------------------------------------------------------------
 
 static inline void
 pl__gizmo_cancel_drag(void)
@@ -211,6 +217,10 @@ pl__gizmo_plane_normal(const plVec3 axes[3], int axis)
     float length = pl_length_vec3(normal);
     return length > 1e-6f ? pl_div_vec3_scalarf(normal, length) : (plVec3){0};
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api implementation
+//-----------------------------------------------------------------------------
 
 void
 pl_gizmo_set_mode(plGizmoMode tMode)
@@ -568,6 +578,10 @@ pl_gizmo_gizmo(plComponentLibrary* ptLibrary, plEntity tEntity, plDrawList3D* pt
     }
     pl__gizmo_draw(ptList, center, axes, length, hover);
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] extension loading
+//-----------------------------------------------------------------------------
 
 void
 pl_load_gizmo_ext(plApiRegistryI* ptApiRegistry, bool bReload)

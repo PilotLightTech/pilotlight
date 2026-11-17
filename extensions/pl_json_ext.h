@@ -1,5 +1,6 @@
 /*
    pl_json_ext.h
+     - json reading & writing (extension version of pl_json.h)
 */
 
 /*
@@ -9,6 +10,7 @@ Index of this file:
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
+// [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] enums
 */
@@ -79,7 +81,7 @@ typedef struct _plJsonI
     bool          (*load)           (const char* pcJson, plJsonObject** pptJsonOut);
     void          (*unload)         (plJsonObject**);
     plJsonObject* (*new_root_object)(const char* pcName); // for writing
-    char*         (*write)          (plJsonObject*, char* pcBuffer, uint32_t* puBufferSize);
+    char*         (*write)          (plJsonObject*, char* pcBuffer, uint32_t* puBufferSize); // pass NULL buffer to get required size
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~reading~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -161,13 +163,13 @@ typedef struct _plJsonI
 
 enum plJsonType_
 {
-	PL_JSON_TYPE_UNSPECIFIED,
-	PL_JSON_TYPE_STRING,
-	PL_JSON_TYPE_ARRAY,
-	PL_JSON_TYPE_NUMBER,
-	PL_JSON_TYPE_BOOL,
-	PL_JSON_TYPE_OBJECT,
-	PL_JSON_TYPE_NULL,
+    PL_JSON_TYPE_UNSPECIFIED,
+    PL_JSON_TYPE_STRING,
+    PL_JSON_TYPE_ARRAY,
+    PL_JSON_TYPE_NUMBER,
+    PL_JSON_TYPE_BOOL,
+    PL_JSON_TYPE_OBJECT,
+    PL_JSON_TYPE_NULL,
 };
 
 #ifdef __cplusplus

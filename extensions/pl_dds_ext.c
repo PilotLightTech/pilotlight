@@ -602,7 +602,7 @@ pl__dxgi_to_pl_format(DXGI_FORMAT eFormat)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] public implementation
+// [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 bool

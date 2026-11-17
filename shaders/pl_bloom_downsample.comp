@@ -67,7 +67,7 @@ void main()
     vec3 l = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(-0.5, 0.5), uvMin, uvMax),  0).rgb;
     vec3 m = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(-0.5, -0.5), uvMin, uvMax), 0).rgb;
 
-    //left, rigth, up and down
+    //left, right, up and down
     vec3 b = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2( 1.5, 0), uvMin, uvMax),  0).rgb;
     vec3 d = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(-1.5, 0), uvMin, uvMax),  0).rgb;
     vec3 f = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(0,  1.5), uvMin, uvMax),  0).rgb;

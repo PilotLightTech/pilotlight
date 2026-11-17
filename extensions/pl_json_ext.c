@@ -5,13 +5,15 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] structs
-// [SECTION] global data
+// [SECTION] public api
+// [SECTION] jsmn.h
+// [SECTION] implementation includes
+// [SECTION] defines
+// [SECTION] internal types
 // [SECTION] internal api
-// [SECTION] public api implementations
-// [SECTION] internal api implementations
+// [SECTION] public api implementation
+// [SECTION] internal api implementation
 // [SECTION] extension loading
-// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -19,7 +21,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <stdlib.h>
-#include <string.h> // FLT_MAX
+#include <string.h> // memcpy, strlen
 #include <inttypes.h>
 #include "pl.h"
 #include "pl_json_ext.h"
@@ -495,26 +497,11 @@ jsmn_init(jsmn_parser* parser)
 #endif
 
 #endif /* JSMN_H */
-#endif /* JSMN_H */
+#endif /* CGLTF_IMPLEMENTATION */
 
 
 //-----------------------------------------------------------------------------
-// [SECTION] c file
-//-----------------------------------------------------------------------------
-
-/*
-Index of this file:
-// [SECTION] includes
-// [SECTION] defines
-// [SECTION] internal types
-// [SECTION] stretchy buffer
-// [SECTION] internal api
-// [SECTION] public api implementation
-// [SECTION] internal api implementation
-*/
-
-//-----------------------------------------------------------------------------
-// [SECTION] includes
+// [SECTION] implementation includes
 //-----------------------------------------------------------------------------
 
 #include <string.h> // memset
@@ -548,11 +535,6 @@ typedef struct _plJsonObject
     uint32_t      uValueLength;
     plJsonType    tArrayElementType;
 } plJsonObject;
-
-//-----------------------------------------------------------------------------
-// [SECTION] extension loading
-//-----------------------------------------------------------------------------
-
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -2080,6 +2062,10 @@ pl__check_json_object(plJsonObject* ptJson, uint32_t* puBufferSize, uint32_t* pu
     *puBufferSize = uBufferSize;
     *puCursor = uCursorPosition;
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] extension loading
+//-----------------------------------------------------------------------------
 
 void
 pl_load_json_ext(plApiRegistryI* ptApiRegistry, bool bReload)

@@ -1,4 +1,5 @@
 /*
+   example_gfx_1.c
      - demonstrates loading APIs
      - demonstrates loading extensions
      - demonstrates hot reloading
@@ -12,6 +13,7 @@
 
 /*
 Index of this file:
+// [SECTION] quick notes
 // [SECTION] includes
 // [SECTION] structs
 // [SECTION] apis
@@ -27,8 +29,8 @@ Index of this file:
 
 /*
 
-    This builds on example_gfx_0 by introduces index buffers and staging
-    buffers. Its pretty straight forward.
+    This builds on example_gfx_0 by introducing index buffers and staging
+    buffers. It's pretty straightforward.
 */
 
 //-----------------------------------------------------------------------------
@@ -88,12 +90,8 @@ const plFileI*     gptFile    = NULL;
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    // NOTE: on first load, "pAppData" will be NULL but on reloads
+    // NOTE: on first load, "ptAppData" will be NULL but on reloads
     //       it will be the value returned from this function
-
-    // retrieve the data registry API, this is the API used for sharing data
-    // between extensions & the runtime
-    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
@@ -130,7 +128,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
 
-    // load required apis (these are provided though extensions)
+    // load required apis (these are provided through extensions)
     gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
@@ -138,6 +136,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
 
     // create cache directories
+    //   - the shader & resource extensions write to VFS paths "/cache/shaders" &
+    //     "/cache/textures" so those must exist & be mounted (see below)
     gptFile->create_directory("../cache");
     gptFile->create_directory("../cache/shaders");
     gptFile->create_directory("../cache/imports");
@@ -190,7 +190,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // setup the shader extension
     gptStarter->finalize();
 
-    // for convience
+    // for convenience
     plDevice* ptDevice = gptStarter->get_device();
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -270,9 +270,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // copy memory to mapped staging buffer
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, atIndexData, sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData));
 
-    // begin blit pass, copy buffer, end pass
-    // NOTE: we are using the starter extension to get a blit encoder, later examples we will
-    //       handle this ourselves
+    // begin compute pass (copies are recorded in compute passes), copy buffer, end pass
+    // NOTE: we are using the starter extension to get a temporary command buffer, later
+    //       examples we will handle this ourselves
 
     plCommandBuffer* ptCommandBuffer = gptStarter->get_temporary_command_buffer();
     gptGfx->begin_compute_pass(ptCommandBuffer, NULL);

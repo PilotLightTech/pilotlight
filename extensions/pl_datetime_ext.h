@@ -102,14 +102,14 @@ PL_API void pl_unload_datetime_ext(plApiRegistryI*, bool reload);
 
 typedef struct _plDateTimeI
 {
-    plDateTime  (*now)              (void);
+    plDateTime  (*now)              (void); // local time
     bool        (*leap_year)        (int);
     const char* (*month_as_string)  (plMonth);
     plMonth     (*month_from_string)(const char*);
     int         (*day_of_year)      (plMonth, int day, int year);
     plDay       (*day_of_week)      (plMonth, int day, int year);
     int         (*days_in_month)    (plMonth, int year);
-    plDate      (*day_of_year_date) (int day);
+    plDate      (*day_of_year_date) (int day); // uses current year
 } plDateTimeI;
 
 //-----------------------------------------------------------------------------

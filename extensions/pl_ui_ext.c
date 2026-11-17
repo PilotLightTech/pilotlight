@@ -7,7 +7,7 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] docking
 // [SECTION] settings
-// [SECTION] public api implementations
+// [SECTION] public api implementation
 // [SECTION] helper windows
 // [SECTION] extension loading
 // [SECTION] unity build
@@ -2922,7 +2922,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         }
     }
 
-    // updating outer rect here but autosized windows do so again in pl_end_window(..)
+    // updating outer rect here but autosized windows do so again in pl_ui_end_window(..)
     if(!ptWindow->uDockId && !(tFlags & (PL_UI_WINDOW_FLAGS_CHILD_WINDOW | PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_MAIN_MENU_BAR)))
     {
         ptWindow->tPos.y = pl_maxf(ptWindow->tPos.y, gptCtx->fMainMenuBarHeight);

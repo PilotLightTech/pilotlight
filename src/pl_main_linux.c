@@ -11,9 +11,7 @@ Index of this file:
 // [SECTION] globals
 // [SECTION] entry point
 // [SECTION] linux procedure
-// [SECTION] file ext
 // [SECTION] library ext
-// [SECTION] window ext
 // [SECTION] thread ext
 // [SECTION] unity build
 */

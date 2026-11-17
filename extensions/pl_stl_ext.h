@@ -1,5 +1,6 @@
 /*
    pl_stl_ext.h
+     - stl model importer (creates mesh assets)
 */
 
 /*
@@ -23,7 +24,7 @@ Index of this file:
 
         * plAssetI (v1.x)
         * plMemoryI (v1.x)
-        * plMeshI (v0.3.x)
+        * plMeshI (v0.2.x)
         * plVfsI (v3.x)
 */
 
@@ -66,7 +67,7 @@ PL_API void pl_unload_stl_ext(plApiRegistryI*, bool reload);
 
 typedef struct _plStlI
 {
-    plAssetHandle (*import)(const char* pcPath);
+    plAssetHandle (*import)(const char* pcPath); // returns mesh asset handle
 } plStlI;
 
 #ifdef __cplusplus

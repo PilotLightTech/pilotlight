@@ -886,7 +886,7 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
         }
     }
     
-    // unless overriden, try to load precompiled shader
+    // unless overridden, try to load precompiled shader
     if(!(ptOptions->eFlags & PL_SHADER_FLAGS_ALWAYS_COMPILE))
         tModule = pl_shader_read_from_disk(pcCacheFile, pcEntryFunc);
 

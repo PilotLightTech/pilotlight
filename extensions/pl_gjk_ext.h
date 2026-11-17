@@ -1,5 +1,6 @@
 /*
    pl_gjk_ext.h
+     - GJK/EPA collision detection between convex shapes (via support functions)
 */
 
 /*
@@ -78,6 +79,7 @@ PL_API void pl_unload_gjk_ext(plApiRegistryI*, bool bReload);
 
 typedef struct _plGjkI
 {
+    // returns true if shapes overlap (EPA fills out penetration information)
     bool (*pen)(plGjkSupportFunc tFn1, const void* pShape1, plGjkSupportFunc tFn2, const void* pShape2, plGjkCollisionInfo* ptInfoOut);
 } plGjkI;
 

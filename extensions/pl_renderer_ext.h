@@ -1,5 +1,7 @@
 /*
    pl_renderer_ext.h
+     - scene renderer (clustered forward/deferred pbr, shadows, sky, post processing, etc.)
+     - renderer ecs components (objects, lights, probes, decals, terrain)
 */
 
 /*
@@ -8,10 +10,13 @@ Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] includes
+// [SECTION] forward declarations
 // [SECTION] public api
-// [SECTION] public api structs
+// [SECTION] public api struct
 // [SECTION] stable structs
 // [SECTION] structs
+// [SECTION] enums
+// [SECTION] components
 */
 
 //-----------------------------------------------------------------------------
@@ -36,22 +41,22 @@ Index of this file:
         * plFreeListI (v0.2.x)
         * plGPUAllocatorsI (v2.x)
         * plGjkI (v0.1.x)
-        * plGraphicsI (v2.x)
+        * plGraphicsI (v3.x)
         * plIOI (v1.x)
         * plImageI (v1.x)
         * plImageOpsI (v0.2.x)
         * plJobI (v2.x)
         * plJsonI (v1.x)
         * plLogI (v2.x)
-        * plMaterialI (v0.5.x)
+        * plMaterialI (v0.2.x)
         * plMemoryI (v1.x)
-        * plMeshI (v0.3.x)
+        * plMeshI (v0.2.x)
         * plProfileI (v2.x)
         * plRectPackI (v2.x)
-        * plResourceI (v1.x)
+        * plResourceI (v2.x)
         * plScreenLogI (v2.x)
         * plScriptI (v0.1.x)
-        * plShaderI (v2.x)
+        * plShaderI (v3.x)
         * plShaderLibraryI (v0.3.x)
         * plSkeletonI (v0.1.x)
         * plStageI (v0.3.x)
@@ -125,14 +130,14 @@ typedef struct _plRendererComponent         plRendererComponent;         // rend
 // enums & flags
 typedef int plLightFlags;            // -> enum _plLightFlags            // Flag: light flags (PL_LIGHT_FLAG_XXXX)
 typedef int plEnvironmentProbeFlags; // -> enum _plEnvironmentProbeFlags // Flag: probe flags (PL_ENVIRONMENT_PROBE_FLAGS_XXXX)
-typedef int plObjectFlags;           // -> enum _plObjectFlags           // Flag: probe flags (PL_OBJECT_FLAGS_XXXX)
+typedef int plObjectFlags;           // -> enum _plObjectFlags           // Flag: object flags (PL_OBJECT_FLAGS_XXXX)
 typedef int plTerrainFlags;          // -> enum _plTerrainFlags          // Flag: terrain flags (PL_TERRAIN_FLAGS_XXXX)
 typedef int plRendererLightingFlags; // -> enum _plRendererLightingFlags // Flag: lighting flags (PL_RENDERER_LIGHTING_FLAGS_XXXX)
 typedef int plRendererShadowFlags;   // -> enum _plRendererShadowFlags   // Flag: shadow flags (PL_RENDERER_SHADOW_FLAGS_XXXX)
 typedef int plRendererBloomFlags;    // -> enum _plRendererBloomFlags    // Flag: bloom flags (PL_RENDERER_BLOOM_FLAGS_XXXX)
 typedef int plRendererFogFlags;      // -> enum _plRendererFogFlags      // Flag: fog flags (PL_RENDERER_FOG_FLAGS_XXXX)
-typedef int plRendererFogMode;       // -> enum _plRendererFogMode       // Enum: GPU pipeline stage (PL_RENDERER_FOG_MODE_XXXX)
-typedef int plRenderSceneFlags;      // -> enum _plRendererShadowFlags   // Flag: scene flags (PL_RENDERER_SHADOW_FLAGS_XXXX)
+typedef int plRendererFogMode;       // -> enum _plRendererFogMode       // Enum: fog mode (PL_RENDERER_FOG_MODE_XXXX)
+typedef int plRenderSceneFlags;      // -> enum _plRenderSceneFlags      // Flag: scene flags (PL_RENDERER_SCENE_FLAGS_XXXX)
 typedef int plRendererSkyFlags;      // -> enum _plRendererSkyFlags      // Flag: sky rendering flags (PL_RENDERER_SKY_FLAGS_XXXX)
 typedef int plRendererSkyMode;       // -> enum _plRendererSkyMode       // Enum: sky rendering mode (PL_RENDERER_SKY_MODE_XXXX)
 typedef int plRendererAOMode;        // -> enum _plRendererAOMode        // Enum: ao rendering mode (PL_RENDERER_AO_XXXX)
@@ -292,7 +297,7 @@ typedef struct _plRenderEnvironment
 
     // aerial perspective
     float    fMaxAerialDistance; // in atmosphere units
-    float    fAerialDepthExponent; // samples per slice
+    float    fAerialDepthExponent; // depth slice distribution exponent
     uint32_t uAerialSamplesPerSlice; // samples per slice
 
     // Clouds: distances in atmosphere units; wind in atmosphere units/second.
@@ -534,11 +539,11 @@ typedef struct _plObjectComponent
 {
     plObjectFlags  tFlags;
     plAssetHandle  tMesh;
-    plEntityId     tTransformId;
+    plEntityId     tTransformId; // persistent id of transform entity (serialized)
     uint32_t       uFirstSubmesh;
     uint32_t       uSubmeshCount;
     plAABB         tAABB;
-    plEntity       tTransform;
+    plEntity       tTransform; // runtime handle resolved from "tTransformId"
     plAssetHandle* atMaterialOverrides;
 } plObjectComponent;
 
@@ -593,8 +598,8 @@ typedef struct _plLightComponent
     float        fIntensity;
     float        fRange;
     float        fRadius;
-    float        fInnerConeAngle; // default: 0
-    float        fOuterConeAngle; // default: 45
+    float        fInnerConeAngle; // radians; default: 0
+    float        fOuterConeAngle; // radians; default: PI/8
     plVec3       tPosition;
     plVec3       tDirection;
     uint32_t     uShadowResolution; // 0 -> automatic

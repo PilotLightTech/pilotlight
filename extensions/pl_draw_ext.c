@@ -6,11 +6,12 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] defines
-// [SECTION] structs for backend
+// [SECTION] structs for backends
 // [SECTION] internal structs
 // [SECTION] global data
 // [SECTION] internal api
 // [SECTION] public api implementation
+// [SECTION] default font stuff
 // [SECTION] internal api implementation
 // [SECTION] extension loading
 // [SECTION] unity build
@@ -177,7 +178,6 @@ typedef struct _plFontAtlas
 
 typedef struct _plPipelineEntry
 {
-    // plRenderPassHandle tRenderPass;
     uint32_t           uMSAASampleCount;
     plShaderHandle     tRegularPipeline;
     plShaderHandle     tSecondaryPipeline;
@@ -988,7 +988,7 @@ pl__bake_corner(uint32_t uRadius, uint32_t uThickness)
 static bool
 pl__rounded_baked(plDrawLayer2D* ptLayer, plVec2 tMin, plVec2 tMax, float fRadius, float fThickness, plDrawRectFlags eFlags, uint32_t uColor)
 {
-    if(eFlags != 0 && eFlags != PL_DRAW_RECT_FLAG_ROUND_CORNERS_All)
+    if(eFlags != 0 && eFlags != PL_DRAW_RECT_FLAG_ROUND_CORNERS_ALL)
         return false;
 
     // A circular coverage tile cannot represent nonuniform framebuffer scaling.
@@ -1585,7 +1585,7 @@ pl__path_rectangle(plVec2** pptPath, plVec2 tMin, plVec2 tMax, float fRadius, ui
         return;
     fRadius = pl_max(0.0f, pl_min(fRadius, pl_min(tMax.x - tMin.x, tMax.y - tMin.y) * 0.5f));
     if(eFlags == PL_DRAW_RECT_FLAG_NONE)
-        eFlags = PL_DRAW_RECT_FLAG_ROUND_CORNERS_All;
+        eFlags = PL_DRAW_RECT_FLAG_ROUND_CORNERS_ALL;
     const plDrawRectFlags aeMasks[4] = {PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT};
     const plVec2 atCorners[4] = {{tMax.x, tMin.y}, tMax, {tMin.x, tMax.y}, tMin};
     for(uint32_t uCorner = 0; uCorner < 4; uCorner++)
@@ -5561,7 +5561,7 @@ pl__find_glyph(plFont* ptFont, uint32_t c)
 static plBufferHandle
 pl__create_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier)
 {
-    // for convience
+    // for convenience
     plDevice* ptDevice = gptDrawCtx->ptDevice;
 
     // create buffer

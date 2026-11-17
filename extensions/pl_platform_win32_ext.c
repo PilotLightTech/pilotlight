@@ -1,11 +1,14 @@
+/*
+   pl_platform_win32_ext.c
+     - win32 platform backend
+*/
+
+// 64-bit file offsets on 32-bit POSIX targets (must come before any system header)
 #ifndef _WIN32
 #ifndef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 #endif
 #endif
-/*
-   pl_platform_win32_ext.c
-*/
 
 /*
 Index of this file:
@@ -2591,4 +2594,9 @@ pl_set_clipboard_text(void* pUnused, const char* text)
     CloseClipboard();
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] extension loading
+//-----------------------------------------------------------------------------
+
+// shared api registration (pl_load_platform_ext/pl_unload_platform_ext)
 #include "pl_platform_ext.c"

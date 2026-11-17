@@ -40,25 +40,30 @@ An example of one of these APIs might look something like this:
 typedef struct _plJobI
 {
     // setup/shutdown
-    void (*initialize)(uint32_t uThreadCount); // set thread count to 0 to get optimal thread count
-    void (*cleanup)(void);
+    void (*initialize)      (plJobSystemInit);
+    void (*cleanup)         (void);
 
     // typical usage
     //   - submit an array of job descriptions and receive an atomic counter pointer
     //   - pass NULL for the atomic counter pointer if you don't need to wait (fire & forget)
     //   - use "wait_for_counter" to wait on jobs to complete and return counter for reuse
-    void (*dispatch_jobs)(uint32_t uJobCount, plJobDesc*, plAtomicCounter**);
+    void (*dispatch_jobs)   (uint32_t jobCount, plJobDesc*, plAtomicCounter**);
 
     // batch usage
     //   Follows more of a compute shader design. All jobs use the same data which can be indexed
     //   using the job index. If the jobs are small, consider increasing the group size.
-    //   - uJobCount  : how many jobs to generate
-    //   - uGroupSize : how many jobs to execute per thread serially (set 0 for optimal group size)
+    //   - jobCount  : how many jobs to generate
+    //   - groupSize : how many jobs to execute per thread serially (set 0 for optimal group size)
     //   - pass NULL for the atomic counter pointer if you don't need to wait (fire & forget)
-    void (*dispatch_batch)(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc, plAtomicCounter**);
-    
-    // waits for counter to reach 0 and returns the counter for reuse but subsequent dispatches
+    void (*dispatch_batch)  (uint32_t jobCount, uint32_t groupSize, plJobDesc, plAtomicCounter**);
+
+    // waits for counter to reach 0 and returns the counter for reuse by subsequent dispatches
     void (*wait_for_counter)(plAtomicCounter*);
+
+    // long running jobs should check this & exit themselves
+    bool (*is_shutting_down)(void);
+
+    uint32_t (*get_thread_count)(void);
 } plJobI;
 ```
 
@@ -67,7 +72,7 @@ The APIs are accessed through the API registry which has the following API:
 ```c
 typedef struct _plApiRegistryI
 {
-    const void* (*set_api)   (const char* name, plVersion, const void* api, size_t interfaceSize);
+    void        (*set_api)   (const char* name, plVersion, const void* api, size_t interfaceSize);
     const void* (*get_api)   (const char* name, plVersion);
     void        (*remove_api)(const void* api);
 } plApiRegistryI;
@@ -94,7 +99,7 @@ An application is just a dynamic library that exports the following functions:
 ```c
 PL_EXPORT void* pl_app_load    (plApiRegistryI*, void*);
 PL_EXPORT void  pl_app_shutdown(void*);
-PL_EXPORT void  pl_app_resize  (plWindow*, void*);
+PL_EXPORT void  pl_app_resize  (plWindow*, void*);  // plWindow from pl_platform_ext.h
 PL_EXPORT void  pl_app_update  (void*);
 PL_EXPORT bool  pl_app_info    (plApiRegistryI*); // optional
 ```
@@ -106,6 +111,7 @@ An extension is just a dynamic library that exports the following functions:
 PL_EXPORT void pl_load_ext  (plApiRegistryI*, bool reload);
 PL_EXPORT void pl_unload_ext(plApiRegistryI*, bool reload);
 ```
+These are the default names. Extensions can use their own names (i.e. "pl_load_job_ext") and pass them when loading through the extension registry. The "reload" parameter is true during hot reloading so extensions can preserve their state.
 
 ## Build System
 

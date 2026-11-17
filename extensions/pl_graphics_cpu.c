@@ -5,12 +5,10 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] defines
 // [SECTION] internal structs
 // [SECTION] opaque structs
 // [SECTION] internal api
 // [SECTION] public api implementation
-// [SECTION] drawing
 // [SECTION] internal api implementation
 */
 
@@ -138,7 +136,7 @@ typedef struct _plVertexCache
 typedef struct _plCommandBuffer
 {
     plGpuTimingCommand tTiming;
-    plDevice*          ptDevice; // for convience
+    plDevice*          ptDevice; // for convenience
     plCommandPool*     ptPool; // parent pool
     plCommandBuffer*   ptNext; // for linked list
 
@@ -155,19 +153,19 @@ typedef struct _plCommandBuffer
 
 typedef struct _plCommandPool
 {
-    plDevice*        ptDevice; // for convience
+    plDevice*        ptDevice; // for convenience
     plCommandBuffer* ptCommandBufferFreeList;  // free list of command buffers
 } plCommandPool;
 
 typedef struct _plBindGroupPool
 {
-    plDevice*           ptDevice; // for convience
+    plDevice*           ptDevice; // for convenience
     plBindGroupPoolDesc tDesc;
 } plBindGroupPool;
 
 typedef struct _plTimelineSemaphore
 {
-    plDevice*            ptDevice; // for convience
+    plDevice*            ptDevice; // for convenience
     plTimelineSemaphore* ptNext; // for linked list
 } plTimelineSemaphore;
 
@@ -264,7 +262,7 @@ typedef struct _plSurface
 
 typedef struct _plSwapchain
 {
-    plDevice*        ptDevice; // for convience
+    plDevice*        ptDevice; // for convenience
     plSwapchainInfo  tInfo;
     uint32_t         uImageCount;
     plTextureHandle* sbtSwapchainTextureViews;
@@ -1803,16 +1801,6 @@ pl_graphics_destroy_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandl
 }
 
 void
-pl_graphics_destroy_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
-{
-}
-
-void
-pl_graphics_destroy_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
-{
-}
-
-void
 pl_graphics_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
 {
 }
@@ -1882,8 +1870,6 @@ pl__garbage_collect(plDevice* ptDevice)
     pl_sb_reset(ptGarbage->sbtTextures);
     pl_sb_reset(ptGarbage->sbtShaders);
     pl_sb_reset(ptGarbage->sbtComputeShaders);
-    pl_sb_reset(ptGarbage->sbtRenderPasses);
-    pl_sb_reset(ptGarbage->sbtRenderPassLayouts);
     pl_sb_reset(ptGarbage->sbtMemory);
     pl_sb_reset(ptGarbage->sbtBuffers);
     pl_sb_reset(ptGarbage->sbtBindGroups);

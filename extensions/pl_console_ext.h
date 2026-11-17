@@ -1,5 +1,6 @@
 /*
    pl_console_ext.h
+     - debug console for variables & commands (ui extension based)
 */
 
 /*
@@ -90,7 +91,7 @@ typedef struct _plConsoleI
 
     void  (*update)(void); // call every frame after beginning ui frame
     void  (*open)  (void); // opens window
-    void  (*close) (void); // closes window programatically
+    void  (*close) (void); // closes window programmatically
 
     // add variables (returns false if name already used)
     bool  (*add_toggle_variable)   (const char* name,     bool*, const char* description, plConsoleVarFlags);

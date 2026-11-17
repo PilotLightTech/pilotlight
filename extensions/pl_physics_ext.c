@@ -1484,7 +1484,7 @@ pl__contact_calculate_frictionless_impulse(plContact* ptContact, plMat3* ptInver
     tDeltaVelWorld = pl_mul_mat3_vec3(&ptInverseInertiaTensor[0], tDeltaVelWorld);
     tDeltaVelWorld = pl_cross_vec3(tDeltaVelWorld, ptContact->atRelativeContactPositions[0]);
 
-    // Work out the change in velocity in contact coordiantes.
+    // Work out the change in velocity in contact coordinates.
     float fDeltaVelocity = pl_dot_vec3(tDeltaVelWorld, ptContact->tContactNormal);
 
     // Add the linear component of velocity change
@@ -2071,7 +2071,7 @@ pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCou
                 // update linear velocity from both acceleration and impulse
                 ptBody->tLinearVelocity = pl_add_vec3(ptBody->tLinearVelocity, pl_mul_vec3_scalarf(ptBody->tLastFrameAcceleration, fDeltaTime));
 
-                // update angular velocity from both accleration and impulse
+                // update angular velocity from both acceleration and impulse
                 ptBody->tAnglularVelocity = pl_add_vec3(ptBody->tAnglularVelocity, pl_mul_vec3_scalarf(tAngularAcceleration, fDeltaTime));
 
                 // impose drag

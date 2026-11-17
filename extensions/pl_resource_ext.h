@@ -1,5 +1,6 @@
 /*
    pl_resource_ext.h
+     - loads & manages file backed gpu resources (currently textures)
 */
 
 /*
@@ -29,7 +30,7 @@ Index of this file:
         * plDxtI (v2.x)
         * plFileI (v2.x)
         * plGPUAllocatorsI (v2.x)
-        * plGraphicsI (v2.x)
+        * plGraphicsI (v3.x)
         * plImageI (v1.x)
         * plMemoryI (v1.x)
         * plPakI (v2.x)
@@ -55,7 +56,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plResourceI_version {1, 6, 0}
+#define plResourceI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -73,9 +74,9 @@ extern "C" {
 // basic types
 typedef struct _plResourceManagerInit plResourceManagerInit;
 
-// enums/falgs
+// enums/flags
 typedef int plResourceLoadFlags; // -> enum _plResourceLoadFlags // Flag: resource load flags (PL_RESOURCE_LOAD_FLAG_XXXX)
-typedef int plResourceEvictFlags; // -> enum _plResourceEvictFlags // Flag: resource load flags (PL_RESOURCE_LOAD_FLAG_XXXX)
+typedef int plResourceEvictFlags; // -> enum _plResourceEvictFlags // Flag: resource evict flags (PL_RESOURCE_EVICT_FLAG_XXXX)
 
 // external
 typedef struct _plDevice       plDevice;        // pl_graphics_ext.h
@@ -114,7 +115,7 @@ typedef struct _plResourceI
     //   - fileData:          pointer to file data if loaded manually (optional)
     //   - fileByteSize:      size of file data, if loaded manually (optional)
     //   - containerFileName: if name is not the name of source file, set the source file name here
-    //   - fileBytesOffset:   if using container_filename, you can give the offset for the resource within the file here
+    //   - fileBytesOffset:   if using containerFileName, you can give the offset for the resource within the file here
     plResourceHandle (*load_ex)(const char* file, plResourceLoadFlags, uint8_t* fileData, size_t fileByteSize, const char* containerFileName, size_t fileBytesOffset);
     void             (*unload) (plResourceHandle);
 
@@ -165,7 +166,6 @@ typedef struct _plResourceManagerInit
 {
     plDevice*   ptDevice;
     uint32_t    uMaxTextureResolution; // default: 1024
-    const char* pcCacheDirectory;      // OBSOLETE
 } plResourceManagerInit;
 
 #ifdef __cplusplus

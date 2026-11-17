@@ -1,4 +1,5 @@
 /*
+   example_gfx_5.c
      - demonstrates loading APIs
      - demonstrates loading extensions
      - demonstrates hot reloading
@@ -63,7 +64,6 @@ typedef struct _plAppData
     // offscreen rendering
     bool               bResize;
     plSamplerHandle    tDefaultSampler;
-    // plRenderPassHandle tOffscreenRenderPass;
     plVec2             tOffscreenSize;
     plTextureHandle    tColorTexture;
     plBindGroupHandle  tColorTextureBg;
@@ -97,12 +97,8 @@ void resize_offscreen_resources(plAppData* ptAppData);
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    // NOTE: on first load, "pAppData" will be NULL but on reloads
+    // NOTE: on first load, "ptAppData" will be NULL but on reloads
     //       it will be the value returned from this function
-
-    // retrieve the data registry API, this is the API used for sharing data
-    // between extensions & the runtime
-    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
@@ -140,7 +136,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
 
-    // load required apis (these are provided though extensions)
+    // load required apis (these are provided through extensions)
     gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
@@ -149,6 +145,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptFile        = pl_get_api_latest(ptApiRegistry, plFileI);
 
     // create cache directories
+    //   - the shader & resource extensions write to VFS paths "/cache/shaders" &
+    //     "/cache/textures" so those must exist & be mounted (see below)
     gptFile->create_directory("../cache");
     gptFile->create_directory("../cache/shaders");
     gptFile->create_directory("../cache/imports");
@@ -194,7 +192,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // request 3D drawlist
     ptAppData->pt3dDrawlist  = gptDraw->request_3d_drawlist();
 
-    // for convience
+    // for convenience
     plDevice* ptDevice = gptStarter->get_device();
 
     // create camera
@@ -225,7 +223,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
     ptAppData->tDefaultSampler = gptGfx->create_sampler(ptDevice, &tSamplerDesc);
 
-    // create offscreen per-frame resources
+    // create offscreen resources
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -281,12 +279,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~render pass stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    // NOTE: even if you don't need to double buffer a texture, the number of
-    //       render pass attachment sets must equal the frames in flight
-    //       (backend implementation details require this currently)
-    //
-    // NOTE: Render passes directly map to render passes in Vulkan. In Metal
-    //       we emulate them by places appropriate barriers & fences.
+    // NOTE: there are no render pass objects to create. Render passes are begun
+    //       each frame with "begin_render_pass(...)" & a plRenderInfo describing
+    //       the attachments (dynamic rendering). See "pl_app_update" below.
 
     // return app memory
     return ptAppData;
@@ -342,7 +337,7 @@ pl_app_update(plAppData* ptAppData)
     if(!gptStarter->begin_frame())
         return;
 
-    // for convience
+    // for convenience
     plIO* ptIO = gptIO->get_io();
 
     if(ptAppData->bResize)
@@ -411,7 +406,7 @@ pl_app_update(plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~offscreen~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // NOTE: we are letting the starter extension handle command buffer management
-    //       and coarse syncronization (utilizing timeline semaphores to ensure
+    //       and coarse synchronization (utilizing timeline semaphores to ensure
     //       previous submissions are finished and this work finishes before the main
     //       pass below)
 
@@ -451,7 +446,7 @@ pl_app_update(plAppData* ptAppData)
         }
     };
 
-    // begin offscreen renderpass
+    // begin offscreen render pass
     gptGfx->begin_render_pass(ptCommandBuffer, &tRenderInfo, NULL);
 
     // submit our 3D drawlist
@@ -499,7 +494,7 @@ pl_app_update(plAppData* ptAppData)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] helper function declarations
+// [SECTION] helper function definitions
 //-----------------------------------------------------------------------------
 
 void

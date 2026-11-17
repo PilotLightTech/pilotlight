@@ -414,7 +414,7 @@ typedef struct _plView
     plBindGroupHandle atDShadowBG[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle atSunCSMBG[PL_MAX_FRAMES_IN_FLIGHT];
 
-    // renderpasses
+    // render passes
     plVec2 tTargetSize;
 
     // textures
@@ -762,15 +762,15 @@ typedef struct _plRendererData
     plBindGroupPool* ptBindGroupPool;
     plBindGroupPool* aptTempGroupPools[PL_MAX_FRAMES_IN_FLIGHT];
 
-    // main renderpass layout (used as a template for views)
-    plRenderAttachmentInfo tRenderPassLayout;
-    plRenderAttachmentInfo tDeferredLightingRenderPassLayout;
-    plRenderAttachmentInfo tTransparentRenderPassLayout;
-    plRenderAttachmentInfo tPostProcessRenderPassLayout;
-    plRenderAttachmentInfo tFinalRenderPassLayout;
-    plRenderAttachmentInfo tUVRenderPassLayout;
-    plRenderAttachmentInfo tDepthRenderPassLayout;
-    plRenderAttachmentInfo tPickRenderPassLayout;
+    // attachment formats per pass type (main is used as a template for views)
+    plRenderAttachmentInfo tMainAttachmentInfo;
+    plRenderAttachmentInfo tDeferredLightingAttachmentInfo;
+    plRenderAttachmentInfo tTransparentAttachmentInfo;
+    plRenderAttachmentInfo tPostProcessAttachmentInfo;
+    plRenderAttachmentInfo tFinalAttachmentInfo;
+    plRenderAttachmentInfo tUVAttachmentInfo;
+    plRenderAttachmentInfo tDepthAttachmentInfo;
+    plRenderAttachmentInfo tPickAttachmentInfo;
 
     // renderer specific log channel
     uint64_t uLogChannel;

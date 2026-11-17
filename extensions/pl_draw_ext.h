@@ -15,7 +15,6 @@ Index of this file:
 // [SECTION] public api struct
 // [SECTION] enums
 // [SECTION] structs
-// [SECTION] structs for backends
 */
 
 //-----------------------------------------------------------------------------
@@ -28,11 +27,11 @@ Index of this file:
         are included; this lists direct dependencies, not their dependencies.
 
         * plDataRegistryI (v1.x)
-        * plGraphicsI (v2.x)
+        * plGraphicsI (v3.x)
         * plIOI (v1.x)
         * plLogI (v2.x)
         * plMemoryI (v1.x)
-        * plShaderI (v2.x)
+        * plShaderI (v3.x)
         * plStatsI (v1.x)
         * plVfsI (v3.x)
 */
@@ -59,7 +58,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plDrawI_version {4, 2, 0}
+#define plDrawI_version {4, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -80,7 +79,7 @@ typedef struct _plFontAtlas   plFontAtlas;   // font atlas data
 typedef struct _plDrawList2D  plDrawList2D;  // drawlist data for 2D
 typedef struct _plDrawList3D  plDrawList3D;  // drawlist data for 3D
 typedef struct _plDrawLayer2D plDrawLayer2D; // opaque type for 2D draw layers
-typedef struct _plDrawCommand plDrawCommand; // opaque type for 2D draw layers
+typedef struct _plDrawCommand plDrawCommand; // opaque type for draw commands
 
 // vertex buffer types
 typedef struct _plDrawVertex        plDrawVertex;        // vertex type (LAYOUT & PADDING MATTERS)
@@ -181,9 +180,9 @@ typedef struct _plDrawI
     void           (*return_2d_layer) (plDrawLayer2D*);
     void           (*submit_2d_layer) (plDrawLayer2D*);
 
-    // Circles: segments=0 selects adaptive tessellation (0.25 draw-unit error, 12..512).
-    // Explicit circle segment counts are clamped to 3..512.
     // drawing (lines)
+    //   Circles: segments=0 selects adaptive tessellation (0.25 draw-unit error, 12..512).
+    //   Explicit circle segment counts are clamped to 3..512.
     void (*add_line)          (plDrawLayer2D*, plVec2 p0, plVec2 p1, plDrawLineOptions);
     void (*add_lines)         (plDrawLayer2D*, plVec2* points, uint32_t count, plDrawLineOptions);
     void (*add_triangle)      (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plDrawLineOptions);
@@ -195,11 +194,12 @@ typedef struct _plDrawI
     void (*add_bezier_quad)   (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, uint32_t segments, plDrawLineOptions);
     void (*add_bezier_cubic)  (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, uint32_t segments, plDrawLineOptions);
 
-    // Filled circles and convex polygons have a coverage fringe for use without MSAA.
-    // Convex polygons accept either winding; other filled primitives keep their existing paths.
-    // Stateful paths belong to the layer. Stroke/fill consumes the path.
-    // Convenience add_* calls do not alter a pending public path. Angles are radians.
-    // segments=0 uses adaptive curves/arcs; path_rect appends a clockwise outline.
+    // paths
+    //   Stateful paths belong to the layer. Stroke/fill consumes the path.
+    //   Convenience add_* calls do not alter a pending public path. Angles are radians.
+    //   segments=0 uses adaptive curves/arcs; path_rect appends a clockwise outline.
+    //   Filled circles and convex polygons have a coverage fringe for use without MSAA.
+    //   Convex polygons accept either winding; other filled primitives keep their existing paths.
     void (*path_clear)         (plDrawLayer2D*);
     void (*path_line_to)       (plDrawLayer2D*, plVec2);
     void (*path_arc_to)        (plDrawLayer2D*, plVec2 center, float radius, float angleMin, float angleMax, uint32_t segments);
@@ -322,7 +322,7 @@ enum _plDrawStrokeFlags
 
 enum _plDrawRectFlags
 {
-    PL_DRAW_RECT_FLAG_NONE                       = 0, // default: PL_DRAW_RECT_FLAG_ROUND_CORNERS_All
+    PL_DRAW_RECT_FLAG_NONE                       = 0, // default: PL_DRAW_RECT_FLAG_ROUND_CORNERS_ALL
     PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT     = 1 << 0,
     PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT    = 1 << 1,
     PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT  = 1 << 2,
@@ -332,7 +332,7 @@ enum _plDrawRectFlags
     PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM       = PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT,
     PL_DRAW_RECT_FLAG_ROUND_CORNERS_LEFT         = PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT,
     PL_DRAW_RECT_FLAG_ROUND_CORNERS_RIGHT        = PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT,
-    PL_DRAW_RECT_FLAG_ROUND_CORNERS_All          = PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT,
+    PL_DRAW_RECT_FLAG_ROUND_CORNERS_ALL          = PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT,
 };
 
 //-----------------------------------------------------------------------------

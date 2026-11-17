@@ -131,7 +131,7 @@ LOG LEVELS
 COMPILE TIME OPTIONS
 
     * Change maximum number of channels, define PL_LOG_MAX_CHANNEL_COUNT. (default is 16)
-    * Change maximum lenght of lines, define PL_LOG_MAX_LINE_SIZE. (default is 1024)
+    * Change maximum length of lines, define PL_LOG_MAX_LINE_SIZE. (default is 1024)
     * Change the global log level, define PL_GLOBAL_LOG_LEVEL. (default is PL_LOG_LEVEL_ALL)
     * Change background colors by defining the following:
         PL_LOG_TRACE_BG_COLOR  <BACKGROUND COLOR OPTION>
@@ -316,7 +316,7 @@ typedef int plChannelType;
     #define pl_log_warn(uID, pcMessage) pl__log_warn((uID), (pcMessage))
     #define pl_log_warn_f(...) pl__log_warn_p(__VA_ARGS__)
 #else
-    #define pl_log_warn(tPContext, uID) //
+    #define pl_log_warn(uID, pcMessage) //
     #define pl_log_warn_f(...) //
 #endif
 
@@ -324,7 +324,7 @@ typedef int plChannelType;
     #define pl_log_error(uID, pcMessage) pl__log_error((uID), (pcMessage))
     #define pl_log_error_f(...) pl__log_error_p(__VA_ARGS__)
 #else
-    #define pl_log_error(tPContext, uID) //
+    #define pl_log_error(uID, pcMessage) //
     #define pl_log_error_f(...) //
 #endif
 

@@ -59,7 +59,7 @@ extern "C" {
 // [SECTION] api
 //-----------------------------------------------------------------------------
 
-#define plUiI_version {2, 1, 0}
+#define plUiI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -74,14 +74,14 @@ typedef struct _plUiTextFilter plUiTextFilter; // parsed text filter; build agai
 typedef int plUiConditionFlags;  // -> enum plUiConditionFlags_   // Enum:  A conditional for some functions (PL_UI_COND_XXX value)
 typedef int plUiLayoutRowType;   // -> enum plUiLayoutRowType_    // Enum:  A row type for the layout system (PL_UI_LAYOUT_ROW_TYPE_XXX)
 typedef int plUiInputTextFlags;  // -> enum plUiInputTextFlags_   // Flags: flags for input text (PL_UI_INPUT_TEXT_FLAGS_XXX)
-typedef int plUiWindowFlags;     // -> enum plUiWindowFlags_      // Flags: An input event source (PL_UI_WINDOW_FLAGS_XXXX)
-typedef int plUiComboFlags;      // -> enum plUiComboFlags_       // Enum:  An input event source (PL_UI_WINDOW_FLAGS_XXXX)
-typedef int plUiColor;           // -> enum plUiColor_            // Enum:  An input event source (PL_UI_COLOR_XXXX)
+typedef int plUiWindowFlags;     // -> enum plUiWindowFlags_      // Flags: window flags (PL_UI_WINDOW_FLAGS_XXXX)
+typedef int plUiComboFlags;      // -> enum plUiComboFlags_       // Flags: combo flags (PL_UI_COMBO_FLAGS_XXXX)
+typedef int plUiColor;           // -> enum plUiColor_            // Enum:  theme color index (PL_UI_COLOR_XXXX)
 typedef int plUiChildFlags;      // -> enum plUiChildFlags_       // Flags: reserved for future use
 typedef int plUiSelectableFlags; // -> enum plUiSelectableFlags_  // Flags: reserved for future use
 typedef int plUiSliderFlags;     // -> enum plUiSliderFlags_      // Flags: reserved for future use
 typedef int plUiColorEditFlags;  // -> enum plUiColorEditFlags_   // Flags: color edit/picker options (PL_UI_COLOR_EDIT_FLAGS_XXXX)
-typedef int plUiTreeNodeFlags;   // -> enum plUiTreeNodeFlags_    // Flags: reserved for future use
+typedef int plUiTreeNodeFlags;   // -> enum plUiTreeNodeFlags_    // Flags: tree node flags (PL_UI_TREE_NODE_FLAGS_XXXX)
 typedef int plUiTabBarFlags;     // -> enum plUiTabBarFlags_      // Flags: reserved for future use
 typedef int plUiTabFlags;        // -> enum plUiTabFlags_         // Flags: reserved for future use
 typedef int plUiPopupFlags;      // -> enum plUiPopupFlags_       // Flags: reserved for future use
@@ -146,7 +146,7 @@ typedef struct _plUiI
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~windows~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // windows
-    // - only call "end_window()" if "begin_window()" returns true (its call automatically if false)
+    // - only call "end_window()" if "begin_window()" returns true (it's called automatically if false)
     // - passing a valid pointer to pbOpen will show a red circle that will turn pbOpen false when clicked
     // - "begin_window()" will return false if collapsed or clipped
     // - if you use autosize, make sure at least 1 row has a static component (or the window will grow unbounded)
@@ -154,9 +154,8 @@ typedef struct _plUiI
     void (*end_window)  (void);
 
     // popups
-    // - only call "end_popup()" if "begin_popup()" returns true (its call automatically if false)
-    // - passing a valid pointer to pbOpen will show a red circle that will turn pbOpen false when clicked
-    // - "begin_popup()" will return false if collapsed or clipped
+    // - only call "end_popup()" if "begin_popup()" returns true (it's called automatically if false)
+    // - "begin_popup()" will return false if the popup isn't open (see "open_popup()")
     // - if you use autosize, make sure at least 1 row has a static component (or the window will grow unbounded)
     void (*open_popup)         (const char* name, plUiPopupFlags);
     void (*open_popup_id)      (uint32_t, plUiPopupFlags);
@@ -173,7 +172,7 @@ typedef struct _plUiI
     plVec2         (*get_cursor_pos)         (void); // returns current cursor position (where the next widget will start drawing)
 
     // child windows
-    // - only call "end_child()" if "begin_child()" returns true (its call automatically if false)
+    // - only call "end_child()" if "begin_child()" returns true (it's called automatically if false)
     // - self-contained window with scrolling & clipping
     bool (*begin_child)(const char* name, plUiChildFlags, plUiWindowFlags);
     void (*end_child)  (void);
@@ -320,7 +319,7 @@ typedef struct _plUiI
     void (*end_combo)  (void);
 
     // trees
-    // - only call "tree_pop()" if "tree_node()" returns true (its call automatically if false)
+    // - only call "tree_pop()" if "tree_node()" returns true (it's called automatically if false)
     // - tree_node begins a new default layout (won't mess up existing layout scheme)
     // - WARNING: collapsing_header does not start a new layout, if you want that behavior,
     //            manually use "stash_layout(...)" & "apply_layout(...)"
@@ -331,8 +330,8 @@ typedef struct _plUiI
     void (*tree_pop)         (void);
 
     // tabs & tab bars
-    // - only call "end_tab_bar()" if "begin_tab_bar()" returns true (its call automatically if false)
-    // - only call "end_tab()" if "begin_tab()" returns true (its call automatically if false)
+    // - only call "end_tab_bar()" if "begin_tab_bar()" returns true (it's called automatically if false)
+    // - only call "end_tab()" if "begin_tab()" returns true (it's called automatically if false)
     bool (*begin_tab_bar)(const char* text, plUiTabBarFlags);
     void (*end_tab_bar)  (void);
     bool (*begin_tab)    (const char* text, plUiTabFlags);
@@ -387,7 +386,7 @@ typedef struct _plUiI
     void (*layout_dynamic)(float height, uint32_t widgetCount);
 
     // layout system 2
-    // - provides each widget with the same horizontal pixel widget and does not grow with the parent window
+    // - provides each widget with the same horizontal pixel width and does not grow with the parent window
     // - wraps (i.e. setting widgetCount to 2 and adding 4 widgets will create 2 rows)
     void (*layout_static)(float height, float width, uint32_t widgetCount);
 
@@ -462,11 +461,13 @@ typedef struct _plUiI
     uint32_t (*get_window_dock)     (void);
     void     (*set_docking_enabled) (bool enabled); // Temporarily float docked tools without changing the saved layout. Call before windows.
 
+    // settings persistence
     // Defaults to "pl_ui.ini" in the working directory. Set before the first frame;
     // NULL disables persistence. Loaded settings override ONCE defaults, not ALWAYS.
     void (*set_settings_file)(const char* path);
     bool (*save_settings)(void); // also saved automatically after changes and at cleanup
 
+    // main menu bar
     // Full-width bar at the top of the main viewport. Submit once per frame,
     // before other windows. End only when begin returns true.
     bool (*begin_main_menu_bar)(void);

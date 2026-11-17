@@ -6,9 +6,7 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] forward declarations
 // [SECTION] structs
-// [SECTION] globals
 // [SECTION] entry point
 // [SECTION] file ext
 // [SECTION] library ext

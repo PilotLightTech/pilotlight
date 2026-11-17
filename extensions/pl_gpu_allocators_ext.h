@@ -1,5 +1,6 @@
 /*
    pl_gpu_allocators_ext.h
+     - device memory allocators for the graphics extension (dedicated & buddy)
 */
 
 /*
@@ -24,7 +25,7 @@ Index of this file:
         are included; this lists direct dependencies, not their dependencies.
 
         * plDataRegistryI (v1.x)
-        * plGraphicsI (v2.x)
+        * plGraphicsI (v3.x)
         * plMemoryI (v1.x)
         * plStringInternI (v3.x)
 */
@@ -63,7 +64,7 @@ typedef struct _plDevice plDevice;
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plGPUAllocatorsI_version {2, 1, 2}
+#define plGPUAllocatorsI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -89,7 +90,7 @@ typedef struct _plGPUAllocatorsI
     // misc
     size_t (*get_buddy_block_size)(void);
 
-    void (*cleanup)(plDevice*);
+    void (*cleanup)(plDevice*); // frees all device memory owned by the allocators
 
     // for debug viewing
     plDeviceMemoryAllocation* (*get_blocks)(const plDeviceMemoryAllocatorI*, uint32_t* sizeOut);

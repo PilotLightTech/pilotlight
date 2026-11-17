@@ -1,5 +1,6 @@
 /*
    pl_ecs_ext.h
+     - entity component system (component libraries, registration, serialization)
 */
 
 /*
@@ -65,7 +66,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plEcsI_version {3, 1, 0}
+#define plEcsI_version {3, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -166,7 +167,7 @@ typedef struct _plEcsI
     plEntity  (*create_entity_with_id)(plComponentLibrary*, const char* name, plEntityId);
     void      (*remove_entity)        (plComponentLibrary*, plEntity);
     bool      (*is_entity_valid)      (const plComponentLibrary*, plEntity);
-    plEntity  (*get_current_entity)   (plComponentLibrary*, plEntity);
+    plEntity  (*get_current_entity)   (plComponentLibrary*, plEntity); // same index with current generation
     plEntityId(*get_entity_id)        (const plComponentLibrary*, plEntity);
     plEntity  (*get_entity_by_id)     (const plComponentLibrary*, plEntityId);
 
@@ -179,8 +180,8 @@ typedef struct _plEcsI
     void*    (*get_component)   (const plComponentLibrary*, plEcsTypeKey, plEntity); // do not store
     bool     (*has_component)   (const plComponentLibrary*, plEcsTypeKey, plEntity);
     bool     (*remove_component)(plComponentLibrary*, plEcsTypeKey, plEntity);
-    bool     (*is_local)        (plComponentLibrary*, plEntity);
-    size_t   (*get_index)       (const plComponentLibrary*, plEcsTypeKey, plEntity);
+    bool     (*is_local)        (plComponentLibrary*, plEntity); // false if instantiated from another library (i.e. clone_library_into)
+    size_t   (*get_index)       (const plComponentLibrary*, plEcsTypeKey, plEntity); // index into "get_components" arrays (SIZE_MAX if missing)
     uint32_t (*get_components)  (const plComponentLibrary*, plEcsTypeKey, void**, const plEntity**); // do not store
 
     // changes

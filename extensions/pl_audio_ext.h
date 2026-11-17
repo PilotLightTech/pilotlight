@@ -1,5 +1,6 @@
 /*
    pl_audio_ext.h
+     - placeholder (not implemented yet)
 */
 
 /*
@@ -38,7 +39,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plAudioI_version {1, 0, 0}
+#define plAudioI_version {0, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api

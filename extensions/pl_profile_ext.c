@@ -8,7 +8,6 @@ Index of this file:
 // [SECTION] global context
 // [SECTION] implementation
 // [SECTION] extension loading
-// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------

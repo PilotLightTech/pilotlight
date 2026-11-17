@@ -1,5 +1,6 @@
 /*
    pl_material_ext.h
+     - material asset type (pbr metallic/roughness w/ gltf extensions, foliage, & water)
 */
 
 /*
@@ -46,7 +47,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plMaterialI_version {0, 5, 0}
+#define plMaterialI_version {0, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -327,7 +328,7 @@ typedef struct _plMaterial
     plMaterialTransmission        tTransmission;
     plMaterialDiffuseTransmission tDiffuseTransmission;
     plMaterialVolume              tVolume;
-    plMaterialWater               tWater;
+    plMaterialWater               tWater; // PL_MATERIAL_MODEL_WATER only
 
     plMaterialTexture atTextures[PL_MATERIAL_TEXTURE_SLOT_COUNT];
 } plMaterial;

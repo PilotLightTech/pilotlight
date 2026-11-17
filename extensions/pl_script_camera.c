@@ -1,5 +1,5 @@
 /*
-   pl_camera_script.c
+   pl_script_camera.c
 */
 
 /*

@@ -1,5 +1,6 @@
 /*
    pl_config_ext.h
+     - simple persistent settings (name/value pairs saved as json)
 */
 
 /*
@@ -9,6 +10,7 @@ Index of this file:
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
+// [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] structs
 */
@@ -83,7 +85,7 @@ typedef struct _plConfigI
     void (*load_from_disk)(const char* fileName); // if NULL, default: "pl_config.json"
     void (*save_to_disk)  (const char* fileName); // if NULL, default: "pl_config.json"
     
-    // loading
+    // loading (returns "defaultValue" if missing or stored as a different type)
     bool     (*load_bool)  (const char* name, bool     defaultValue);
     int      (*load_int)   (const char* name, int      defaultValue);
     uint32_t (*load_uint)  (const char* name, uint32_t defaultValue);

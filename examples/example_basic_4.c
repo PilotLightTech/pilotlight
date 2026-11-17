@@ -16,8 +16,6 @@ Index of this file:
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
 // [SECTION] pl_app_update
-// [SECTION] full demo
-// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -128,6 +126,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
 
     // create cache directories
+    //   - the shader & resource extensions write to VFS paths "/cache/shaders" &
+    //     "/cache/textures" so those must exist & be mounted (see below)
     gptFile->create_directory("../cache");
     gptFile->create_directory("../cache/shaders");
     gptFile->create_directory("../cache/imports");
@@ -247,8 +247,8 @@ pl_app_update(plAppData* ptAppData)
 
     // the starter extension will call begin/end main_pass if you don't but in this
     // case we are managing the draw extension so we must submit the drawlists
-    // ourself. The starter extension still handles alot of the process of dealing
-    // with command buffers, syncronization, submission, etc. but that is outside
+    // ourself. The starter extension still handles a lot of the process of dealing
+    // with command buffers, synchronization, submission, etc. but that is outside
     // the scope of the draw extension.
 
     // start main pass & return the command buffer being used

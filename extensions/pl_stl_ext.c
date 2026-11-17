@@ -5,10 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] internal structs
-// [SECTION] internal API
 // [SECTION] implementation
-// [SECTION] internal API implementation
 // [SECTION] extension loading
 */
 
@@ -31,7 +28,6 @@ Index of this file:
 #include "pl_vfs_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_asset_ext.h"
-#include "pl_mesh_ext.h"
 
 // shaders
 #include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX

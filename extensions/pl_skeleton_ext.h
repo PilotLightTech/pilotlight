@@ -1,5 +1,7 @@
 /*
    pl_skeleton_ext.h
+     - skeleton & skin asset types
+     - skin ecs component & system (joint matrices for gpu skinning)
 */
 
 /*
@@ -31,7 +33,7 @@ Index of this file:
         * plLogI (v2.x)
         * plMemoryI (v1.x)
         * plProfileI (v2.x)
-        * plResourceI (v1.x)
+        * plResourceI (v2.x)
         * plStringInternI (v3.x)
         * plTransformI (v1.x)
         * plVfsI (v3.x)
@@ -139,14 +141,14 @@ typedef struct _plSkin
 
     uint32_t  uJointCount;
 
-    // skin joint index -> skeleton joint index
+    // skin joint index -> joint entity id
     //
     // Entry i corresponds to:
     //   vertex JOINTS value i
     //   inverse bind matrix i
     plEntityId* atJoints;
 
-    // one per skin joint, same ordering as auJoints
+    // one per skin joint, same ordering as atJoints
     plMat4*   atInverseBindMatrices;
 } plSkin;
 

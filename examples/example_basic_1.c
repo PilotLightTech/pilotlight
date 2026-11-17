@@ -5,6 +5,7 @@
      - demonstrates creating a window
      - demonstrates hot reloading
      - demonstrates keyboard input
+     - demonstrates software (cpu) window surfaces
 */
 
 /*
@@ -24,15 +25,15 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-    This example building on example 0 but introduces hot reloading and the
-    window extension. To utilize hot reload, simply run the build script again!
+    This example builds on example 0 but introduces hot reloading and the
+    window API (platform extension). To utilize hot reload, simply run the build script again!
 
     IMPORTANT:
 
     It is absolutely necessary that you understand concepts related to dll 
     boundaries to fully utilize hot reloading. Any static/global variables need
     to be set again between reloads since you are now "in" another dll. For
-    example, its typical to see the APIs used as globals within an app or
+    example, it's typical to see the APIs used as globals within an app or
     extension and thus the re-setting of those variables during a reload. It is
     also important that you do not change the memory layout of data stored in
     the data registry between reloads (i.e. don't add a new struct member).
@@ -91,7 +92,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false);
     
 
-    // load required apis (stored as globals for convience)
+    // load required apis (stored as globals for convenience)
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
     
@@ -122,6 +123,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
     gptWindows->show(ptAppData->ptWindow);
 
+    // since the window uses PL_WINDOW_PRESENTATION_MODE_SOFTWARE, we create a
+    // surface we can write pixels to directly from the CPU (no graphics API)
     plWindowSurfaceDesc tSurfaceDesc = {
         .tFormat     = PL_WINDOW_SURFACE_FORMAT_B8G8R8A8_UNORM,
         .uImageCount = 2
@@ -139,7 +142,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
-    // perform any cleanup here
+    // perform any cleanup here (surface must be destroyed before its window)
+    gptWindows->destroy_surface(&ptAppData->ptSurface);
     gptWindows->destroy(ptAppData->ptWindow);
     
     // free app memory
@@ -174,6 +178,8 @@ pl_app_update(plAppData* ptAppData)
         printf("P key pressed!\n");
     }
 
+    // acquire a surface image, fill it, then present it
+    // NOTE: this assumes tightly packed rows (uRowPitch == uWidth * 4)
     plWindowSurfaceImage tSurfaceImage = {0};
     if(gptWindows->acquire_surface_image(ptAppData->ptSurface, &tSurfaceImage))
     {

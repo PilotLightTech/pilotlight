@@ -7,7 +7,11 @@ Index of this file:
 // [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] apis
+// [SECTION] forward declarations
+// [SECTION] public api
 // [SECTION] public api struct
+// [SECTION] structs
+// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------

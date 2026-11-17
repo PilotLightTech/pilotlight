@@ -5,10 +5,9 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] job system tasks
-// [SECTION] resource creation helpers
-// [SECTION] culling
-// [SECTION] scene render helpers
+// [SECTION] structs
+// [SECTION] internal helpers (rendering)
+// [SECTION] public api implementation
 */
 
 //-----------------------------------------------------------------------------
@@ -44,7 +43,7 @@ typedef struct _plChunkFileData
 
 typedef struct _plTerrain
 {
-    plRenderAttachmentInfo    tRenderPassLayoutHandle;
+    plRenderAttachmentInfo    tAttachmentInfo;
     plChunkFileData*          sbtChunkFiles;
     plAssetHandle             tAsset;
     plVec2                    tTopLeftGlobal;
@@ -139,7 +138,7 @@ pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plAssetHandle tAsset)
     plTerrain* ptTerrain = PL_ALLOC(sizeof(plTerrain));
     memset(ptTerrain, 0, sizeof(plTerrain));
 
-    ptTerrain->tRenderPassLayoutHandle = gptData->tRenderPassLayout;
+    ptTerrain->tAttachmentInfo = gptData->tMainAttachmentInfo;
     ptTerrain->tAsset = tAsset;
 
     pl_sb_resize(ptTerrain->sbuFreeRequests, PL_REQUEST_QUEUE_SIZE);

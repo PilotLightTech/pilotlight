@@ -1,5 +1,6 @@
 /*
    pl_asset_ext.inl
+     - asset handle & type key types (include without pulling in the full extension header)
 */
 
 /*

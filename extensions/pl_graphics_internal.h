@@ -1,3 +1,9 @@
+/*
+   pl_graphics_internal.h
+     - shared internal declarations for graphics backends
+     - FORWARD COMPATIBILITY NOT GUARANTEED
+*/
+
 #ifndef PL_GRAPHICS_INTERNAL_EXT_H
 #define PL_GRAPHICS_INTERNAL_EXT_H
 
@@ -47,8 +53,6 @@ typedef struct _plFrameGarbage
     plBindGroupLayoutHandle*  sbtBindGroupLayouts;
     plShaderHandle*           sbtShaders;
     plComputeShaderHandle*    sbtComputeShaders;
-    plRenderPassLayoutHandle* sbtRenderPassLayouts;
-    plRenderPassHandle*       sbtRenderPasses;
     plDeviceMemoryAllocation* sbtMemory;
 } plFrameGarbage;
 
@@ -171,11 +175,11 @@ void             pl_graphics_begin_command_recording(plCommandBuffer*);
 void             pl_graphics_end_command_recording  (plCommandBuffer*);
 void             pl_graphics_submit_command_buffer  (plCommandBuffer*, const plSubmitInfo*);
 
-// render encoder
+// render passes
 void pl_graphics_begin_render_pass(plCommandBuffer*, const plRenderInfo*, const plPassResources*);
 void pl_graphics_end_render_pass  (plCommandBuffer*);
 
-// render encoder: draw stream (preferred system)
+// render pass: draw stream (preferred system)
 //   Notes:
 //     - call reset_draw_stream(...) with the maximum number of possible calls to
 //       pl_add_to_draw_stream before the next call to draw_stream so any memory
@@ -185,7 +189,7 @@ void pl_graphics_cleanup_draw_stream(plDrawStream*);
 void pl_graphics_draw_stream        (plCommandBuffer*, uint32_t areaCount, plDrawArea*); // decodes drawstream (does not reset draw stream)
 // INLINED -> void pl_add_to_draw_stream(plDrawStream*, plDrawStreamData);
 
-// render encoder: direct (prefer draw stream system, this will be used for bindless mostly)
+// render pass: direct (prefer draw stream system, this will be used for bindless mostly)
 void pl_graphics_bind_graphics_bind_groups(plCommandBuffer*, plShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
 void pl_graphics_set_depth_bias           (plCommandBuffer*, float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor);
 void pl_graphics_set_viewport             (plCommandBuffer*, const plRenderViewport*);
@@ -196,7 +200,7 @@ void pl_graphics_draw                     (plCommandBuffer*, uint32_t count, con
 void pl_graphics_draw_indexed             (plCommandBuffer*, uint32_t count, const plDrawIndex*);
 void pl_graphics_bind_shader              (plCommandBuffer*, plShaderHandle);
 
-// compute encoder
+// compute passes (also used for transfers: copies & mipmap generation)
 void pl_graphics_begin_compute_pass      (plCommandBuffer*, const plPassResources*); // do not store
 void pl_graphics_end_compute_pass        (plCommandBuffer*);
 void pl_graphics_dispatch                (plCommandBuffer*, uint32_t dispatchCount, const plDispatch*);
@@ -311,26 +315,6 @@ const char*  pl_graphics_get_format_as_string(plFormat);
 static struct _plGraphics* gptGraphics = NULL;
 static uint64_t uLogChannelGraphics = UINT64_MAX;
 
-// // getters (generational pool)
-// static plSampler*          pl_graphics_get_sampler           (plDevice*, plSamplerHandle);
-// static plRenderPassLayout* pl_graphics_get_render_pass_layout(plDevice*, plRenderPassLayoutHandle);
-// static plRenderPass*       pl_graphics_get_render_pass       (plDevice*, plRenderPassHandle);
-// static plBuffer*           pl_graphics_get_buffer           (plDevice*, plBufferHandle);
-// static plTexture*          pl_graphics_get_texture          (plDevice*, plTextureHandle);
-// static plBindGroup*        pl_graphics_get_bind_group       (plDevice*, plBindGroupHandle);
-// static plBindGroupLayout*  pl_graphics_get_bind_group_layout(plDevice*, plBindGroupLayoutHandle);
-// static plShader*           pl_graphics_get_shader           (plDevice*, plShaderHandle);
-// static plComputeShader*    pl_graphics_get_compute_shader   (plDevice*, plComputeShaderHandle);
-
-// static bool pl_graphics_is_buffer_valid            (plDevice*, plBufferHandle);
-// static bool pl_graphics_is_sampler_valid           (plDevice*, plSamplerHandle);
-// static bool pl_graphics_is_texture_valid           (plDevice*, plTextureHandle);
-// static bool pl_graphics_is_bind_group_valid        (plDevice*, plBindGroupHandle);
-// static bool pl_graphics_is_render_pass_valid       (plDevice*, plRenderPassHandle);
-// static bool pl_graphics_is_render_pass_layout_valid(plDevice*, plRenderPassLayoutHandle);
-// static bool pl_graphics_is_shader_valid            (plDevice*, plShaderHandle);
-// static bool pl_graphics_is_compute_shader_valid    (plDevice*, plComputeShaderHandle);
-
 // new handles
 static plBufferHandle           pl__get_new_buffer_handle(plDevice*);
 static plTextureHandle          pl__get_new_texture_handle(plDevice*);
@@ -339,8 +323,6 @@ static plBindGroupHandle        pl__get_new_bind_group_handle(plDevice*);
 static plBindGroupLayoutHandle  pl__get_new_bind_group_layout_handle(plDevice*);
 static plShaderHandle           pl__get_new_shader_handle(plDevice*);
 static plComputeShaderHandle    pl__get_new_compute_shader_handle(plDevice*);
-static plRenderPassHandle       pl__get_new_render_pass_handle(plDevice*);
-static plRenderPassLayoutHandle pl__get_new_render_pass_layout_handle(plDevice*);
 static plTimelineSemaphore*     pl__get_new_semaphore(plDevice*);
 
 static void pl__return_semaphore(plDevice*, plTimelineSemaphore*);

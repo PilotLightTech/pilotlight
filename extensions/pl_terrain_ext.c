@@ -5,15 +5,12 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] defines
 // [SECTION] forward declarations
 // [SECTION] structs
 // [SECTION] global data
 // [SECTION] internal helpers (preprocessing)
-// [SECTION] internal helpers (rendering)
 // [SECTION] public api implementation
-// [SECTION] internal helpers implementation (preprocessing)
-// [SECTION] internal helpers implementation (rendering)
+// [SECTION] internal api implementation
 // [SECTION] extension loading
 // [SECTION] unity build
 */
@@ -630,7 +627,7 @@ pl_terrain_process(plTerrainAsset* ptInfo)
         printf("updating 2\n");
         pl__update(&tHeightMap, tHeightMap.fMaxBaseError, tHeightMap.iSize-1, 0, 0, 0, tHeightMap.iSize-1, tHeightMap.iSize-1);	// ne half of the square
 
-        // propogate step
+        // propagate step
 
         // Propagate the activation_level values of verts to their
         // uParent verts, quadtree LOD style.  Gives same result as L-K.

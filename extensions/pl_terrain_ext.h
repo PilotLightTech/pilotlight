@@ -1,5 +1,6 @@
 /*
    pl_terrain_ext.h
+     - terrain asset type, heightmap preprocessing (chunked quadtree LODs), & height sampling
 */
 
 /*
@@ -13,6 +14,7 @@ Index of this file:
 // [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] structs
+// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------
@@ -158,7 +160,7 @@ typedef struct _plTerrainChunkFile
 typedef struct _plTerrainVertex
 {
     plVec3 tPosition;
-    plVec2 tNormal;
+    plVec2 tNormal; // octahedral encoded
     plVec2 tUV;
 } plTerrainVertex;
 

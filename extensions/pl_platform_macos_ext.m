@@ -1,16 +1,26 @@
+/*
+   pl_platform_macos_ext.m
+     - macos (Cocoa) platform backend
+*/
+
+// 64-bit file offsets on 32-bit POSIX targets (must come before any system header)
 #ifndef _WIN32
 #ifndef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 #endif
 #endif
-/*
-   pl_platform_macos_ext.c
-*/
 
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] public api implementation
+// [SECTION] timer api
+// [SECTION] window ext
+// [SECTION] clipboard
+// [SECTION] file ext
+// [SECTION] atomics ext
+// [SECTION] network ext
+// [SECTION] thread ext
+// [SECTION] virtual memory ext
 // [SECTION] extension loading
 */
 
@@ -449,7 +459,7 @@ static plMacWindowEvent*      gsbtWindowEvents = NULL;
 
 - (void)loadView
 {
-    // The window backend assigns the view explicitly in pl_create_window().
+    // The window backend assigns the view explicitly in pl_window_create().
 }
 
 @end
@@ -2435,4 +2445,9 @@ pl_virtual_memory_decommit(void* pAddress, size_t szSize)
     PL_ASSERT(iResult == 0);
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] extension loading
+//-----------------------------------------------------------------------------
+
+// shared api registration (pl_load_platform_ext/pl_unload_platform_ext)
 #include "pl_platform_ext.c"

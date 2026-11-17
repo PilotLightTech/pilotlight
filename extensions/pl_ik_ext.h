@@ -1,5 +1,6 @@
 /*
    pl_ik_ext.h
+     - inverse kinematics ecs component & system (CCD style)
 */
 
 /*
@@ -97,11 +98,11 @@ typedef struct _plIkI
 typedef struct _plInverseKinematicsComponent
 {
     bool       bEnabled;
-    plEntityId tTargetId;
-    uint32_t   uChainLength;
+    plEntityId tTargetId;       // persistent id of target entity (serialized)
+    uint32_t   uChainLength;    // number of parents (bones) to rotate, max 32
     uint32_t   uIterationCount;
 
-    plEntity tTarget;
+    plEntity tTarget; // runtime handle resolved from "tTargetId"
 } plInverseKinematicsComponent;
 
 #ifdef __cplusplus

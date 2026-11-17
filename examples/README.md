@@ -36,10 +36,12 @@ pilot_light -a example_gfx_2
 Demonstrates the bare minimum app. This app loads, runs 50 iterations of the update function (printing to console), then exits. Note: this app is not really meant to run. It is for reference.
 
 ### Example 1 - API Loading With API Registry  (example_basic_1.c)
-Note: this app is not really meant to run. It is for reference.
 Demonstrates:
 * loading APIs
+* loading extensions
+* creating a window
 * hot reloading
+* keyboard input
 
 ### Example 2 - Starter & Basic Extensions With API Registry (example_basic_2.c)
 Demonstrates:
@@ -55,6 +57,8 @@ Demonstrates:
 Demonstrates:
 * loading APIs
 * loading extensions
+* hot reloading
+* starter extension
 * drawing extension (2D)
 
 ### Example 4 - UI Extension With API Registry (example_basic_4.c)
@@ -83,7 +87,7 @@ Demonstrates:
 ### Example 2 - Graphics Extension 2 With API Registry (example_gfx_2.c)
 Demonstrates:
 * bind groups
-* vertex, index
+* vertex & index buffers (via starter helpers)
 * samplers, textures, bind groups
 * shaders
 * indexed drawing
@@ -108,9 +112,10 @@ Demonstrates:
 Demonstrates:
 * starter extension
 * camera extension
-* render passes
+* drawing extension (2D & 3D)
+* offscreen rendering (render passes)
 
-### Example 6 - Graphics Extension 6 With API Registry (example_gfx_5.6)
+### Example 6 - Graphics Extension 6 With API Registry (example_gfx_6.c)
 Demonstrates:
 * starter extension
 * compute shaders

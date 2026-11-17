@@ -1,5 +1,6 @@
 /*
    pl_shader_ext.h
+     - glsl shader compilation (SPIR-V/metal output), caching, & loading
 */
 
 /*
@@ -111,6 +112,7 @@ typedef struct _plShaderI
     const plShaderOptions* (*get_options)(void);
 
     // load shader (compile if not already compiled)
+    //   - "file" is currently unused (pass NULL)
     plShaderModule (*load_glsl)(const char* shader, const char* entryFunc, const char* file, plShaderOptions*);
 
     // compilation (pass null shader options to use default)
@@ -138,7 +140,6 @@ typedef struct _plShaderOptions
     plShaderMacroDefinition   atMacroDefinitions[PL_MAX_SHADER_MACRO_DEFINITIONS];
     const char*               apcIncludeDirectories[PL_MAX_SHADER_INCLUDE_DIRECTORIES + 2];
     const char*               apcDirectories[PL_MAX_SHADER_DIRECTORIES + 2];
-    const char*               pcCacheOutputDirectory; // OBSOLETE
 
     // [INTERNAL]
     uint32_t _uDirectoriesCount;

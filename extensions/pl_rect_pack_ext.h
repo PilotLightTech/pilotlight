@@ -9,8 +9,10 @@ Index of this file:
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] APIs
+// [SECTION] forward declarations
 // [SECTION] public api
 // [SECTION] public api struct
+// [SECTION] structs
 */
 
 //-----------------------------------------------------------------------------
@@ -72,6 +74,7 @@ PL_API void pl_rect_pack_pack(int width, int height, plPackRect*, uint32_t rectC
 
 typedef struct _plRectPackI
 {
+    // packs rects into a width x height area (check "iWasPacked" for results)
     void (*pack)(int width, int height, plPackRect*, uint32_t rectCount);
 } plRectPackI;
 
@@ -79,6 +82,7 @@ typedef struct _plRectPackI
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+// NOTE: layout must match stbrp_rect (passed directly to stb_rect_pack)
 typedef struct _plPackRect
 {
     // reserved for your use

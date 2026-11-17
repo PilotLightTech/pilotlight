@@ -1,5 +1,6 @@
 /*
    pl_asset_tools_ext.h
+     - asset & entity inspection/editing tools (ui extension based)
 */
 
 /*
@@ -29,15 +30,15 @@ Index of this file:
         * plConsoleI (v2.x)
         * plDataRegistryI (v1.x)
         * plEcsI (v3.x)
-        * plGraphicsI (v2.x)
+        * plGraphicsI (v3.x)
         * plIOI (v1.x)
         * plIkI (v0.3.x)
-        * plMaterialI (v0.5.x)
+        * plMaterialI (v0.2.x)
         * plMemoryI (v1.x)
-        * plMeshI (v0.3.x)
+        * plMeshI (v0.2.x)
         * plPhysicsI (v0.2.x)
         * plRendererI (v0.3.x)
-        * plResourceI (v1.x)
+        * plResourceI (v2.x)
         * plScriptI (v0.1.x)
         * plSkeletonI (v0.1.x)
         * plTerrainI (v0.1.x)

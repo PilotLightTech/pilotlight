@@ -1,10 +1,11 @@
 /*
    pl_starter_ext.h
+     - removes boilerplate for common setups (device, swapchain, main pass, etc.)
 */
 
 /*
 Index of this file:
-// [SECTION] implementation notes notes
+// [SECTION] implementation notes
 // [SECTION] quick notes
 // [SECTION] header mess
 // [SECTION] APIs
@@ -30,13 +31,13 @@ Index of this file:
         * plDrawI (v4.x)
         * plFileI (v2.x)
         * plGPUAllocatorsI (v2.x)
-        * plGraphicsI (v2.x)
+        * plGraphicsI (v3.x)
         * plIOI (v1.x)
         * plMemoryI (v1.x)
         * plProfileI (v2.x)
-        * plResourceI (v1.x)
+        * plResourceI (v2.x)
         * plScreenLogI (v2.x)
-        * plShaderI (v2.x)
+        * plShaderI (v3.x)
         * plStageI (v0.3.x)
         * plStatsI (v1.x)
         * plToolsI (v1.x)
@@ -51,7 +52,7 @@ Index of this file:
 /*
     Background:
         This extension serves mostly as a helper extension to remove a
-        significant amount of boilerplate for users who just need to minimum
+        significant amount of boilerplate for users who just need the minimum
         setup to begin using the drawing, UI, or other extensions that don't
         require the user to care about the lower level details of the graphics
         extension. It is also used in the examples to help users grasp concepts
@@ -96,7 +97,7 @@ typedef struct _plStarterInit plStarterInit;
 typedef int plStarterFlags;
 
 // external
-typedef struct _plWindow               plWindow;               // pl.h
+typedef struct _plWindow               plWindow;               // pl_platform_ext.h
 typedef struct _plFont                 plFont;                 // pl_draw_ext.h
 typedef struct _plDrawLayer2D          plDrawLayer2D;          // pl_draw_ext.h
 typedef struct _plDevice               plDevice;               // pl_graphics_ext.h
@@ -112,7 +113,7 @@ typedef union plBufferHandle           plBufferHandle;         // pl_graphics_ex
 typedef union plTextureHandle          plTextureHandle;        // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api struct
+// [SECTION] public api
 //-----------------------------------------------------------------------------
 
 // extension loading
@@ -135,12 +136,12 @@ typedef struct _plStarterI
 
     // finalize
     //   - if you decide to handle any extension setup, calling this function after
-    //     gives this extension a change to finish setup that relies on those
+    //     gives this extension a chance to finish setup that relies on those
     //     extensions being initialized
     void (*finalize)(void);
 
     // cleanup
-    //   - just handles all the cleanup need by the managed extensions
+    //   - just handles all the cleanup needed by the managed extensions
     void (*cleanup)(void);
 
     // begin frame
@@ -168,7 +169,7 @@ typedef struct _plStarterI
 
     // command buffers
     //    - these command buffers are already in a recording state and
-    //      syncronized with subsequent calls/main pass with the internal
+    //      synchronized with subsequent calls/main pass with the internal
     //      timeline semaphores. Use between "begin_frame" and before "begin_main_pass"
     //    - They do NOT block.
     plCommandBuffer* (*get_command_buffer)(void);
@@ -176,7 +177,7 @@ typedef struct _plStarterI
 
     // temporary command buffers
     //    - these command buffers are already in a recording state but are not
-    //      syncronized.
+    //      synchronized.
     //    - these command buffers block when submitted and meant for setup work
     //      or resource loading 
     plCommandBuffer* (*get_temporary_command_buffer)(void);
@@ -189,7 +190,7 @@ typedef struct _plStarterI
     void             (*return_raw_command_buffer)(plCommandBuffer*);
 
     // VSync/MSAA/Depth Buffering
-    //    - active/deactive MSAA & depth buffers & vsync
+    //    - activate/deactivate MSAA & depth buffers & vsync
     //    - MSAA/VSync changes are queued until begin_frame, before image acquisition.
     //      The latest request wins; simultaneous changes share one recreation.
     //    - MSAA affects the main pass only. Custom main-pass pipelines must match

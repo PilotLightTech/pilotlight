@@ -17,9 +17,12 @@ General:
     * Virtual memory access
     * String interning
     * BVH
-    * custom archieve format (pak file)
+    * custom archive format (pak file)
     * compression
     * virtual file system
+    * file streaming
+    * asset system (serialization)
+    * gizmos (translate, rotate, scale w/ snapping)
 
 Custom math:
     * vectors
@@ -49,6 +52,11 @@ Custom UI:
     * tabs
     * windows
     * treenodes & collapsing headers
+    * docking
+    * menus & menu bars
+    * multiline text input
+    * settings persistence
+    * file dialogs
 
 Entity-Component System (Data oriented design):
     * Inverse Kinematics
@@ -65,8 +73,10 @@ Entity-Component System (Data oriented design):
     * Force Fields
 
 Low level graphics:
-    * Metal 3.0 renderer
-    * Vulkan renderer
+    * Metal 4.0 backend
+    * Vulkan 1.4 backend
+    * CPU backend (initial)
+    * GPU timing
     * Bitmap & SDF font rendering (True Type)
     * 2D/3D debug drawing system
     * Instanced rendering
@@ -117,6 +127,10 @@ Renderer:
     * Screen Space Contact Shadows
     * Screen Space Global Illumination (SSGI)
     * Volumetric clouds
+    * Water rendering (swells, Gerstner, FFT ocean)
+    * Night sky
+    * Deferred + Forward decals
+    * Terrain rendering
 
 Wishlist:
     * Morph target animation (with sparse accessor)
@@ -148,12 +162,9 @@ Wishlist:
     * Eye adaption
     * Impostor system
     * Occlusion culling with gpu queries
-    * Tiled decals
-    * GPU Frame Profiler
     * Voxel Global Illumination
     * Force Fields GPU simulation
     * Particle - Depth Buffer collisions
-    * Ocean simulation (FFT)
     * Translucent colored shadows
     * Refraction caustics
     * Volumetric light scattering

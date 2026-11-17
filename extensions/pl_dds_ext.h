@@ -1,11 +1,12 @@
 /*
    pl_dds_ext.h
+     - dds file header reading & writing (pixel data is handled by the user)
 */
 
 /*
 Index of this file:
-// [SECTION] implementation notes
 // [SECTION] quick notes
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] APIs
 // [SECTION] includes
@@ -20,30 +21,30 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
-	Writing:
+    Writing:
 
     texture data need to be in the following layout in the DDS file, tightly packed:
-		- Array slice 0 / cubemap face +X
-			- mipmap 0
-				- depth slice 0
-				- depth slice 1
-				- ...
-			- mipmap 1
-				- depth slice 0
-				- depth slice 1
-				- ...
-			- ...
-		- Array slice 1 / cubemap face -X
-			- mipmap 0
-				- depth slice 0
-				- depth slice 1
-				- ...
-			- mipmap 1
-				- depth slice 0
-				- depth slice 1
-				- ...
-			- ...
-		- ...
+        - Array slice 0 / cubemap face +X
+            - mipmap 0
+                - depth slice 0
+                - depth slice 1
+                - ...
+            - mipmap 1
+                - depth slice 0
+                - depth slice 1
+                - ...
+            - ...
+        - Array slice 1 / cubemap face -X
+            - mipmap 0
+                - depth slice 0
+                - depth slice 1
+                - ...
+            - mipmap 1
+                - depth slice 0
+                - depth slice 1
+                - ...
+            - ...
+        - ...
 */
 
 //-----------------------------------------------------------------------------
@@ -110,9 +111,9 @@ PL_API void pl_unload_dds_ext(plApiRegistryI*, bool reload);
 
 typedef struct _plDdsI
 {
-    uint32_t (*get_header_size)(void);
-    bool     (*read_info)      (uint8_t*, plDdsReadInfo*);
-    void     (*write_info)     (uint8_t*, const plDdsWriteInfo*);
+    uint32_t (*get_header_size)(void);                            // size of buffer required by "write_info"
+    bool     (*read_info)      (uint8_t*, plDdsReadInfo*);        // parses header of file data
+    void     (*write_info)     (uint8_t*, const plDdsWriteInfo*); // writes header (data follows)
 } plDdsI;
 
 //-----------------------------------------------------------------------------

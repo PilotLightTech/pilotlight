@@ -71,12 +71,20 @@ PL_API void pl_unload_string_intern_ext(plApiRegistryI*, bool reload);
 
 typedef struct _plStringInternI
 {
+    // repositories
+    //   - non-extended versions below use a default repository
     plStringRepository* (*create_repository) (void);
     void                (*destroy_repository)(plStringRepository*);
     
+    // interning
+    //   - returns a stable pointer to the stored copy (equal strings share a pointer,
+    //     so interned strings can be compared by pointer)
+    //   - each call increments the string's reference count
     const char* (*intern)(const char* cString);
     const char* (*intern_ex)(const char* cString, plStringRepository*);
 
+    // removal
+    //   - decrements the reference count; storage is reclaimed once it reaches 0
     void (*remove)(const char* cString);
     void (*remove_ex)(const char* cString, plStringRepository*);
 

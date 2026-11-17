@@ -1,5 +1,7 @@
 /*
    pl_freelist_ext.h
+     - free list allocator for managing ranges (offsets/sizes) of an external resource
+     - does not allocate the resource itself (i.e. used for gpu buffers & atlases)
 */
 
 /*
@@ -11,6 +13,7 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
 // [SECTION] public api struct
+// [SECTION] structs
 */
 
 //-----------------------------------------------------------------------------
@@ -72,7 +75,7 @@ PL_API void pl_unload_freelist_ext(plApiRegistryI*, bool reload);
 
 typedef struct _plFreeListI
 {
-    void            (*create)     (uint64_t size, uint64_t minSize, plFreeList* freelistOut);
+    void            (*create)     (uint64_t size, uint64_t minSize, plFreeList* freelistOut); // minSize: smallest node size
     void            (*cleanup)    (plFreeList* freelistOut);
     plFreeListNode* (*get_node)   (plFreeList*, uint64_t size);
     void            (*return_node)(plFreeList*, plFreeListNode*);

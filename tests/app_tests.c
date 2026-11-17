@@ -5,11 +5,16 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] apis
+// [SECTION] global apis
+// [SECTION] structs
+// [SECTION] test declarations
+// [SECTION] pl_app_info
 // [SECTION] pl_app_load
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
 // [SECTION] pl_app_update
+// [SECTION] test implementations
+// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------

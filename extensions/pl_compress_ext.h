@@ -67,7 +67,7 @@ typedef struct _plCompressI
     //   Compresses data. It is recommended to make the dataOut buffer twice
     //   the size of the input buffer just to be safe. You can run the
     //   function with "dataOut = NULL" and it will return the minimum size of
-    //   the dataOut, however this is expense since it must do the work of the
+    //   the dataOut, however this is expensive since it must do the work of the
     //   full compression algorithm. You can also just guess but if you do,
     //   make sure to check if the return value is <= the size of the out buffer
     //   if not, try again with a larger buffer. The function is safe in that it

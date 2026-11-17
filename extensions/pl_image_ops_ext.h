@@ -1,5 +1,6 @@
 /*
    pl_image_ops_ext.h
+     - cpu image operations (image composition & mipmap generation)
 */
 
 /*
@@ -94,8 +95,8 @@ typedef struct _plImageOpsI
     void (*add)       (plImageOpData*, int x, int y, uint32_t w, uint32_t h, uint8_t*);
     void (*add_region)(plImageOpData*, int x, int y, uint32_t w, uint32_t h, plImageOpColor);
 
-    // in-place place operations
-    void (*square)(plImageOpData*);
+    // in-place operations
+    void (*square)(plImageOpData*); // expands virtual & active regions to squares
 
     // misc.
     uint8_t* (*extract)        (plImageOpData* dataIn, int x, int y, uint32_t w, uint32_t h, uint64_t* sizeOut);

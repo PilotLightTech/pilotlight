@@ -5,7 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] internal api implementation
+// [SECTION] internal api
 // [SECTION] extension loading
 */
 

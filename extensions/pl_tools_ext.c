@@ -8,6 +8,7 @@ Index of this file:
 // [SECTION] internal structs
 // [SECTION] global data
 // [SECTION] internal api
+// [SECTION] public api implementation
 // [SECTION] internal api implementation
 // [SECTION] extension loading
 // [SECTION] unity build
@@ -141,7 +142,7 @@ static void pl__show_device_memory     (bool* bValue);
 static void pl__show_logging           (bool* bValue);
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal api implementation
+// [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 void

@@ -1,5 +1,7 @@
 /*
    pl_mesh_ext.h
+     - mesh asset type & cpu mesh operations (normals, tangents, primitives, etc.)
+     - mesh builder (welds triangles into indexed vertex buffers)
 */
 
 /*
@@ -47,7 +49,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plMeshI_version {0, 3, 0}
+#define plMeshI_version {0, 2, 0}
 #define plMeshBuilderI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
@@ -141,7 +143,7 @@ typedef struct _plMeshBuilderOptions
 
 typedef struct _plSubmeshAllocationDesc
 {
-    uint64_t uVertexStreamMask;
+    uint64_t uVertexStreamMask; // PL_MESH_FORMAT_FLAG_XXXX (pl_shader_interop_renderer.h)
     size_t   szVertexCount;
     size_t   szIndexCount;
 } plSubmeshAllocationDesc;
@@ -165,7 +167,7 @@ typedef struct _plSubmesh
 
 typedef struct _plMesh
 {
-    uint8_t*   puRawData;
+    uint8_t*   puRawData;     // single allocation backing all submesh streams
     size_t     szRawDataSize;
     plAABB     tAABB;
     uint32_t   uSubmeshCount;

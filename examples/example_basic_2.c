@@ -56,7 +56,7 @@ Index of this file:
     * screen log
     * ui
     
-    This will be very light introductions with later examples going into more
+    These will be very light introductions with later examples going into more
     detail. Feel free to open the header file for the extension for more
     information and functionality.
 */
@@ -174,7 +174,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
 
-    // load required apis (these are provided though extensions)
+    // load required apis (these are provided through extensions)
     gptDraw      = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptStarter   = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptUI        = pl_get_api_latest(ptApiRegistry, plUiI);
@@ -193,6 +193,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     memset(ptAppData, 0, sizeof(plAppData));
 
     // create cache directories
+    //   - the shader & resource extensions write to VFS paths "/cache/shaders" &
+    //     "/cache/textures" so those must exist & be mounted (see below)
     gptFile->create_directory("../cache");
     gptFile->create_directory("../cache/shaders");
     gptFile->create_directory("../cache/imports");
@@ -219,7 +221,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
     gptWindows->show(ptAppData->ptWindow);
 
-    // initialize the starter API (handles alot of boilerplate)
+    // initialize the starter API (handles a lot of boilerplate)
     plStarterInit tStarterInit = {
         // .eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
@@ -291,8 +293,8 @@ pl_app_update(plAppData* ptAppData)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~stats API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
-    // rather than have to lookup the counter every frame, its best to "store" it
-    // like this. To update it, just deference it and set the value.
+    // rather than have to lookup the counter every frame, it's best to "store" it
+    // like this. To update it, just dereference it and set the value.
     static double* pdExample2Counter = NULL;
     if(!pdExample2Counter)
         pdExample2Counter = gptStats->get_counter("example 2 counter");

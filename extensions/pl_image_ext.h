@@ -1,5 +1,6 @@
 /*
    pl_image_ext.h
+     - image loading & writing (wraps stb_image & stb_image_write)
 */
 
 /*
@@ -85,8 +86,8 @@ typedef struct _plImageI
     float*          (*load_hdr_from_file)  (const char* path, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
     void            (*set_ldr_to_hdr_gamma)(float);
     void            (*set_ldr_to_hdr_scale)(float);
-    void            (*free)                (void* returnValueFromLoad);
-    bool            (*write)               (char const* filename, const void* data, const plImageWriteInfo*);
+    void            (*free)                (void* returnValueFromLoad); // frees result of any "load*" function
+    bool            (*write)               (char const* filename, const void* data, const plImageWriteInfo*); // format from extension (png, jpg, bmp, tga, hdr)
 } plImageI;
 
 //-----------------------------------------------------------------------------

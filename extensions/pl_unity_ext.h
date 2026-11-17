@@ -1,5 +1,6 @@
 /*
    pl_unity_ext.h
+     - single binary containing (most) extensions for unity builds
 */
 
 /*
@@ -9,7 +10,6 @@ Index of this file:
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] public api
-// [SECTION] public api struct
 */
 
 //-----------------------------------------------------------------------------
@@ -25,7 +25,7 @@ Index of this file:
         * plAssetI (v1.x)
         * plAssetToolsI (v0.1.x)
         * plAtomicsI (v2.x)
-        * plAudioI (v1.x)
+        * plAudioI (v0.0.x)
         * plBVHI (v0.2.x)
         * plCameraEcsI (v0.1.x)
         * plCameraI (v1.x)
@@ -44,10 +44,10 @@ Index of this file:
         * plFileI (v2.x)
         * plFreeListI (v0.2.x)
         * plGPUAllocatorsI (v2.x)
-        * plGizmoI (v0.3.x)
+        * plGizmoI (v0.2.x)
         * plGjkI (v0.1.x)
         * plGltfI (v0.1.x)
-        * plGraphicsI (v2.x)
+        * plGraphicsI (v3.x)
         * plIOI (v1.x)
         * plIkI (v0.3.x)
         * plImageI (v1.x)
@@ -56,20 +56,20 @@ Index of this file:
         * plJsonI (v1.x)
         * plLibraryI (v1.x)
         * plLogI (v2.x)
-        * plMaterialI (v0.5.x)
+        * plMaterialI (v0.2.x)
         * plMemoryI (v1.x)
         * plMeshBuilderI (v0.1.x)
-        * plMeshI (v0.3.x)
+        * plMeshI (v0.2.x)
         * plPakI (v2.x)
-        * plPathI (v1.x)
+        * plPathI (v0.0.x)
         * plPhysicsI (v0.2.x)
         * plProfileI (v2.x)
         * plRectPackI (v2.x)
         * plRendererI (v0.3.x)
-        * plResourceI (v1.x)
+        * plResourceI (v2.x)
         * plScreenLogI (v2.x)
         * plScriptI (v0.1.x)
-        * plShaderI (v2.x)
+        * plShaderI (v3.x)
         * plShaderLibraryI (v0.3.x)
         * plSkeletonI (v0.1.x)
         * plStageI (v0.3.x)
@@ -86,7 +86,7 @@ Index of this file:
         * plUiI (v2.x)
         * plVfsI (v3.x)
         * plVirtualMemoryI (v2.x)
-        * plVoxelI (v1.x)
+        * plVoxelI (v0.0.x)
         * plWindowI (v2.x)
 
     The unity module registers its bundled extensions itself. This list also

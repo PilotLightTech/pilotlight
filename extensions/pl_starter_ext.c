@@ -93,8 +93,6 @@ typedef struct _plStarterContext
     plTimelineSemaphore*     aptSemaphores[PL_MAX_FRAMES_IN_FLIGHT];
     uint64_t                 aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
     plCommandPool*           atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
-    // plRenderPassHandle       tRenderPass;
-    // plRenderPassLayoutHandle tRenderPassLayout;
     plTextureHandle          tDepthTexture;
     plTextureHandle          tResolveTexture;
     bool                     bMainPassExplicit;
@@ -180,7 +178,6 @@ pl_starter_initialize(plStarterInit tInit)
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_RESOURCE_EXT)
     {
         plResourceManagerInit tResourceInit = {
-            .pcCacheDirectory = "../cache",
             .ptDevice = gptStarterCtx->ptDevice
         };
         gptResource->initialize(tResourceInit);
@@ -193,7 +190,7 @@ pl_starter_initialize(plStarterInit tInit)
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         gptStarterCtx->atCmdPools[i] = gptGfx->create_command_pool(ptDevice, NULL);
 
-    // create timeline semaphores to syncronize GPU work submission
+    // create timeline semaphores to synchronize GPU work submission
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         gptStarterCtx->aptSemaphores[i] = gptGfx->create_semaphore(ptDevice, true);
 
@@ -770,10 +767,10 @@ pl_starter_end_main_pass(void)
 
         const plSubmitInfo tSubmitInfo = {
             .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
+            .atWaitSemaphores        = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
             .auWaitSemaphoreValues   = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]++},
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
+            .atSignalSemaphores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
             .auSignalSemaphoreValues = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]},
         };
 
@@ -828,10 +825,10 @@ pl_starter_submit_command_buffer(plCommandBuffer* ptCommandBuffer)
 
     const plSubmitInfo tSubmitInfo = {
         .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
+        .atWaitSemaphores        = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
         .auWaitSemaphoreValues   = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]++},
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
+        .atSignalSemaphores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]},
     };
 
@@ -1157,7 +1154,7 @@ pl_starter_return_staging_buffer(plBufferHandle* ptHandle)
 void
 pl_starter_create_texture(const plTextureDesc* ptDesc, const void* pData, uint64_t uSize, plTextureHandle* ptHandleOut)
 {
-    // for convience
+    // for convenience
     plDevice* ptDevice = gptStarterCtx->ptDevice;
  
     // create texture
@@ -1200,7 +1197,7 @@ pl_starter_create_texture(const plTextureDesc* ptDesc, const void* pData, uint64
 void
 pl_starter_create_buffer(const plBufferDesc* ptDesc, const void* pData, plBufferHandle* ptHandleOut)
 {
-    // for convience
+    // for convenience
     plDevice* ptDevice = gptStarterCtx->ptDevice;
  
     // create texture
