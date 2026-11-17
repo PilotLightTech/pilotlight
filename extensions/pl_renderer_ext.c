@@ -996,7 +996,7 @@ pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
         return;
 
     // fill CPU buffers & drawable list
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "recreate shaders");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "recreate shaders");
 
     plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
 
@@ -1010,7 +1010,7 @@ pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
 
     pl__renderer_load_shaders(ptScene);
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 void
@@ -1262,7 +1262,7 @@ void
 pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t uCameraCount)
 {
     ptScene->bShadowAtlasReady = false;
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     ptScene->tInternalFlags = PL_SCENE_INTERNAL_FLAG_ACTIVE | (ptScene->tInternalFlags & (PL_SCENE_INTERNAL_FLAG_INSTANCE_BUFFER_DIRTY | PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY));
     pl__renderer_update_object_groups(ptScene);
@@ -1471,8 +1471,8 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     if(!pl__renderer_reserve_lighting_buffers(ptScene))
     {
         PL_RENDERER_STAT("renderer / resource growths", ptScene->uResourceGrowthCount);
-        PL_LOG_ERROR_API(gptLog, gptData->uLogChannel, "Unable to grow renderer lighting buffers");
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_LOG_ERROR(gptLog, gptData->uLogChannel, "Unable to grow renderer lighting buffers");
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
         return;
     }
 
@@ -1496,7 +1496,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
             if(!gptGfx->is_texture_valid(ptDevice, ptView->tTransmissionTexture))
             {
-                PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "creating required transmission texture");
+                PL_LOG_INFO(gptLog, gptData->uLogChannel, "creating required transmission texture");
                 const plTextureDesc tRawOutput2TextureDesc = {
                     // resize_view grows textures only after their spare capacity is exhausted.
                     // The snapshot must cover the same capacity as its copy source.
@@ -1525,7 +1525,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
             if(gptGfx->is_texture_valid(ptDevice, ptView->tTransmissionTexture))
             {
-                PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "freeing unneeded transmission texture");
+                PL_LOG_INFO(gptLog, gptData->uLogChannel, "freeing unneeded transmission texture");
                 pl__renderer_return_bindless_texture_index(ptScene, ptView->tTransmissionTexture);
                 pl__renderer_return_bindless_texture_index(ptScene, ptView->tTransmissionDepthTexture);
                 gptGfx->queue_texture_for_deletion(ptDevice, ptView->tTransmissionTexture);
@@ -1576,7 +1576,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     PL_RENDERER_STAT("renderer / resource growths", ptScene->uResourceGrowthCount);
     if(!ptScene->bShadowAtlasReady)
     {
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
         return;
     }
 
@@ -1878,7 +1878,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         pl__renderer_probe_update_all(ptScene);
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 void
@@ -1886,7 +1886,7 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
 {
     if(!ptView->ptParentScene->bShadowAtlasReady)
         return;
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     // for convenience
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -2200,7 +2200,7 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
         gptGfx->return_command_buffer(ptSunCmdBuffer);
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 void
@@ -2208,7 +2208,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 {
     if(!ptView->ptParentScene->bShadowAtlasReady)
         return;
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     pl__renderer_render_debug_view(ptView, ptViewDesc);
 
@@ -2229,7 +2229,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~culling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "culling");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "culling");
     
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbuActiveDrawables);
 
@@ -2255,11 +2255,11 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         gptJob->dispatch_batch(uDrawableCount, 0, tJobDesc, &ptCullCounter);
     }
     gptJob->wait_for_counter(ptCullCounter);
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0); // culling
+    PL_PROFILE_END_SAMPLE(gptProfile, 0); // culling
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~binning based on pass type~~~~~~~~~~~~~~~~~~~~~~~~~
     
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "binning");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "binning");
 
     // if(ptCullCamera)
     {
@@ -2362,7 +2362,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
             }
         }
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0); // binning
+    PL_PROFILE_END_SAMPLE(gptProfile, 0); // binning
 
     // main rendering work
     //-----------------------------------------------------------------------------
@@ -2959,7 +2959,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     *pdVisibleOpaqueObjects += (double)uDeferred;
     *pdVisibleTransparentObjects += (double)(pl_sb_size(ptScene->sbtVisibleDrawables) - uDeferred);
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void pl__renderer_ui_terrain_node(plScene* ptScene, plTerrainChunk* ptChunk);
@@ -3001,7 +3001,7 @@ pl__renderer_ui_terrain_node(plScene* ptScene, plTerrainChunk* ptChunk)
 bool
 pl_renderer_begin_frame(void)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plDevice* ptDevice = gptData->ptDevice;
 
@@ -3368,7 +3368,7 @@ pl_renderer_begin_frame(void)
 
         if(pl_sb_size(ptScene->sbtDirtyMaterials) > 0)
         {
-            PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "update material");
+            PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "update material");
 
             const uint32_t uMaterialCount = pl_sb_size(ptScene->sbtDirtyMaterials);
             for(uint32_t i = 0; i < uMaterialCount; i++)
@@ -3483,7 +3483,7 @@ pl_renderer_begin_frame(void)
                 gptStage->flush();
             }
             pl_sb_reset(ptScene->sbtDirtyMaterials);
-            PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+            PL_PROFILE_END_SAMPLE(gptProfile, 0);
         }
 
         if(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY)
@@ -3515,7 +3515,7 @@ pl_renderer_begin_frame(void)
 
             if(ptView->auHoverResultProcessing[uFrameIdx])
             {
-                PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Picking Retrieval");
+                PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Picking Retrieval");
                 
                 plBuffer* ptPickBuffer = gptGfx->get_buffer(ptDevice, ptView->atPickBuffer[uFrameIdx]);
                 const uint32_t uNewID = *(uint32_t*)ptPickBuffer->tMemoryAllocation.pHostMapped;
@@ -3526,7 +3526,7 @@ pl_renderer_begin_frame(void)
                 ptView->auHoverResultReady[uFrameIdx] = true;
                 memset(ptPickBuffer->tMemoryAllocation.pHostMapped, 0, sizeof(uint32_t) * 2);
         
-                PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+                PL_PROFILE_END_SAMPLE(gptProfile, 0);
             }
         }
 
@@ -3534,7 +3534,7 @@ pl_renderer_begin_frame(void)
     }
 
     // gptStarter->return_readback_buffer(&gptData->tReadbackBuffer);
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
     return true;
 }
 
@@ -4275,7 +4275,7 @@ pl__object_update_job(plInvocationData tInvoData, void* pData, void* pGroupShare
 void
 pl_renderer_run_object_update_system(plComponentLibrary* ptLibrary)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     
     plObjectComponent* ptComponents = NULL;
     const uint32_t uComponentCount = gptEcs->get_components(ptLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
@@ -4288,7 +4288,7 @@ pl_renderer_run_object_update_system(plComponentLibrary* ptLibrary)
     gptJob->dispatch_batch(uComponentCount, 0, tJobDesc, &ptCounter);
     gptJob->wait_for_counter(ptCounter);
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void
@@ -4704,7 +4704,7 @@ pl_renderer_register_ecs_components(void)
 void
 pl_renderer_run_light_update_system(plComponentLibrary* ptLibrary)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plLightComponent* ptComponents = NULL;
     const plEntity* ptEntities = NULL;
@@ -4723,13 +4723,13 @@ pl_renderer_run_light_update_system(plComponentLibrary* ptLibrary)
             // TODO: direction
         }
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 void
 pl_renderer_run_environment_probe_update_system(plComponentLibrary* ptLibrary)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     // not used yet
 
@@ -4745,7 +4745,7 @@ pl_renderer_run_environment_probe_update_system(plComponentLibrary* ptLibrary)
     //         plTransformComponent* ptTransform = gptEcs->get_component(ptLibrary, gptEcsCoreCtx->tTransformComponentType, tEntity);
     //     }
     // }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0); 
+    PL_PROFILE_END_SAMPLE(gptProfile, 0); 
 }
 
 void

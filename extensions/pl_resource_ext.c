@@ -162,7 +162,7 @@ void pl_resource_make_resident(plResourceHandle);
 void
 pl_resource_initialize(plResourceManagerInit tDesc)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     if(tDesc.uMaxTextureResolution == 0)
         tDesc.uMaxTextureResolution = 1024;
@@ -187,7 +187,7 @@ pl_resource_initialize(plResourceManagerInit tDesc)
     pl_sb_push(gptResourceManager->sbtResourceGenerations, 4194303);
     pl_sb_add(gptResourceManager->sbtResources);
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 void

@@ -102,7 +102,7 @@ pl_ik_get_ecs_type_key(void)
 void
 pl_ik_run_update_system(plComponentLibrary* ptLibrary)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
     plEcsTypeKey tHierarchyComponentType = gptTransform->get_ecs_type_key_hierarchy();
@@ -113,7 +113,7 @@ pl_ik_run_update_system(plComponentLibrary* ptLibrary)
 
     if(uComponentCount == 0)
     {
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
         return;
     }
 
@@ -290,7 +290,7 @@ pl_ik_run_update_system(plComponentLibrary* ptLibrary)
 
     pl_sb_reset(ptData->sbtTransformsCopy);
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void

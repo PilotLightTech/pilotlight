@@ -67,7 +67,7 @@ plEntity
 pl_script_create(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plScriptComponent** pptCompOut)
 {
 
-    PL_LOG_DEBUG_API_F(gptLog, gptEcs->get_log_channel(), "created script: '%s'", pcFile);
+    PL_LOG_DEBUG_F(gptLog, gptEcs->get_log_channel(), "created script: '%s'", pcFile);
     plEntity tNewEntity = gptEcs->create_entity(ptLibrary, pcFile);
     plScriptComponent* ptScript =  gptEcs->add_component(ptLibrary, gptScriptCtx->tComponentType, tNewEntity);
     ptScript->tFlags = tFlags;
@@ -91,7 +91,7 @@ pl_script_create(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlag
 void
 pl_script_attach(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plEntity tEntity, plScriptComponent** pptCompOut)
 {
-    PL_LOG_DEBUG_API_F(gptLog, gptEcs->get_log_channel(), "attach script: '%s'", pcFile);
+    PL_LOG_DEBUG_F(gptLog, gptEcs->get_log_channel(), "attach script: '%s'", pcFile);
     plScriptComponent* ptScript = gptEcs->add_component(ptLibrary, gptScriptCtx->tComponentType, tEntity);
     ptScript->tFlags = tFlags;
     ptScript->pcPath = gptString->intern(pcFile);
@@ -114,7 +114,7 @@ void
 pl_script_load(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
     plScriptComponent* ptScript = gptEcs->get_component(ptLibrary, gptScriptCtx->tComponentType, tEntity);
-    PL_LOG_DEBUG_API_F(gptLog, gptEcs->get_log_channel(), "load script: '%s'", ptScript->pcPath);
+    PL_LOG_DEBUG_F(gptLog, gptEcs->get_log_channel(), "load script: '%s'", ptScript->pcPath);
 
     gptExtensionRegistry->load(ptScript->pcPath, "pl_load_script", "pl_unload_script", ptScript->tFlags & PL_SCRIPT_FLAG_RELOADABLE);
 
@@ -176,7 +176,7 @@ pl_script_register_ecs_components(void)
 void
 pl_script_run_update_system(plComponentLibrary* ptLibrary)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plScriptComponent* ptComponents = NULL;
     const plEntity* ptEntities = NULL;
@@ -193,7 +193,7 @@ pl_script_run_update_system(plComponentLibrary* ptLibrary)
         if(ptComponents[i].tFlags & PL_SCRIPT_FLAG_PLAY_ONCE)
             ptComponents[i].tFlags = PL_SCRIPT_FLAG_NONE;
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 //-----------------------------------------------------------------------------

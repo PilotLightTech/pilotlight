@@ -1868,7 +1868,7 @@ pl__metal_begin_timing_frame(plDevice* ptDevice, plFrameContext* ptFrame)
         {
             ptDevice->tTiming.tFrame.bSupported = false;
             ptFrame->tTiming.bActive = false;
-            PL_LOG_WARN_API(gptLog, uLogChannelGraphics, "GPU timestamp counter heap unavailable");
+            PL_LOG_WARN(gptLog, uLogChannelGraphics, "GPU timestamp counter heap unavailable");
             return;
         }
         ptFrame->tTimingHeap.label = @"Pilot Light GPU timings";
@@ -1894,7 +1894,7 @@ pl__metal_write_timestamp(plCommandBuffer* ptCmdBuffer, uint32_t uIndex)
 void
 pl_graphics_begin_frame(plDevice* ptDevice)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     // Wait until the inflight command buffer has completed its work
     // gptGraphics->tSwapchain.uCurrentImageIndex = gptGraphics->uCurrentFrameIndex;
@@ -1903,19 +1903,19 @@ pl_graphics_begin_frame(plDevice* ptDevice)
     // A timeout does not make frame resources safe to collect or reset.
     while(![ptFrame->tFrameBoundaryEvent waitUntilSignaledValue:ptFrame->uNextValue timeoutMS:10000])
     {
-        PL_LOG_WARN_API(gptLog, uLogChannelGraphics, "GPU frame wait timed out; continuing to wait before reusing resources");
+        PL_LOG_WARN(gptLog, uLogChannelGraphics, "GPU frame wait timed out; continuing to wait before reusing resources");
     }
 
     pl__metal_begin_timing_frame(ptDevice, ptFrame);
     pl__garbage_collect(ptDevice); 
     [ptDevice->tResidencySet requestResidency];
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 bool
 pl_graphics_acquire_swapchain_image(plSwapchain* ptSwapchain)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plDevice* ptDevice = ptSwapchain->ptDevice;
 
@@ -1930,7 +1930,7 @@ pl_graphics_acquire_swapchain_image(plSwapchain* ptSwapchain)
     ptSwapchain->tCurrentDrawable = [ptLayer nextDrawable];
     if(ptSwapchain->tCurrentDrawable == nil)
     {
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
         return false;
     }
 
@@ -1947,7 +1947,7 @@ pl_graphics_acquire_swapchain_image(plSwapchain* ptSwapchain)
     ptTexture->tDesc.tDimensions = (plVec3){(float)ptSwapchain->tInfo.uWidth, (float)ptSwapchain->tInfo.uHeight, 1.0f};
     ptTexture->tDesc.eSampleCount = 1;
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
     return true;
 }
 
@@ -2527,7 +2527,7 @@ pl_graphics_bind_compute_shader(plCommandBuffer* ptCmdBuffer, plComputeShaderHan
 void
 pl_graphics_draw_stream(plCommandBuffer* ptCmdBuffer, uint32_t uAreaCount, plDrawArea* atAreas)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
 
@@ -2727,7 +2727,7 @@ pl_graphics_draw_stream(plCommandBuffer* ptCmdBuffer, uint32_t uAreaCount, plDra
             }
         }
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 void
@@ -3255,7 +3255,7 @@ pl__metal_stage_flags(plShaderStageFlags tFlags)
 static void
 pl__garbage_collect(plDevice* ptDevice)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
 
@@ -3346,7 +3346,7 @@ pl__garbage_collect(plDevice* ptDevice)
             [ptDevice->sbtBuffersHot[iBufferIndex].tBuffer release];
             ptDevice->sbtBuffersHot[iBufferIndex].tBuffer = nil;
             pl_sb_push(ptDevice->sbtBufferFreeIndices, iBufferIndex);
-            PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "Delete buffer %u for deletion frame %llu", iBufferIndex, gptIO->ulFrameCount);
+            PL_LOG_DEBUG_F(gptLog, uLogChannelGraphics, "Delete buffer %u for deletion frame %llu", iBufferIndex, gptIO->ulFrameCount);
             pl_sb_del(ptGarbage->sbtBuffers, i);
             i--;
         }
@@ -3375,7 +3375,7 @@ pl__garbage_collect(plDevice* ptDevice)
     // pl_sb_reset(ptGarbage->sbtMemory);
     // pl_sb_reset(ptGarbage->sbtBuffers);
     pl_sb_reset(ptGarbage->sbtBindGroups);
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 //-----------------------------------------------------------------------------
@@ -3513,7 +3513,7 @@ pl_graphics_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
     pl_sb_push(ptDevice->sbtTextureFreeIndices, tHandle.uIndex);
     ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
 
-    PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "destroy texture %s immediately (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+    PL_LOG_DEBUG_F(gptLog, uLogChannelGraphics, "destroy texture %s immediately (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
 
     plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
     [ptMetalTexture->tTexture release];
@@ -3569,7 +3569,7 @@ pl_graphics_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
 void
 pl_graphics_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 {
-    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy sampler %u immediately", tHandle.uIndex);
+    PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "destroy sampler %u immediately", tHandle.uIndex);
     [ptDevice->sbtSamplersHot[tHandle.uIndex].tSampler release];
     ptDevice->sbtSamplersHot[tHandle.uIndex].tSampler = nil;
     ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration++;

@@ -162,7 +162,7 @@ pl_animation_create(plComponentLibrary* ptLibrary, const char* pcName, uint32_t 
 void
 pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plAnimationComponent* ptComponents = NULL;
     const uint32_t uComponentCount = gptEcs->get_components(ptLibrary, gptAnimationCtx->tAnimationComponentType, (void**)&ptComponents, NULL);
@@ -354,7 +354,7 @@ pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fD
         }
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static bool

@@ -310,7 +310,7 @@ pl__renderer_cull_spot_light_job(plInvocationData tInvoData, void* pData, void* 
 static void
 pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
 
     // update skin textures
@@ -368,7 +368,7 @@ pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene
         gptGfx->pop_debug_group(ptCommandBuffer);
         gptGfx->end_compute_pass(ptCommandBuffer);
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static bool
@@ -542,7 +542,7 @@ pl__renderer_fit_shadow_atlas(plScene* ptScene, bool bSun, plPackRect* ptRects, 
             break;
         if(uResolution >= uMaxSize)
         {
-            PL_LOG_ERROR_API(gptLog, gptData->uLogChannel, "Shadow atlas exceeds device texture limit; reduce shadow resolutions or light count");
+            PL_LOG_ERROR(gptLog, gptData->uLogChannel, "Shadow atlas exceeds device texture limit; reduce shadow resolutions or light count");
             return false;
         }
         uResolution = uResolution > uMaxSize / 2 ? uMaxSize : uResolution * 2;
@@ -579,7 +579,7 @@ pl__renderer_fit_shadow_atlas(plScene* ptScene, bool bSun, plPackRect* ptRects, 
 static bool
 pl__renderer_pack_shadow_atlas(plScene* ptScene)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     
     uint32_t uViewCount = pl_sb_size(ptScene->sbptViews);
     pl_sb_reset(ptScene->sbtShadowRects);
@@ -645,14 +645,14 @@ pl__renderer_pack_shadow_atlas(plScene* ptScene)
 
     // ptScene->tSunPackRect = pl_sb_pop(ptScene->sbtShadowRects);
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
     return bPacked;
 }
 
 static bool
 pl__renderer_pack_view_shadow_atlas(plScene* ptScene)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     
     pl_sb_reset(ptScene->sbtShadowViewRects);
 
@@ -693,14 +693,14 @@ pl__renderer_pack_view_shadow_atlas(plScene* ptScene)
 
     // ptScene->tSunPackRect = pl_sb_pop(ptScene->sbtShadowRects);
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
     return bPacked;
 }
 
 static void
 pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptScene, const plCamera** atCameras, uint32_t uCameraCount)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     // for convenience
     plDevice*     ptDevice   = gptData->ptDevice;
@@ -1317,13 +1317,13 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
         }
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void
 pl__renderer_generate_direction_view_map(plCommandBuffer* ptCommandBuffer, plScene* ptScene, const plCamera* ptSceneCamera, plCSMInfo tInfo)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     // for convenience
     plDevice*      ptDevice  = gptData->ptDevice;
@@ -1749,13 +1749,13 @@ pl__renderer_generate_direction_view_map(plCommandBuffer* ptCommandBuffer, plSce
         gptGfx->draw_stream(ptCommandBuffer, 1, &tArea);
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void
 pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* ptScene, plGpuViewData* ptViewData, plBufferHandle tViewBuffer, plBufferHandle tSunCameraBuffer, const plCamera* ptSceneCamera, plBindGroupHandle tBindGroup, bool bProbe)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     // More resolution for nearby receivers (the last cascade still reaches fShadowFarZ).
     const float fShadowLambda = 0.95f;
@@ -2452,7 +2452,7 @@ pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* 
         }
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 //-----------------------------------------------------------------------------
@@ -3098,7 +3098,7 @@ pl__renderer_return_bindless_cube_texture_index(plScene* ptScene, plTextureHandl
 static void
 pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeData* ptProbe, uint32_t uSampleCount, bool bIncremental)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
@@ -3244,7 +3244,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
     if(bIncremental && uStep == 0)
     {
         ptProbe->uFilterStep++;
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
         return;
     }
 
@@ -3605,7 +3605,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         ptProbe->bFiltering = false;
         ptProbe->bInitialized = true;
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 typedef struct _plGbufferFillPassInfo
@@ -4367,7 +4367,7 @@ pl__render_view_debug_pass(plView* ptView, const plCamera* ptCamera, const plCam
 static void
 pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBuffer* ptSceneCmdBuffer)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Picking Submission");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Picking Submission");
 
     const plEcsTypeKey tTransformComponentType =gptTransform->get_ecs_type_key_transform();
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -4519,7 +4519,7 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
 
     }
     gptGfx->end_render_pass(ptSceneCmdBuffer);
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void
@@ -4723,7 +4723,7 @@ pl__render_view_jfa_pass(plView* ptView)
 static void
 pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
 
@@ -4827,7 +4827,7 @@ pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
     gptGfx->submit_command_buffer(ptCommandBuffer, &tOutlineSubmitInfo);
     gptGfx->return_command_buffer(ptCommandBuffer);
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 // Extend the existing depth/normal buffer with opaque forward surfaces before screen-space effects.
@@ -5105,7 +5105,7 @@ static void
 pl__render_view_bloom_pass(plView* ptView)
 {
     PL_RENDERER_STAT("renderer / bloom views", 1);
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "bloom");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "bloom");
 
     // for convenience
     // const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -5395,7 +5395,7 @@ pl__render_view_bloom_pass(plView* ptView)
         gptGfx->return_command_buffer(ptPostCmdBuffer);
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void
@@ -6096,7 +6096,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
 
         if((ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && !gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
         {
-            PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "creating required sheen env texture");
+            PL_LOG_INFO(gptLog, gptData->uLogChannel, "creating required sheen env texture");
             const plTextureDesc tTextureDesc = {
                 .tDimensions = {ptProbe->tTargetSize.x, ptProbe->tTargetSize.y, 1},
                 .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
@@ -6115,7 +6115,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
         }
         else if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
         {
-            PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "freeing unneeded sheen env texture");
+            PL_LOG_INFO(gptLog, gptData->uLogChannel, "freeing unneeded sheen env texture");
             gptGfx->queue_texture_for_deletion(ptDevice, ptProbe->tSheenEnvTexture);
             ptProbe->tSheenEnvTexture = (plTextureHandle){0};
             ptProbe->uSheenEnvSampler = 0;
@@ -9694,7 +9694,7 @@ pl__renderer_probe_update_bindgroups(plScene* ptScene, plEnvironmentProbeData* p
 void
 pl__renderer_scene_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int iResolution)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     const int iSamples = 512;
     plDevice* ptDevice = gptData->ptDevice;
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
@@ -9702,9 +9702,9 @@ pl__renderer_scene_load_skybox_from_panorama(plScene* ptScene, const char* pcPat
     int iPanoramaWidth = 0;
     int iPanoramaHeight = 0;
     int iUnused = 0;
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "load image");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "load image");
     float* pfPanoramaData = gptImage->load_hdr_from_file(pcPath, &iPanoramaWidth, &iPanoramaHeight, &iUnused, 4);
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
     PL_ASSERT(pfPanoramaData);
 
     const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
@@ -9854,24 +9854,24 @@ pl__renderer_scene_load_skybox_from_panorama(plScene* ptScene, const char* pcPat
         }
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static bool
 pl__renderer_initialize(void)
 {
 
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     if(gptData->bFullyInitialized)
     {
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
         return false;
     }
 
     gptData->bFullyInitialized = true;
 
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "create resources");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "create resources");
 
     // create dummy textures
     const plTextureDesc tDummyTextureDesc = {
@@ -10016,11 +10016,11 @@ pl__renderer_initialize(void)
         .eStencilFormat = PL_FORMAT_D32_FLOAT_S8_UINT
     };
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 
     pl_temp_allocator_reset(&gptData->tTempAllocator);
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
     return true;
 };
 
@@ -10031,7 +10031,7 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
     if(uObjectCount == 0)
         return true;
 
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
 
@@ -10198,7 +10198,7 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
                 if(!bResult)
                 {
                     PL_ASSERT(false && "Renderer Buffers Full");
-                    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+                    PL_PROFILE_END_SAMPLE(gptProfile, 0);
                     return false;
                 }
 
@@ -10209,7 +10209,7 @@ pl__renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCou
         }
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
     return true;
 }
 
@@ -10308,7 +10308,7 @@ pl__renderer_add_lights_to_scene(plScene* ptScene, uint32_t uCount, const plEnti
 static void
 pl__renderer_update_instance_buffer(plScene* ptScene)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "create shaders");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "create shaders");
 
     plDevice* ptDevice  = gptData->ptDevice;
     plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
@@ -10379,26 +10379,26 @@ pl__renderer_update_instance_buffer(plScene* ptScene)
         }
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void
 pl__renderer_load_shaders(plScene* ptScene)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "create shaders");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "create shaders");
 
     ptScene->tViewBGLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "view");
     ptScene->tShadowGlobalBGLayout = gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "shadow");
 
     if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
     {
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
         return;
     }
 
     plDevice* ptDevice = gptData->ptDevice;
 
-    PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "reload shaders for scene %s", ptScene->pcName);
+    PL_LOG_INFO_F(gptLog, gptData->uLogChannel, "reload shaders for scene %s", ptScene->pcName);
 
     plShaderOptions tOriginalOptions = *gptShader->get_options();
 
@@ -10709,13 +10709,13 @@ pl__renderer_load_shaders(plScene* ptScene)
     ptScene->tTerrainWireframeShader = gptShaderLibrary->get_shader(ptScene->ptShaderLibrary, "terrain", &tTerrainWireframeVariant);
     
     gptShader->set_options(&tOriginalOptions);
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void
 pl__renderer_render_debug_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plScene* ptScene   = ptView->ptParentScene;
     const plCamera* ptCamera = ptViewDesc->ptCamera;
@@ -10731,7 +10731,7 @@ pl__renderer_render_debug_view(plView* ptView, const plRenderViewDesc* ptViewDes
     // debug lights
     if(ptView->bDrawLightsDebug)
     {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw lights");
+        PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "draw lights");
 
         plLightComponent* ptLights = NULL;
         const uint32_t uLightCount = gptEcs->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
@@ -10793,13 +10793,13 @@ pl__renderer_render_debug_view(plView* ptView, const plRenderViewDesc* ptViewDes
                 }
             }
         }
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
     }
 
     // debug bounding boxes
     if(ptView->bDrawBoundingBoxesDebug)
     {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw bounding boxes");
+        PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "draw bounding boxes");
         const uint32_t uDrawableCount = pl_sb_size(ptScene->sbuActiveDrawables);
         for(uint32_t i = 0; i < uDrawableCount; i++)
         {
@@ -10818,12 +10818,12 @@ pl__renderer_render_debug_view(plView* ptView, const plRenderViewDesc* ptViewDes
             }
             gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.2f, 0.8f, 0.0f), .fThickness = 0.02f});
         }
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
     }
 
     if(ptView->bDrawObjectNames)
     {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw names");
+        PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "draw names");
         plEcsTypeKey tTagType = gptEcs->get_ecs_type_key_tag();
         const uint32_t uDrawableCount = pl_sb_size(ptScene->sbuActiveDrawables);
         for(uint32_t i = 0; i < uDrawableCount; i++)
@@ -10848,13 +10848,13 @@ pl__renderer_render_debug_view(plView* ptView, const plRenderViewDesc* ptViewDes
             if(ptTag)
                 gptDraw->add_3d_text(ptView->pt3DDrawList, pl_aabb_center(&ptObject->tAABB), (plDrawTextOptions){.uColor = PL_COLOR_32_RGB(0.2f, 0.8f, 0.0f), .ptFont = gptUI->get_default_font()}, ptTag->pcName);
         }
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
     }
 
     // debug bvh
     if(ptView->bDrawBvhDebug)
     {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw BVH");
+        PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "draw BVH");
 
         plObjectComponent* ptComponents = NULL;
         gptEcs->get_components(ptScene->ptComponentLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
@@ -10873,7 +10873,7 @@ pl__renderer_render_debug_view(plView* ptView, const plRenderViewDesc* ptViewDes
                 gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptNode->tAABB.tMin, ptNode->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_WHITE});
             }
         }
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
     }
 
     if(ptView->bShowOrigin)
@@ -10913,7 +10913,7 @@ pl__renderer_render_debug_view(plView* ptView, const plRenderViewDesc* ptViewDes
         gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tInvViewMat, tFrustumDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = 0.02f});
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void
@@ -11308,7 +11308,7 @@ pl__renderer_intern_probe_selection(plScene* ptScene, plGpuProbeSelection tSelec
         if(!ptScene->bProbeSelectionOverflowReported)
         {
             ptScene->bProbeSelectionOverflowReported = true;
-            PL_LOG_WARN_API(gptLog, gptData->uLogChannel, "Probe selection table full or packed-key bounds exceeded; using sky fallback (warning once per scene)");
+            PL_LOG_WARN(gptLog, gptData->uLogChannel, "Probe selection table full or packed-key bounds exceeded; using sky fallback (warning once per scene)");
         }
         return uIndex | PL_PROBE_SELECTION_FALLBACK_FLAG;
     }

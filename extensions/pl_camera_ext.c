@@ -458,7 +458,7 @@ pl_camera_ecs_create_orthographic(plComponentLibrary* ptLibrary, const char* pcN
 void
 pl_camera_ecs_run_ecs(plComponentLibrary* ptLibrary)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plCamera* ptComponents = NULL;
     const plEntity* ptEntities = NULL;
@@ -481,7 +481,7 @@ pl_camera_ecs_run_ecs(plComponentLibrary* ptLibrary)
             pl_camera_update(ptCamera);
         }
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 void

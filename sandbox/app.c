@@ -775,7 +775,7 @@ pl_app_update(plAppData* ptAppData)
         gptScreenLog->add_message_ex(0, 10.0, PL_COLOR_32_RED, 1.0f, "%s", "File logging failed; see Log Tool");
     }
         
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     
     // for convenience
     plIO* ptIO = gptIO->get_io();
@@ -875,7 +875,7 @@ pl_app_update(plAppData* ptAppData)
             ptAppData->bSceneClickStarted = false;
 
         // run ecs system
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Run ECS");
+        PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Run ECS");
         // Pause only the main camera controller while another viewport owns input.
         // Other scene scripts and simulation still run once per frame.
         plScriptComponent* ptCameraScript = gptEcs->get_component(ptLibrary, gptScript->get_ecs_type_key(), ptAppData->tMainCamera);
@@ -902,7 +902,7 @@ pl_app_update(plAppData* ptAppData)
         gptSkeleton->run_skin_update_system(ptLibrary);
         gptRenderer->run_object_update_system(ptLibrary);
         gptRenderer->run_environment_probe_update_system(ptLibrary); // run after object update
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
 
         plEntity tNextEntity = {0};
         if(gptRenderer->get_hovered_entity(ptAppData->ptView, &tNextEntity))
@@ -1193,7 +1193,7 @@ pl_app_update(plAppData* ptAppData)
     gptStarter->begin_main_pass();
     gptStarter->end_main_pass();
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
     gptStarter->end_frame();
 }
 

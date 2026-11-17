@@ -430,7 +430,7 @@ pl_skeleton_ecs_bind_skin(plComponentLibrary* ptLibrary, plEntity tEntity, const
 void
 pl_skeleton_ecs_run_skin_update_system(plComponentLibrary* ptLibrary)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     plSkinComponent* ptComponents = NULL;
     const plEntity* ptEntities = NULL;
     const uint32_t uComponentCount = gptEcs->get_components(ptLibrary, gptSkeletonCtx->tSkinComponentType, (void**)&ptComponents, &ptEntities);
@@ -491,7 +491,7 @@ pl_skeleton_ecs_run_skin_update_system(plComponentLibrary* ptLibrary)
         }
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 void

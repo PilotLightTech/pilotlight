@@ -4877,7 +4877,7 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plCommandBuffer* ptCommandB
             .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace),
             .pcDebugName = "2D Draw Vertex Buffer"
         };
-        PL_LOG_DEBUG_API_F(gptLog, uLogChannelDrawBackend, "Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, ptBufferInfo->uVertexBufferSize, (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
+        PL_LOG_DEBUG_F(gptLog, uLogChannelDrawBackend, "Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, ptBufferInfo->uVertexBufferSize, (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
         ptBufferInfo->uVertexBufferSize = (uint32_t)tBufferDesc.szByteSize;
         ptBufferInfo->uVertexBufferOffset = 0;
 
@@ -4907,7 +4907,7 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plCommandBuffer* ptCommandB
             .szByteSize = pl_max(gptDrawCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace),
             .pcDebugName = "Draw Index Buffer"
         };
-        PL_LOG_DEBUG_API_F(gptLog, uLogChannelDrawBackend, "(2D) Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, gptDrawCtx->auIndexBufferSize[uFrameIdx], (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
+        PL_LOG_DEBUG_F(gptLog, uLogChannelDrawBackend, "(2D) Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, gptDrawCtx->auIndexBufferSize[uFrameIdx], (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
         gptDrawCtx->auIndexBufferSize[uFrameIdx] = (uint32_t)tBufferDesc.szByteSize;
 
         gptDrawCtx->atIndexBuffer[uFrameIdx] = pl__create_staging_buffer(&tBufferDesc, "draw idx buffer", uFrameIdx);
@@ -5110,7 +5110,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandB
                 .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace),
                 .pcDebugName = "3D Draw Vertex Buffer"
             };
-            PL_LOG_DEBUG_API_F(gptLog, uLogChannelDrawBackend, "Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, ptBufferInfo->uVertexBufferSize, (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
+            PL_LOG_DEBUG_F(gptLog, uLogChannelDrawBackend, "Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, ptBufferInfo->uVertexBufferSize, (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
             ptBufferInfo->uVertexBufferSize = (uint32_t)tBufferDesc.szByteSize;
             ptBufferInfo->uVertexBufferOffset = 0;
 
@@ -5139,7 +5139,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandB
                 .szByteSize = pl_max(gptDrawCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace),
                 .pcDebugName = "Draw Index Buffer"
             };
-            PL_LOG_DEBUG_API_F(gptLog, uLogChannelDrawBackend, "(3D) Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, gptDrawCtx->auIndexBufferSize[uFrameIdx], (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
+            PL_LOG_DEBUG_F(gptLog, uLogChannelDrawBackend, "(3D) Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, gptDrawCtx->auIndexBufferSize[uFrameIdx], (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
             gptDrawCtx->auIndexBufferSize[uFrameIdx] = (uint32_t)tBufferDesc.szByteSize;
 
             gptDrawCtx->atIndexBuffer[uFrameIdx] = pl__create_staging_buffer(&tBufferDesc, "3d draw idx buffer", uFrameIdx);
@@ -5204,7 +5204,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandB
                 .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace),
                 .pcDebugName = "3D Lines Vertex Buffer"
             };
-            PL_LOG_DEBUG_API_F(gptLog, uLogChannelDrawBackend, "Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, ptBufferInfo->uVertexBufferSize, (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
+            PL_LOG_DEBUG_F(gptLog, uLogChannelDrawBackend, "Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, ptBufferInfo->uVertexBufferSize, (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
             ptBufferInfo->uVertexBufferSize = (uint32_t)tBufferDesc.szByteSize;
             ptBufferInfo->uVertexBufferOffset = 0;
             ptBufferInfo->tVertexBuffer = pl__create_staging_buffer(&tBufferDesc, "draw vtx buffer", uFrameIdx);
@@ -5233,7 +5233,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandB
                 .szByteSize = pl_max(gptDrawCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace),
                 .pcDebugName = "Draw Index Buffer"
             };
-            PL_LOG_DEBUG_API_F(gptLog, uLogChannelDrawBackend, "(3D) Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, gptDrawCtx->auIndexBufferSize[uFrameIdx], (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
+            PL_LOG_DEBUG_F(gptLog, uLogChannelDrawBackend, "(3D) Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, gptDrawCtx->auIndexBufferSize[uFrameIdx], (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
             gptDrawCtx->auIndexBufferSize[uFrameIdx] = (uint32_t)tBufferDesc.szByteSize;
 
             gptDrawCtx->atIndexBuffer[uFrameIdx] = pl__create_staging_buffer(&tBufferDesc, "draw idx buffer", uFrameIdx);

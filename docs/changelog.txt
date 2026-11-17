@@ -25,9 +25,11 @@ away, please see git history for details.
                                                -added "copy_component(...)" & "clone_entity(...)"
                       (log        v2.1.0)      -added file logging ("set_file", "flush_file", "close_file", etc.)
                                                -channel names are now copied
-                                               -fixed disabled "PL_LOG"/"PL_LOG_API" macro arguments
-                                               -declared direct functions used by non "_API" macros (i.e. "pl_log_trace")
+                                               -"_API" macros are now the default (i.e. "PL_LOG_INFO_API" -> "PL_LOG_INFO")
+                                               -removed direct function macros (i.e. old "PL_LOG_INFO(uID, msg)")
                       (profile    v2.1.0)      -sample names are now copied
+                                               -"_API" macros are now the default (i.e. "PL_PROFILE_BEGIN_SAMPLE_API" -> "PL_PROFILE_BEGIN_SAMPLE")
+                                               -removed direct functions (i.e. "pl_profile_begin_sample") & their macros
                       (stats      v1.2.0)      -counter names are now copied
                       (ui         v2.0.0)      -replaced begin/end collapsing header with "collapsing_header(...)"
                                                -added tree node flags & "stash_layout"/"apply_layout"

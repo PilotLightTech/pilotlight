@@ -1496,13 +1496,13 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
 void
 pl_graphics_set_texture_usage(plCommandBuffer* ptCmdBuffer, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage)
 {
-    PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "'set_texture_usage' is now a no-op & obsolete");
+    PL_LOG_DEBUG_F(gptLog, uLogChannelGraphics, "'set_texture_usage' is now a no-op & obsolete");
 }
 
 void
 pl_graphics_set_texture_usage_ex(plCommandBuffer* ptCmdBuffer, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages)
 {
-    PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "'set_texture_usage_ex' is now a no-op & obsolete");
+    PL_LOG_DEBUG_F(gptLog, uLogChannelGraphics, "'set_texture_usage_ex' is now a no-op & obsolete");
 }
 
 void
@@ -2781,7 +2781,7 @@ pl_graphics_bind_compute_shader(plCommandBuffer* ptCmdBuffer, plComputeShaderHan
 void
 pl_graphics_draw_stream(plCommandBuffer* ptCmdBuffer, uint32_t uAreaCount, plDrawArea *atAreas)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
@@ -2973,7 +2973,7 @@ pl_graphics_draw_stream(plCommandBuffer* ptCmdBuffer, uint32_t uAreaCount, plDra
                 vkCmdDrawIndexed(ptCmdBuffer->tCmdBuffer, uTriangleCount * 3, uInstanceCount, uIndexBufferOffset, uVertexBufferOffset, uInstanceStart);
         }
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 void
@@ -3063,12 +3063,12 @@ pl_graphics_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMe
 
     if (tMemoryFlags & PL_MEMORY_FLAGS_DEVICE_LOCAL)
     {
-        PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "allocated GPU local memory: %s", pcName);
+        PL_LOG_DEBUG_F(gptLog, uLogChannelGraphics, "allocated GPU local memory: %s", pcName);
         gptGraphics->szLocalMemoryInUse += tBlock.ulSize;
     }
     else
     {
-        PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "allocated memory: %s", pcName);
+        PL_LOG_DEBUG_F(gptLog, uLogChannelGraphics, "allocated memory: %s", pcName);
         PL_VULKAN(vkMapMemory(ptDevice->tLogicalDevice, (VkDeviceMemory)tBlock.uHandle, 0, tBlock.ulSize, 0, (void **)&tBlock.pHostMapped));
         gptGraphics->szHostMemoryInUse += tBlock.ulSize;
     }
@@ -3094,13 +3094,13 @@ pl_graphics_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 
     if (ptBlock->tMemoryFlags & PL_MEMORY_FLAGS_DEVICE_LOCAL)
     {
-        PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "%llu byte local memory block %llu freed", ptBlock->ulSize, ptBlock->uHandle);
+        PL_LOG_DEBUG_F(gptLog, uLogChannelGraphics, "%llu byte local memory block %llu freed", ptBlock->ulSize, ptBlock->uHandle);
         gptGraphics->szLocalMemoryInUse -= ptBlock->ulSize;
         // printf("FREEING %llu : %llu %s\n", ptBlock->ulSize, ptBlock->uHandle, ptBlock->acName);
     }
     else
     {
-        PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "%llu byte memory block %llu freed", ptBlock->ulSize, ptBlock->uHandle);
+        PL_LOG_DEBUG_F(gptLog, uLogChannelGraphics, "%llu byte memory block %llu freed", ptBlock->ulSize, ptBlock->uHandle);
         gptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
     }
 
@@ -3257,7 +3257,7 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
         {
             if (strcmp(apcExtensions[i], ptAvailableExtensions[j].extensionName) == 0)
             {
-                PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "extension %s found", ptAvailableExtensions[j].extensionName);
+                PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "extension %s found", ptAvailableExtensions[j].extensionName);
                 extensionFound = true;
                 break;
             }
@@ -3274,7 +3274,7 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
     {
         for (uint32_t i = 0; i < uMissingExtensionCount; i++)
         {
-            PL_LOG_ERROR_API_F(gptLog, uLogChannelGraphics, "  * %s", apcMissingExtensions[i]);
+            PL_LOG_ERROR_F(gptLog, uLogChannelGraphics, "  * %s", apcMissingExtensions[i]);
         }
 
         PL_ASSERT(false && "Can't find all requested extensions");
@@ -3307,7 +3307,7 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
         {
             if (strcmp(pcValidationLayer, ptAvailableLayers[i].layerName) == 0)
             {
-                PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "layer %s found", ptAvailableLayers[i].layerName);
+                PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "layer %s found", ptAvailableLayers[i].layerName);
                 bLayerFound = true;
                 break;
             }
@@ -3368,7 +3368,7 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
     };
 
     PL_VULKAN(vkCreateInstance(&tCreateInfo, gptGraphics->ptAllocationCallbacks, &gptGraphics->tInstance));
-    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "created vulkan instance");
+    PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "created vulkan instance");
 
     // cleanup
     if (ptAvailableLayers)
@@ -3386,7 +3386,7 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
         PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(gptGraphics->tInstance, "vkCreateDebugUtilsMessengerEXT");
         PL_ASSERT(func != NULL && "failed to set up debug messenger!");
         PL_VULKAN(func(gptGraphics->tInstance, pCreateInfoNext, gptGraphics->ptAllocationCallbacks, &gptGraphics->tDbgMessenger));
-        PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "enabled Vulkan validation layers");
+        PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "enabled Vulkan validation layers");
     }
 
     return true;
@@ -3600,7 +3600,7 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
 
     if(ptDevice->iGraphicsQueueFamily < 0 || ptDevice->iPresentQueueFamily < 0)
     {
-        PL_LOG_ERROR_API(gptLog, uLogChannelGraphics, "No suitable graphics/presentation queue family");
+        PL_LOG_ERROR(gptLog, uLogChannelGraphics, "No suitable graphics/presentation queue family");
         PL_FREE(ptDevice);
         return NULL;
     }
@@ -4007,7 +4007,7 @@ pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plS
     PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptDevice->tPhysicalDevice, (uint32_t)ptDevice->iPresentQueueFamily, ptSurface->tSurface, &tPresentSupport));
     if(!tPresentSupport)
     {
-        PL_LOG_ERROR_API(gptLog, uLogChannelGraphics, "Device presentation queue does not support this window surface");
+        PL_LOG_ERROR(gptLog, uLogChannelGraphics, "Device presentation queue does not support this window surface");
         return NULL;
     }
 
@@ -4044,7 +4044,7 @@ pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plS
 void
 pl_graphics_begin_frame(plDevice* ptDevice)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
@@ -4052,20 +4052,20 @@ pl_graphics_begin_frame(plDevice* ptDevice)
     pl__vulkan_begin_timing_frame(ptDevice, ptCurrentFrame);
     pl__garbage_collect(ptDevice);
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 bool
 pl_graphics_acquire_swapchain_image(plSwapchain* ptSwap)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plDevice* ptDevice = ptSwap->ptDevice;
 
     VkResult err = vkAcquireNextImageKHR(ptDevice->tLogicalDevice, ptSwap->tSwapChain, UINT64_MAX, ptSwap->atImageAvailable[gptGraphics->uCurrentFrameIndex], VK_NULL_HANDLE, &ptSwap->uCurrentImageIndex);
     if (err == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
         return false;
     }
     // SUBOPTIMAL still acquires an image and signals the acquire semaphore.
@@ -4073,12 +4073,12 @@ pl_graphics_acquire_swapchain_image(plSwapchain* ptSwap)
     ptSwap->bSuboptimal = err == VK_SUBOPTIMAL_KHR;
     if(err != VK_SUCCESS && err != VK_SUBOPTIMAL_KHR)
     {
-        PL_LOG_ERROR_API_F(gptLog, uLogChannelGraphics, "swapchain acquisition failed: %d", (int)err);
+        PL_LOG_ERROR_F(gptLog, uLogChannelGraphics, "swapchain acquisition failed: %d", (int)err);
         PL_VULKAN(err);
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
         return false;
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
     return true;
 }
 
@@ -4091,10 +4091,10 @@ pl_graphics_end_command_recording(plCommandBuffer* ptCommandBuffer)
 bool
 pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwapchain **ptSwaps, uint32_t uSwapchainCount)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     if(uSwapchainCount > 64 || (uSwapchainCount && !ptSwaps) || (ptSubmitInfo && (ptSubmitInfo->uWaitSemaphoreCount > PL_MAX_TIMELINE_SEMAPHORES || ptSubmitInfo->uSignalSemaphoreCount > PL_MAX_TIMELINE_SEMAPHORES || ptSubmitInfo->uWaitSemaphoreCount + uSwapchainCount > 64)))
     {
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
         return false;
     }
     const uint32_t uPresentSignalCount = uSwapchainCount ? 1 : 0;
@@ -4202,7 +4202,7 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
         bRecreate |= ptSwaps[i]->bSuboptimal;
     if(tResult != VK_SUCCESS && tResult != VK_ERROR_OUT_OF_DATE_KHR && tResult != VK_SUBOPTIMAL_KHR)
     {
-        PL_LOG_ERROR_API_F(gptLog, uLogChannelGraphics, "swapchain presentation failed: %d", (int)tResult);
+        PL_LOG_ERROR_F(gptLog, uLogChannelGraphics, "swapchain presentation failed: %d", (int)tResult);
         PL_VULKAN(tResult);
         bRecreate = true;
     }
@@ -4210,14 +4210,14 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
     ptDevice->sbtFrames[gptGraphics->uCurrentFrameIndex].uCurrentBufferIndex = 0;
     pl_sb_push(ptCmdBuffer->ptPool->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
     return !bRecreate;
 }
 
 void
 pl_graphics_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plDevice* ptDevice = ptSwap->ptDevice;
     VkSurfaceCapabilitiesKHR eCapabilities = {0};
@@ -4231,7 +4231,7 @@ pl_graphics_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptIni
         ptSwap->tInfo.eSampleCount = 1;
 
     pl__create_swapchain(ptInit->uWidth, ptInit->uHeight, ptSwap);
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 void
@@ -5309,7 +5309,7 @@ pl_graphics_copy_buffer_to_texture(plCommandBuffer* ptCmdBuffer, plBufferHandle 
 void
 pl_graphics_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 {
-    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy buffer %u immediately", tHandle.uIndex);
+    PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "destroy buffer %u immediately", tHandle.uIndex);
     vkDestroyBuffer(ptDevice->tLogicalDevice, ptDevice->sbtBuffersHot[tHandle.uIndex].tBuffer, gptGraphics->ptAllocationCallbacks);
     ptDevice->sbtBuffersHot[tHandle.uIndex].tBuffer = VK_NULL_HANDLE;
     ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
@@ -5325,7 +5325,7 @@ pl_graphics_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 void
 pl_graphics_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
 {
-    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy texture %u immediately", tHandle.uIndex);
+    PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "destroy texture %u immediately", tHandle.uIndex);
     plVulkanTexture* ptVulkanResource = &ptDevice->sbtTexturesHot[tHandle.uIndex];
     vkDestroyImageView(ptDevice->tLogicalDevice, ptDevice->sbtTexturesHot[tHandle.uIndex].tImageView, gptGraphics->ptAllocationCallbacks);
     ptDevice->sbtTexturesHot[tHandle.uIndex].tImageView = VK_NULL_HANDLE;
@@ -5344,7 +5344,7 @@ pl_graphics_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
 void
 pl_graphics_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 {
-    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy sampler %u immediately", tHandle.uIndex);
+    PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "destroy sampler %u immediately", tHandle.uIndex);
     vkDestroySampler(ptDevice->tLogicalDevice, ptDevice->sbtSamplersHot[tHandle.uIndex], gptGraphics->ptAllocationCallbacks);
     ptDevice->sbtSamplersHot[tHandle.uIndex] = VK_NULL_HANDLE;
     ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration++;
@@ -5377,7 +5377,7 @@ pl_graphics_destroy_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandl
 void
 pl_graphics_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
 {
-    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy shader %u immediately", tHandle.uIndex);
+    PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "destroy shader %u immediately", tHandle.uIndex);
     ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration++;
 
     plShader* ptResource = &ptDevice->sbtShadersCold[tHandle.uIndex];
@@ -5397,7 +5397,7 @@ pl_graphics_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
 void
 pl_graphics_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
 {
-    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy compute shader %u immediately", tHandle.uIndex);
+    PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "destroy compute shader %u immediately", tHandle.uIndex);
     ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration++;
 
     plComputeShader* ptResource = &ptDevice->sbtComputeShadersCold[tHandle.uIndex];
@@ -5490,22 +5490,22 @@ pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugU
     if (tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
     {
         printf("error validation layer: %s\n", ptCallbackData->pMessage);
-        PL_LOG_ERROR_API_F(gptLog, uLogChannelGraphics, "error validation layer: %s\n", ptCallbackData->pMessage);
+        PL_LOG_ERROR_F(gptLog, uLogChannelGraphics, "error validation layer: %s\n", ptCallbackData->pMessage);
     }
 
     else if (tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
         printf("warn validation layer: %s\n", ptCallbackData->pMessage);
-        PL_LOG_WARN_API_F(gptLog, uLogChannelGraphics, "warn validation layer: %s\n", ptCallbackData->pMessage);
+        PL_LOG_WARN_F(gptLog, uLogChannelGraphics, "warn validation layer: %s\n", ptCallbackData->pMessage);
     }
 
     else if (tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
     {
-        PL_LOG_INFO_API_F(gptLog, uLogChannelGraphics, "info validation layer: %s\n", ptCallbackData->pMessage);
+        PL_LOG_INFO_F(gptLog, uLogChannelGraphics, "info validation layer: %s\n", ptCallbackData->pMessage);
     }
     else if (tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
     {
-        PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "trace validation layer: %s\n", ptCallbackData->pMessage);
+        PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "trace validation layer: %s\n", ptCallbackData->pMessage);
     }
 
     return VK_FALSE;
@@ -6297,7 +6297,7 @@ pl__pilotlight_format(VkFormat eFormat)
 static void
 pl__garbage_collect(plDevice* ptDevice)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
@@ -6305,7 +6305,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextures); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtTextures[i].uIndex;
-        PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy texture %u", iResourceIndex);
+        PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "destroy texture %u", iResourceIndex);
         plVulkanTexture* ptVulkanResource = &ptDevice->sbtTexturesHot[iResourceIndex];
         vkDestroyImageView(ptDevice->tLogicalDevice, ptDevice->sbtTexturesHot[iResourceIndex].tImageView, gptGraphics->ptAllocationCallbacks);
         ptDevice->sbtTexturesHot[iResourceIndex].tImageView = VK_NULL_HANDLE;
@@ -6329,7 +6329,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtShaders); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtShaders[i].uIndex;
-        PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy shader %u", iResourceIndex);
+        PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "destroy shader %u", iResourceIndex);
         plShader* ptResource = &ptDevice->sbtShadersCold[iResourceIndex];
         plVulkanShader* ptVulkanResource = &ptDevice->sbtShadersHot[iResourceIndex];
         if (ptVulkanResource->tVertexShaderModule)
@@ -6355,7 +6355,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtComputeShaders); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtComputeShaders[i].uIndex;
-        PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy compute shader %u", iResourceIndex);
+        PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "destroy compute shader %u", iResourceIndex);
         plComputeShader* ptResource = &ptDevice->sbtComputeShadersCold[iResourceIndex];
         plVulkanComputeShader* ptVulkanResource = &ptDevice->sbtComputeShadersHot[iResourceIndex];
         if (ptVulkanResource->tShaderModule)
@@ -6407,7 +6407,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBuffers); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtBuffers[i].uIndex;
-        PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy buffer %u", iResourceIndex);
+        PL_LOG_TRACE_F(gptLog, uLogChannelGraphics, "destroy buffer %u", iResourceIndex);
         vkDestroyBuffer(ptDevice->tLogicalDevice, ptDevice->sbtBuffersHot[iResourceIndex].tBuffer, gptGraphics->ptAllocationCallbacks);
         ptDevice->sbtBuffersHot[iResourceIndex].tBuffer = VK_NULL_HANDLE;
         pl_sb_push(ptDevice->sbtBufferFreeIndices, iResourceIndex);
@@ -6433,5 +6433,5 @@ pl__garbage_collect(plDevice* ptDevice)
     pl_sb_reset(ptGarbage->sbtBuffers);
     pl_sb_reset(ptGarbage->sbtBindGroups);
     pl_sb_reset(ptGarbage->sbtBindGroupLayouts);
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }

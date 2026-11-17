@@ -409,7 +409,7 @@ pl_transform_detach_component(plComponentLibrary* ptLibrary, plEntity tEntity)
 void
 pl_transform_run_transform_update_system(plComponentLibrary* ptLibrary)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plTransformComponent* ptComponents = NULL;
     const uint32_t uComponentCount = gptEcs->get_components(ptLibrary, gptTransformCtx->tTransformComponentType, (void**)&ptComponents, NULL);
@@ -424,13 +424,13 @@ pl_transform_run_transform_update_system(plComponentLibrary* ptLibrary)
         }
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 void
 pl_transform_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     plComponentLibraryHierarchyData* ptData = gptEcs->get_library_type_data(ptLibrary, gptTransformCtx->tHierarchyComponentType);
     if(ptData == NULL) // lazily created
@@ -465,7 +465,7 @@ pl_transform_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
         }
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 //-----------------------------------------------------------------------------

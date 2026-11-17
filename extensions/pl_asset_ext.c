@@ -278,7 +278,7 @@ pl_asset_initialize(plAssetInit tInit)
     pl_sb_push(gptAssetCtx->sbtAssetGenerations, 4194303);
     pl_sb_add(gptAssetCtx->sbtAssets);
 
-    PL_LOG_INFO_API(gptLog, gptAssetCtx->uLogChannel, "initialized asset extension");
+    PL_LOG_INFO(gptLog, gptAssetCtx->uLogChannel, "initialized asset extension");
 }
 
 void
@@ -582,7 +582,7 @@ pl_asset_load(const char* pcFile)
     }
     else
     {
-        PL_LOG_ERROR_API_F(gptLog, gptAssetCtx->uLogChannel, "Failed to load asset %s", pcFile);
+        PL_LOG_ERROR_F(gptLog, gptAssetCtx->uLogChannel, "Failed to load asset %s", pcFile);
         pl_hm_remove_str(&gptAssetCtx->tAssetLookup, pcFile);
     }
 

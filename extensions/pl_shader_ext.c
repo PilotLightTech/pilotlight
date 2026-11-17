@@ -169,7 +169,7 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
     if(gptShaderCtx->bInitialized)
         return true;
 
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     gptShaderCtx->ptStringRepo = gptString->create_repository();
 
@@ -192,32 +192,32 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
 
     if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_INCLUDE_DEBUG)
     {
-        PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_INCLUDE_DEBUG");
+        PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_INCLUDE_DEBUG");
     }
 
     if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_ALWAYS_COMPILE)
     {
-        PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_ALWAYS_COMPILE");
+        PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_ALWAYS_COMPILE");
     }
 
     if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_NEVER_CACHE)
     {
-        PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_NEVER_CACHE");
+        PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_NEVER_CACHE");
     }
 
     if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
     {
-        PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_METAL_OUTPUT");
+        PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_METAL_OUTPUT");
     }
 
     if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_SPIRV_OUTPUT)
     {
-        PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_SPIRV_OUTPUT");
+        PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_SPIRV_OUTPUT");
     }
 
     if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
     {
-        PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_AUTO_OUTPUT");
+        PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_AUTO_OUTPUT");
     }
 
     gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[0] = gptString->intern_ex("./", gptShaderCtx->ptStringRepo);
@@ -235,7 +235,7 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
             if(ptShaderOptions->apcIncludeDirectories[i])
             {
                 gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[i + 2] = gptString->intern_ex(ptShaderOptions->apcIncludeDirectories[i], gptShaderCtx->ptStringRepo);
-                PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "initialized include directory \"%s\"", ptShaderOptions->apcIncludeDirectories[i]);
+                PL_LOG_INFO_F(gptLog, gptShaderCtx->uLogChannel, "initialized include directory \"%s\"", ptShaderOptions->apcIncludeDirectories[i]);
             }
             else
                 break;
@@ -247,7 +247,7 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
             if(ptShaderOptions->apcDirectories[i])
             {
                 gptShaderCtx->tDefaultShaderOptions.apcDirectories[i + 2] = gptString->intern_ex(ptShaderOptions->apcDirectories[i], gptShaderCtx->ptStringRepo);
-                PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "initialized directory \"%s\"", ptShaderOptions->apcDirectories[i]);
+                PL_LOG_INFO_F(gptLog, gptShaderCtx->uLogChannel, "initialized directory \"%s\"", ptShaderOptions->apcDirectories[i]);
             }
             else
                 break;
@@ -260,7 +260,7 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
             {
                 gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcName = gptString->intern_ex(ptShaderOptions->atMacroDefinitions[i].pcName, gptShaderCtx->ptStringRepo);
                 gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcValue = gptString->intern_ex(ptShaderOptions->atMacroDefinitions[i].pcValue, gptShaderCtx->ptStringRepo);
-                PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "added definition: %s = %s", ptShaderOptions->atMacroDefinitions[i].pcName, ptShaderOptions->atMacroDefinitions[i].pcValue);
+                PL_LOG_INFO_F(gptLog, gptShaderCtx->uLogChannel, "added definition: %s = %s", ptShaderOptions->atMacroDefinitions[i].pcName, ptShaderOptions->atMacroDefinitions[i].pcValue);
             }
             else
                 break;
@@ -272,12 +272,12 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
     #ifdef PL_INCLUDE_SPIRV_CROSS
     spvc_context_create(&tSpirvCtx);
     spvc_context_set_error_callback(tSpirvCtx, pl_spvc_error_callback, NULL);
-    PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized SPIRV cross");
+    PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "initialized SPIRV cross");
     gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_CYAN, 1.0f, "%s", "initialized SPIR-V Cross");
     #endif
     #endif
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
     return true;
 }
 
@@ -310,32 +310,32 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
 
     if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_INCLUDE_DEBUG)
     {
-        PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_INCLUDE_DEBUG");
+        PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_INCLUDE_DEBUG");
     }
 
     if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_ALWAYS_COMPILE)
     {
-        PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_ALWAYS_COMPILE");
+        PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_ALWAYS_COMPILE");
     }
 
     if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_NEVER_CACHE)
     {
-        PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_NEVER_CACHE");
+        PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_NEVER_CACHE");
     }
 
     if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
     {
-        PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_METAL_OUTPUT");
+        PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_METAL_OUTPUT");
     }
 
     if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_SPIRV_OUTPUT)
     {
-        PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_SPIRV_OUTPUT");
+        PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_SPIRV_OUTPUT");
     }
 
     if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
     {
-        PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_AUTO_OUTPUT");
+        PL_LOG_INFO(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_AUTO_OUTPUT");
     }
 
     for(uint32_t i = 0; i < PL_MAX_SHADER_INCLUDE_DIRECTORIES; i++)
@@ -389,7 +389,7 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
                 if(!bDuplicate)
                 {
                     gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount] = gptString->intern_ex(ptShaderOptions->apcIncludeDirectories[i], gptShaderCtx->ptStringRepo);
-                    PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "set include directory \"%s\"", ptShaderOptions->apcIncludeDirectories[i]);
+                    PL_LOG_INFO_F(gptLog, gptShaderCtx->uLogChannel, "set include directory \"%s\"", ptShaderOptions->apcIncludeDirectories[i]);
                     gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount++;
                 }
             }
@@ -419,7 +419,7 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
                 {
                     gptShaderCtx->tDefaultShaderOptions.apcDirectories[gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount] = gptString->intern_ex(ptShaderOptions->apcDirectories[i], gptShaderCtx->ptStringRepo);
                     gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount++;
-                    PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "set directory \"%s\"", ptShaderOptions->apcDirectories[i]);
+                    PL_LOG_INFO_F(gptLog, gptShaderCtx->uLogChannel, "set directory \"%s\"", ptShaderOptions->apcDirectories[i]);
                 }
             }
             else
@@ -450,7 +450,7 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
                     gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[gptShaderCtx->tDefaultShaderOptions._uMacroDefinitionCount].pcName = gptString->intern_ex(ptShaderOptions->atMacroDefinitions[i].pcName, gptShaderCtx->ptStringRepo);
                     gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[gptShaderCtx->tDefaultShaderOptions._uMacroDefinitionCount].pcValue = gptString->intern_ex(ptShaderOptions->atMacroDefinitions[i].pcValue, gptShaderCtx->ptStringRepo);
                     gptShaderCtx->tDefaultShaderOptions._uMacroDefinitionCount++;
-                    PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "added definition: %s = %s", ptShaderOptions->atMacroDefinitions[i].pcName, ptShaderOptions->atMacroDefinitions[i].pcValue);
+                    PL_LOG_INFO_F(gptLog, gptShaderCtx->uLogChannel, "added definition: %s = %s", ptShaderOptions->atMacroDefinitions[i].pcName, ptShaderOptions->atMacroDefinitions[i].pcValue);
                 }
             }
             else
@@ -466,7 +466,7 @@ pl_shader_write_to_disk(const char* pcShader, const plShaderModule* ptModule)
     plVfsFileHandle tHandle = gptVfs->open_file(pcShader, PL_VFS_FILE_MODE_WRITE);
     gptVfs->write_file(tHandle, ptModule->puCode, ptModule->szCodeSize);
     gptVfs->close_file(tHandle);
-    PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "write shader to disk \"%s\"", pcShader);
+    PL_LOG_INFO_F(gptLog, gptShaderCtx->uLogChannel, "write shader to disk \"%s\"", pcShader);
 }
 
 plShaderModule
@@ -484,7 +484,7 @@ pl_shader_read_from_disk(const char* pcShader, const char* pcEntryFunc)
         pl_sb_push(gptShaderCtx->sbptShaderBytecodeCache, tModule.puCode);
         tModule.pcEntryFunc = pcEntryFunc;
     }
-    PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "read shader from disk \"%s\", %s", pcShader, tModule.szCodeSize > 0 ? "SUCCESS" : "FAIL");
+    PL_LOG_INFO_F(gptLog, gptShaderCtx->uLogChannel, "read shader from disk \"%s\", %s", pcShader, tModule.szCodeSize > 0 ? "SUCCESS" : "FAIL");
     return tModule;
 }
 
@@ -494,7 +494,7 @@ pl_shader_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOp
 
     plShaderModule tModule = {0};
 
-    PL_LOG_DEBUG_API_F(gptLog, gptShaderCtx->uLogChannel, "try to compile: \"%s\"", pcShader);
+    PL_LOG_DEBUG_F(gptLog, gptShaderCtx->uLogChannel, "try to compile: \"%s\"", pcShader);
 
     #ifndef PL_OFFLINE_SHADERS_ONLY
     shaderc_compiler_t tCompiler = shaderc_compiler_initialize();
@@ -533,7 +533,7 @@ pl_shader_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOp
         pcLocatedShader = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s", ptOptions->apcDirectories[i], pcShader);
         if(gptVfs->does_file_exist(pcLocatedShader))
         {
-            PL_LOG_DEBUG_API_F(gptLog, gptShaderCtx->uLogChannel, "found shader: \"%s\"", pcLocatedShader);
+            PL_LOG_DEBUG_F(gptLog, gptShaderCtx->uLogChannel, "found shader: \"%s\"", pcLocatedShader);
             break;
         }
         pcLocatedShader = NULL;
@@ -544,7 +544,7 @@ pl_shader_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOp
 
     if(!gptVfs->does_file_exist(pcLocatedShader))
     {
-        PL_LOG_WARN_API_F(gptLog, gptShaderCtx->uLogChannel, "shader not found: \"%s\"", pcLocatedShader);
+        PL_LOG_WARN_F(gptLog, gptShaderCtx->uLogChannel, "shader not found: \"%s\"", pcLocatedShader);
         pl_temp_allocator_reset(&gptShaderCtx->tTempAllocator2);
         return tModule;
     }
@@ -635,7 +635,7 @@ pl_shader_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOp
     if(uNumErrors)
     {
         gptScreenLog->add_message_ex(0, 30.0, PL_COLOR_32_RED, 1.25f,"\"%s\" compilation errors: \"%s\"", pcShader, shaderc_result_get_error_message(tresult));
-        PL_LOG_ERROR_API_F(gptLog, gptShaderCtx->uLogChannel, "\"%s\" compilation errors: \"%s\"", pcShader, shaderc_result_get_error_message(tresult));
+        PL_LOG_ERROR_F(gptLog, gptShaderCtx->uLogChannel, "\"%s\" compilation errors: \"%s\"", pcShader, shaderc_result_get_error_message(tresult));
         tModule.szCodeSize = 0;
         tModule.puCode = NULL;
         tModule.pcEntryFunc = NULL;
@@ -643,7 +643,7 @@ pl_shader_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOp
     else
     {
         gptScreenLog->add_message_ex(0, 3.0, PL_COLOR_32_CYAN, 1.0f, "compiled: \"%s\"", pcShader);
-        PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "compiled: \"%s\"", pcShader);
+        PL_LOG_INFO_F(gptLog, gptShaderCtx->uLogChannel, "compiled: \"%s\"", pcShader);
         tModule.szCodeSize = shaderc_result_get_length(tresult);
         tModule.puCode = (uint8_t*)shaderc_result_get_bytes(tresult);
         tModule.pcEntryFunc = pcEntryFunc;
@@ -652,7 +652,7 @@ pl_shader_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOp
     #ifdef PL_INCLUDE_SPIRV_CROSS
     if(ptOptions->eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
     {
-        PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "cross compiling \"%s\" to MSL", pcShader);
+        PL_LOG_INFO_F(gptLog, gptShaderCtx->uLogChannel, "cross compiling \"%s\" to MSL", pcShader);
         if(tShaderKind == shaderc_glsl_vertex_shader)
         {
             spvc_parsed_ir ir = NULL;
@@ -774,7 +774,7 @@ pl_shader_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOp
 plShaderModule
 pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, plShaderOptions* ptOptions)
 {
-    PL_LOG_DEBUG_API_F(gptLog, gptShaderCtx->uLogChannel, "try to load: \"%s\"", pcShader);
+    PL_LOG_DEBUG_F(gptLog, gptShaderCtx->uLogChannel, "try to load: \"%s\"", pcShader);
 
     if(ptOptions && ptOptions != &gptShaderCtx->tDefaultShaderOptions)
     {
@@ -867,7 +867,7 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
                 pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.spv", ptOptions->apcDirectories[i], pcFileNameOnly);
             if(gptVfs->does_file_exist(pcCacheFile))
             {
-                PL_LOG_DEBUG_API_F(gptLog, gptShaderCtx->uLogChannel, "cached shader found: \"%s\"", pcCacheFile);
+                PL_LOG_DEBUG_F(gptLog, gptShaderCtx->uLogChannel, "cached shader found: \"%s\"", pcCacheFile);
                 gptScreenLog->add_message_ex(0, 3.0, PL_COLOR_32_CYAN, 1.0f, "cached shader found: \"%s\"", pcCacheFile);
                 break;
             }
@@ -878,7 +878,7 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
 
         if(pcCacheFile == NULL)
         {
-            PL_LOG_DEBUG_API_F(gptLog, gptShaderCtx->uLogChannel, "no cached shader found for: \"%s\"", pcFileNameOnly);
+            PL_LOG_DEBUG_F(gptLog, gptShaderCtx->uLogChannel, "no cached shader found for: \"%s\"", pcFileNameOnly);
             if(ptOptions->eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
                 pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "/cache/shaders/%s.metal", pcFileNameOnly);
             else

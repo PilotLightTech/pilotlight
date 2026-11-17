@@ -638,7 +638,7 @@ pl_physics_initialize(plPhysicsEngineSettings tSettings)
     };
     gptPhysicsCtx->uLogChannel = gptLog->add_channel("Physics", tLogInit);
 
-    PL_LOG_INFO_API(gptLog, gptPhysicsCtx->uLogChannel, "Physics ext initialized");
+    PL_LOG_INFO(gptLog, gptPhysicsCtx->uLogChannel, "Physics ext initialized");
 }
 
 void
@@ -828,7 +828,7 @@ pl_physics_create_rigid_body(plComponentLibrary* ptLibrary, plEntity tEntity)
 static void
 pl__physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Physics Draw");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Physics Draw");
 
     const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
 
@@ -930,7 +930,7 @@ pl__physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
             gptDraw->add_3d_line(ptDrawlist, ptTransform->tWorld.col[3].xyz, pl_add_vec3(ptTransform->tWorld.col[3].xyz, tDirection), (plDrawLineOptions){.uColor = PL_COLOR_32_RED, .fThickness = 0.05f});
         }
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void
@@ -978,7 +978,7 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary, plDrawL
     if(!gptPhysicsCtx->tSettings.bEnabled || !ptLibrary || fRenderDeltaTime <= 0.0f)
         return;
 
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Physics Update");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Physics Update");
 
     const float fSubstepTime = (1.0f / gptPhysicsCtx->tSettings.fSimulationFrameRate);
 
@@ -991,17 +991,17 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary, plDrawL
         pdPhysicsObjects = gptStats->get_counter("physics objects");
     *pdPhysicsObjects = (double)uRigidBodyCount;
 
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Update Physics Objects");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Update Physics Objects");
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
     {
         // register rigid bodies or update them if they already exists
         pl_physics_create_rigid_body(ptLibrary, ptRigidBodyEntities[i]);
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 
     if(uRigidBodyCount == 0)
     {
-        PL_PROFILE_END_SAMPLE_API(gptProfile,0);
+        PL_PROFILE_END_SAMPLE(gptProfile,0);
         return;
     }
     uint32_t clockIndex = 0;
@@ -1033,7 +1033,7 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary, plDrawL
     // physics substep
     for(uint32_t uSubstep = 0; uSubstep < uSubsteps; uSubstep++)
     {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Substep");
+        PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Substep");
         for(uint32_t i=0; i < pl_sb_size(gptPhysicsCtx->sbtRigidBodies); i++)
         {
             plRigidBody* body = &gptPhysicsCtx->sbtRigidBodies[i];
@@ -1051,11 +1051,11 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary, plDrawL
         pl__detect_collisions(fStepTime, ptLibrary);
         pl__resolve_contacts(fStepTime);
         pl__physics_update_sleep(fStepTime,ptLibrary);
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
     }
 
     // update transforms
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Update Transforms");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Update Transforms");
     const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
     const plEcsTypeKey tRigidBodyPhysicsComponentType = gptPhysicsCtx->tRigidBodyPhysicsComponentType;
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
@@ -1075,12 +1075,12 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary, plDrawL
         pl_decompose_matrix(&tTransform, &tUnUsedScale, &ptSphereTransform->tRotation, &ptSphereTransform->tTranslation);
         ptSphereTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 
     if(gptPhysicsCtx->tSettings.bDebugDraw && ptDrawlist)
         pl__physics_draw(ptLibrary, ptDrawlist);
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 void
@@ -1309,7 +1309,7 @@ pl_physics_apply_impulse_torque(plComponentLibrary* ptLibrary, plEntity tEntity,
 static void
 pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Update Force Fields");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Update Force Fields");
 
     const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
 
@@ -1385,13 +1385,13 @@ pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
             }
         }
     }
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void
 pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Collision Detection");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Collision Detection");
 
     const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
     const plEcsTypeKey tRigidBodyPhysicsComponentType = gptPhysicsCtx->tRigidBodyPhysicsComponentType;
@@ -1469,7 +1469,7 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
         }
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static plVec3
@@ -1989,7 +1989,7 @@ pl__contact_adjust_velocities(float fDeltaTime)
 static void
 pl__resolve_contacts(float fDeltaTime)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Resolve Contacts");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Resolve Contacts");
 
     const uint32_t uContactCount = pl_sb_size(gptPhysicsCtx->sbtContactArray);
 
@@ -2015,13 +2015,13 @@ pl__resolve_contacts(float fDeltaTime)
     // resolve the velocity problems with the contacts.
     pl__contact_adjust_velocities(fDeltaTime);
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void
 pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCount)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Integration");
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Integration");
 
     for(uint32_t i = 0; i < uBodyCount; i++)
     {
@@ -2108,7 +2108,7 @@ pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCou
         }
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void

@@ -519,7 +519,7 @@ pl_ecs_init_library(plComponentLibrary* ptLibrary)
     };
     pl_sb_push(ptLibrary->_sbtEntityData, tEntityData);
 
-    PL_LOG_INFO_API(gptLog, gptEcsCtx->uLogChannel, "initialized component library");
+    PL_LOG_INFO(gptLog, gptEcsCtx->uLogChannel, "initialized component library");
 }
 
 void
@@ -956,7 +956,7 @@ pl_ecs_create_entity_with_id(plComponentLibrary* ptLibrary, const char* pcName, 
     // else
     //     ptTag->pcName = gptString->intern(acBuffer);
 
-    // PL_LOG_DEBUG_API_F(gptLog, gptEcsCtx->uLogChannel, "created entity: %s, %llu", ptTag->pcName, tId);
+    // PL_LOG_DEBUG_F(gptLog, gptEcsCtx->uLogChannel, "created entity: %s, %llu", ptTag->pcName, tId);
 
     pl_hm_insert(&ptLibrary->_tIdHashmap, tId, tNewEntity.uData);
 
@@ -1299,11 +1299,11 @@ pl__scene_ecs_add_components(plJsonObject* ptJsonNode, plComponentLibrary* ptLib
                         plEntityId tEntityId = pl_ecs_get_entity_id(ptLibrary, tEntity);
                         if(ptTag)
                         {
-                            PL_LOG_ERROR_API_F(gptLog, gptEcsCtx->uLogChannel, "could not deserialize component of type: (%s) for entity: \"%s\" (%" PRIu64 ")", ptCompDesc->pcName, ptTag->pcName, tEntityId);
+                            PL_LOG_ERROR_F(gptLog, gptEcsCtx->uLogChannel, "could not deserialize component of type: (%s) for entity: \"%s\" (%" PRIu64 ")", ptCompDesc->pcName, ptTag->pcName, tEntityId);
                         }
                         else
                         {
-                            PL_LOG_ERROR_API_F(gptLog, gptEcsCtx->uLogChannel, "could not deserialize component of type: (%s) for entity: (%" PRIu64 ")", ptCompDesc->pcName, tEntityId);
+                            PL_LOG_ERROR_F(gptLog, gptEcsCtx->uLogChannel, "could not deserialize component of type: (%s) for entity: (%" PRIu64 ")", ptCompDesc->pcName, tEntityId);
                         }
                         
                         return false;
@@ -1684,7 +1684,7 @@ pl__ecs_library_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary,
             }
             else
             {
-                PL_LOG_ERROR_API_F(gptLog, gptEcsCtx->uLogChannel, "could not deserialize component of type: for entity: \"%s\" (%" PRIu64 ")", acTempBuffer0, tEntityId);
+                PL_LOG_ERROR_F(gptLog, gptEcsCtx->uLogChannel, "could not deserialize component of type: for entity: \"%s\" (%" PRIu64 ")", acTempBuffer0, tEntityId);
                 PL_FREE(atEntities);
                 return false;
             }

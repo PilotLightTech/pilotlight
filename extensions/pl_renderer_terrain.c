@@ -278,7 +278,7 @@ pl__free_chunk_until(plTerrain* P, uint64_t idx_bytes_needed, uint64_t vtx_bytes
     plTerrainChunk* tail = P->tReplacementQueue.ptNext;
     if(!tail)
     {
-        PL_LOG_WARN_API(gptLog, gptData->uLogChannelTerrain, "Couldn't free chunks (replacement list empty)");
+        PL_LOG_WARN(gptLog, gptData->uLogChannelTerrain, "Couldn't free chunks (replacement list empty)");
         return;
     }
 
@@ -309,7 +309,7 @@ pl__free_chunk_until(plTerrain* P, uint64_t idx_bytes_needed, uint64_t vtx_bytes
     }
 
     // If we reached here, nothing could be evicted (only root is resident)
-    PL_LOG_WARN_API(gptLog, gptData->uLogChannelTerrain, "Eviction failed: only root or no resident chunks available");
+    PL_LOG_WARN(gptLog, gptData->uLogChannelTerrain, "Eviction failed: only root or no resident chunks available");
 }
 
 static void
@@ -376,7 +376,7 @@ pl__make_unresident(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
     pl__remove_from_replacement_queue(ptTerrain, ptChunk);
     if(pl__chunk_is_resident(ptChunk))
     {
-        PL_LOG_DEBUG_API(gptLog, gptData->uLogChannelTerrain, "Made chunk unresident");
+        PL_LOG_DEBUG(gptLog, gptData->uLogChannelTerrain, "Made chunk unresident");
         if(ptChunk->ptIndexHole)
             gptFreeList->return_node(&ptTerrain->tIndexBufferManager, ptChunk->ptIndexHole);
         if(ptChunk->ptVertexHole)
@@ -529,7 +529,7 @@ pl__handle_residency(plTerrain* ptTerrain)
             PL_FREE(ptVertices);
             PL_FREE(ptIndices);
             // fclose(ptDataFile);
-            PL_LOG_WARN_API(gptLog, gptData->uLogChannelTerrain, "No Memory (post-eviction)");
+            PL_LOG_WARN(gptLog, gptData->uLogChannelTerrain, "No Memory (post-eviction)");
             pl__defer_residency_head(ptTerrain);
             return;
         }
@@ -553,7 +553,7 @@ pl__handle_residency(plTerrain* ptTerrain)
         pl__remove_from_residency_queue(ptTerrain, ptCurrentRequest->ptChunk);
         pl__touch_chunk(ptTerrain, ptChunk);
 
-        PL_LOG_DEBUG_API(gptLog, gptData->uLogChannelTerrain, "Made chunk resident");
+        PL_LOG_DEBUG(gptLog, gptData->uLogChannelTerrain, "Made chunk resident");
     }
 }
 

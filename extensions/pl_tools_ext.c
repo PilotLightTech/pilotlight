@@ -163,20 +163,20 @@ pl_tools_initialize(plToolsInit tInit)
 void
 pl_tools_update(void)
 {
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     if(gptDebugCtx->bShowMemoryAllocations)
     {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Memory Allocations");
+        PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Memory Allocations");
         pl__show_memory_allocations(&gptDebugCtx->bShowMemoryAllocations);
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
     }
 
     if(gptDebugCtx->bShowProfiling)
     {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Profiling");
+        PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Profiling");
         pl__show_profiling(&gptDebugCtx->bShowProfiling);
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
     }
 
     if(gptDebugCtx->bShowGpuProfiling && gptDebugCtx->ptDevice)
@@ -192,26 +192,26 @@ pl_tools_update(void)
 
     if(gptDebugCtx->bShowStats)
     {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Statistics");
+        PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Statistics");
         pl__show_statistics(&gptDebugCtx->bShowStats);
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
     }
 
     if(gptDebugCtx->bShowDeviceMemoryAnalyzer)
     {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Device Memory Analyzer");
+        PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Device Memory Analyzer");
         pl__show_device_memory(&gptDebugCtx->bShowDeviceMemoryAnalyzer);
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
     }
 
     if(gptDebugCtx->bShowLogging)
     {
-        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Logging");
+        PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Logging");
         pl__show_logging(&gptDebugCtx->bShowLogging);
-        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE(gptProfile, 0);
     }
 
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 //-----------------------------------------------------------------------------
