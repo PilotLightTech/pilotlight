@@ -1441,8 +1441,17 @@ pl_ui_layout_row(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount, 
         .tType            = tType,
         .tSystemType      = PL_UI_LAYOUT_SYSTEM_TYPE_ARRAY,
         .uColumns         = uWidgetCount,
-        .pfSizesOrRatios  = pfSizesOrRatios,
+        .bSizesOrRatios   = pfSizesOrRatios != NULL && uWidgetCount > 0,
+        .uSizesStartIndex = pl_sb_size(ptWindow->sbfRowSizesOrRatios)
     };
+
+    // copy so callers don't need to keep the array alive for the rest of the row
+    // (the row can also be stashed/applied later in the frame)
+    if(tNewRow.bSizesOrRatios)
+    {
+        for(uint32_t i = 0; i < uWidgetCount; i++)
+            pl_sb_push(ptWindow->sbfRowSizesOrRatios, pfSizesOrRatios[i]);
+    }
     ptWindow->tTempData.tLayoutRow = tNewRow;
 }
 
@@ -2845,6 +2854,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     pl_sb_reset(ptWindow->sbtRowStack);
     pl_sb_reset(ptWindow->sbtCursorStack);
     pl_sb_reset(ptWindow->sbtRowTemplateEntries);
+    pl_sb_reset(ptWindow->sbfRowSizesOrRatios);
     ptWindow->tTempData.tCursorMaxPos = tOldCursorStart;
 
     // clamp window size to min/max
@@ -3529,8 +3539,8 @@ pl__calculate_item_size(float fDefaultHeight)
     else
     {
         // when passed array of sizes/ratios, override
-        if(ptCurrentRow->pfSizesOrRatios)
-            ptCurrentRow->fWidgetWidth = ptCurrentRow->pfSizesOrRatios[ptCurrentRow->uCurrentColumn];
+        if(ptCurrentRow->bSizesOrRatios)
+            ptCurrentRow->fWidgetWidth = ptWindow->sbfRowSizesOrRatios[ptCurrentRow->uSizesStartIndex + ptCurrentRow->uCurrentColumn];
 
         float fWidth = ptCurrentRow->fWidgetWidth;
 
@@ -3735,6 +3745,7 @@ pl_ui_cleanup(void)
         pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbtCursorStack);
         pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbtTreeNodeStack);
         pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbtRowTemplateEntries);
+        pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbfRowSizesOrRatios);
         pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbtTempLayoutSort);
         pl_sb_free(gptCtx->sbptCreatedWindows[i]->sbuTempLayoutIndexSort);
         PL_FREE(gptCtx->sbptCreatedWindows[i]->pcName);

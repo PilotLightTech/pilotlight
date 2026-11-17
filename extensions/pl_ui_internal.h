@@ -314,7 +314,8 @@ typedef struct _plUiLayoutRow
     uint32_t             uCurrentColumn;       // current column
     float                fMaxWidth;            // maximum row width  (to help set max cursor position)
     float                fMaxHeight;           // maximum row height (to help set next row position + max cursor position)
-    const float*         pfSizesOrRatios;      // size or rations when using array layout system (system 4)
+    bool                 bSizesOrRatios;       // set when using array layout system (system 4)
+    uint32_t             uSizesStartIndex;     // offset into parent window sbfRowSizesOrRatios buffer (system 4)
     uint32_t             uStaticEntryCount;    // number of static entries when using template layout system (system 5)
     uint32_t             uDynamicEntryCount;   // number of dynamic entries when using template layout system (system 5)
     uint32_t             uVariableEntryCount;  // number of variable entries when using template layout system (system 5)
@@ -466,6 +467,7 @@ typedef struct _plUiWindow
     plUiLayoutSortLevel*       sbtTempLayoutSort;       // blah
     uint32_t*                  sbuTempLayoutIndexSort;  // blah
     plUiLayoutRowEntry*        sbtRowTemplateEntries;   // row template entries (shared and reset every frame)
+    float*                     sbfRowSizesOrRatios;     // copies of layout_row() sizes/ratios (shared and reset every frame)
     plDrawList2D*              ptDrawlist;              // window draw list           
     plDrawLayer2D*             ptBgLayer;               // background draw layer
     plDrawLayer2D*             ptFgLayer;               // foreground draw layer

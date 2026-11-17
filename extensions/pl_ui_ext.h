@@ -403,6 +403,7 @@ typedef struct _plUiI
     // layout system 4
     // - same as layout system 3 but the "array" form
     // - wraps (i.e. setting widgetCount to 2 and adding 4 widgets will create 2 rows)
+    // - sizesOrRatios (widgetCount values) is copied; it doesn't need to outlive the call
     void (*layout_row)(plUiLayoutRowType, float height, uint32_t widgetCount, const float* sizesOrRatios);
 
     // layout system 5
