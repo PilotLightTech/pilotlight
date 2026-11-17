@@ -5113,7 +5113,9 @@ pl__render_view_bloom_pass(plView* ptView)
     plScene*       ptScene   = ptView->ptParentScene;
     plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
 
-    for(uint32_t i = 0; i < ptSettings->tBloom.uChainLength - 1; i++)
+    const uint32_t uChainLength = ptView->uBloomChainLength;
+
+    for(uint32_t i = 0; i < uChainLength - 1; i++)
     {
 
         const int sourceMip = i;
@@ -5165,7 +5167,18 @@ pl__render_view_bloom_pass(plView* ptView)
 
         plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynBloomData));
         plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
+        memset(ptTonemapData, 0, sizeof(plGpuDynBloomData));
         ptTonemapData->iMipLevel = i;
+        ptTonemapData->tViewportSize = ptView->tTargetSize;
+        ptTonemapData->tSourceUVScale = (plVec2){1.0f, 1.0f};
+        if(i == 0)
+        {
+            // final texture is only reallocated when growing, so the view may
+            // only cover its top-left portion
+            const plVec3 tFinalDims = gptGfx->get_texture(ptDevice, ptView->tFinalTexture)->tDesc.tDimensions;
+            ptTonemapData->tSourceUVScale.x = ptView->tTargetSize.x / tFinalDims.x;
+            ptTonemapData->tSourceUVScale.y = ptView->tTargetSize.y / tFinalDims.y;
+        }
 
         plComputeShaderHandle tTonemapShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "bloom_downsample", NULL);
         gptGfx->bind_compute_shader(ptPostCmdBuffer, tTonemapShader);
@@ -5199,10 +5212,10 @@ pl__render_view_bloom_pass(plView* ptView)
         gptGfx->return_command_buffer(ptPostCmdBuffer);
     }
 
-    for(uint32_t i = 0; i < ptSettings->tBloom.uChainLength - 1; i++)
+    for(uint32_t i = 0; i < uChainLength - 1; i++)
     {
 
-        const int targetMip = ptSettings->tBloom.uChainLength - 2 - i;
+        const int targetMip = uChainLength - 2 - i;
         const int sourceMip = targetMip + 1;
 
         const plBindGroupDesc tTonemapBGDesc = {
@@ -5259,6 +5272,9 @@ pl__render_view_bloom_pass(plView* ptView)
         ptTonemapData->bloomStrength = ptSettings->tBloom.fStrength;
         ptTonemapData->blurRadius = ptSettings->tBloom.fRadius;
         ptTonemapData->isLowestMip = i == 0 ? 1 : 0;
+        ptTonemapData->iMipLevel = 0;
+        ptTonemapData->tSourceUVScale = (plVec2){1.0f, 1.0f};
+        ptTonemapData->tViewportSize = ptView->tTargetSize;
 
         plComputeShaderHandle tTonemapShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "bloom_upsample", NULL);
         gptGfx->bind_compute_shader(ptPostCmdBuffer, tTonemapShader);
@@ -5341,6 +5357,10 @@ pl__render_view_bloom_pass(plView* ptView)
         plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
         ptTonemapData->bloomStrength = ptSettings->tBloom.fStrength;
         ptTonemapData->blurRadius = ptSettings->tBloom.fRadius;
+        ptTonemapData->isLowestMip = 0;
+        ptTonemapData->iMipLevel = 0;
+        ptTonemapData->tSourceUVScale = (plVec2){1.0f, 1.0f};
+        ptTonemapData->tViewportSize = ptView->tTargetSize;
 
         plComputeShaderHandle tTonemapShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "bloom_apply", NULL);
         gptGfx->bind_compute_shader(ptPostCmdBuffer, tTonemapShader);

@@ -955,6 +955,7 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     }
     pl_sb_reset(ptView->sbtBloomDownChain);
     pl_sb_reset(ptView->sbtBloomUpChain);
+    ptView->uBloomChainLength = 0;
     
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
@@ -2041,11 +2042,10 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
         for(uint32_t i = 0; i < uNewTexturesNeeded; i++)
         {
 
+            // view too small for more mips; this view just uses a shorter
+            // chain (don't modify the shared scene settings)
             if(tBloomTextureDesc.tDimensions.x < 1.0f || tBloomTextureDesc.tDimensions.y < 1.0f)
-            {
-                ptSettings->tBloom.uChainLength -= uNewTexturesNeeded - i;
                 break;
-            }
 
             plTextureHandle tBloomUpTexture = {0};
             plTextureHandle tBloomDownTexture = {0};
@@ -2060,6 +2060,7 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
             tBloomTextureDesc.tDimensions.y *= 0.5f;
         }
     }
+    ptView->uBloomChainLength = pl_min(ptSettings->tBloom.uChainLength, pl_sb_size(ptView->sbtBloomDownChain));
 
     plRenderEnvironment* ptEnvironment = gptAsset->get_data(ptScene->tEnvironment);
     if(ptEnvironment->eMode & PL_RENDERER_SKY_MODE_REALISTIC)
@@ -2888,7 +2889,8 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~post processing work~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    if(ptSettings->tBloom.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE && pl_sb_size(ptView->sbtBloomDownChain) >= ptSettings->tBloom.uChainLength)
+    // need at least 2 levels: the apply pass reads the result of the upsample chain
+    if(ptSettings->tBloom.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE && ptView->uBloomChainLength >= 2)
         pl__render_view_bloom_pass(ptView);
     else if(!(ptSettings->tBloom.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE))
     {
@@ -2899,6 +2901,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         }
         pl_sb_reset(ptView->sbtBloomDownChain);
         pl_sb_reset(ptView->sbtBloomUpChain);
+        ptView->uBloomChainLength = 0;
     }
 
     // TODO: move before outline

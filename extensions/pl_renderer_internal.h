@@ -434,6 +434,7 @@ typedef struct _plView
     plTextureHandle  tSSGITexture;                 // diffuse screen-space GI
     plTextureHandle* sbtBloomDownChain;            // bloom textures
     plTextureHandle* sbtBloomUpChain;              // bloom textures
+    uint32_t         uBloomChainLength;            // chain length used by this view (<= settings, limited by view size)
     plTextureHandle  atAODepth[3];                 // full, half, quarter resolution
     plTextureHandle  atAO[3];                      // visibility, view depth, encoded normal
     plVec2           tAOSize;

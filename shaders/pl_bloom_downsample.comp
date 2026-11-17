@@ -42,10 +42,16 @@ void main()
     if(iUV.x >= targetResolution.x || iUV.y >= targetResolution.y)
         return;
 
-    vec2 uv = (iUV + 0.5f) / vec2(targetResolution);
+    // when reading the final texture it may be larger than the view, so only
+    // the top-left tSourceUVScale portion is valid; clamp to that region so
+    // stale texels outside the view never leak into the bloom
+    vec2 uvScale = tDynamicData.tData.tSourceUVScale;
+    vec2 uv = (iUV + 0.5f) / vec2(targetResolution) * uvScale;
 
     ivec2 srcResolution = textureSize(sampler2D(source, tSamplerLinearClamp), 0);
     vec2 texelSize = 1.f / vec2(srcResolution);
+    vec2 uvMin = 0.5f * texelSize;
+    vec2 uvMax = uvScale - 0.5f * texelSize;
 
     vec3 color = vec3(0);
 
@@ -53,25 +59,25 @@ void main()
 
     //sampling pattern from "Next Generation Post Processing in Call of Duty Advanced Warfare"
     //center 
-    vec3 e = textureLod(sampler2D(source, tSamplerLinearClamp), uv,   0).rgb;
+    vec3 e = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv, uvMin, uvMax),   0).rgb;
 
     //center pixel corners
-    vec3 j = textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(0.5, 0.5),   0).rgb;
-    vec3 k = textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(0.5, -0.5),  0).rgb;
-    vec3 l = textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(-0.5, 0.5),  0).rgb;
-    vec3 m = textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(-0.5, -0.5), 0).rgb;
+    vec3 j = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(0.5, 0.5), uvMin, uvMax),   0).rgb;
+    vec3 k = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(0.5, -0.5), uvMin, uvMax),  0).rgb;
+    vec3 l = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(-0.5, 0.5), uvMin, uvMax),  0).rgb;
+    vec3 m = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(-0.5, -0.5), uvMin, uvMax), 0).rgb;
 
     //left, rigth, up and down
-    vec3 b = textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2( 1.5, 0),  0).rgb;
-    vec3 d = textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(-1.5, 0),  0).rgb;
-    vec3 f = textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(0,  1.5),  0).rgb;
-    vec3 h = textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(0, -1.5),  0).rgb;
+    vec3 b = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2( 1.5, 0), uvMin, uvMax),  0).rgb;
+    vec3 d = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(-1.5, 0), uvMin, uvMax),  0).rgb;
+    vec3 f = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(0,  1.5), uvMin, uvMax),  0).rgb;
+    vec3 h = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(0, -1.5), uvMin, uvMax),  0).rgb;
 
     //diagonal corners
-    vec3 a = textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2( 1.5,  1.5),  0).rgb;
-    vec3 c = textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2( 1.5, -1.5),  0).rgb;
-    vec3 g = textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(-1.5,  1.5),  0).rgb;
-    vec3 i = textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(-1.5, -1.5),  0).rgb;
+    vec3 a = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2( 1.5,  1.5), uvMin, uvMax),  0).rgb;
+    vec3 c = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2( 1.5, -1.5), uvMin, uvMax),  0).rgb;
+    vec3 g = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(-1.5,  1.5), uvMin, uvMax),  0).rgb;
+    vec3 i = textureLod(sampler2D(source, tSamplerLinearClamp), clamp(uv + texelSize * vec2(-1.5, -1.5), uvMin, uvMax),  0).rgb;
 
     // vec3 groups[5];
     // switch (tDynamicData.tData.iMipLevel)

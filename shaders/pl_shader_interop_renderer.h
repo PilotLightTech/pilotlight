@@ -553,7 +553,11 @@ PL_BEGIN_STRUCT(plGpuDynBloomData)
     int iMipLevel;
     // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~16 bytes total~~~~~~~~~~~~~~~~
+    vec2 tSourceUVScale; // portion of the source texture covered by the view (final texture can be larger than the view)
+    vec2 tViewportSize;  // view size in pixels (final texture can be larger than the view)
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~32 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynBloomData)
 
 PL_BEGIN_STRUCT(plGpuDynTonemap)

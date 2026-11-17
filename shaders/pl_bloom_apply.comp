@@ -20,7 +20,9 @@ layout(push_constant) uniform PushConstants {
 
 void main(){
     ivec2 iUV = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 targetResolution = imageSize(target);
+    // the target (final texture) may be larger than the view; only the
+    // top-left viewport region is valid and the bloom chain matches it
+    ivec2 targetResolution = min(imageSize(target), ivec2(tDynamicData.tData.tViewportSize));
 
     if(iUV.x >= targetResolution.x || iUV.y >= targetResolution.y)
         return;
