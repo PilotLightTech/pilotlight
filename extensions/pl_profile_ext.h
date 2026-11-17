@@ -50,7 +50,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plProfileI_version {2, 0, 0}
+#define plProfileI_version {2, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -93,7 +93,7 @@ typedef struct _plProfileI
     void (*end_frame)  (void);
 
     // sampling (prefer macros below)
-    void (*begin_sample)(uint32_t threadIndex, const char* name);
+    void (*begin_sample)(uint32_t threadIndex, const char* name); // name is copied
     void (*end_sample)  (uint32_t threadIndex);
 
     // results
@@ -112,7 +112,7 @@ typedef struct _plProfileCpuSample
 {
     double      dStartTime;
     double      dDuration;
-    const char* pcName;
+    const char* pcName; // valid until the frame after next begins; copy it to keep samples longer
     uint32_t    _uDepth;
 } plProfileCpuSample;
 

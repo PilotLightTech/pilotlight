@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_PROFILE_VERSION    "1.0.0"
-#define PL_PROFILE_VERSION_NUM 10000
+#define PL_PROFILE_VERSION    "1.1.0"
+#define PL_PROFILE_VERSION_NUM 10100
 
 /*
 Index of this file:
@@ -68,7 +68,8 @@ SAMPLING
 
     pl_begin_profile_sample:
         void pl_begin_profile_sample(uint32_t uThreadIndex, pcName);
-            Begins a CPU sample. Must have begun a profiling frame.
+            Begins a CPU sample. Must have begun a profiling frame. pcName is
+            copied (valid in results until the frame after next begins).
 
     pl_end_profile_sample:
         void pl_end_profile_sample(uint32_t uThreadIndex);
@@ -242,6 +243,15 @@ static plProfileContext* gptProfileContext = NULL;
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
+// sample name storage; blocks never move so copied names stay valid for the frame
+typedef struct _plProfileNameBlock
+{
+    struct _plProfileNameBlock* ptNext;
+    size_t                      szSize;
+    size_t                      szCapacity;
+    // char data[szCapacity] follows
+} plProfileNameBlock;
+
 typedef struct _plProfileFrame
 {
     uint64_t         ulFrame;
@@ -266,6 +276,8 @@ typedef struct _plProfileFrame
     plProfileSample  atSamples[256];
     uint32_t         uSampleCapacity;
     uint32_t         uOverflowSampleCapacity;
+
+    plProfileNameBlock* ptNameBlocks; // newest first; reset each frame
 } plProfileFrame;
 
 typedef struct _plProfileThreadData
@@ -290,6 +302,9 @@ typedef struct _plProfileContext
 
 static void             pl__push_sample_stack(plProfileFrame* ptFrame, uint32_t uSample);
 static plProfileSample* pl__get_sample(plProfileFrame* ptFrame);
+static const char*      pl__copy_sample_name(plProfileFrame* ptFrame, const char* pcName);
+static void             pl__reset_sample_names(plProfileFrame* ptFrame);
+static void             pl__free_sample_names(plProfileFrame* ptFrame);
 
 static inline uint32_t
 pl__pop_sample_stack(plProfileFrame* ptFrame)
@@ -391,6 +406,8 @@ pl__cleanup_profile_context(void)
 
             if(gptProfileContext->ptThreadData[i].atFrames[j].bSampleStackOverflowInUse)
                 PL_PROFILE_FREE(gptProfileContext->ptThreadData[i].atFrames[j].puSampleStack);
+
+            pl__free_sample_names(&gptProfileContext->ptThreadData[i].atFrames[j]);
         }
     }
 
@@ -432,6 +449,7 @@ pl__begin_profile_frame(void)
         gptProfileContext->ptThreadData[i].ptCurrentFrame->dInternalDuration = 0.0;
         gptProfileContext->ptThreadData[i].ptCurrentFrame->dStartTime = pl__get_wall_clock();
         gptProfileContext->ptThreadData[i].ptCurrentFrame->uTotalSampleSize = 0;
+        pl__reset_sample_names(gptProfileContext->ptThreadData[i].ptCurrentFrame);
     }
 }
 
@@ -453,9 +471,9 @@ pl__begin_profile_sample(uint32_t uThreadIndex, const char* pcName)
 
     uint32_t uSampleIndex = ptCurrentFrame->uTotalSampleSize;
     plProfileSample* ptSample = pl__get_sample(ptCurrentFrame);
+    ptSample->pcName = pl__copy_sample_name(ptCurrentFrame, pcName); // before the start time (counted as overhead)
     ptSample->dDuration = 0.0;
     ptSample->dStartTime = pl__get_wall_clock();
-    ptSample->pcName = pcName;
     ptSample->uDepth = ptCurrentFrame->uTotalSampleStackSize;
 
     pl__push_sample_stack(ptCurrentFrame, uSampleIndex);
@@ -488,6 +506,74 @@ pl__get_last_frame_samples(uint32_t uThreadIndex, uint32_t* puSize)
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementations
 //-----------------------------------------------------------------------------
+
+static const char*
+pl__copy_sample_name(plProfileFrame* ptFrame, const char* pcName)
+{
+    if(pcName == NULL)
+        return NULL;
+
+    const size_t szLength = strlen(pcName) + 1;
+    plProfileNameBlock* ptBlock = ptFrame->ptNameBlocks;
+    if(ptBlock == NULL || ptBlock->szSize + szLength > ptBlock->szCapacity)
+    {
+        // new block (old blocks stay put so earlier names remain valid)
+        size_t szCapacity = ptBlock ? ptBlock->szCapacity * 2 : 4096;
+        if(szCapacity < szLength)
+            szCapacity = szLength;
+        plProfileNameBlock* ptNewBlock = (plProfileNameBlock*)PL_PROFILE_ALLOC(sizeof(plProfileNameBlock) + szCapacity);
+        ptNewBlock->ptNext = ptBlock;
+        ptNewBlock->szSize = 0;
+        ptNewBlock->szCapacity = szCapacity;
+        ptFrame->ptNameBlocks = ptNewBlock;
+        ptBlock = ptNewBlock;
+    }
+
+    char* pcDest = (char*)(ptBlock + 1) + ptBlock->szSize;
+    memcpy(pcDest, pcName, szLength);
+    ptBlock->szSize += szLength;
+    return pcDest;
+}
+
+static void
+pl__reset_sample_names(plProfileFrame* ptFrame)
+{
+    plProfileNameBlock* ptBlock = ptFrame->ptNameBlocks;
+    if(ptBlock == NULL)
+        return;
+
+    if(ptBlock->ptNext == NULL)
+    {
+        ptBlock->szSize = 0;
+        return;
+    }
+
+    // last time this frame needed more than one block: replace them with a
+    // single block big enough for all of it so steady state frames don't allocate
+    size_t szTotalCapacity = 0;
+    for(plProfileNameBlock* ptIt = ptBlock; ptIt; ptIt = ptIt->ptNext)
+        szTotalCapacity += ptIt->szCapacity;
+    pl__free_sample_names(ptFrame);
+
+    plProfileNameBlock* ptNewBlock = (plProfileNameBlock*)PL_PROFILE_ALLOC(sizeof(plProfileNameBlock) + szTotalCapacity);
+    ptNewBlock->ptNext = NULL;
+    ptNewBlock->szSize = 0;
+    ptNewBlock->szCapacity = szTotalCapacity;
+    ptFrame->ptNameBlocks = ptNewBlock;
+}
+
+static void
+pl__free_sample_names(plProfileFrame* ptFrame)
+{
+    plProfileNameBlock* ptBlock = ptFrame->ptNameBlocks;
+    while(ptBlock)
+    {
+        plProfileNameBlock* ptNext = ptBlock->ptNext;
+        PL_PROFILE_FREE(ptBlock);
+        ptBlock = ptNext;
+    }
+    ptFrame->ptNameBlocks = NULL;
+}
 
 static void
 pl__push_sample_stack(plProfileFrame* ptFrame, uint32_t uSample)

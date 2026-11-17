@@ -71,6 +71,7 @@ typedef struct _plDebugContext
 
     // profile data
     plProfileCpuSample* sbtSamples;
+    char*               sbcSampleNames; // names for captured samples (the profiler recycles its copies)
     float fDeltaTime;
     bool bProfileFirstRun;
 
@@ -553,6 +554,35 @@ pl__profile_graph(const plProfileCpuSample* ptSamples, uint32_t uSampleSize, dou
     }
 }
 
+// captures a frame of samples, including their names (profiler name storage
+// is reused every other frame, so the pointers can't be kept)
+static void
+pl__capture_profile_samples(const plProfileCpuSample* ptSamples, uint32_t uSampleSize)
+{
+    pl_sb_resize(gptDebugCtx->sbtSamples, uSampleSize);
+    if(uSampleSize)
+        memcpy(gptDebugCtx->sbtSamples, ptSamples, sizeof(plProfileCpuSample) * uSampleSize);
+
+    size_t szNameBytes = 0;
+    for(uint32_t i = 0; i < uSampleSize; i++)
+    {
+        if(ptSamples[i].pcName)
+            szNameBytes += strlen(ptSamples[i].pcName) + 1;
+    }
+    pl_sb_resize(gptDebugCtx->sbcSampleNames, (uint32_t)szNameBytes);
+
+    char* pcDest = gptDebugCtx->sbcSampleNames;
+    for(uint32_t i = 0; i < uSampleSize; i++)
+    {
+        if(ptSamples[i].pcName == NULL)
+            continue;
+        const size_t szLength = strlen(ptSamples[i].pcName) + 1;
+        memcpy(pcDest, ptSamples[i].pcName, szLength);
+        gptDebugCtx->sbtSamples[i].pcName = pcDest;
+        pcDest += szLength;
+    }
+}
+
 static void
 pl__show_profiling(bool* bValue)
 {
@@ -574,8 +604,7 @@ pl__show_profiling(bool* bValue)
         if(gptDebugCtx->bProfileFirstRun && gptIO->ulFrameCount == 1)
         {
             ptSamples = gptProfile->get_last_frame_samples(0, &uSampleSize);
-            pl_sb_resize(gptDebugCtx->sbtSamples, uSampleSize);
-            memcpy(gptDebugCtx->sbtSamples, ptSamples, sizeof(plProfileCpuSample) * uSampleSize);
+            pl__capture_profile_samples(ptSamples, uSampleSize);
             gptDebugCtx->fDeltaTime = gptIO->fDeltaTime;
             gptDebugCtx->bProfileFirstRun = false;
         }
@@ -598,8 +627,7 @@ pl__show_profiling(bool* bValue)
             if(gptUI->button("Capture Frame"))
             {
                 tGraph.bFitGraph = true;
-                pl_sb_resize(gptDebugCtx->sbtSamples, uSampleSize);
-                memcpy(gptDebugCtx->sbtSamples, ptSamples, sizeof(plProfileCpuSample) * uSampleSize);
+                pl__capture_profile_samples(ptSamples, uSampleSize);
             }
         }
         else
@@ -608,6 +636,7 @@ pl__show_profiling(bool* bValue)
             {
                 tGraph.bFitGraph = true;
                 pl_sb_reset(gptDebugCtx->sbtSamples);
+                pl_sb_reset(gptDebugCtx->sbcSampleNames);
             }
         }
         double dFrameDuration = pl_maxd(1e-9, (double)gptDebugCtx->fDeltaTime);
@@ -1550,6 +1579,7 @@ pl_unload_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_sb_free(gptDebugCtx->sbdRawValues);
     pl_sb_free(gptDebugCtx->sbbValues);
     pl_sb_free(gptDebugCtx->sbtSamples);
+    pl_sb_free(gptDebugCtx->sbcSampleNames);
     pl_sb_free(gptDebugCtx->sbtGpuSamples);
     pl_sb_free(gptDebugCtx->sbtGpuGraphSamples);
     pl_sb_free(gptDebugCtx->sbtActiveAllocations);
