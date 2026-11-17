@@ -4377,13 +4377,25 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
 
     const plVec2 tDimensions = ptView->tTargetSize;
 
+    plVec2 tMousePos = gptIOI->get_mouse_pos();
+    tMousePos = pl_sub_vec2(tMousePos, ptView->tHoverOffset);
+    tMousePos = pl_div_vec2(tMousePos, ptView->tHoverWindowRatio);
+
+    // Only the fragment under the mouse can report a hit (see pl_picking.frag),
+    // so rasterize just that pixel. Clamped so the scissor stays inside the
+    // target; off-target mice then never match & report no hit, as before.
+    const int iPickX = (int)pl_clampf(0.0f, floorf(tMousePos.x), pl_maxf(0.0f, tDimensions.x - 1.0f));
+    const int iPickY = (int)pl_clampf(0.0f, floorf(tMousePos.y), pl_maxf(0.0f, tDimensions.y - 1.0f));
+
     plDrawArea tArea = {
         .ptDrawStream = ptStream,
         .atScissors = 
         {
             {
-                .uWidth  = (uint32_t)tDimensions.x,
-                .uHeight = (uint32_t)tDimensions.y,
+                .iOffsetX = iPickX,
+                .iOffsetY = iPickY,
+                .uWidth   = 1,
+                .uHeight  = 1,
             }
         },
         .atViewports =
@@ -4416,9 +4428,12 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
         },
         .atColorAttachments = {
             {
-                .tTexture       = ptView->tPickTexture,
-                .eLoadOp        = PL_LOAD_OP_CLEAR,
-                .eStoreOp       = PL_STORE_OP_STORE,
+                // The result goes to the pick buffer; the color output is never read.
+                // Albedo has the matching format & is dead once lighting & SSGI are
+                // done (it is cleared by the next frame's g-buffer pass).
+                .tTexture       = ptView->tAlbedoTexture,
+                .eLoadOp        = PL_LOAD_OP_DONT_CARE,
+                .eStoreOp       = PL_STORE_OP_DONT_CARE,
                 .eUsage         = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
                 .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
             }
@@ -4452,10 +4467,6 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
 
     const uint32_t uVisibleDrawCount = pl_sb_size(ptScene->sbtVisibleDrawables);
     *gptData->pdDrawCalls += (double)uVisibleDrawCount;
-
-    plVec2 tMousePos = gptIOI->get_mouse_pos();
-    tMousePos = pl_sub_vec2(tMousePos, ptView->tHoverOffset);
-    tMousePos = pl_div_vec2(tMousePos, ptView->tHoverWindowRatio);
     
     for(uint32_t i = 0; i < uVisibleDrawCount; i++)
     {
@@ -5970,19 +5981,11 @@ pl__render_view_fxaa_pass(plView* ptView)
     PL_RENDERER_STAT("renderer / FXAA views", 1);
     plDevice* ptDevice = gptData->ptDevice;
     plScene* ptScene = ptView->ptParentScene;
-    if(!gptGfx->is_texture_valid(ptDevice, ptView->tFXAAInputTexture))
-    {
-        const plTextureDesc tDesc = {
-            .tDimensions = gptGfx->get_texture(ptDevice, ptView->tFinalTexture)->tDesc.tDimensions,
-            .eFormat     = PL_FORMAT_R16G16B16A16_FLOAT,
-            .uLayers     = 1,
-            .uMips       = 1,
-            .eType       = PL_TEXTURE_TYPE_2D,
-            .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
-            .pcDebugName = "FXAA input"
-        };
-        gptStarter->create_texture(&tDesc, NULL, 0, &ptView->tFXAAInputTexture);
-    }
+    // FXAA can't filter in place (neighboring invocations need the original
+    // image), so it reads a copy. The HDR target is dead once tonemapping has
+    // run (the next frame's g-buffer pass clears it) & matches the final
+    // texture's format & capacity, so it holds the copy instead of a dedicated texture.
+    const plTextureHandle tInput = ptView->tRawOutputTexture;
 
     const plBindGroupDesc tBGDesc = {
         .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
@@ -5993,7 +5996,7 @@ pl__render_view_fxaa_pass(plView* ptView)
     const plBindGroupUpdateData tBGData = {
         .atTextureBindings = {
             {.tTexture = ptView->tFinalTexture, .uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_STORAGE},
-            {.tTexture = ptView->tFXAAInputTexture, .uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+            {.tTexture = tInput, .uSlot = 1, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         },
         .atSamplerBindings = {{.uSlot = 2, .tSampler = gptData->tSamplerLinearClamp}}
     };
@@ -6011,15 +6014,14 @@ pl__render_view_fxaa_pass(plView* ptView)
         .uSourceLayerCount      = 1,
         .uDestinationLayerCount = 1
     };
-    // Never filter in place: neighboring invocations need the original image.
-    gptGfx->copy_texture(ptCmd, ptView->tFinalTexture, ptView->tFXAAInputTexture, 1, &tCopy);
+    gptGfx->copy_texture(ptCmd, ptView->tFinalTexture, tInput, 1, &tCopy);
     gptGfx->end_compute_pass(ptCmd);
     gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
 
     const plPassResources tResources = {
         .atTextures = {
             {.tHandle = ptView->tFinalTexture, .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_TEXTURE_USAGE_STORAGE},
-            {.tHandle = ptView->tFXAAInputTexture, .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED}
+            {.tHandle = tInput, .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED}
         }
     };
     gptGfx->begin_compute_pass(ptCmd, &tResources);
@@ -9023,10 +9025,6 @@ pl__renderer_view_create_textures(plView* ptView)
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture1);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tFinalTexture);
         pl__cloud_release_low_resolution(ptView);
-        if(gptGfx->is_texture_valid(ptDevice, ptView->tFXAAInputTexture))
-            gptGfx->queue_texture_for_deletion(ptDevice, ptView->tFXAAInputTexture);
-        ptView->tFXAAInputTexture = (plTextureHandle){0};
-        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tPickTexture);
 
         if(gptGfx->is_texture_valid(ptDevice, ptView->tTransmissionTexture))
         {
@@ -9067,16 +9065,6 @@ pl__renderer_view_create_textures(plView* ptView)
         .eType         = PL_TEXTURE_TYPE_2D,
         .eUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
         .pcDebugName   = "offscreen final"
-    };
-
-    const plTextureDesc tPickTextureDesc = {
-        .tDimensions   = tNewDimensions,
-        .eFormat       = PL_FORMAT_R8G8B8A8_UNORM,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .eType         = PL_TEXTURE_TYPE_2D,
-        .eUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-        .pcDebugName   = "pick original"
     };
 
     const plTextureDesc tNormalTextureDesc = {
@@ -9161,7 +9149,6 @@ pl__renderer_view_create_textures(plView* ptView)
     gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture0);
     gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture1);
     gptStarter->create_texture(&tRawOutputTextureDesc, NULL, 0, &ptView->tFinalTexture);
-    gptStarter->create_texture(&tPickTextureDesc, NULL, 0, &ptView->tPickTexture);
 
     pl__renderer_view_create_sky_luts_textures(ptView);
 }

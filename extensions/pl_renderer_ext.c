@@ -406,8 +406,6 @@ pl_renderer_destroy_view(plView* ptView)
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tSSGITexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFinalTexture);
     pl__cloud_release_low_resolution(ptView);
-    if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tFXAAInputTexture))
-        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFXAAInputTexture);
     if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tTransmissionTexture))
     {
         pl__renderer_return_bindless_texture_index(ptView->ptParentScene, ptView->tTransmissionTexture);
@@ -433,7 +431,6 @@ pl_renderer_destroy_view(plView* ptView)
     pl_sb_free(ptView->sbtBloomUpChain);
     pl_sb_free(ptView->sbtDLightShadowData);
     
-    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tPickTexture);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {

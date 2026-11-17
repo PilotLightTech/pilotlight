@@ -426,11 +426,9 @@ typedef struct _plView
     plTextureHandle  tDepthTexture;                // g-buffer
     plTextureHandle  tTransmissionDepthTexture;    // opaque depth snapshot for water
     plTextureHandle  tTransmissionTexture;         // transmission texture
-    plTextureHandle  tFXAAInputTexture;            // stable input for neighborhood sampling
     plTextureHandle  tFinalTexture;                // output texture
     plTextureHandle  atUVMaskTexture0;             // outlining
     plTextureHandle  atUVMaskTexture1;             // outlining
-    plTextureHandle  tPickTexture;                 // picking
     plTextureHandle  tSSGITexture;                 // diffuse screen-space GI
     plTextureHandle* sbtBloomDownChain;            // bloom textures
     plTextureHandle* sbtBloomUpChain;              // bloom textures
