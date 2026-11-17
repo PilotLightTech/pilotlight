@@ -107,16 +107,17 @@ pl__dock_layout(uint32_t uId, plRect tRect)
     pl__dock_layout(ptNode->auChildren[1], atRects[1]);
 }
 
-uint32_t
-pl_ui_dock_split(uint32_t uNode, int iDirection, float fRatio, uint32_t* puOpposite)
+static uint32_t
+pl__dock_split(uint32_t uNode, int iDirection, float fRatio, uint32_t* puOpposite, bool bAllowBranch)
 {
     if(puOpposite)
         *puOpposite = 0;
     plUiDockNode* ptNode = pl__dock_node(uNode);
-    if(gptCtx->bDockingDisabled || !ptNode || ptNode->auChildren[0] || iDirection < 0 || iDirection > 3)
+    if(gptCtx->bDockingDisabled || !ptNode || (ptNode->auChildren[0] && !bAllowBranch) || iDirection < 0 || iDirection > 3)
         return 0;
     const plRect tRect = ptNode->tRect;
     const uint32_t uSelected = ptNode->uSelectedWindow;
+    const plUiDockNode tOld = *ptNode;
     const uint32_t auChildren[2] = {pl__dock_new_node(), pl__dock_new_node()};
     ptNode = pl__dock_node(uNode);
     ptNode->auChildren[0] = auChildren[0];
@@ -132,6 +133,17 @@ pl_ui_dock_split(uint32_t uNode, int iDirection, float fRatio, uint32_t* puOppos
     pl__dock_node(auChildren[1-iAt])->bHadWindows = ptNode->bHadWindows;
     pl__dock_node(auChildren[1-iAt])->bTabBarHidden = ptNode->bTabBarHidden;
     ptNode->bTabBarHidden = false;
+    if(tOld.auChildren[0])
+    {
+        // Splitting a branch pushes its whole subtree down one level.
+        plUiDockNode* ptKept = pl__dock_node(auChildren[1-iAt]);
+        ptKept->auChildren[0] = tOld.auChildren[0];
+        ptKept->auChildren[1] = tOld.auChildren[1];
+        ptKept->iAxis = tOld.iAxis;
+        ptKept->fRatio = tOld.fRatio;
+        pl__dock_node(tOld.auChildren[0])->uParent = ptKept->uId;
+        pl__dock_node(tOld.auChildren[1])->uParent = ptKept->uId;
+    }
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptCreatedWindows); i++)
     {
         if(gptCtx->sbptCreatedWindows[i]->uDockId == uNode)
@@ -148,9 +160,16 @@ pl_ui_dock_split(uint32_t uNode, int iDirection, float fRatio, uint32_t* puOppos
     return auChildren[iAt];
 }
 
+uint32_t
+pl_ui_dock_split(uint32_t uNode, int iDirection, float fRatio, uint32_t* puOpposite)
+{
+    return pl__dock_split(uNode, iDirection, fRatio, puOpposite, false);
+}
+
 static void
 pl__dock_assign(plUiWindow* ptWindow, uint32_t uNode)
 {
+    ptWindow->tDockRestore = (plUiDockRestore){0};
     if(uNode == ptWindow->uDockId)
         return;
     plUiDockNode* ptNode = pl__dock_node(uNode);
@@ -209,7 +228,14 @@ pl__dock_prune_empty(void)
         const uint32_t uEmpty = ptEmpty->uId;
         plUiDockNode* ptParent = pl__dock_node(ptEmpty->uParent);
         const uint32_t uParent = ptParent->uId;
-        const uint32_t uSibling = ptParent->auChildren[ptParent->auChildren[0] == uEmpty ? 1 : 0];
+        const int iSide = ptParent->auChildren[0] == uEmpty ? 0 : 1;
+        const uint32_t uSibling = ptParent->auChildren[1 - iSide];
+        const plUiDockRestore tRestore = {
+            .uNode      = uEmpty,
+            .uAnchor    = uParent,
+            .iDirection = ptParent->iAxis * 2 + iSide,
+            .fRatio     = iSide == 0 ? ptParent->fRatio : 1.0f - ptParent->fRatio
+        };
         const plUiDockNode tSibling = *pl__dock_node(uSibling);
         ptParent->auChildren[0] = tSibling.auChildren[0];
         ptParent->auChildren[1] = tSibling.auChildren[1];
@@ -226,16 +252,25 @@ pl__dock_prune_empty(void)
         uint32_t uLeaf = uParent;
         while(pl__dock_node(uLeaf)->auChildren[0])
             uLeaf = pl__dock_node(uLeaf)->auChildren[0];
-        // Reopened windows join a surviving pane; saved references never dangle.
+        // Saved references never dangle. Closed windows from the empty pane also
+        // remember where it was, so reopening one rebuilds it (pl__dock_restore).
         for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbptCreatedWindows); j++)
         {
             plUiWindow* ptMember = gptCtx->sbptCreatedWindows[j];
+            if(ptMember->uDockId == uEmpty)
+                ptMember->tDockRestore = tRestore;
+            else if(ptMember->tDockRestore.uAnchor == uEmpty || ptMember->tDockRestore.uAnchor == uSibling)
+                ptMember->tDockRestore.uAnchor = uParent;
             if(ptMember->uDockId == uEmpty || ptMember->uDockId == uSibling)
                 ptMember->uDockId = uLeaf;
         }
         for(uint32_t j = 0; j < pl_sb_size(gptCtx->sbtWindowSettings); j++)
         {
             plUiWindowSettings* ptSettings = &gptCtx->sbtWindowSettings[j];
+            if(ptSettings->uDockId == uEmpty)
+                ptSettings->tDockRestore = tRestore;
+            else if(ptSettings->tDockRestore.uAnchor == uEmpty || ptSettings->tDockRestore.uAnchor == uSibling)
+                ptSettings->tDockRestore.uAnchor = uParent;
             if(ptSettings->uDockId == uEmpty || ptSettings->uDockId == uSibling)
                 ptSettings->uDockId = uLeaf;
         }
@@ -250,6 +285,36 @@ pl__dock_prune_empty(void)
         }
         pl__dock_layout(uParent, tRect);
         i = 0;
+    }
+}
+
+static void
+pl__dock_restore(plUiWindow* ptWindow)
+{
+    const plUiDockRestore tRestore = ptWindow->tDockRestore;
+    ptWindow->tDockRestore = (plUiDockRestore){0};
+    const uint32_t uPane = pl__dock_split(tRestore.uAnchor, tRestore.iDirection, tRestore.fRatio, NULL, true);
+    if(!uPane)
+        return;
+    pl__dock_assign(ptWindow, uPane);
+    // Windows that shared the collapsed pane come back as tabs in the rebuilt one.
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptCreatedWindows); i++)
+    {
+        plUiWindow* ptMember = gptCtx->sbptCreatedWindows[i];
+        if(ptMember->tDockRestore.uNode == tRestore.uNode)
+        {
+            ptMember->uDockId = uPane;
+            ptMember->tDockRestore = (plUiDockRestore){0};
+        }
+    }
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtWindowSettings); i++)
+    {
+        plUiWindowSettings* ptSettings = &gptCtx->sbtWindowSettings[i];
+        if(ptSettings->tDockRestore.uNode == tRestore.uNode)
+        {
+            ptSettings->uDockId = uPane;
+            ptSettings->tDockRestore = (plUiDockRestore){0};
+        }
     }
 }
 
@@ -368,6 +433,8 @@ pl__dock_space(uint32_t uId, plVec2 tPos, plVec2 tSize, plDrawLayer2D* ptLayer)
             else
                 gptCtx->uDockSplitterActive = 0;
         }
+        if(bHover || gptCtx->uDockSplitterActive == ptNode->uId)
+            gptIOI->set_mouse_cursor(iAxis == 0 ? PL_MOUSE_CURSOR_RESIZE_EW : PL_MOUSE_CURSOR_RESIZE_NS);
         gptDraw->add_rect_filled(ptLayer, tDivider.tMin, tDivider.tMax,
             (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(bHover ? gptCtx->tColorScheme.tSeparatorCol : gptCtx->tColorScheme.tTitleBgCol)});
     }
@@ -788,6 +855,15 @@ pl__settings_parse(char* pcText)
         {
             plUiWindowSettings tWindow = {0};
             bValid = sscanf(pcLine, "W %u %u %f %f %f %f %d %n", &tWindow.uId, &tWindow.uDockId, &tWindow.tPos.x, &tWindow.tPos.y, &tWindow.tSize.x, &tWindow.tSize.y, &iCollapsed, &iRead) == 7;
+            // Older layouts omit the optional restore point (see plUiDockRestore).
+            if(bValid && pcLine[iRead])
+            {
+                plUiDockRestore* ptRestore = &tWindow.tDockRestore;
+                int iExtraRead = 0;
+                bValid = sscanf(pcLine + iRead, "%u %u %d %f %n", &ptRestore->uNode, &ptRestore->uAnchor, &ptRestore->iDirection, &ptRestore->fRatio, &iExtraRead) == 4 &&
+                    ptRestore->uNode && ptRestore->iDirection >= 0 && ptRestore->iDirection <= 3 && ptRestore->fRatio >= 0.1f && ptRestore->fRatio <= 0.9f;
+                iRead += iExtraRead;
+            }
             bValid = bValid && !pcLine[iRead] && tWindow.uId && (iCollapsed == 0 || iCollapsed == 1) && pl__settings_geometry(tWindow.tPos, tWindow.tSize) && pl_sb_size(sbtWindows) < 8192;
             for(uint32_t i = 0; bValid && i < pl_sb_size(sbtWindows); i++)
                 bValid = sbtWindows[i].uId != tWindow.uId;
@@ -832,6 +908,9 @@ pl__settings_parse(char* pcText)
             plUiDockNode* ptNode = pl__settings_node(sbtNodes, sbtWindows[i].uDockId);
             bValid = ptNode && !ptNode->auChildren[0];
         }
+        // A stale restore point only loses the hint, not the layout.
+        if(!pl__settings_node(sbtNodes, sbtWindows[i].tDockRestore.uAnchor))
+            sbtWindows[i].tDockRestore = (plUiDockRestore){0};
     }
     if(bValid)
     {
@@ -898,6 +977,7 @@ pl__settings_snapshot(void)
         ptSettings->tPos = ptWindow->uDockId ? ptWindow->tUndockedPos : ptWindow->tPos;
         ptSettings->tSize = ptWindow->uDockId ? ptWindow->tUndockedSize : (ptWindow->bCollapsed ? ptWindow->tFullSize : ptWindow->tSize);
         ptSettings->bCollapsed = ptWindow->uDockId ? ptWindow->bUndockedCollapsed : ptWindow->bCollapsed;
+        ptSettings->tDockRestore = ptWindow->tDockRestore;
     }
     pl_sb_reset(gptCtx->sbcSettingsSnapshot);
     pl_sb_sprintf(gptCtx->sbcSettingsSnapshot, "%s", "PL_UI_LAYOUT 1\n");
@@ -935,7 +1015,13 @@ pl__settings_snapshot(void)
     {
         plUiWindowSettings* ptWindow = &gptCtx->sbtWindowSettings[i];
         pl_sb_pop(gptCtx->sbcSettingsSnapshot);
-        pl_sb_sprintf(gptCtx->sbcSettingsSnapshot, "W %u %u %.9g %.9g %.9g %.9g %d\n", ptWindow->uId, ptWindow->uDockId, ptWindow->tPos.x, ptWindow->tPos.y, ptWindow->tSize.x, ptWindow->tSize.y, ptWindow->bCollapsed);
+        pl_sb_sprintf(gptCtx->sbcSettingsSnapshot, "W %u %u %.9g %.9g %.9g %.9g %d", ptWindow->uId, ptWindow->uDockId, ptWindow->tPos.x, ptWindow->tPos.y, ptWindow->tSize.x, ptWindow->tSize.y, ptWindow->bCollapsed);
+        const plUiDockRestore* ptRestore = &ptWindow->tDockRestore;
+        pl_sb_pop(gptCtx->sbcSettingsSnapshot);
+        if(ptRestore->uNode)
+            pl_sb_sprintf(gptCtx->sbcSettingsSnapshot, " %u %u %d %.9g\n", ptRestore->uNode, ptRestore->uAnchor, ptRestore->iDirection, ptRestore->fRatio);
+        else
+            pl_sb_sprintf(gptCtx->sbcSettingsSnapshot, "%s", "\n");
     }
     pl_sb_pop(gptCtx->sbcSettingsSnapshot);
     pl_sb_sprintf(gptCtx->sbcSettingsSnapshot, "%s", "End\n");
@@ -2758,6 +2844,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             ptWindow->tUndockedSize = ptSettings->tSize;
             ptWindow->bUndockedCollapsed = ptSettings->bCollapsed;
             ptWindow->uDockId = (tFlags & PL_UI_WINDOW_FLAGS_NO_DOCKING) ? 0 : ptSettings->uDockId;
+            ptWindow->tDockRestore = ptSettings->tDockRestore;
             ptWindow->bDockConditionOnce = true;
             ptWindow->tPosAllowableFlags &= ~PL_UI_COND_ONCE;
             ptWindow->tSizeAllowableFlags &= ~PL_UI_COND_ONCE;
@@ -2801,6 +2888,8 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     // Dock assignment is independent of position/size conditions; ONCE preserves user undocking.
     if((tFlags & PL_UI_WINDOW_FLAGS_NO_DOCKING) && ptWindow->uDockId)
         pl__dock_assign(ptWindow, 0);
+    if(ptWindow->tDockRestore.uNode && ptWindow->bAppearing && !gptCtx->bDockingDisabled && !(tFlags & (PL_UI_WINDOW_FLAGS_CHILD_WINDOW | PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_NO_DOCKING)))
+        pl__dock_restore(ptWindow);
     if(!gptCtx->bDockingDisabled && gptCtx->tNextWindowData.bHasDock && !(tFlags & (PL_UI_WINDOW_FLAGS_CHILD_WINDOW | PL_UI_WINDOW_FLAGS_POPUP_WINDOW | PL_UI_WINDOW_FLAGS_NO_DOCKING)))
     {
         plUiConditionFlags tCondition = gptCtx->tNextWindowData.tDockCondition;
@@ -2808,6 +2897,14 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         {
             pl__dock_assign(ptWindow, gptCtx->tNextWindowData.uDockId);
             ptWindow->bDockConditionOnce = true;
+        }
+        else if(tCondition & PL_UI_COND_ONCE)
+        {
+            // Saved settings (or an earlier submission) won. If the app split a pane
+            // just for this window, it will never be occupied; let pruning collapse it.
+            plUiDockNode* ptTarget = pl__dock_node(gptCtx->tNextWindowData.uDockId);
+            if(ptTarget && ptTarget->uParent && !ptTarget->auChildren[0] && !ptTarget->bHadWindows && ptWindow->uDockId != ptTarget->uId)
+                ptTarget->bHadWindows = true;
         }
     }
     gptCtx->tNextWindowData.bHasDock = false;

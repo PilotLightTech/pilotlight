@@ -367,13 +367,24 @@ typedef struct _plUiDockNode
     char     acHostTitle[256];
 } plUiDockNode;
 
+// Where a pane collapsed (because all of its windows closed) used to be, so a
+// reopened window can rebuild it instead of joining whichever pane absorbed the space.
+typedef struct _plUiDockRestore
+{
+    uint32_t uNode;      // collapsed pane id (groups windows that shared it)
+    uint32_t uAnchor;    // node that absorbed the space
+    int      iDirection; // side of the anchor, same convention as dock_split()
+    float    fRatio;     // share of the anchor the pane occupied
+} plUiDockRestore;
+
 typedef struct _plUiWindowSettings
 {
-    uint32_t uId;
-    uint32_t uDockId;
-    plVec2   tPos;
-    plVec2   tSize;
-    bool     bCollapsed;
+    uint32_t        uId;
+    uint32_t        uDockId;
+    plVec2          tPos;
+    plVec2          tSize;
+    bool            bCollapsed;
+    plUiDockRestore tDockRestore;
 } plUiWindowSettings;
 
 //-----------------------------------------------------------------------------
@@ -480,6 +491,7 @@ typedef struct _plUiWindow
     uint64_t                   uLastFrameActive;        // last frame active
     uint32_t                   uDockId;
     uint32_t                   uSuspendedDockId;
+    plUiDockRestore            tDockRestore;
     bool                       bDockConditionOnce;
     plVec2                     tUndockedPos;
     plVec2                     tUndockedSize;
