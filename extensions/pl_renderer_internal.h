@@ -71,7 +71,6 @@ Index of this file:
 #include "pl_script_ext.h"
 #include "pl_material_ext.h"
 #include "pl_asset_ext.h"
-#include "pl_stl_ext.h"
 #include "pl_skeleton_ext.h"
 #include "pl_texture_ext.h"
 #include "pl_json_ext.h"
@@ -148,7 +147,6 @@ Index of this file:
     static const plGjkI*           gptGjk           = NULL;
     static const plCollisionI*     gptCollision     = NULL;
     static const plAssetI*         gptAsset         = NULL;
-    static const plStlI*           gptStl           = NULL;
     static const plSkeletonI*      gptSkeleton      = NULL;
     static const plTextureI*       gptTexture       = NULL;
     
@@ -167,7 +165,6 @@ typedef struct _plRendererData          plRendererData;
 typedef struct _plSkinData              plSkinData;
 typedef struct _plDrawable              plDrawable;
 typedef struct _plCullData              plCullData;
-typedef struct _plMemCpyJobData         plMemCpyJobData;
 typedef struct _plEnvironmentProbeData  plEnvironmentProbeData;
 typedef struct _plTerrain               plTerrain; // opaque type for a terrain
 typedef struct _plOcean                 plOcean;
@@ -290,7 +287,6 @@ typedef struct _plSkinData
 {
     bool            bActive;
     plEntity        tEntity;
-    plEntity        tObjectEntity;
     uint32_t        uVertexCount;
     int             iSourceDataOffset;
     int             iDestDataOffset;
@@ -410,25 +406,25 @@ typedef struct _plView
     plBindGroupHandle atOutlineBG[2]; // indexed using "uLastUVIndex"
     uint32_t          uLastUVIndex;
     plBindGroupHandle atViewBG[PL_MAX_FRAMES_IN_FLIGHT];
-    plBindGroupHandle tFinalTextureHandle; // handed out to draw result
+    plBindGroupHandle tFinalTextureBG; // handed out to draw result (see get_view_color_bind_group)
     plBindGroupHandle atDShadowBG[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle atSunCSMBG[PL_MAX_FRAMES_IN_FLIGHT];
 
-    // render passes
+    // size of the rendered area (textures may be larger; see resize_view)
     plVec2 tTargetSize;
 
     // textures
-    plTextureHandle  tAlbedoTexture;               // g-buffer
+    plTextureHandle  tAlbedoTexture;               // g-buffer (reused as the pick pass color target)
     plTextureHandle  tNormalTexture;               // g-buffer
     plTextureHandle  tAOMetalRoughnessTexture;     // g-buffer
-    plTextureHandle  tRawOutputTexture;            // g-buffer
+    plTextureHandle  tRawOutputTexture;            // HDR lighting result (reused as FXAA input after tonemapping)
     plTextureHandle  tContactShadowDepthTexture;   // immutable depth snapshot
     plTextureHandle  tDepthTexture;                // g-buffer
     plTextureHandle  tTransmissionDepthTexture;    // opaque depth snapshot for water
     plTextureHandle  tTransmissionTexture;         // transmission texture
     plTextureHandle  tFinalTexture;                // output texture
-    plTextureHandle  atUVMaskTexture0;             // outlining
-    plTextureHandle  atUVMaskTexture1;             // outlining
+    plTextureHandle  tUVMaskTexture0;              // outlining (jump flood ping-pong)
+    plTextureHandle  tUVMaskTexture1;              // outlining (jump flood ping-pong)
     plTextureHandle  tSSGITexture;                 // diffuse screen-space GI
     plTextureHandle* sbtBloomDownChain;            // bloom textures
     plTextureHandle* sbtBloomUpChain;              // bloom textures
@@ -446,9 +442,9 @@ typedef struct _plView
     plBufferHandle atDLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atClusterBuffers[PL_MAX_FRAMES_IN_FLIGHT];
 
-    // picking system
-    bool     auHoverResultProcessing[PL_MAX_FRAMES_IN_FLIGHT];
-    bool     auHoverResultReady[PL_MAX_FRAMES_IN_FLIGHT];
+    // picking system (results are read back PL_MAX_FRAMES_IN_FLIGHT frames later)
+    bool     abHoverResultProcessing[PL_MAX_FRAMES_IN_FLIGHT];
+    bool     abHoverResultReady[PL_MAX_FRAMES_IN_FLIGHT];
     bool     bRequestHoverCheck;
     plVec2   tHoverOffset;
     plVec2   tHoverWindowRatio;
@@ -523,24 +519,23 @@ typedef struct _plScene
     plAssetHandle tEnvironment;
 
     plEnvironmentProbeDataPack* sbtProbeDataPacks;
-    uint32_t* sbtVisibleDrawables;
+    uint32_t* sbuVisibleDrawables;
     uint32_t* asbuRenderBuckets[PL_RENDER_BUCKET_COUNT];
 
     // Lifetime total; independent of the per-frame stats reset.
     uint64_t          uResourceGrowthCount;
 
-    // shadow atlas
+    // shadow atlas (point & spot lights)
     bool              bShadowAtlasReady;
     uint32_t          uShadowAtlasIndex;
     uint32_t          uShadowAtlasResolution;
     plShadowPackData* sbtShadowRectData;
     plPackRect*       sbtShadowRects;
 
-    // shadow atlas
+    // view shadow atlas (sun cascades & directional lights; rect 0 is the sun)
     plPackRect* sbtShadowViewRects;
     uint32_t    uSunShadowAtlasIndex;
     uint32_t    uSunShadowAtlasResolution;
-    plPackRect  tSunPackRect;
 
     // CPU buffers (temporary staging)
     uint32_t* sbuIndexBuffer;
@@ -565,7 +560,6 @@ typedef struct _plScene
     plTextureHandle tSunShadowTexture;
 
     // meshes (shared)
-    plAssetHandle tProbeMesh;
     plAssetHandle tSphereMesh;
 
     // shaders
@@ -616,7 +610,8 @@ typedef struct _plScene
     plTextureHandle       atCloudShadowTexture[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle     atCloudShadowBG[PL_MAX_FRAMES_IN_FLIGHT];
     uint32_t              auCloudShadowIndex[PL_MAX_FRAMES_IN_FLIGHT];
-    bool                  abSunTransmissionLutDirty[PL_MAX_FRAMES_IN_FLIGHT];
+    bool                  abSunTransmissionLutDirty[PL_MAX_FRAMES_IN_FLIGHT]; // per frame slot; covers the multiscatter LUT too
+    uint64_t              uSunTransmissionLutHash;                            // hash of the LUT inputs last marked dirty
     plTextureHandle       atSunTransmissionLut[PL_MAX_FRAMES_IN_FLIGHT];
     plTextureHandle       atSunMultiscatterLut[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle     atSunTransmissionBG1[PL_MAX_FRAMES_IN_FLIGHT];
@@ -666,14 +661,12 @@ typedef struct _plScene
 
     // material helpers & hashmaps (material component <-> GPU material)
     plOcean*         sbtOceans;
-    plMaterial*      sbtMaterials;
-    plFreeListNode** sbtMaterialNodes;
+    plFreeListNode** sbptMaterialNodes;
     plAssetHandle*   sbtDirtyMaterials;
 
     // shadows
     plGpuPointLightShadow* sbtPointLightShadowData;
     plGpuSpotLightShadow*  sbtSpotLightShadowData;
-    uint64_t               uLastSemValueForShadow;
 
     // bindless texture system
     uint32_t uTextureIndexCount;
@@ -681,7 +674,6 @@ typedef struct _plScene
 
     // drawables
     plDrawable tUnitSphereDrawable;
-    uint32_t*  sbuProbeDrawables;
 
     // SOA drawables
     plDrawable*          sbtDrawables;
@@ -692,7 +684,7 @@ typedef struct _plScene
     // bvh data
     plBVH       tBvh;
     plAABB*     sbtBvhAABBs;
-    plBVHNode** sbtNodeStack;
+    plBVHNode** sbptNodeStack;
 
     // CPU-side data for GPU buffers
     plGpuSceneData       tSceneData;
@@ -714,7 +706,6 @@ typedef struct _plScene
     plRendererLight*        sbtDirectionLights;
     plEnvironmentProbeData* sbtProbeData;
     uint32_t*               sbuFreeProbeDataSlots;
-    uint64_t                uLastProbeAddFrame;
     plEnvironmentProbeData  tDefaultProbeData;
 
     // skin data management
@@ -737,7 +728,7 @@ typedef struct _plScene
     bool bShowProbeRange;
     plShaderDebugMode tShaderDebugMode;
 
-    // culling
+    // shadow caster culling results (0: opaque, 1: alpha tested)
     plVisibleDrawable* sbtVisibleDrawables0;
     plVisibleDrawable* sbtVisibleDrawables1;
 
@@ -753,7 +744,6 @@ typedef struct _plRendererData
     bool            bFullyInitialized;
     plDevice*       ptDevice;
     plDeviceInfo    tDeviceInfo;
-    plSwapchain*    ptSwap;
     plTempAllocator tTempAllocator;
 
     // bind groups
@@ -765,7 +755,6 @@ typedef struct _plRendererData
     plRenderAttachmentInfo tDeferredLightingAttachmentInfo;
     plRenderAttachmentInfo tTransparentAttachmentInfo;
     plRenderAttachmentInfo tPostProcessAttachmentInfo;
-    plRenderAttachmentInfo tFinalAttachmentInfo;
     plRenderAttachmentInfo tUVAttachmentInfo;
     plRenderAttachmentInfo tDepthAttachmentInfo;
     plRenderAttachmentInfo tPickAttachmentInfo;
@@ -774,13 +763,6 @@ typedef struct _plRendererData
     uint64_t uLogChannel;
     uint64_t uLogChannelTerrain;
 
-    // GPU allocators
-    plDeviceMemoryAllocatorI* ptLocalDedicatedAllocator;
-    plDeviceMemoryAllocatorI* ptLocalBuddyAllocator;
-    plDeviceMemoryAllocatorI* ptStagingUnCachedAllocator;
-    plDeviceMemoryAllocatorI* ptStagingUnCachedBuddyAllocator;
-    plDeviceMemoryAllocatorI* ptStagingCachedAllocator;
-    
     // samplers
     plSamplerHandle tSamplerLinearClamp;
     plSamplerHandle tSamplerNearestClamp;
@@ -825,18 +807,10 @@ typedef struct _plRendererData
 typedef struct _plCullData
 {
     plScene*        ptScene;
-    const plCamera* ptCullCamera;
     plFrustum       tFrustum;
     plSphere        tSphere;
     plCone          tCone;
 } plCullData;
-
-typedef struct _plMemCpyJobData
-{
-    plBuffer* ptBuffer;
-    void*     pDestination;
-    size_t    szSize;
-} plMemCpyJobData;
 
 typedef struct _plCSMInfo
 {
@@ -941,9 +915,9 @@ static void pl__renderer_add_probes_to_scene          (plScene*, uint32_t count,
 static void pl__renderer_add_lights_to_scene          (plScene*, uint32_t count, const plEntity* lights);
 
 // terrain
-bool              pl_chlod_load_chunk_file(plTerrain*, const char* pcPath);
 static plTerrain* pl__renderer_terrain_create(plCommandBuffer*, plAssetHandle);
 static void       pl__renderer_terrain_destroy(plTerrain*);
+static void       pl__renderer_terrain_prepare(plTerrain*);
 static void       pl__render_chunk(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t, float fViewportWidth);
 static void       pl__render_chunk_shadow(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, uint32_t uGlobalIndex, float fShadowViewportWidth, float fShadowViewportHeight);
 
@@ -955,8 +929,8 @@ void              pl_renderer_update_scene_asset         (plScene*, plAssetHandl
 bool              pl_renderer_remove_component_from_scene(plScene*, plEntity, plEcsTypeKey);
 
 // probe selection
-static void                pl_probe_selection_table_reset     (plProbeSelectionTable*, bool bSkyAvailable);
-static uint32_t            pl_probe_selection_table_intern    (plProbeSelectionTable*, plGpuProbeSelection);
+static void                pl__probe_selection_table_reset     (plProbeSelectionTable*, bool bSkyAvailable);
+static uint32_t            pl__probe_selection_table_intern    (plProbeSelectionTable*, plGpuProbeSelection);
 static uint32_t            pl__renderer_intern_probe_selection(plScene*, plGpuProbeSelection);
 static plGpuProbeSelection pl__renderer_select_probes         (const plGpuProbe*, uint32_t uProbeCount, plVec3 tPosition);
 static void                pl__renderer_update_object_probes  (plScene*);

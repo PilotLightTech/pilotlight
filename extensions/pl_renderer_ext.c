@@ -5,7 +5,18 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] implementation
+// [SECTION] decals
+// [SECTION] ecs type keys
+// [SECTION] setup & cleanup
+// [SECTION] editor helpers
+// [SECTION] scene membership
+// [SECTION] frame preparation & rendering
+// [SECTION] frame begin & tools ui
+// [SECTION] misc. getters
+// [SECTION] asset serialization
+// [SECTION] scene updates & systems
+// [SECTION] ecs component callbacks
+// [SECTION] registration
 // [SECTION] extension loading
 // [SECTION] unity
 */
@@ -19,7 +30,7 @@ Index of this file:
 #include "pl_renderer_internal.c"
 
 //-----------------------------------------------------------------------------
-// [SECTION] implementation
+// [SECTION] decals
 //-----------------------------------------------------------------------------
 
 static plEcsTypeKey
@@ -131,6 +142,10 @@ pl__renderer_prepare_decals(plScene* ptScene)
 }
 
 
+//-----------------------------------------------------------------------------
+// [SECTION] ecs type keys
+//-----------------------------------------------------------------------------
+
 plEcsTypeKey
 pl_renderer_get_type_key_object(void)
 {
@@ -167,6 +182,10 @@ pl_renderer_get_type_key_terrain(void)
     return gptData->tTerrainComponentType;
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] setup & cleanup
+//-----------------------------------------------------------------------------
+
 bool
 pl_renderer_initialize(const plRendererInit* ptSettings)
 {
@@ -181,7 +200,6 @@ pl_renderer_initialize(const plRendererInit* ptSettings)
 
     gptData->ptDevice = ptSettings->ptDevice;
     gptData->tDeviceInfo = *gptGfx->get_device_info(gptData->ptDevice);
-    gptData->ptSwap = ptSettings->ptSwapchain;
 
     gptStage->initialize((plStageInit){.ptDevice = gptData->ptDevice});
 
@@ -231,12 +249,13 @@ pl_renderer_initialize(const plRendererInit* ptSettings)
         gptData->aptTempGroupPools[i] = gptGfx->create_bind_group_pool(gptData->ptDevice, &tPoolDesc);
     }
 
-    // load gpu allocators
-    gptData->ptLocalBuddyAllocator           = gptGpuAllocators->get_local_buddy_allocator(gptData->ptDevice);
-    gptData->ptLocalDedicatedAllocator       = gptGpuAllocators->get_local_dedicated_allocator(gptData->ptDevice);
-    gptData->ptStagingUnCachedAllocator      = gptGpuAllocators->get_staging_uncached_allocator(gptData->ptDevice);
-    gptData->ptStagingUnCachedBuddyAllocator = gptGpuAllocators->get_staging_uncached_buddy_allocator(gptData->ptDevice);
-    gptData->ptStagingCachedAllocator        = gptGpuAllocators->get_staging_cached_allocator(gptData->ptDevice);
+    // the GPU allocators are created lazily on first request; make sure they
+    // exist for this device (the renderer itself allocates through gptStarter)
+    gptGpuAllocators->get_local_buddy_allocator(gptData->ptDevice);
+    gptGpuAllocators->get_local_dedicated_allocator(gptData->ptDevice);
+    gptGpuAllocators->get_staging_uncached_allocator(gptData->ptDevice);
+    gptGpuAllocators->get_staging_uncached_buddy_allocator(gptData->ptDevice);
+    gptGpuAllocators->get_staging_cached_allocator(gptData->ptDevice);
 
     return true;
 };
@@ -337,7 +356,6 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     // create probe material & mesh
     ptScene->tSphereMesh = gptAsset->load("/assets/meshes/sphere.plmesh");
-    ptScene->tProbeMesh = gptAsset->load("/assets/meshes/probe.plmesh");
     plMesh* ptMesh = gptAsset->get_data(ptScene->tSphereMesh);
 
     plFreeListNode* ptIndexBufferNode  = pl__renderer_allocate_node(ptScene, &ptScene->tIndexBufferFreeList, (uint32_t)ptMesh->atSubmeshes->szIndexCount * sizeof(uint32_t));
@@ -400,8 +418,8 @@ pl_renderer_destroy_view(plView* ptView)
     pl__renderer_return_bindless_texture_index(ptView->ptParentScene, ptView->tContactShadowDepthTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tContactShadowDepthTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tDepthTexture);
-    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture0);
-    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture1);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tUVMaskTexture0);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tUVMaskTexture1);
     if(gptGfx->is_texture_valid(gptData->ptDevice, ptView->tSSGITexture))
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tSSGITexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFinalTexture);
@@ -416,7 +434,7 @@ pl_renderer_destroy_view(plView* ptView)
         pl__renderer_return_bindless_texture_index(ptView->ptParentScene, ptView->tTransmissionDepthTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tTransmissionDepthTexture);
     }
-    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tFinalTextureHandle);
+    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tFinalTextureBG);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tLightingBindGroup);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tTonemapBG);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->atOutlineBG[0]);
@@ -477,7 +495,7 @@ pl_renderer_set_scene_flags(plScene* ptScene, plSceneFlags tFlags)
 }
 
 static inline plQuat
-pl_quat_rotation_y(float fRadians)
+pl__quat_rotation_y(float fRadians)
 {
     const float fHalfAngle = fRadians * 0.5f;
     return (plQuat){
@@ -556,7 +574,6 @@ pl_renderer_load_component_library(plScene* ptScene, plComponentLibrary* ptLibra
         plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
 
         plTerrainComponent* ptTerrainComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tTerrainComponentType, ptTerrainEntities[0]);
-        plTerrainAsset* ptTerrain = gptAsset->get_data(ptTerrainComp->tTerrain);
         ptScene->tTerrain = ptTerrainEntities[0];
         ptScene->ptTerrain = pl__renderer_terrain_create(ptCmdBuffer, ptTerrainComp->tTerrain);
 
@@ -574,7 +591,7 @@ pl_renderer_load_component_library(plScene* ptScene, plComponentLibrary* ptLibra
 
 #if 0
 
-        // Load once
+        // Test scatter of grass & tree instances over the terrain (kept for future vegetation work).
         plAssetHandle tGrassMesh = gptAsset->load("/assets/meshes/grass.plmesh");
         plAssetHandle tTreeMesh0 = gptAsset->load("/assets/meshes/tree.003_0.plmesh");
         plAssetHandle tTreeMesh1 = gptAsset->load("/assets/meshes/tree.002_1.plmesh");
@@ -594,25 +611,25 @@ pl_renderer_load_component_library(plScene* ptScene, plComponentLibrary* ptLibra
                     ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity);
 
                 // Random values in [0, 1]
-                float rx = (float)rand() / (float)RAND_MAX;
-                float rz = (float)rand() / (float)RAND_MAX;
-                float rr = (float)rand() / (float)RAND_MAX;
-                float rs = (float)rand() / (float)RAND_MAX;
+                float fJitterX = (float)rand() / (float)RAND_MAX;
+                float fJitterZ = (float)rand() / (float)RAND_MAX;
+                float fRandomAngle = (float)rand() / (float)RAND_MAX;
+                float fRandomScale = (float)rand() / (float)RAND_MAX;
 
                 // Randomize position within each grid cell
-                ptNewTransform->tTranslation.x = 5200.0f  + -0.5f * (float)uSpan * fSpacing + (float)i * fSpacing + rx;
-                ptNewTransform->tTranslation.z = 14897.0f + -0.5f * (float)uSpan * fSpacing + (float)j * fSpacing + rz;
+                ptNewTransform->tTranslation.x = 5200.0f  + -0.5f * (float)uSpan * fSpacing + (float)i * fSpacing + fJitterX;
+                ptNewTransform->tTranslation.z = 14897.0f + -0.5f * (float)uSpan * fSpacing + (float)j * fSpacing + fJitterZ;
 
                 gptTerrain->sample_height(ptTerrainAsset, ptNewTransform->tTranslation.x, ptNewTransform->tTranslation.z, &ptNewTransform->tTranslation.y);
                 ptNewTransform->tTranslation.y -= 0.2f;
 
                 // Random uniform scale (0.7 - 1.3)
-                float fScale = 0.7f + rs * 0.6f;
+                float fScale = 0.7f + fRandomScale * 0.6f;
                 ptNewTransform->tScale = (plVec3){fScale, fScale, fScale};
 
                 // Random Y rotation (assuming quaternion rotation)
-                float fAngle = rr * 6.28318530718f;
-                ptNewTransform->tRotation = pl_quat_rotation_y(fAngle); // use your quaternion helper
+                float fAngle = fRandomAngle * 6.28318530718f;
+                ptNewTransform->tRotation = pl__quat_rotation_y(fAngle);
 
                 plObjectComponent* ptNewObject = gptEcs->add_component(
                     ptLibrary, gptData->tObjectComponentType, tNewEntity);
@@ -635,16 +652,16 @@ pl_renderer_load_component_library(plScene* ptScene, plComponentLibrary* ptLibra
             {
 
                 // Random values in [0, 1]
-                float rx = 25.0f * (float)rand() / (float)RAND_MAX;
-                float rz = 25.0f * (float)rand() / (float)RAND_MAX;
-                float rr = 25.0f * (float)rand() / (float)RAND_MAX;
-                float rs = (float)rand() / (float)RAND_MAX;
+                float fJitterX = 25.0f * (float)rand() / (float)RAND_MAX;
+                float fJitterZ = 25.0f * (float)rand() / (float)RAND_MAX;
+                float fRandomAngle = 25.0f * (float)rand() / (float)RAND_MAX;
+                float fRandomScale = (float)rand() / (float)RAND_MAX;
 
                 // Random uniform scale (0.7 - 1.3)
-                float fScale = 20.0f + rs * 10.0f;
+                float fScale = 20.0f + fRandomScale * 10.0f;
 
                 // Random Y rotation (assuming quaternion rotation)
-                float fAngle = rr * 6.28318530718f;
+                float fAngle = fRandomAngle * 6.28318530718f;
 
                 uint64_t ulId0 = 880080 * (j + 1) + i;
                 uint64_t ulId1 = 990080 * (j + 1) + i;
@@ -655,10 +672,10 @@ pl_renderer_load_component_library(plScene* ptScene, plComponentLibrary* ptLibra
                 plTransformComponent* ptNewTransform0 = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity0);
 
                 // Randomize position within each grid cell
-                ptNewTransform0->tTranslation.x = 5200.0f  + -0.5f * (float)uSpan * fSpacing + (float)i * fSpacing + rx;
-                ptNewTransform0->tTranslation.z = 14897.0f + -0.5f * (float)uSpan * fSpacing + (float)j * fSpacing + rz;
+                ptNewTransform0->tTranslation.x = 5200.0f  + -0.5f * (float)uSpan * fSpacing + (float)i * fSpacing + fJitterX;
+                ptNewTransform0->tTranslation.z = 14897.0f + -0.5f * (float)uSpan * fSpacing + (float)j * fSpacing + fJitterZ;
                 ptNewTransform0->tScale = (plVec3){fScale, fScale, fScale};
-                ptNewTransform0->tRotation = pl_quat_rotation_y(fAngle); // use your quaternion helper
+                ptNewTransform0->tRotation = pl__quat_rotation_y(fAngle);
 
                 gptTerrain->sample_height(ptTerrainAsset, ptNewTransform0->tTranslation.x, ptNewTransform0->tTranslation.z, &ptNewTransform0->tTranslation.y);
                 ptNewTransform0->tTranslation.y -= 0.5f;
@@ -666,10 +683,10 @@ pl_renderer_load_component_library(plScene* ptScene, plComponentLibrary* ptLibra
                 plTransformComponent* ptNewTransform1 = gptEcs->add_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tNewEntity1);
 
                 // Randomize position within each grid cell
-                ptNewTransform1->tTranslation.x = 5200.0f  + -0.5f * (float)uSpan * fSpacing + (float)i * fSpacing + rx;
-                ptNewTransform1->tTranslation.z = 14897.0f + -0.5f * (float)uSpan * fSpacing + (float)j * fSpacing + rz;
+                ptNewTransform1->tTranslation.x = 5200.0f  + -0.5f * (float)uSpan * fSpacing + (float)i * fSpacing + fJitterX;
+                ptNewTransform1->tTranslation.z = 14897.0f + -0.5f * (float)uSpan * fSpacing + (float)j * fSpacing + fJitterZ;
                 ptNewTransform1->tScale = (plVec3){fScale, fScale, fScale};
-                ptNewTransform1->tRotation = pl_quat_rotation_y(fAngle); // use your quaternion helper
+                ptNewTransform1->tRotation = pl__quat_rotation_y(fAngle);
 
                 gptTerrain->sample_height(ptTerrainAsset, ptNewTransform1->tTranslation.x, ptNewTransform1->tTranslation.z, &ptNewTransform1->tTranslation.y);
                 ptNewTransform1->tTranslation.y -= 0.5f;
@@ -790,7 +807,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
     {
         pl_sb_free(ptScene->asbuRenderBuckets[i]);
     }
-    pl_sb_free(ptScene->sbtVisibleDrawables);
+    pl_sb_free(ptScene->sbuVisibleDrawables);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -838,7 +855,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
     pl_sb_free(ptScene->sbtVisibleDrawables1);
     pl_sb_free(ptScene->sbtProbeDataPacks);
     pl_sb_free(ptScene->sbtBvhAABBs);
-    pl_sb_free(ptScene->sbtNodeStack);
+    pl_sb_free(ptScene->sbptNodeStack);
     pl_sb_free(ptScene->sbtGPUProbeData);
     pl_sb_free(ptScene->sbtProbeData);
     pl_sb_free(ptScene->sbtShadowRects);
@@ -856,7 +873,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
     pl_sb_free(ptScene->sbtVertexPosBuffer);
     pl_sb_free(ptScene->sbtVertexDataBuffer);
     pl_sb_free(ptScene->sbuIndexBuffer);
-    pl_sb_free(ptScene->sbtMaterialNodes);
+    pl_sb_free(ptScene->sbptMaterialNodes);
     pl_sb_free(ptScene->sbuFreeSkinSlots);
     pl_sb_free(ptScene->sbuFreeProbeDataSlots);
     pl_sb_free(ptScene->sbuFreeDrawableSlots);
@@ -954,13 +971,11 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     pl_sb_reset(ptView->sbtBloomUpChain);
     ptView->uBloomChainLength = 0;
     
-    // for convenience
-    plDevice* ptDevice = gptData->ptDevice;
 
     if(tDimensions.x > ptTexture->tDesc.tDimensions.x || tDimensions.y > ptTexture->tDesc.tDimensions.y)
     {
         pl__renderer_view_create_textures(ptView);
-        ptView->tFinalTextureHandle = gptDraw->create_bind_group_for_texture(ptView->tFinalTexture);
+        ptView->tFinalTextureBG = gptDraw->create_bind_group_for_texture(ptView->tFinalTexture);
         pl__renderer_view_update_bindgroups(ptView);
     }
 }
@@ -985,17 +1000,17 @@ pl_renderer_cleanup(void)
     PL_FREE(gptData);
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] editor helpers
+//-----------------------------------------------------------------------------
+
 void
 pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
 {
-
     if(ptScene == NULL)
         return;
 
-    // fill CPU buffers & drawable list
     PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "recreate shaders");
-
-    plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
 
     gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_CYAN, 1.0f, "%s", "reloaded shaders");
 
@@ -1023,10 +1038,14 @@ pl_renderer_editor_get_hovered_entity(plView* ptView, plEntity* ptEntityOut)
 {
     if(ptEntityOut)
         *ptEntityOut = ptView->tHoveredEntity;
-    bool bNewValue = ptView->auHoverResultReady[gptGfx->get_current_frame_index()];
-    ptView->auHoverResultReady[gptGfx->get_current_frame_index()] = false;
+    bool bNewValue = ptView->abHoverResultReady[gptGfx->get_current_frame_index()];
+    ptView->abHoverResultReady[gptGfx->get_current_frame_index()] = false;
     return bNewValue;
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] scene membership
+//-----------------------------------------------------------------------------
 
 bool
 pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEcsTypeKey tType)
@@ -1045,9 +1064,13 @@ pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEc
     }
     bool bFound = false;
 
+    // Drawables are keyed by (base entity, submesh); the PL_DRAWABLE_OBJECT_KEY
+    // entry holds the object's first submesh. Instances share their base
+    // entity's drawables & map to it through tInstanceHashmap. Removing a base
+    // orphans its instances, which are re-added (one becomes the new base).
     if(tType == gptData->tObjectComponentType)
     {
-        plEntity* sbtOrphanedEntites = NULL;
+        plEntity* sbtOrphanedEntities = NULL;
         plEntity tBaseEntity = tEntity;
         bool bChildInstance = false;
         if(pl_hm_has_key(&ptScene->tInstanceHashmap, tEntity.uData))
@@ -1079,8 +1102,8 @@ pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEc
 
             if(!bChildInstance && pl_sb_size(ptMainDrawableResources->sbtEntities) > 0) // need to rebase
             {
-                pl_sb_resize(sbtOrphanedEntites, pl_sb_size(ptMainDrawableResources->sbtEntities));
-                memcpy(sbtOrphanedEntites, ptMainDrawableResources->sbtEntities, sizeof(plEntity) * pl_sb_size(ptMainDrawableResources->sbtEntities));
+                pl_sb_resize(sbtOrphanedEntities, pl_sb_size(ptMainDrawableResources->sbtEntities));
+                memcpy(sbtOrphanedEntities, ptMainDrawableResources->sbtEntities, sizeof(plEntity) * pl_sb_size(ptMainDrawableResources->sbtEntities));
             }
 
             uint32_t uSubmeshCount = ptMainDrawableResources->uSubmeshCount;
@@ -1088,11 +1111,11 @@ pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEc
 
             for(uint32_t uSubmeshIndex = 0; uSubmeshIndex < uSubmeshCount; uSubmeshIndex++)
             {
-                const plDrawableKey tKey2 = {
+                const plDrawableKey tSubmeshKey = {
                     .uEntity  = tBaseEntity.uData,
                     .uSubmesh = uFirstSubmesh + uSubmeshIndex
                 };
-                uint64_t uDrawHash = pl_hm_hash(&tKey2, sizeof(plDrawableKey), 0);
+                uint64_t uDrawHash = pl_hm_hash(&tSubmeshKey, sizeof(plDrawableKey), 0);
 
                 if(pl_hm_has_key(&ptScene->tDrawableHashmap, uDrawHash))
                 {
@@ -1167,14 +1190,14 @@ pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEc
             }
         }
 
-        if(sbtOrphanedEntites)
+        if(sbtOrphanedEntities)
         {
-            for(uint32_t i = 0; i < pl_sb_size(sbtOrphanedEntites); i++)
+            for(uint32_t i = 0; i < pl_sb_size(sbtOrphanedEntities); i++)
             {
-                pl_hm_remove(&ptScene->tInstanceHashmap, sbtOrphanedEntites[i].uData);
+                pl_hm_remove(&ptScene->tInstanceHashmap, sbtOrphanedEntities[i].uData);
             }
-            pl__renderer_add_drawable_objects_to_scene(ptScene, pl_sb_size(sbtOrphanedEntites), sbtOrphanedEntites);
-            pl_sb_free(sbtOrphanedEntites);
+            pl__renderer_add_drawable_objects_to_scene(ptScene, pl_sb_size(sbtOrphanedEntities), sbtOrphanedEntities);
+            pl_sb_free(sbtOrphanedEntities);
         }
     }
     else if(tType == gptData->tLightComponentType)
@@ -1227,6 +1250,13 @@ pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEc
             if(ptProbe->tEntity.uData == tEntity.uData)
             {
                 pl_sb_free(ptProbe->sbtDLightShadowData);
+
+                // free the bindless cube slots so new probes can reuse them
+                pl__renderer_return_bindless_cube_texture_index(ptScene, ptProbe->tLambertianEnvTexture);
+                pl__renderer_return_bindless_cube_texture_index(ptScene, ptProbe->tGGXEnvTexture);
+                if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tSheenEnvTexture))
+                    pl__renderer_return_bindless_cube_texture_index(ptScene, ptProbe->tSheenEnvTexture);
+
                 gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tRawOutputTexture);
                 gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
                 gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
@@ -1254,6 +1284,10 @@ pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEc
 
     return bFound;
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] frame preparation & rendering
+//-----------------------------------------------------------------------------
 
 void
 pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t uCameraCount)
@@ -1346,7 +1380,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         pl_renderer_editor_rebuild_scene_bvh(ptScene);
 
     if(ptScene->ptTerrain)
-        pl_prepare_terrain(ptScene->ptTerrain);
+        pl__renderer_terrain_prepare(ptScene->ptTerrain);
 
     // for convenience
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -1640,6 +1674,26 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     ptScene->tSceneData.extinctionRayleighGround = ptEnvironment->tExtinctionRayleighGround;
     ptScene->tSceneData.scatteringRayleighGround = ptEnvironment->tScatteringRayleighGround;
     ptScene->tSceneData.atmosphereHeight = ptEnvironment->fAtmosphereHeight;
+
+    // The transmission & multiscatter LUTs only depend on the planet & the
+    // atmosphere coefficients above, so they are rebuilt (once per frame slot)
+    // only when those change.
+    const float afSunLutInputs[] = {
+        ptScene->tSceneData.planetRadius,
+        ptScene->tSceneData.atmosphereHeight,
+        ptScene->tSceneData.scatteringMieGround,
+        ptScene->tSceneData.extinctionMieGround,
+        ptScene->tSceneData.scatteringRayleighGround.x, ptScene->tSceneData.scatteringRayleighGround.y, ptScene->tSceneData.scatteringRayleighGround.z,
+        ptScene->tSceneData.extinctionRayleighGround.x, ptScene->tSceneData.extinctionRayleighGround.y, ptScene->tSceneData.extinctionRayleighGround.z,
+        ptScene->tSceneData.ozoneExtinction.x,          ptScene->tSceneData.ozoneExtinction.y,          ptScene->tSceneData.ozoneExtinction.z
+    };
+    const uint64_t uSunLutInputHash = pl_hm_hash(afSunLutInputs, sizeof(afSunLutInputs), 0);
+    if(uSunLutInputHash != ptScene->uSunTransmissionLutHash)
+    {
+        ptScene->uSunTransmissionLutHash = uSunLutInputHash;
+        for(uint32_t i = 0; i < PL_MAX_FRAMES_IN_FLIGHT; i++)
+            ptScene->abSunTransmissionLutDirty[i] = true;
+    }
     ptScene->tSceneData.fAtmosphereConversion = ptEnvironment->fAtmosphereConversion;
     ptScene->tSceneData.bMultiScatter = (bool)(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_MULTISCATTER) ? 1 : 0;
     ptScene->tSceneData.bCascadeDebug = (bool)(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_DEBUG_CASCADES) ? 1 : 0;
@@ -1856,7 +1910,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         gptGfx->submit_command_buffer(ptSunCmdBuffer, &tSunTransmissionSubmitInfo);
         gptGfx->return_command_buffer(ptSunCmdBuffer);
 
-        // ptScene->abSunTransmissionLutDirty[uFrameIdx] = false;
+        ptScene->abSunTransmissionLutDirty[uFrameIdx] = false;
     }
     
     // update environment probes
@@ -1889,7 +1943,6 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
-    plDrawStream*  ptStream  = &gptData->tDrawStream;
 
     plScene* ptScene = ptView->ptParentScene;
     plRenderSettings* ptSettings = gptAsset->get_data(ptScene->tSettings);
@@ -1914,9 +1967,6 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
     ptView->tViewData.tCameraView[0]           = ptCamera->tViewMat;
     ptView->tViewData.tCameraViewProjection[0] = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     
-    // const float fFogDensity = -(float)(ptView->tViewData.fFogHeightFalloff * (ptCamera->tPositionF.y - ptView->tViewData.fFogHeight));
-    // ptView->tViewData.tFogDensity = (plVec3){ptSettings->tFog.fDensity, fFogDensity, ptSettings->tFog.fDensity * expf(fFogDensity)};
-
     plBuffer* ptViewBuffer = gptGfx->get_buffer(ptDevice, ptView->atViewBuffers[uFrameIdx]);
     // Select this frame's cloud outputs before uploading the view constants.
     // The cloud pass fills them before the transmission/water pass samples them.
@@ -1996,7 +2046,6 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
             if(ptProbeComp)
             {
                 plTransformComponent* ptTransform = gptEcs->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptProbe->tEntity);
-                // gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.0f, 1.0f, 0.0f), .fThickness = 0.02f});
 
                 if(ptScene->bShowProbeRange)
                 {
@@ -2234,14 +2283,13 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     
     plCullData tCullData = {
         .ptScene      = ptScene,
-        .ptCullCamera = ptCullCamera
     };
     if(ptCullCamera && ptCullCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
         pl__camera_build_perspective_frustum(ptCullCamera, &tCullData.tFrustum);
     else if(ptCullCamera)
         pl__camera_build_orthographic_frustum(ptCullCamera, &tCullData.tFrustum);
 
-    pl_sb_reset(ptScene->sbtVisibleDrawables);
+    pl_sb_reset(ptScene->sbuVisibleDrawables);
     if(ptCullCamera)
     {
         plJobDesc tJobDesc = {
@@ -2258,105 +2306,102 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     
     PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "binning");
 
-    // if(ptCullCamera)
+    for(uint32_t i = 0; i < PL_RENDER_BUCKET_COUNT; i++)
     {
-        for(uint32_t i = 0; i < PL_RENDER_BUCKET_COUNT; i++)
-        {
-            pl_sb_reset(ptScene->asbuRenderBuckets[i]);
-        }
+        pl_sb_reset(ptScene->asbuRenderBuckets[i]);
+    }
 
-        for(uint32_t i = 0; i < uDrawableCount; i++)
+    for(uint32_t i = 0; i < uDrawableCount; i++)
+    {
+        uint32_t                     uDrawableIndex      = ptScene->sbuActiveDrawables[i];
+        plDrawable*                  ptDrawable          = &ptScene->sbtDrawables[uDrawableIndex];
+        plDrawableResources*         ptDrawableResources = &ptScene->sbtDrawableResources[uDrawableIndex];
+        plObjectComponent*           ptObject            = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->tEntity);
+        plMesh*                      ptMainMesh          = gptAsset->get_data(ptObject->tMesh);
+        plSubmesh*                   ptMesh              = &ptMainMesh->atSubmeshes[ptDrawableResources->uSubmeshIndex];
+        plMaterial*                  ptMaterial          = gptAsset->get_data(ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[ptDrawableResources->uSubmeshIndex - ptObject->uFirstSubmesh] : ptMesh->tMaterial);
+        bool bVisible = ptCullCamera ? !ptDrawable->bCulled : true;
+        if(bVisible)
         {
-            uint32_t                     uDrawableIndex      = ptScene->sbuActiveDrawables[i];
-            plDrawable*                  ptDrawable          = &ptScene->sbtDrawables[uDrawableIndex];
-            plDrawableResources*         ptDrawableResources = &ptScene->sbtDrawableResources[uDrawableIndex];
-            plObjectComponent*           ptObject            = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->tEntity);
-            plMesh*                      ptMainMesh          = gptAsset->get_data(ptObject->tMesh);
-            plSubmesh*                   ptMesh              = &ptMainMesh->atSubmeshes[ptDrawableResources->uSubmeshIndex];
-            plMaterial*                  ptMaterial          = gptAsset->get_data(ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[ptDrawableResources->uSubmeshIndex - ptObject->uFirstSubmesh] : ptMesh->tMaterial);
-            bool bVisible = ptCullCamera ? !ptDrawable->bCulled : true;
-            if(bVisible)
+            // outlined objects
+            if(ptObject->tFlags & PL_OBJECT_FLAGS_OUTLINE)
             {
-                // outlined objects
-                if(ptObject->tFlags & PL_OBJECT_FLAGS_OUTLINE)
+                if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_FOLIAGE)
                 {
-                    if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_FOLIAGE)
-                    {
-                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FOLIAGE_OUTLINE], uDrawableIndex);
-                    }
-                    else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_TRANSMISSION)
-                    {
-                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE_TRANSMISSION], uDrawableIndex);
-                    }
-                    else if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
-                    {
-                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE_DOUBLE_SIDED], uDrawableIndex);
-                    }
-                    else
-                    {
-                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE], uDrawableIndex);  
-                    }
-                    pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
+                    pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FOLIAGE_OUTLINE], uDrawableIndex);
                 }
-
-                // foliage
-                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_FOLIAGE)
+                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_TRANSMISSION)
                 {
-                    pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FOLIAGE], uDrawableIndex);
-                    pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
+                    pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE_TRANSMISSION], uDrawableIndex);
                 }
+                else if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
+                {
+                    pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE_DOUBLE_SIDED], uDrawableIndex);
+                }
+                else
+                {
+                    pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_OUTLINE], uDrawableIndex);  
+                }
+                pl_sb_push(ptScene->sbuVisibleDrawables, uDrawableIndex);
+            }
 
-                // deferred objects
-                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_DEFERRED)
+            // foliage
+            else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_FOLIAGE)
+            {
+                pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FOLIAGE], uDrawableIndex);
+                pl_sb_push(ptScene->sbuVisibleDrawables, uDrawableIndex);
+            }
+
+            // deferred objects
+            else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_DEFERRED)
+            {
+                if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
+                {
+                    pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_DEFERRED_DOUBLE_SIDED], uDrawableIndex);
+                }
+                else
+                {
+                    pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_DEFERRED], uDrawableIndex);
+                }
+                pl_sb_push(ptScene->sbuVisibleDrawables, uDrawableIndex);
+            }
+
+            // forward objects
+            else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_FORWARD)
+            {
+                if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_HAS_ALPHA)
                 {
                     if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                     {
-                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_DEFERRED_DOUBLE_SIDED], uDrawableIndex);
+                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_TRANSPARENT_DOUBLE_SIDED], uDrawableIndex);
                     }
                     else
                     {
-                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_DEFERRED], uDrawableIndex);
+                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_TRANSPARENT], uDrawableIndex);
                     }
-                    pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
                 }
-
-                // forward objects
-                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_FORWARD)
+                else
                 {
-                    if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_HAS_ALPHA)
+                    if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                     {
-                        if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
-                        {
-                            pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_TRANSPARENT_DOUBLE_SIDED], uDrawableIndex);
-                        }
-                        else
-                        {
-                            pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_TRANSPARENT], uDrawableIndex);
-                        }
+                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_DOUBLE_SIDED], uDrawableIndex);
                     }
                     else
                     {
-                        if(ptMaterial->eFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
-                        {
-                            pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD_DOUBLE_SIDED], uDrawableIndex);
-                        }
-                        else
-                        {
-                            pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD], uDrawableIndex);
-                        }
+                        pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_FORWARD], uDrawableIndex);
                     }
-
-                    pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
                 }
 
-                // transmission objects
-                else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_TRANSMISSION)
-                {
-                    pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_TRANSMISSION], uDrawableIndex);
-                    pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
-                }
-                
+                pl_sb_push(ptScene->sbuVisibleDrawables, uDrawableIndex);
             }
+
+            // transmission objects
+            else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_PATH_TRANSMISSION)
+            {
+                pl_sb_push(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_TRANSMISSION], uDrawableIndex);
+                pl_sb_push(ptScene->sbuVisibleDrawables, uDrawableIndex);
+            }
+            
         }
     }
     PL_PROFILE_END_SAMPLE(gptProfile, 0); // binning
@@ -2917,13 +2962,13 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     PL_RENDERER_STAT("renderer / views rendered", 1);
     PL_RENDERER_STAT("renderer / view pixels", (double)ptView->tTargetSize.x * ptView->tTargetSize.y);
     PL_RENDERER_STAT("renderer / view drawable candidates", uDrawableCount);
-    PL_RENDERER_STAT("renderer / view visible drawables", pl_sb_size(ptScene->sbtVisibleDrawables));
-    PL_RENDERER_STAT("renderer / view rejected drawables", uDrawableCount - pl_sb_size(ptScene->sbtVisibleDrawables));
+    PL_RENDERER_STAT("renderer / view visible drawables", pl_sb_size(ptScene->sbuVisibleDrawables));
+    PL_RENDERER_STAT("renderer / view rejected drawables", uDrawableCount - pl_sb_size(ptScene->sbuVisibleDrawables));
     double dInstances = 0.0;
     double dTriangles = 0.0;
-    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtVisibleDrawables); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbuVisibleDrawables); i++)
     {
-        const plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbtVisibleDrawables[i]];
+        const plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbuVisibleDrawables[i]];
         dInstances += ptDrawable->uInstanceCount;
         dTriangles += (double)ptDrawable->uTriangleCount * ptDrawable->uInstanceCount;
     }
@@ -2954,12 +2999,16 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
     const uint32_t uDeferred = pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_DEFERRED]) + pl_sb_size(ptScene->asbuRenderBuckets[PL_RENDER_BUCKET_DEFERRED_DOUBLE_SIDED]);
     *pdVisibleOpaqueObjects += (double)uDeferred;
-    *pdVisibleTransparentObjects += (double)(pl_sb_size(ptScene->sbtVisibleDrawables) - uDeferred);
+    *pdVisibleTransparentObjects += (double)(pl_sb_size(ptScene->sbuVisibleDrawables) - uDeferred);
 
     PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
 static void pl__renderer_ui_terrain_node(plScene* ptScene, plTerrainChunk* ptChunk);
+
+//-----------------------------------------------------------------------------
+// [SECTION] frame begin & tools ui
+//-----------------------------------------------------------------------------
 
 static void
 pl__renderer_ui_terrain_node(plScene* ptScene, plTerrainChunk* ptChunk)
@@ -3081,7 +3130,6 @@ pl_renderer_begin_frame(void)
                             plDrawable* ptDrawable = &ptScene->sbtDrawables[uSelectedDrawable];
                             plDrawableResources* ptDrawableResource = &ptScene->sbtDrawableResources[uSelectedDrawable];
                             plTagComponent* ptTag = gptEcs->get_component(ptScene->ptComponentLibrary, gptEcs->get_ecs_type_key_tag(), ptDrawableResource->tEntity);
-                            plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResource->tEntity);
 
                             gptUI->separator_text("Object");
                             if(ptTag && ptTag->pcName)
@@ -3103,7 +3151,6 @@ pl_renderer_begin_frame(void)
                             gptUI->labeled_text("uSkinIndex", "%u", ptDrawableResource->uSkinIndex);
                             gptUI->labeled_text("tEntity", "%u, %u", ptDrawableResource->tEntity.uIndex, ptDrawableResource->tEntity.uGeneration);
                             gptUI->labeled_text("Entity Count", "%u", pl_sb_size(ptDrawableResource->sbtEntities));
-                            // plDrawableFlags tFlags;
                         }
                         gptUI->end_child();
                     }
@@ -3146,7 +3193,6 @@ pl_renderer_begin_frame(void)
         if(gptUI->begin_window("Renderer", &gptData->bShowTools, 0))
         {
             const float pfRatios[] = {1.0f};
-            const float pfRatios2[] = {0.5f, 0.5f};
             gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
             
             gptUI->separator_text("Main Window");
@@ -3180,8 +3226,6 @@ pl_renderer_begin_frame(void)
                 {
                     if(!(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
                         continue;
-
-                    // gptUI->layout_dynamic(0.0f, 2);
 
                     gptUI->checkbox("Show Probes", &ptScene->bShowProbes);
                     gptUI->checkbox("Show Probe Ranges", &ptScene->bShowProbeRange);
@@ -3287,8 +3331,6 @@ pl_renderer_begin_frame(void)
 
     // perform GPU buffer updates
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
-    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
-    plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
 
     // Discover decal materials before the existing material/texture upload pass.
     for(uint32_t i = 0; i < pl_sb_size(gptData->sbptScenes); i++)
@@ -3297,6 +3339,8 @@ pl_renderer_begin_frame(void)
             pl__renderer_prepare_decal_materials(gptData->sbptScenes[i]);
     }
 
+    // Material & instance buffer updates overwrite GPU data that frames still in
+    // flight may read, so wait for the GPU to go idle when either is pending.
     bool bFullFlushNeeded = false;
 
     for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
@@ -3376,7 +3420,7 @@ pl_renderer_begin_frame(void)
                 const plMaterial* ptMaterial = &tSanitizedMaterial;
                 uint32_t uMaterialIndex = pl__renderer_get_or_create_material_slot(ptScene, tMaterial);
 
-                plFreeListNode* ptNode = ptScene->sbtMaterialNodes[uMaterialIndex];
+                plFreeListNode* ptNode = ptScene->sbptMaterialNodes[uMaterialIndex];
 
                 plGpuMaterial tGPUMaterial = {0};
                 tGPUMaterial.fMetallicFactor           = ptMaterial->fMetalness;
@@ -3429,6 +3473,7 @@ pl_renderer_begin_frame(void)
                 {
                     tGPUMaterial.aiTextureUVSet[uTextureIndex] = (int)ptMaterial->atTextures[uTextureIndex].uUVSet;
 
+                    // UV transform: translation * rotation * scale (stored in a mat4 for alignment)
                     const float fSin = sinf(ptMaterial->atTextures[uTextureIndex].fRotation);
                     const float fCos = cosf(ptMaterial->atTextures[uTextureIndex].fRotation);
                     plMat3 tRotation = pl_create_mat3_diag(fCos, fCos, 1.0f);
@@ -3452,7 +3497,6 @@ pl_renderer_begin_frame(void)
 
                     if(gptAsset->is_valid(ptMaterial->atTextures[uTextureIndex].tTexture))
                     {
-                        // const char* pcSourceFile = gptAsset->get_source_path(ptMaterial->atTextures[uTextureIndex].tTexture);
                         plTextureAsset* ptTextureAsset = gptAsset->get_data(ptMaterial->atTextures[uTextureIndex].tTexture);
                         plResourceHandle tTextureResource = gptResource->load(ptTextureAsset->pcSourceFile, PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED);
                         plTextureHandle tValidTexture = gptResource->get_texture(tTextureResource);
@@ -3510,7 +3554,8 @@ pl_renderer_begin_frame(void)
                 pl__renderer_view_update_sky_luts_bindgroups(ptView);
             }
 
-            if(ptView->auHoverResultProcessing[uFrameIdx])
+            // this frame slot's pick pass has finished on the GPU; read its result
+            if(ptView->abHoverResultProcessing[uFrameIdx])
             {
                 PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Picking Retrieval");
                 
@@ -3519,8 +3564,8 @@ pl_renderer_begin_frame(void)
                 plEntity tNewEntity = gptEcs->get_current_entity(ptScene->ptComponentLibrary, (plEntity){.uIndex = uNewID});
                 ptView->tHoveredEntity = tNewEntity;
 
-                ptView->auHoverResultProcessing[uFrameIdx] = false;
-                ptView->auHoverResultReady[uFrameIdx] = true;
+                ptView->abHoverResultProcessing[uFrameIdx] = false;
+                ptView->abHoverResultReady[uFrameIdx] = true;
                 memset(ptPickBuffer->tMemoryAllocation.pHostMapped, 0, sizeof(uint32_t) * 2);
         
                 PL_PROFILE_END_SAMPLE(gptProfile, 0);
@@ -3530,10 +3575,13 @@ pl_renderer_begin_frame(void)
         ptScene->tFlags &= ~PL_RENDERER_SCENE_FLAGS_SKY_LUTS_DIRTY;
     }
 
-    // gptStarter->return_readback_buffer(&gptData->tReadbackBuffer);
     PL_PROFILE_END_SAMPLE(gptProfile, 0);
     return true;
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] misc. getters
+//-----------------------------------------------------------------------------
 
 plDrawList3D*
 pl_renderer_debug_get_drawlist(plView* ptView)
@@ -3555,8 +3603,12 @@ pl_renderer_get_view_color_bind_group(plView* ptView, plVec2* ptMaxUVOut)
         plTexture* ptTexture = gptGfx->get_texture(gptData->ptDevice, ptView->tFinalTexture);
         *ptMaxUVOut = (plVec2){ptView->tTargetSize.x / ptTexture->tDesc.tDimensions.x, ptView->tTargetSize.y / ptTexture->tDesc.tDimensions.y};
     }
-    return ptView->tFinalTextureHandle;
+    return ptView->tFinalTextureBG;
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] asset serialization
+//-----------------------------------------------------------------------------
 
 static bool
 pl__renderer_serialize_environment(const char* pcName, const void* pEnvironment, plAssetEncoding eEncoding)
@@ -4148,6 +4200,10 @@ pl__renderer_deserialize_settings(const char* pcName, void* pSettings)
     return true;
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] scene updates & systems
+//-----------------------------------------------------------------------------
+
 void
 pl_renderer_update_scene_asset(plScene* ptScene, plAssetHandle tMaterial)
 {
@@ -4166,8 +4222,6 @@ pl_renderer_update_scene_asset(plScene* ptScene, plAssetHandle tMaterial)
 void
 pl_renderer_editor_rebuild_scene_bvh(plScene* ptScene)
 {
-    plComponentLibrary* ptLibrary = ptScene->ptComponentLibrary;
-
     plObjectComponent* ptComponents = NULL;
     const uint32_t uObjectCount = gptEcs->get_components(ptScene->ptComponentLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
 
@@ -4190,7 +4244,7 @@ pl__object_update_job(plInvocationData tInvoData, void* pData, void* pGroupShare
 
     plObjectComponent* ptComponents = NULL;
     const plEntity* ptEntities = NULL;
-    const uint32_t uComponentCount = gptEcs->get_components(ptLibrary, gptData->tObjectComponentType, (void**)&ptComponents, &ptEntities);
+    gptEcs->get_components(ptLibrary, gptData->tObjectComponentType, (void**)&ptComponents, &ptEntities);
 
     if(!gptEcs->is_entity_valid(ptLibrary, ptEntities[tInvoData.uGlobalIndex]))
     {
@@ -4208,27 +4262,29 @@ pl__object_update_job(plInvocationData tInvoData, void* pData, void* pGroupShare
     ptObject->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
     ptObject->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
     
-    for(uint32_t u = 0; u < ptObject->uSubmeshCount; u++)
+    // world-space AABB of all submeshes (each local AABB's 8 corners transformed)
+    for(uint32_t uSubmesh = 0; uSubmesh < ptObject->uSubmeshCount; uSubmesh++)
     {
-        const plVec3 tVerticies2[] = {
-            pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMin.x, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMin.y, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMin.z }),
-            pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMax.x, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMin.y, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMin.z }),
-            pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMax.x, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMax.y, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMin.z }),
-            pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMin.x, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMax.y, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMin.z }),
-            pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMin.x, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMin.y, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMax.z }),
-            pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMax.x, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMin.y, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMax.z }),
-            pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMax.x, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMax.y, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMax.z }),
-            pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMin.x, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMax.y, ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tAABB.tMax.z }),
+        const plAABB* ptLocal = &ptMesh->atSubmeshes[ptObject->uFirstSubmesh + uSubmesh].tAABB;
+        const plVec3 atCorners[] = {
+            pl_mul_mat4_vec3(&tTransform, (plVec3){ptLocal->tMin.x, ptLocal->tMin.y, ptLocal->tMin.z}),
+            pl_mul_mat4_vec3(&tTransform, (plVec3){ptLocal->tMax.x, ptLocal->tMin.y, ptLocal->tMin.z}),
+            pl_mul_mat4_vec3(&tTransform, (plVec3){ptLocal->tMax.x, ptLocal->tMax.y, ptLocal->tMin.z}),
+            pl_mul_mat4_vec3(&tTransform, (plVec3){ptLocal->tMin.x, ptLocal->tMax.y, ptLocal->tMin.z}),
+            pl_mul_mat4_vec3(&tTransform, (plVec3){ptLocal->tMin.x, ptLocal->tMin.y, ptLocal->tMax.z}),
+            pl_mul_mat4_vec3(&tTransform, (plVec3){ptLocal->tMax.x, ptLocal->tMin.y, ptLocal->tMax.z}),
+            pl_mul_mat4_vec3(&tTransform, (plVec3){ptLocal->tMax.x, ptLocal->tMax.y, ptLocal->tMax.z}),
+            pl_mul_mat4_vec3(&tTransform, (plVec3){ptLocal->tMin.x, ptLocal->tMax.y, ptLocal->tMax.z}),
         };
         
         for(uint32_t i = 0; i < 8; i++)
         {
-            if(tVerticies2[i].x > ptObject->tAABB.tMax.x) ptObject->tAABB.tMax.x = tVerticies2[i].x;
-            if(tVerticies2[i].y > ptObject->tAABB.tMax.y) ptObject->tAABB.tMax.y = tVerticies2[i].y;
-            if(tVerticies2[i].z > ptObject->tAABB.tMax.z) ptObject->tAABB.tMax.z = tVerticies2[i].z;
-            if(tVerticies2[i].x < ptObject->tAABB.tMin.x) ptObject->tAABB.tMin.x = tVerticies2[i].x;
-            if(tVerticies2[i].y < ptObject->tAABB.tMin.y) ptObject->tAABB.tMin.y = tVerticies2[i].y;
-            if(tVerticies2[i].z < ptObject->tAABB.tMin.z) ptObject->tAABB.tMin.z = tVerticies2[i].z;
+            if(atCorners[i].x > ptObject->tAABB.tMax.x) ptObject->tAABB.tMax.x = atCorners[i].x;
+            if(atCorners[i].y > ptObject->tAABB.tMax.y) ptObject->tAABB.tMax.y = atCorners[i].y;
+            if(atCorners[i].z > ptObject->tAABB.tMax.z) ptObject->tAABB.tMax.z = atCorners[i].z;
+            if(atCorners[i].x < ptObject->tAABB.tMin.x) ptObject->tAABB.tMin.x = atCorners[i].x;
+            if(atCorners[i].y < ptObject->tAABB.tMin.y) ptObject->tAABB.tMin.y = atCorners[i].y;
+            if(atCorners[i].z < ptObject->tAABB.tMin.z) ptObject->tAABB.tMin.z = atCorners[i].z;
         }
     }
 
@@ -4236,17 +4292,17 @@ pl__object_update_job(plInvocationData tInvoData, void* pData, void* pGroupShare
     // Match the maximum summed swell amplitudes across water submeshes.
     float fWaterDisplacement = 0.0f;
     float fWaterHorizontal = 0.0f;
-    for(uint32_t u = 0; u < ptObject->uSubmeshCount; u++)
+    for(uint32_t uSubmesh = 0; uSubmesh < ptObject->uSubmeshCount; uSubmesh++)
     {
-        plAssetHandle tMaterial = ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[u] : ptMesh->atSubmeshes[ptObject->uFirstSubmesh + u].tMaterial;
+        plAssetHandle tMaterial = ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[uSubmesh] : ptMesh->atSubmeshes[ptObject->uFirstSubmesh + uSubmesh].tMaterial;
         plMaterial* ptMaterial = gptAsset->get_data(tMaterial);
         if(ptMaterial && ptMaterial->eMaterialModel == PL_MATERIAL_MODEL_WATER)
         {
             const plMaterialWater tWater = gptMaterial->sanitize(*ptMaterial).tWater;
-            const float height = tWater.iWaveMode == PL_WATER_WAVE_MODE_FFT ? tWater.fFftHeight : tWater.fAmplitude0 + tWater.fAmplitude1;
-            const float horizontal = tWater.iWaveMode == PL_WATER_WAVE_MODE_FFT ? height * tWater.fFftChoppiness : (tWater.iWaveMode == PL_WATER_WAVE_MODE_GERSTNER ? height * tWater.fGerstnerSteepness : 0.0f);
-            fWaterDisplacement = pl_max(fWaterDisplacement, height);
-            fWaterHorizontal = pl_max(fWaterHorizontal, horizontal);
+            const float fHeight = tWater.iWaveMode == PL_WATER_WAVE_MODE_FFT ? tWater.fFftHeight : tWater.fAmplitude0 + tWater.fAmplitude1;
+            const float fHorizontal = tWater.iWaveMode == PL_WATER_WAVE_MODE_FFT ? fHeight * tWater.fFftChoppiness : (tWater.iWaveMode == PL_WATER_WAVE_MODE_GERSTNER ? fHeight * tWater.fGerstnerSteepness : 0.0f);
+            fWaterDisplacement = pl_max(fWaterDisplacement, fHeight);
+            fWaterHorizontal = pl_max(fWaterHorizontal, fHorizontal);
         }
     }
 
@@ -4287,6 +4343,10 @@ pl_renderer_run_object_update_system(plComponentLibrary* ptLibrary)
 
     PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] ecs component callbacks
+//-----------------------------------------------------------------------------
 
 static void
 pl__ecs_object_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
@@ -4382,10 +4442,10 @@ pl__ecs_object_destroy(void* pComponent, const plComponentLibrary* ptLibrary)
 }
 
 static void
-pl__ecs_object_clone(const void* pSrc, plComponentLibrary* ptSrcLib, void* Dest, plComponentLibrary* ptDestLib)
+pl__ecs_object_clone(const void* pSrc, plComponentLibrary* ptSrcLib, void* pDest, plComponentLibrary* ptDestLib)
 {
     const plObjectComponent* ptSrcComponent = pSrc;
-    plObjectComponent* ptDestComponent = Dest;
+    plObjectComponent* ptDestComponent = pDest;
 
     *ptDestComponent = *ptSrcComponent;
 
@@ -4596,6 +4656,10 @@ pl__ecs_terrain_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary,
     return true;
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] registration
+//-----------------------------------------------------------------------------
+
 void
 pl_renderer_register_ecs_components(void)
 {
@@ -4729,19 +4793,6 @@ pl_renderer_run_environment_probe_update_system(plComponentLibrary* ptLibrary)
     PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
     // not used yet
-
-    // plEnvironmentProbeComponent* sbtComponents = ptLibrary->tEnvironmentProbeCompManager.pComponents;
-
-    // const uint32_t uComponentCount = pl_sb_size(sbtComponents);
-    // for(uint32_t i = 0; i < uComponentCount; i++)
-    // {
-    //     plEntity tEntity = ptLibrary->tEnvironmentProbeCompManager.sbtEntities[i];
-    //     if(pl_ecs_has_entity(&ptLibrary->tTransformComponentManager, tEntity))
-    //     {
-    //         plEnvironmentProbeComponent* ptProbe = &sbtComponents[i];
-    //         plTransformComponent* ptTransform = gptEcs->get_component(ptLibrary, gptEcsCoreCtx->tTransformComponentType, tEntity);
-    //     }
-    // }
     PL_PROFILE_END_SAMPLE(gptProfile, 0); 
 }
 

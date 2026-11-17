@@ -222,12 +222,12 @@ typedef struct _plRendererI
     // ecs system updates (run in the following order)
     void (*run_light_update_system)            (plComponentLibrary*);
     void (*run_object_update_system)           (plComponentLibrary*);
-    void (*run_environment_probe_update_system)(plComponentLibrary*);
+    void (*run_environment_probe_update_system)(plComponentLibrary*); // currently a no-op
 
     // editor stuff
     plDrawList3D* (*get_drawlist)         (plView*);
-    void          (*update_hovered_entity)(plView*, plVec2 offset, plVec2 windowScale);
-    bool          (*get_hovered_entity)   (plView*, plEntity*);
+    void          (*update_hovered_entity)(plView*, plVec2 offset, plVec2 windowScale); // request a pick under the mouse (offset/scale map window -> view pixels)
+    bool          (*get_hovered_entity)   (plView*, plEntity*);                         // true when a new pick result arrived (lags by frames in flight)
     void          (*reload_scene_shaders) (plScene*);
     plDrawList3D* (*get_gizmo_drawlist)   (plView*);
     void          (*rebuild_scene_bvh)    (plScene*);

@@ -6,8 +6,10 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] structs
-// [SECTION] internal helpers (rendering)
-// [SECTION] public api implementation
+// [SECTION] forward declarations & helpers
+// [SECTION] creation & destruction
+// [SECTION] residency
+// [SECTION] rendering
 */
 
 //-----------------------------------------------------------------------------
@@ -23,10 +25,9 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plTerrainResidencyNode   plTerrainResidencyNode;
-typedef struct _plTerrainReplacementNode plTerrainReplacementNode;
-typedef struct _plTerrainContext         plTerrainContext;
+typedef struct _plTerrainResidencyNode plTerrainResidencyNode;
 
+// pending upload request (pooled in plTerrain::atRequests, queued FIFO)
 typedef struct _plTerrainResidencyNode
 {
     plTerrainResidencyNode* ptNext;
@@ -51,11 +52,15 @@ typedef struct _plTerrain
     uint32_t                  uTileCount;
     plTerrainProcessTileInfo* atTiles;
     
-    plTerrainResidencyNode tRequestQueue;
+    // residency: chunks waiting to be uploaded (one is processed per frame)
+    plTerrainResidencyNode tRequestQueue; // sentinel; ptNext is the head
     plTerrainResidencyNode atRequests[PL_REQUEST_QUEUE_SIZE];
-    uint32_t*              sbuFreeRequests;
+    uint32_t*              sbuFreeRequests; // free slots in atRequests
 
-    plTerrainChunk tReplacementQueue;
+    // LRU of resident chunks (front = most recently drawn), used for eviction
+    plTerrainChunk tReplacementQueue; // sentinel; ptNext is the head
+
+    // GPU pools; chunk geometry is suballocated with free lists
 
     plBufferHandle tIndexBuffer;
     plFreeList     tIndexBufferManager;
@@ -65,7 +70,7 @@ typedef struct _plTerrain
 } plTerrain;
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal helpers (rendering)
+// [SECTION] forward declarations & helpers
 //-----------------------------------------------------------------------------
 
 // rendering
@@ -75,15 +80,18 @@ static void pl__touch_chunk                  (plTerrain*, plTerrainChunk*);
 static void pl__make_unresident              (plTerrain*, plTerrainChunk*);
 static void pl__remove_from_replacement_queue(plTerrain*, plTerrainChunk*);
 
-static void pl__free_chunk_until(plTerrain*, uint64_t idx_bytes_needed, uint64_t vtx_bytes_needed);
+static void pl__free_chunk_until(plTerrain*, uint64_t uIndexBytesNeeded, uint64_t uVertexBytesNeeded);
 
-static inline bool pl__is_leaf_resident(const plTerrainChunk* c)
+// true when none of the chunk's children are resident (safe to evict without
+// leaving resident children under an unresident parent)
+static inline bool
+pl__is_leaf_resident(const plTerrainChunk* ptChunk)
 {
-    if (!c->aptChildren[0]) return true; // no children in tree
-    return !(c->aptChildren[0]->ptIndexHole ||
-             c->aptChildren[1]->ptIndexHole ||
-             c->aptChildren[2]->ptIndexHole ||
-             c->aptChildren[3]->ptIndexHole);
+    if (!ptChunk->aptChildren[0]) return true; // no children in tree
+    return !(ptChunk->aptChildren[0]->ptIndexHole ||
+             ptChunk->aptChildren[1]->ptIndexHole ||
+             ptChunk->aptChildren[2]->ptIndexHole ||
+             ptChunk->aptChildren[3]->ptIndexHole);
 }
 
 static inline bool
@@ -92,6 +100,8 @@ pl__chunk_is_resident(const plTerrainChunk* ptChunk)
     return ptChunk && ptChunk->ptIndexHole && ptChunk->ptVertexHole && ptChunk->uIndexCount != 0;
 }
 
+// moves the head request to the back of the queue (used when it can't fit
+// yet, so other requests get a turn)
 static void
 pl__defer_residency_head(plTerrain* ptTerrain)
 {
@@ -110,11 +120,11 @@ pl__defer_residency_head(plTerrain* ptTerrain)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api implementation
+// [SECTION] creation & destruction
 //-----------------------------------------------------------------------------
 
-bool
-pl_chlod_load_chunk_file(plTerrain* ptTerrain, const char* pcPath)
+static bool
+pl__renderer_terrain_load_chunk_file(plTerrain* ptTerrain, const char* pcPath)
 {
     plChunkFileData tChunkFileData = {0};
     uint32_t uChunkFileID = pl_sb_size(ptTerrain->sbtChunkFiles);
@@ -155,8 +165,6 @@ pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plAssetHandle tAsset)
     gptFreeList->create(uVertexCapacity, uVertexMinimum, &ptTerrain->tVertexBufferManager);
     gptFreeList->create(268435456 * 2, 256, &ptTerrain->tIndexBufferManager);
 
-    plDevice* ptDevice = gptData->ptDevice;
-
     const plBufferDesc tVertexBufferDesc = {
         .eUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER,
         .szByteSize  = ptTerrain->tVertexBufferManager.uSize,
@@ -178,26 +186,17 @@ pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plAssetHandle tAsset)
     const float fRawHeight = (float)(ptTerrainAsset->uSize * ptTerrainAsset->uVerticalTiles) * ptTerrainAsset->fMetersPerPixel;
     const float fStartX = ptTerrainAsset->tCenter.x - 0.5f * fRawWidth;
     const float fStartZ = ptTerrainAsset->tCenter.z - 0.5f * fRawHeight;
-    const float fTileSize = (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel;
 
+    // world-space XZ extents of the whole tile grid
+    ptTerrain->tTopLeftGlobal.x = fStartX;
+    ptTerrain->tTopLeftGlobal.y = fStartZ;
+    ptTerrain->tBottomRightGlobal.x = fStartX + fRawWidth;
+    ptTerrain->tBottomRightGlobal.y = fStartZ + fRawHeight;
+
+    // one preprocessed chunk file per heightmap tile (see pl_terrain_ext)
+    for(uint32_t i = 0; i < ptTerrainAsset->uTileCount; i++)
     {
-        float fX = ptTerrainAsset->tCenter.x - (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel * 0.5f * ((float)ptTerrainAsset->uHorizontalTiles + 1.0f);
-        float fY = ptTerrainAsset->tCenter.z - (float)ptTerrainAsset->uSize * ptTerrainAsset->fMetersPerPixel * 0.5f * ((float)ptTerrainAsset->uVerticalTiles + 1.0f);
-        ptTerrain->tTopLeftGlobal.x = fStartX;
-        ptTerrain->tTopLeftGlobal.y = fStartZ;
-    }
-
-    {
-        ptTerrain->tBottomRightGlobal.x = fStartX + fRawWidth;
-        ptTerrain->tBottomRightGlobal.y = fStartZ + fRawHeight;
-    }
-
-    for(uint32_t k = 0; k < ptTerrainAsset->uTileCount; k++)
-    {
-        uint32_t i = k % ptTerrainAsset->uHorizontalTiles;
-        uint32_t j = (k - i) / ptTerrainAsset->uVerticalTiles;
-
-        const char* pcAssetPath = gptAsset->get_path(ptTerrainAsset->atTiles[k].tHeightmap);
+        const char* pcAssetPath = gptAsset->get_path(ptTerrainAsset->atTiles[i].tHeightmap);
 
         char acFileNameOnly[256] = {0};
         pl_str_get_file_name_only(pcAssetPath, acFileNameOnly, 256);
@@ -205,7 +204,7 @@ pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plAssetHandle tAsset)
         char acCacheFile[256] = {0};
         pl_sprintf(acCacheFile, "/cache/terrain/%s.chu", acFileNameOnly);
 
-        pl_chlod_load_chunk_file(ptTerrain, acCacheFile);
+        pl__renderer_terrain_load_chunk_file(ptTerrain, acCacheFile);
     }
 
     ptTerrain->atTiles = PL_ALLOC(sizeof(plTerrainProcessTileInfo) * ptTerrainAsset->uTileCount);
@@ -213,6 +212,7 @@ pl__renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plAssetHandle tAsset)
     memcpy(ptTerrain->atTiles, ptTerrainAsset->atTiles, sizeof(plTerrainProcessTileInfo) * ptTerrainAsset->uTileCount);
     ptTerrain->uTileCount = ptTerrainAsset->uTileCount;
 
+    // roots first; finer levels are requested by traversal as needed
     for(uint32_t i = 0; i < pl_sb_size(ptTerrain->sbtChunkFiles); i++)
         pl__request_residency(ptTerrain, &ptTerrain->sbtChunkFiles[i].tFile.atChunks[0]);
     return ptTerrain;
@@ -247,16 +247,9 @@ pl__renderer_terrain_destroy(plTerrain* ptTerrain)
     PL_FREE(ptTerrain);
 }
 
-static void
-pl__unload_children(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
-{
-    if(ptChunk->aptChildren[0] == NULL)
-        return;
-    if(ptChunk->aptChildren[0]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[0]);
-    if(ptChunk->aptChildren[1]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[1]);
-    if(ptChunk->aptChildren[2]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[2]);
-    if(ptChunk->aptChildren[3]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[3]);    
-}
+//-----------------------------------------------------------------------------
+// [SECTION] residency
+//-----------------------------------------------------------------------------
 
 static inline bool
 pl__all_children_resident(plTerrainChunk* ptChunk)
@@ -272,40 +265,41 @@ pl__all_children_resident(plTerrainChunk* ptChunk)
 // Free from LRU tail until we have at least the requested bytes for BOTH pools.
 // Never evict level 0, and never evict non-leaves (chunks with resident children).
 static void
-pl__free_chunk_until(plTerrain* P, uint64_t idx_bytes_needed, uint64_t vtx_bytes_needed)
+pl__free_chunk_until(plTerrain* ptTerrain, uint64_t uIndexBytesNeeded, uint64_t uVertexBytesNeeded)
 {
     // Walk to tail (oldest / least-recently-used)
-    plTerrainChunk* tail = P->tReplacementQueue.ptNext;
-    if(!tail)
+    plTerrainChunk* ptTail = ptTerrain->tReplacementQueue.ptNext;
+    if(!ptTail)
     {
         PL_LOG_WARN(gptLog, gptData->uLogChannelTerrain, "Couldn't free chunks (replacement list empty)");
         return;
     }
 
-    while (tail->ptNext)
-        tail = tail->ptNext;
+    while (ptTail->ptNext)
+        ptTail = ptTail->ptNext;
 
-    uint64_t freed_idx = 0;
-    uint64_t freed_vtx = 0;
+    uint64_t uFreedIndexBytes = 0;
+    uint64_t uFreedVertexBytes = 0;
 
-    // Pass 1: strictly leaf, non-root, LRU → MRU until enough bytes
-    for (plTerrainChunk* c = tail; c; c = c->ptPrev)
+    // strictly leaf, non-root, LRU -> MRU until enough bytes; ptPrev is saved
+    // first because eviction unlinks the chunk from the list
+    plTerrainChunk* ptChunk = ptTail;
+    while(ptChunk)
     {
-        plTerrainChunk* ptPrev = c->ptPrev;
+        plTerrainChunk* ptPrev = ptChunk->ptPrev;
 
-        if(pl__chunk_is_resident(c) && c->ptParent != NULL && pl__is_leaf_resident(c))
+        if(pl__chunk_is_resident(ptChunk) && ptChunk->ptParent != NULL && pl__is_leaf_resident(ptChunk))
         {
-            freed_idx += c->ptIndexHole->uSize;
-            freed_vtx += c->ptVertexHole->uSize;
+            uFreedIndexBytes += ptChunk->ptIndexHole->uSize;
+            uFreedVertexBytes += ptChunk->ptVertexHole->uSize;
 
-            pl__make_unresident(P, c);
+            pl__make_unresident(ptTerrain, ptChunk);
 
-            if(freed_idx >= idx_bytes_needed &&
-            freed_vtx >= vtx_bytes_needed)
+            if(uFreedIndexBytes >= uIndexBytesNeeded && uFreedVertexBytes >= uVertexBytesNeeded)
                 return;
         }
 
-        c = ptPrev;
+        ptChunk = ptPrev;
     }
 
     // If we reached here, nothing could be evicted (only root is resident)
@@ -318,7 +312,6 @@ pl__remove_from_residency_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
     plTerrainResidencyNode* ptCurrentRequest = ptTerrain->tRequestQueue.ptNext;
 
     plTerrainResidencyNode* ptExistingRequest = NULL;
-    plTerrainResidencyNode* ptLastRequest = NULL;
 
     while(ptCurrentRequest)
     {
@@ -332,8 +325,7 @@ pl__remove_from_residency_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 
     if(ptExistingRequest)
     {
-
-        // remove node
+        // unlink & return the slot to the pool
         if(ptExistingRequest->ptPrev)
             ptExistingRequest->ptPrev->ptNext = ptExistingRequest->ptNext;
         else
@@ -348,15 +340,9 @@ pl__remove_from_residency_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
     }
 }
 
-
-// Helper: clamp integer to a range
-static inline int clampi(int v, int lo, int hi)
-{
-    return v < lo ? lo : (v > hi ? hi : v);
-}
-
-void
-pl_prepare_terrain(plTerrain* ptTerrain)
+// per frame: uploads the next pending chunk (if any)
+static void
+pl__renderer_terrain_prepare(plTerrain* ptTerrain)
 {
     if(ptTerrain->tRequestQueue.ptNext)
     {
@@ -385,7 +371,6 @@ pl__make_unresident(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
         ptChunk->uLastFrameUsed = 0;
         ptChunk->ptIndexHole = NULL;
         ptChunk->ptVertexHole = NULL;
-        ptChunk->ptVertexHole = NULL;
         if(ptChunk->aptChildren[0] != NULL)
         {
             pl__make_unresident(ptTerrain, ptChunk->aptChildren[0]);
@@ -396,6 +381,8 @@ pl__make_unresident(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
     }
 }
 
+// Reads one chunk's mesh from a chunk file. Every size & index is validated
+// against the file size & GPU pool capacity since the file comes from disk.
 static bool
 pl__read_chunk_mesh(const char* pcPath, size_t szLocation, uint64_t uMaxVertexBytes, uint64_t uMaxIndexBytes,
                     plTerrainVertex** pptVertices, uint32_t** ppuIndices, uint32_t* puVertexCount, uint32_t* puIndexCount)
@@ -472,70 +459,64 @@ pl__read_chunk_mesh(const char* pcPath, size_t szLocation, uint64_t uMaxVertexBy
         return true;
 }
 
+// Uploads the request at the head of the queue (one chunk per frame), evicting
+// least recently drawn leaves when the GPU pools are full.
 static void
 pl__handle_residency(plTerrain* ptTerrain)
 {
-    const uint64_t uCurrentFrame = gptIOI->get_io()->ulFrameCount;
-
     plTerrainResidencyNode* ptCurrentRequest = ptTerrain->tRequestQueue.ptNext;
 
     if(ptCurrentRequest)
     {
-
         plTerrainChunk* ptChunk = ptCurrentRequest->ptChunk;
 
         plTerrainVertex* ptVertices = NULL;
-        uint32_t* ptIndices = NULL;
+        uint32_t* puIndices = NULL;
         uint32_t uVertexCount = 0;
         uint32_t uIndexCount = 0;
 
         if (ptChunk->uFileID >= pl_sb_size(ptTerrain->sbtChunkFiles) || !pl__read_chunk_mesh(ptTerrain->sbtChunkFiles[ptChunk->uFileID].tFile.acFile,
                 ptChunk->szFileLocation, ptTerrain->tVertexBufferManager.uSize, ptTerrain->tIndexBufferManager.uSize,
-                &ptVertices, &ptIndices, &uVertexCount, &uIndexCount))
+                &ptVertices, &puIndices, &uVertexCount, &uIndexCount))
         {
+            // unreadable/invalid chunk: drop the request (traversal may request it again)
             pl__remove_from_residency_queue(ptTerrain, ptChunk);
-            /* Log this chunk/path; production code should throttle retries. */
             return;
         }
 
         // bytes needed for this chunk
-        const uint64_t idx_bytes = (uint64_t)uIndexCount * sizeof(uint32_t);
-        const uint64_t vtx_bytes = (uint64_t)uVertexCount * sizeof(plTerrainVertex);
+        const uint64_t uIndexBytes = (uint64_t)uIndexCount * sizeof(uint32_t);
+        const uint64_t uVertexBytes = (uint64_t)uVertexCount * sizeof(plTerrainVertex);
 
-        const uint64_t uVertexStageOffset = idx_bytes;
-        const uint64_t uIndexStageOffset = 0;
+        plFreeListNode* ptIndexHole = gptFreeList->get_node(&ptTerrain->tIndexBufferManager, uIndexBytes);
+        plFreeListNode* ptVertexHole = gptFreeList->get_node(&ptTerrain->tVertexBufferManager, uVertexBytes);
 
-        // Try once
-        plFreeListNode* idx_hole = gptFreeList->get_node(&ptTerrain->tIndexBufferManager, idx_bytes);
-        plFreeListNode* vtx_hole = gptFreeList->get_node(&ptTerrain->tVertexBufferManager, vtx_bytes);
-
-        if (!idx_hole || !vtx_hole)
+        if (!ptIndexHole || !ptVertexHole)
         {
-            if (idx_hole) gptFreeList->return_node(&ptTerrain->tIndexBufferManager, idx_hole);
-            if (vtx_hole) gptFreeList->return_node(&ptTerrain->tVertexBufferManager, vtx_hole);
+            if (ptIndexHole) gptFreeList->return_node(&ptTerrain->tIndexBufferManager, ptIndexHole);
+            if (ptVertexHole) gptFreeList->return_node(&ptTerrain->tVertexBufferManager, ptVertexHole);
 
             // Free enough for BOTH pools and try again
-            pl__free_chunk_until(ptTerrain, idx_bytes, vtx_bytes);
+            pl__free_chunk_until(ptTerrain, uIndexBytes, uVertexBytes);
 
-            idx_hole = gptFreeList->get_node(&ptTerrain->tIndexBufferManager, idx_bytes);
-            vtx_hole = gptFreeList->get_node(&ptTerrain->tVertexBufferManager, vtx_bytes);
+            ptIndexHole = gptFreeList->get_node(&ptTerrain->tIndexBufferManager, uIndexBytes);
+            ptVertexHole = gptFreeList->get_node(&ptTerrain->tVertexBufferManager, uVertexBytes);
         }
 
-        if (!idx_hole || !vtx_hole)
+        if (!ptIndexHole || !ptVertexHole)
         {
-            if (idx_hole) gptFreeList->return_node(&ptTerrain->tIndexBufferManager, idx_hole);
-            if (vtx_hole) gptFreeList->return_node(&ptTerrain->tVertexBufferManager, vtx_hole);
+            if (ptIndexHole) gptFreeList->return_node(&ptTerrain->tIndexBufferManager, ptIndexHole);
+            if (ptVertexHole) gptFreeList->return_node(&ptTerrain->tVertexBufferManager, ptVertexHole);
 
             PL_FREE(ptVertices);
-            PL_FREE(ptIndices);
-            // fclose(ptDataFile);
+            PL_FREE(puIndices);
             PL_LOG_WARN(gptLog, gptData->uLogChannelTerrain, "No Memory (post-eviction)");
             pl__defer_residency_head(ptTerrain);
             return;
         }
 
-        ptChunk->ptIndexHole = idx_hole;
-        ptChunk->ptVertexHole = vtx_hole;
+        ptChunk->ptIndexHole = ptIndexHole;
+        ptChunk->ptVertexHole = ptVertexHole;
         ptChunk->uIndexCount  = uIndexCount;
 
         // destination offsets
@@ -543,12 +524,12 @@ pl__handle_residency(plTerrain* ptTerrain)
         const uint64_t uVertexFinalOffset = ptChunk->ptVertexHole->uOffset;
 
         // copy memory to mapped staging buffer
-        gptStage->stage_buffer_upload(ptTerrain->tIndexBuffer, uIndexFinalOffset, ptIndices, idx_bytes);
-        gptStage->stage_buffer_upload(ptTerrain->tVertexBuffer, uVertexFinalOffset, ptVertices, vtx_bytes);
+        gptStage->stage_buffer_upload(ptTerrain->tIndexBuffer, uIndexFinalOffset, puIndices, uIndexBytes);
+        gptStage->stage_buffer_upload(ptTerrain->tVertexBuffer, uVertexFinalOffset, ptVertices, uVertexBytes);
         gptStage->flush();
 
         PL_FREE(ptVertices);
-        PL_FREE(ptIndices);
+        PL_FREE(puIndices);
 
         pl__remove_from_residency_queue(ptTerrain, ptCurrentRequest->ptChunk);
         pl__touch_chunk(ptTerrain, ptChunk);
@@ -558,36 +539,35 @@ pl__handle_residency(plTerrain* ptTerrain)
 }
 
 static inline void
-pl__lru_unlink(plTerrain* P, plTerrainChunk* c)
+pl__lru_unlink(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 {
-    if (!c->bInReplacementList) return;
-    if (c->ptPrev) c->ptPrev->ptNext = c->ptNext;
-    else           P->tReplacementQueue.ptNext = c->ptNext;
-    if (c->ptNext) c->ptNext->ptPrev = c->ptPrev;
-    c->ptPrev = c->ptNext = NULL;
-    c->bInReplacementList = false;
+    if (!ptChunk->bInReplacementList) return;
+    if (ptChunk->ptPrev) ptChunk->ptPrev->ptNext = ptChunk->ptNext;
+    else                 ptTerrain->tReplacementQueue.ptNext = ptChunk->ptNext;
+    if (ptChunk->ptNext) ptChunk->ptNext->ptPrev = ptChunk->ptPrev;
+    ptChunk->ptPrev = ptChunk->ptNext = NULL;
+    ptChunk->bInReplacementList = false;
 }
 
 static inline void
-pl__lru_push_front(plTerrain* P, plTerrainChunk* c)
+pl__lru_push_front(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 {
-    // Head insert
-    c->ptPrev = NULL;
-    c->ptNext = P->tReplacementQueue.ptNext;
-    if (c->ptNext) c->ptNext->ptPrev = c;
-    P->tReplacementQueue.ptNext = c;
-    c->bInReplacementList = true;
+    ptChunk->ptPrev = NULL;
+    ptChunk->ptNext = ptTerrain->tReplacementQueue.ptNext;
+    if (ptChunk->ptNext) ptChunk->ptNext->ptPrev = ptChunk;
+    ptTerrain->tReplacementQueue.ptNext = ptChunk;
+    ptChunk->bInReplacementList = true;
 }
 
-
+// marks a chunk as most recently used
 static void
-pl__touch_chunk(plTerrain* P, plTerrainChunk* c)
+pl__touch_chunk(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 {
-    if (!c) return;
-    c->uLastFrameUsed = gptIOI->get_io()->ulFrameCount;
+    if (!ptChunk) return;
+    ptChunk->uLastFrameUsed = gptIOI->get_io()->ulFrameCount;
 
-    pl__lru_unlink(P, c);
-    pl__lru_push_front(P, c);
+    pl__lru_unlink(ptTerrain, ptChunk);
+    pl__lru_push_front(ptTerrain, ptChunk);
 }
 
 static void
@@ -596,6 +576,7 @@ pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
     pl__lru_unlink(ptTerrain, ptChunk);
 }
 
+// queues a chunk for upload (no-op if resident or already queued)
 static void
 pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 {
@@ -637,6 +618,13 @@ pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
         ptTerrain->tRequestQueue.ptNext = ptNode;
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] rendering
+//-----------------------------------------------------------------------------
+
+// Chunked LOD traversal: draws this chunk, or recurses into its children when
+// the projected geometric error (fRho, in pixels) exceeds the terrain's tau &
+// all four children are resident. Missing chunks are requested as they're found.
 static void
 pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex, float fViewportWidth)
 {
@@ -664,6 +652,7 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     if(ptChunk->ptIndexHole == NULL)
         return;
     
+    // screen-space error: fRho = error * fK / distance (fK = pixels per unit at distance 1)
     float fHorizontalFieldOfView = 2.0f * atanf(tanf(0.5f * ptCamera->fYFov) * ptCamera->fAspectRatio);
 
     float fK = fViewportWidth / (2.0f * tanf(0.5f * fHorizontalFieldOfView));
@@ -674,7 +663,7 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     plTerrainComponent* ptTerrainComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tTerrainComponentType, ptScene->tTerrain);
     plTerrainAsset* ptAsset = gptAsset->get_data(ptTerrain->tAsset);
 
-    float tauSubdivide = ptTerrainComp->fTau;
+    float fTauSubdivide = ptTerrainComp->fTau;
     bool bChildrenResident = pl__all_children_resident(ptChunk);
 
     static plVec3 atColors[] = {
@@ -708,10 +697,9 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         uDebugColorSlot = (uX * 3u + uY * 5u + ptChunk->uLevel * 7u) % 16u;
     }
 
-    // Decide refinement using hysteresis
-    if(!bChildrenResident || fRho <= tauSubdivide)
+    // draw this chunk unless it is too coarse & its children can replace it
+    if(!bChildrenResident || fRho <= fTauSubdivide)
     {
-        // Draw parent
         plDevice* ptDevice = gptData->ptDevice;
         plDynamicBinding tDynamicBinding =  pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynTerrainData));
         
@@ -780,10 +768,9 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
 
         pl__touch_chunk(ptTerrain, ptChunk);
 
-        // --- Hysteresis refinement logic ---
-        if(fRho > tauSubdivide)
+        // too coarse: request the children so traversal can refine next time
+        if(fRho > fTauSubdivide)
         {
-            // Need children soon – schedule them
             for(uint32_t i = 0; i < 4; i++)
             {
                 if(ptChunk->aptChildren[i])
@@ -799,6 +786,8 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     }
 }
 
+// same traversal as pl__render_chunk() but for an orthographic shadow camera
+// (constant screen-space scale) & depth only
 static void
 pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera,
     plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex,
