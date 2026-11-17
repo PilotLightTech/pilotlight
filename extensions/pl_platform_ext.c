@@ -154,12 +154,12 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         stPlatformExtCtx.tWc.cbClsExtra    = 0;
         stPlatformExtCtx.tWc.cbWndExtra    = 0;
         stPlatformExtCtx.tWc.hInstance     = GetModuleHandle(NULL);
-        stPlatformExtCtx.tWc.hIcon         = NULL;
+        stPlatformExtCtx.tWc.hIcon         = (HICON)LoadImageW(GetModuleHandle(NULL), MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR | LR_SHARED);
         stPlatformExtCtx.tWc.hCursor       = NULL;
         stPlatformExtCtx.tWc.hbrBackground = NULL;
         stPlatformExtCtx.tWc.lpszMenuName  = NULL;
         stPlatformExtCtx.tWc.lpszClassName = L"Pilot Light (win32)";
-        stPlatformExtCtx.tWc.hIconSm       = NULL;
+        stPlatformExtCtx.tWc.hIconSm       = (HICON)LoadImageW(GetModuleHandle(NULL), MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR | LR_SHARED);
         RegisterClassExW(&stPlatformExtCtx.tWc);
         #endif
 

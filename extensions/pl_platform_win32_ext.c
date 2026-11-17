@@ -1189,7 +1189,13 @@ pl_window_set_icon(plWindow* ptWindow, uint32_t uCount, const plWindowIcon* atIc
         const int iSmallSize = MulDiv(24, (int)pl__window_dpi(ptWindow->_pBackendData), 96);
         for(uint32_t i = 1; i < uCount; i++)
         {
-            if(abs((int)atIcons[i].uWidth - iSmallSize) < abs((int)atIcons[uSmall].uWidth - iSmallSize))
+            // Windows 11 draws the taskbar button from ICON_SMALL and ignores
+            // it when it is smaller than the (DPI-scaled) taskbar icon size,
+            // so prefer the smallest icon that is at least iSmallSize.
+            const bool bCandidateFits = (int)atIcons[i].uWidth >= iSmallSize;
+            const bool bCurrentFits = (int)atIcons[uSmall].uWidth >= iSmallSize;
+            if(bCandidateFits != bCurrentFits ? bCandidateFits
+                : (bCandidateFits ? atIcons[i].uWidth < atIcons[uSmall].uWidth : atIcons[i].uWidth > atIcons[uSmall].uWidth))
                 uSmall = i;
             if(atIcons[i].uWidth * atIcons[i].uHeight > atIcons[uLarge].uWidth * atIcons[uLarge].uHeight)
                 uLarge = i;
