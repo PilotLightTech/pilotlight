@@ -1,4 +1,4 @@
-// stb_dxt.h - v1.12 - DXT1/DXT5 compressor - public domain
+// stb_dxt.h - v1.13 - DXT1/DXT5 compressor - public domain
 // original by fabian "ryg" giesen - ported to C by stb
 // use '#define STB_DXT_IMPLEMENTATION' before including to create the implementation
 //
@@ -9,7 +9,8 @@
 //     must supply some constant alpha in the alpha channel).
 //     You can turn on dithering and "high quality" using mode.
 //
-// version history:
+// version history
+//   v1.13  - (stb) fix warning
 //   v1.12  - (ryg) fix bug in single-color table generator
 //   v1.11  - (ryg) avoid racy global init, better single-color tables, remove dither
 //   v1.10  - (i.c) various small quality improvements
@@ -83,6 +84,7 @@ STBDDEF void stb_compress_bc5_block(unsigned char *dest, const unsigned char *sr
 // #define STB_DXT_USE_ROUNDING_BIAS
 
 #include <stdlib.h>
+#include <string.h>
 
 #if !defined(STBD_FABS)
 #include <math.h>
@@ -169,9 +171,9 @@ static int stb__Mul8Bit(int a, int b)
 
 static void stb__From16Bit(unsigned char *out, unsigned short v)
 {
-   unsigned short rv = (v & 0xf800) >> 11;
-   unsigned short gv = (v & 0x07e0) >>  5;
-   unsigned short bv = (v & 0x001f) >>  0;
+   int rv = (v & 0xf800) >> 11;
+   int gv = (v & 0x07e0) >>  5;
+   int bv = (v & 0x001f) >>  0;
 
    // expand to 8 bits via bit replication
    out[0] = (unsigned char)((rv * 33) >> 2);
