@@ -165,11 +165,12 @@ static plTerrainContext* gptTerrainCtx = NULL;
     #endif
 
     // required APIs
-    static const plImageI*   gptImage = NULL;
-    static const plFileI*    gptFile  = NULL;
-    static const plVfsI*     gptVfs   = NULL;
-    static const plAssetI*   gptAsset = NULL;
-    static const plJsonI*    gptJson = NULL;
+    static const plImageI*   gptImage   = NULL;
+    static const plFileI*    gptFile    = NULL;
+    static const plVfsI*     gptVfs     = NULL;
+    static const plAssetI*   gptAsset   = NULL;
+    static const plJsonI*    gptJson    = NULL;
+    static const plTextureI* gptTexture = NULL;
 
 #endif
 
@@ -345,20 +346,35 @@ static plVec2 pl__get_normal(plTerrainHeightMap*, plTerrainMapElement*);
 static void
 pl__terrain_load_for_sampling(plTerrainAsset* ptTerrain, uint32_t uTileIndex)
 {
-    const char* pcAssetPath = gptAsset->get_path(ptTerrain->atTiles[uTileIndex].tHeightmap);
-
-    plTextureAsset* ptTextureAsset = gptAsset->get_data(ptTerrain->atTiles[uTileIndex].tHeightmap);
+    plAssetHandle tHeightmapAsset = ptTerrain->atTiles[uTileIndex].tHeightmap;
+    if(!gptAsset->is_valid(tHeightmapAsset) || gptAsset->get_type_key(tHeightmapAsset) != gptTexture->get_asset_type_key())
+        return;
+    plTextureAsset* ptTextureAsset = gptAsset->get_data(tHeightmapAsset);
+    if(!ptTextureAsset->pcSourceFile)
+        return;
     size_t szFileSize = gptVfs->get_file_size_str(ptTextureAsset->pcSourceFile);
+    if(!szFileSize || szFileSize > INT_MAX)
+        return;
     plVfsFileHandle tHeightMap = gptVfs->open_file(ptTextureAsset->pcSourceFile, PL_VFS_FILE_MODE_READ);
-    gptVfs->read_file(tHeightMap, NULL, &szFileSize);
+    if(!gptVfs->is_file_open(tHeightMap))
+        return;
     uint8_t* puFileData = PL_ALLOC(szFileSize + 1);
     memset(puFileData, 0, szFileSize + 1);
-    gptVfs->read_file(tHeightMap, puFileData, &szFileSize);
+    plVfsResult tRead = gptVfs->read_file(tHeightMap, puFileData, &szFileSize);
     gptVfs->close_file(tHeightMap);
+    if(tRead != PL_VFS_RESULT_SUCCESS)
+    {
+        PL_FREE(puFileData);
+        return;
+    }
 
     // load image info
     plImageInfo tImageInfo = {0};
-    gptImage->get_info(puFileData, (int)szFileSize, &tImageInfo);
+    if(!gptImage->get_info(puFileData, (int)szFileSize, &tImageInfo) || tImageInfo.iWidth != (int)ptTerrain->uSize || tImageInfo.iHeight != (int)ptTerrain->uSize)
+    {
+        PL_FREE(puFileData);
+        return;
+    }
     int iImageWidth = tImageInfo.iWidth;
     int iImageHeight = tImageInfo.iHeight;
 
@@ -376,6 +392,11 @@ pl__terrain_load_for_sampling(plTerrainAsset* ptTerrain, uint32_t uTileIndex)
     else if(tImageInfo.bHDR)
     {
         float* pufImageData = gptImage->load_hdr(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+        if(!pufImageData)
+        {
+            PL_FREE(puFileData);
+            return;
+        }
         uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
         uint16_t* puConvertedData = PL_ALLOC(sizeof(uint16_t) * uPixelCount);
 
@@ -391,6 +412,11 @@ pl__terrain_load_for_sampling(plTerrainAsset* ptTerrain, uint32_t uTileIndex)
     else
     {
         uint8_t* puImageData = gptImage->load(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+        if(!puImageData)
+        {
+            PL_FREE(puFileData);
+            return;
+        }
         uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
         uint16_t* puConvertedData = PL_ALLOC(sizeof(uint16_t) * uPixelCount);
 
@@ -406,6 +432,8 @@ pl__terrain_load_for_sampling(plTerrainAsset* ptTerrain, uint32_t uTileIndex)
     PL_FREE(puFileData);
     puFileData = NULL;
 
+    if(!pucImageData)
+        return;
     uint32_t uMaxX = (uint32_t)iImageWidth;
     uint32_t uMaxY = (uint32_t)iImageHeight;
 
@@ -499,7 +527,8 @@ pl_terrain_sample_height(plTerrainAsset* ptTerrain, float fWorldX, float fWorldZ
     const uint32_t uRows = ptTerrain->uVerticalTiles;
     const float fSpacing = ptTerrain->fMetersPerPixel;
 
-    if(!pfHeightOut || !uSize || !uCols || !uRows || fSpacing <= 0.0f)
+    if(!pfHeightOut || !uSize || !uCols || !uRows || fSpacing <= 0.0f || !ptTerrain->atTiles ||
+        (uint64_t)uCols * uRows > ptTerrain->uTileCount || (uint64_t)uSize * uCols > UINT32_MAX || (uint64_t)uSize * uRows > UINT32_MAX)
         return PL_TERRAIN_SAMPLE_NOT_READY;
 
     const float fRawWidth  = (float)(uSize * uCols) * fSpacing;
@@ -786,11 +815,8 @@ pl__terrain_cleanup(void* pTerrain)
 {
     plTerrainAsset* ptTerrain = pTerrain;
 
-    // for(uint32_t i = 0; i < ptTerrain->uTileCount; i++)
-    // {
-    //     plTerrainProcessTileInfo* ptTile = &ptTerrain->atTiles[i];
-    //     ptTile->
-    // }
+    if(ptTerrain->atTiles)
+        pl_terrain_unload_sampling_data(ptTerrain);
 
     if(ptTerrain->atElevationZones)
     {
@@ -808,7 +834,8 @@ pl__terrain_cleanup(void* pTerrain)
 static bool
 pl__terrain_deserialize(const char* pcName, void* pTerrain)
 {
-    plTerrainAsset* ptTerrain = pTerrain;
+    plTerrainAsset tTerrain = {0};
+    plTerrainAsset* ptTerrain = &tTerrain;
 
     if(!gptVfs->does_file_exist(pcName))
         return false;
@@ -893,6 +920,8 @@ pl__terrain_deserialize(const char* pcName, void* pTerrain)
     }
 
     gptVfs->close_file(tFileHandle);
+    pl__terrain_cleanup(pTerrain);
+    *(plTerrainAsset*)pTerrain = tTerrain;
     return true;
 }
 
@@ -1939,6 +1968,7 @@ pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
         gptAsset   = pl_get_api_latest(ptApiRegistry, plAssetI);
         gptJson    = pl_get_api_latest(ptApiRegistry, plJsonI);
+        gptTexture = pl_get_api_latest(ptApiRegistry, plTextureI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

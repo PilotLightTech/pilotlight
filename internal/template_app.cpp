@@ -63,6 +63,8 @@ Index of this file:
 #include "pl_resource_ext.h"
 #include "pl_renderer_ext.h"
 #include "pl_asset_tools_ext.h"
+#include "pl_ecs_tools_ext.h"
+#include "pl_scene_tools_ext.h"
 #include "pl_gizmo_ext.h"
 #include "pl_physics_ext.h"
 #include "pl_collision_ext.h"
@@ -75,6 +77,8 @@ Index of this file:
 #include "pl_skeleton_ext.h"
 #include "pl_texture_ext.h"
 #include "pl_terrain_ext.h"
+#include "pl_voxel_ext.h"
+#include "pl_path_ext.h"
 #include "pl_stl_ext.h"
 #include "pl_dialog_ext.h"
 
@@ -110,6 +114,8 @@ const plStringInternI*      gptString           = nullptr;
 const plProfileI*           gptProfile          = nullptr;
 const plFileI*              gptFile             = nullptr;
 const plAssetToolsI*        gptAssetTools       = nullptr;
+const plEcsToolsI*          gptEcsTools         = nullptr;
+const plSceneToolsI*        gptSceneTools       = nullptr;
 const plGizmoI*             gptGizmo            = nullptr;
 const plConsoleI*           gptConsole          = nullptr;
 const plScreenLogI*         gptScreenLog        = nullptr;
@@ -134,6 +140,8 @@ const plIkI*                gptIk               = nullptr;
 const plSkeletonI*          gptSkeleton         = nullptr;
 const plTextureI*           gptTexture          = nullptr;
 const plTerrainI*           gptTerrain          = nullptr;
+const plVoxelI*             gptVoxel            = nullptr;
+const plPathI*              gptPath             = nullptr;
 const plStlI*               gptStl              = nullptr;
 const plDialogI*            gptDialog           = nullptr;
 
@@ -321,6 +329,8 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptProfile          = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptFile             = pl_get_api_latest(ptApiRegistry, plFileI);
     gptAssetTools       = pl_get_api_latest(ptApiRegistry, plAssetToolsI);
+    gptEcsTools         = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
+    gptSceneTools       = pl_get_api_latest(ptApiRegistry, plSceneToolsI);
     gptGizmo            = pl_get_api_latest(ptApiRegistry, plGizmoI);
     gptConsole          = pl_get_api_latest(ptApiRegistry, plConsoleI);
     gptScreenLog        = pl_get_api_latest(ptApiRegistry, plScreenLogI);
@@ -345,6 +355,8 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptSkeleton         = pl_get_api_latest(ptApiRegistry, plSkeletonI);
     gptTexture          = pl_get_api_latest(ptApiRegistry, plTextureI);
     gptTerrain          = pl_get_api_latest(ptApiRegistry, plTerrainI);
+    gptVoxel            = pl_get_api_latest(ptApiRegistry, plVoxelI);
+    gptPath             = pl_get_api_latest(ptApiRegistry, plPathI);
     gptStl              = pl_get_api_latest(ptApiRegistry, plStlI);
     gptDialog           = pl_get_api_latest(ptApiRegistry, plDialogI);
 }
@@ -373,6 +385,8 @@ pl__load_extensions(plApiRegistryI* ptApiRegistry)
     ptExtensionRegistry->load("pl_resource_ext", "pl_load_resource_ext", "pl_unload_resource_ext", false);
     ptExtensionRegistry->load("pl_ui_ext", "pl_load_ui_ext", "pl_unload_ui_ext", false);
     ptExtensionRegistry->load("pl_asset_tools_ext", "pl_load_asset_tools_ext", "pl_unload_asset_tools_ext", false);
+    ptExtensionRegistry->load("pl_ecs_tools_ext", "pl_load_ecs_tools_ext", "pl_unload_ecs_tools_ext", false);
+    ptExtensionRegistry->load("pl_scene_tools_ext", "pl_load_scene_tools_ext", "pl_unload_scene_tools_ext", false);
     ptExtensionRegistry->load("pl_camera_ext", "pl_load_camera_ext", "pl_unload_camera_ext", false);
     ptExtensionRegistry->load("pl_animation_ext", "pl_load_animation_ext", "pl_unload_animation_ext", false);
     ptExtensionRegistry->load("pl_gizmo_ext", "pl_load_gizmo_ext", "pl_unload_gizmo_ext", false);

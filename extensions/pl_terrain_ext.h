@@ -32,6 +32,7 @@ Index of this file:
         * plImageI (v1.x)
         * plJsonI (v1.x)
         * plMemoryI (v1.x)
+        * plTextureI (v0.1.x)
         * plVfsI (v3.x)
 */
 

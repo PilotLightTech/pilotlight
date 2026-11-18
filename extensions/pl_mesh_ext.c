@@ -104,6 +104,7 @@ typedef struct _plMeshFileHeader
 } plMeshFileHeader;
 
 void pl_mesh_allocate (plMesh*, const plSubmeshAllocationDesc*, uint32_t count);
+void pl__mesh_cleanup(void*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -268,7 +269,8 @@ pl__mesh_serialize(const char* pcName, const void* pMesh, plAssetEncoding eEncod
 static bool
 pl__mesh_deserialize(const char* pcName, void* pMesh)
 {
-    plMesh* ptMesh = pMesh;
+    plMesh tMesh = {0};
+    plMesh* ptMesh = &tMesh;
 
     if(!gptVfs->does_file_exist(pcName))
         return false;
@@ -432,6 +434,8 @@ pl__mesh_deserialize(const char* pcName, void* pMesh)
         PL_FREE(puFileBuffer);
         gptJson->unload(&ptRoot);
     }
+    pl__mesh_cleanup(pMesh);
+    *(plMesh*)pMesh = tMesh;
     return true;
 }
 

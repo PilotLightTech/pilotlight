@@ -171,6 +171,8 @@ with pl.project("pilotlight"):
         "pl_resource_ext",
         "pl_ui_ext",
         "pl_asset_tools_ext",
+        "pl_ecs_tools_ext",
+        "pl_scene_tools_ext",
         "pl_camera_ext",
         "pl_animation_ext",
         "pl_gizmo_ext",

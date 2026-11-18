@@ -3004,44 +3004,16 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
-static void pl__renderer_ui_terrain_node(plScene* ptScene, plTerrainChunk* ptChunk);
-
 //-----------------------------------------------------------------------------
 // [SECTION] frame begin & tools ui
 //-----------------------------------------------------------------------------
 
-static void
-pl__renderer_ui_terrain_node(plScene* ptScene, plTerrainChunk* ptChunk)
+const plTerrainChunkFile*
+pl_renderer_get_terrain_chunk_file(const plScene* ptScene, uint32_t uIndex)
 {
-    if(ptChunk == NULL)
-        return;
-
-    if(pl__chunk_is_resident(ptChunk))
-        gptUI->push_theme_color(PL_UI_COLOR_TEXT, (plVec4){0.0f, 1.0f, 0.0f, 1.00f});
-    if(gptUI->tree_node_f("%u -> %g, %g", PL_UI_TREE_NODE_FLAGS_DRAW_LINES_TO_NODES, (uint32_t)ptChunk->uLevel, ptChunk->fX, ptChunk->fY))
-    {
-        if(pl__chunk_is_resident(ptChunk))
-            gptUI->pop_theme_color(1);
-        gptUI->input_float3("Min. Bounds", ptChunk->tMinBound.d, "%g", PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
-        gptUI->input_float3("Max. Bounds", ptChunk->tMaxBound.d, "%g", PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
-
-        if(ptChunk->aptChildren[0])
-        {
-            if(gptUI->tree_node("Children", PL_UI_TREE_NODE_FLAGS_DRAW_LINES_TO_NODES))
-            {
-                for(uint32_t i = 0; i < 4; i++)
-                    pl__renderer_ui_terrain_node(ptScene, ptChunk->aptChildren[i]);
-
-                gptUI->tree_pop();
-            }
-        }
-        gptUI->tree_pop();
-    }
-    else
-    {
-        if(pl__chunk_is_resident(ptChunk))
-            gptUI->pop_theme_color(1);
-    }
+    if(!ptScene || !ptScene->ptTerrain || uIndex >= pl_sb_size(ptScene->ptTerrain->sbtChunkFiles))
+        return NULL;
+    return &ptScene->ptTerrain->sbtChunkFiles[uIndex].tFile;
 }
 
 bool
@@ -3061,27 +3033,6 @@ pl_renderer_begin_frame(void)
         for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
         {
             plScene* ptScene = gptData->sbptScenes[uSceneIndex];
-
-            if(ptScene->bToolShowTerrain && ptScene->ptTerrain)
-            {
-                if(gptUI->begin_window("Terrain", &ptScene->bToolShowTerrain, 0))
-                {
-                    gptUI->layout_dynamic(0.0f, 1);
-                    for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
-                    {
-
-                        if(gptUI->tree_node_f("Chunk File: %s", PL_UI_TREE_NODE_FLAGS_DRAW_LINES_TO_NODES, ptScene->ptTerrain->sbtChunkFiles[i].tFile.acFile))
-                        {
-                            gptUI->input_int("Tree Depth", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.iTreeDepth, PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
-                            gptUI->input_float("Max. Base Error", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.fMaxBaseError, "%g", PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
-                            gptUI->input_uint("Chunk Count", &ptScene->ptTerrain->sbtChunkFiles[i].tFile.uChunkCount, PL_UI_INPUT_TEXT_FLAGS_READ_ONLY);
-                            pl__renderer_ui_terrain_node(ptScene, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0]);
-                            gptUI->tree_pop();
-                        }
-                    }
-                    gptUI->end_window();
-                }
-            }
 
             if(ptScene->bToolShowDrawables)
             {
@@ -3238,12 +3189,6 @@ pl_renderer_begin_frame(void)
                     if(gptUI->button("Reload Shaders"))
                         bReloadShaders = true;
 
-                    if(gptUI->button("Update Environment"))
-                    {
-                        ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
-                        ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_SKY_LUTS_DIRTY;
-                    }
-
                     gptUI->layout_dynamic(0.0f, 1);
 
                     bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
@@ -3284,7 +3229,6 @@ pl_renderer_begin_frame(void)
 
                     gptUI->separator_text("Tools");
                     gptUI->checkbox("Drawables", &ptScene->bToolShowDrawables);
-                    gptUI->checkbox("Terrain", &ptScene->bToolShowTerrain);
 
 
 
@@ -4926,6 +4870,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi0.reload_scene_shaders               = pl_renderer_editor_reload_scene_shaders;
     tApi0.get_gizmo_drawlist                 = pl_renderer_editor_get_gizmo_drawlist;
     tApi0.rebuild_scene_bvh                  = pl_renderer_editor_rebuild_scene_bvh;
+    tApi0.get_terrain_chunk_file             = pl_renderer_get_terrain_chunk_file;
     tApi0.add_entity_to_scene                = pl_renderer_add_entity_to_scene;
     tApi0.add_component_to_scene             = pl_renderer_add_component_to_scene;
     tApi0.remove_entity_from_scene           = pl_renderer_remove_entity_from_scene;

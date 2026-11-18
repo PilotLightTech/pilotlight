@@ -147,6 +147,7 @@ typedef struct _plDevice           plDevice;           // pl_graphics_ext.h
 typedef struct _plDrawList3D       plDrawList3D;       // pl_draw_ext.h
 typedef struct _plSwapchain        plSwapchain;        // pl_graphics_ext.h
 typedef union  plBindGroupHandle   plBindGroupHandle;  // pl_graphics_ext.h
+typedef struct _plTerrainChunkFile plTerrainChunkFile;
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef struct _plCamera           plCamera;           // pl_camera_ext.h
 
@@ -231,6 +232,10 @@ typedef struct _plRendererI
     void          (*reload_scene_shaders) (plScene*);
     plDrawList3D* (*get_gizmo_drawlist)   (plView*);
     void          (*rebuild_scene_bvh)    (plScene*);
+    
+    // Borrowed live terrain data; NULL when index is out of range. Reacquire each
+    // frame; invalidated by terrain/scene unload. Do not modify the chunk tree.
+    const plTerrainChunkFile* (*get_terrain_chunk_file)(const plScene*, uint32_t index);
 } plRendererI;
 
 //-----------------------------------------------------------------------------

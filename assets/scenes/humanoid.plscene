@@ -237,7 +237,7 @@
             }, 
             "transform": {                
                 "translation": [ 0.0, 3.27, -1.5 ], 
-                "rotation": [ 0, 0, 0, 1 ], 
+                "rotation": [ 0.319771439, 0, 0, 0.947494686 ], 
                 "scale": [ 1, 1, 1 ]
             }, 
             "light": {                

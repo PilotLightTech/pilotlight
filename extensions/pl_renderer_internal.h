@@ -736,7 +736,6 @@ typedef struct _plScene
 
     // tools
     bool bToolShowDrawables;
-    bool bToolShowTerrain;
 } plScene;
 
 typedef struct _plRendererData

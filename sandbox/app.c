@@ -71,6 +71,8 @@ Index of this file:
 #include "pl_gltf_ext.h"
 #include "pl_renderer_ext.h"
 #include "pl_asset_tools_ext.h"
+#include "pl_scene_tools_ext.h"
+#include "pl_ecs_tools_ext.h"
 #include "pl_gizmo_ext.h"
 #include "pl_physics_ext.h"
 #include "pl_collision_ext.h"
@@ -116,6 +118,8 @@ const plStringInternI*      gptString           = NULL;
 const plProfileI*           gptProfile          = NULL;
 const plFileI*              gptFile             = NULL;
 const plAssetToolsI*        gptAssetTools       = NULL;
+const plSceneToolsI*        gptSceneTools       = NULL;
+const plEcsToolsI*          gptEcsTools         = NULL;
 const plGizmoI*             gptGizmo            = NULL;
 const plConsoleI*           gptConsole          = NULL;
 const plScreenLogI*         gptScreenLog        = NULL;
@@ -164,6 +168,7 @@ static bool gbLogFileErrorReported;
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+
 static const char* gacImportFiles[] = {
     "/resources/DamagedHelmet.glb",
     "/resources/humanoid.gltf",
@@ -187,6 +192,7 @@ typedef struct _plSandboxSceneFile
 
 typedef struct _plAppData
 {
+    bool bShowSceneTools;
     // windows
     plWindow* ptWindow;
     plWindowTitleBarDesc tTitleBar;
@@ -205,6 +211,8 @@ typedef struct _plAppData
     plVec2 tViewSize;
     plVec2 tRenderSize;
     bool bSceneClickStarted;
+    bool bScenePickPending;
+    bool bShowEntityMarkers;
     plVec2 tSceneClickPos;
 
     // optional second viewport (camera pose is independent of the scene asset)
@@ -349,6 +357,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // defaults
     ptAppData->tSelectedEntity.uData = UINT64_MAX;
+    ptAppData->bShowEntityMarkers = true;
 
     gptConfig->load_from_disk(NULL);
 
@@ -361,6 +370,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // initialize APIs that require it
     gptAssetTools->initialize();
+    gptEcsTools->initialize();
 
     plPhysicsEngineSettings tPhysicsSettings = {0};
     gptPhysics->initialize(tPhysicsSettings);
@@ -732,6 +742,8 @@ pl_app_shutdown(plAppData* ptAppData)
 
     gptConfig->save_to_disk(NULL);
     gptConfig->cleanup();
+    gptEcsTools->cleanup();
+    gptSceneTools->cleanup();
     gptAssetTools->cleanup();
     gptPhysics->cleanup();
 
@@ -768,6 +780,33 @@ pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_update
 //-----------------------------------------------------------------------------
+
+static void
+pl__select_entity(plAppData* ptAppData, plEntity tEntity)
+{
+    plComponentLibrary* ptLibrary = gptAsset->get_data(ptAppData->tSceneHandle);
+    if(!gptEcs->is_entity_valid(ptLibrary, tEntity))
+        tEntity.uData = UINT64_MAX;
+    if(tEntity.uData == ptAppData->tSelectedEntity.uData)
+        return;
+    plObjectComponent* ptObject = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
+    if(ptObject)
+    {
+        ptObject->tFlags &= ~PL_OBJECT_FLAGS_OUTLINE;
+        ptObject->tFlags |= PL_OBJECT_FLAGS_DIRTY;
+    }
+    ptAppData->tSelectedEntity = tEntity;
+    ptAppData->bScenePickPending = false;
+    gptEcsTools->select_entity(ptAppData->tSceneHandle, tEntity);
+    ptObject = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), tEntity);
+    if(ptObject)
+        ptObject->tFlags |= PL_OBJECT_FLAGS_OUTLINE | PL_OBJECT_FLAGS_DIRTY;
+    if(tEntity.uData != UINT64_MAX)
+    {
+        gptPhysics->set_angular_velocity(ptLibrary, tEntity, (plVec3){0});
+        gptPhysics->set_linear_velocity(ptLibrary, tEntity, (plVec3){0});
+    }
+}
 
 PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
@@ -819,6 +858,21 @@ pl_app_update(plAppData* ptAppData)
         pl__show_sandbox_tools(ptAppData);
     }
     gptAssetTools->run();
+    if(!ptAppData->bGameMode)
+    {
+        bool* pbEcs = gptConsole->get_variable("t.ECS", NULL, NULL);
+        if(pbEcs && *pbEcs)
+            gptUI->set_next_window_dock(ptAppData->uToolsDock, PL_UI_COND_ONCE);
+        gptEcsTools->run();
+        if(ptAppData->ptScene)
+            pl__select_entity(ptAppData, gptEcsTools->get_selected_entity(ptAppData->tSceneHandle));
+    }
+    if(ptAppData->ptScene && !ptAppData->bGameMode)
+    {
+        if(ptAppData->bShowSceneTools)
+            gptUI->set_next_window_dock(ptAppData->uToolsDock, PL_UI_COND_ONCE);
+        gptSceneTools->run(gptAsset->get_data(ptAppData->tSceneHandle), ptAppData->ptScene, ptAppData->tSelectedEntity, &ptAppData->bShowSceneTools);
+    }
 
     if(!ptAppData->bShowSecondaryView && ptAppData->ptSecondaryView)
     {
@@ -873,9 +927,20 @@ pl_app_update(plAppData* ptAppData)
                 plVec2 tReleasePos = tMousePos;
 
                 if(ptAppData->bSceneClickStarted && tReleasePos.x == ptAppData->tSceneClickPos.x && tReleasePos.y == ptAppData->tSceneClickPos.y)
-                    // Picking uses display/render scale. Both sizes match; the gizmo
-                    // instead takes display/main-window scale below.
-                    gptRenderer->update_hovered_entity(ptAppData->ptView, ptAppData->tViewOffset, (plVec2){1.0f, 1.0f});
+                {
+                    plEntity tMarker;
+                    if(ptAppData->bShowEntityMarkers && gptEcsTools->pick_transform(ptLibrary, ptCamera, ptAppData->tViewOffset, ptAppData->tViewSize, tReleasePos, 10.0f, &tMarker))
+                    {
+                        ptAppData->bScenePickPending = false;
+                        pl__select_entity(ptAppData, tMarker);
+                        gptEcsTools->open(ptAppData->tSceneHandle);
+                    }
+                    else if(!ptAppData->bScenePickPending)
+                    {
+                        gptRenderer->update_hovered_entity(ptAppData->ptView, ptAppData->tViewOffset, (plVec2){1.0f, 1.0f});
+                        ptAppData->bScenePickPending = true;
+                    }
+                }
             }
         }
         if(gptIO->is_mouse_released(PL_MOUSE_BUTTON_LEFT) || gptGizmo->active())
@@ -911,41 +976,27 @@ pl_app_update(plAppData* ptAppData)
         gptSkeleton->run_skin_update_system(ptLibrary);
         gptRenderer->run_object_update_system(ptLibrary);
         gptRenderer->run_environment_probe_update_system(ptLibrary); // run after object update
+        if(ptAppData->bShowEntityMarkers && !ptAppData->bGameMode)
+        {
+            gptEcsTools->draw_transforms(ptLibrary, ptAppData->tSelectedEntity, ptCamera, ptAppData->tViewSize, gptRenderer->get_gizmo_drawlist(ptAppData->ptView));
+            if(bSecondaryVisible)
+                gptEcsTools->draw_transforms(ptLibrary, ptAppData->tSelectedEntity, &ptAppData->tSecondaryCamera, ptAppData->tSecondarySize, gptRenderer->get_gizmo_drawlist(ptAppData->ptSecondaryView));
+        }
+        if(ptAppData->bShowSceneTools && !ptAppData->bGameMode)
+            gptSceneTools->draw(ptLibrary, ptDrawlist, gptRenderer->get_gizmo_drawlist(ptAppData->ptView));
+        if(bSecondaryVisible)
+        {
+            if(ptAppData->bShowSceneTools && !ptAppData->bGameMode)
+                gptSceneTools->draw(ptLibrary, gptRenderer->get_drawlist(ptAppData->ptSecondaryView), gptRenderer->get_gizmo_drawlist(ptAppData->ptSecondaryView));
+        }
         PL_PROFILE_END_SAMPLE(gptProfile, 0);
 
         plEntity tNextEntity = {0};
-        if(gptRenderer->get_hovered_entity(ptAppData->ptView, &tNextEntity))
+        if(gptRenderer->get_hovered_entity(ptAppData->ptView, &tNextEntity) && ptAppData->bScenePickPending)
         {
-
-
-            plObjectComponent* ptSelectedObject = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
-            if(ptSelectedObject)
-            {
-                ptSelectedObject->tFlags &= ~PL_OBJECT_FLAGS_OUTLINE;
-                ptSelectedObject->tFlags |= PL_OBJECT_FLAGS_DIRTY;
-            }
-            
-            if(!gptEcs->is_entity_valid(ptLibrary, tNextEntity))
-            {
-                ptAppData->tSelectedEntity.uData = UINT64_MAX;
-                gptScreenLog->add_message_ex(565168477883, 1.0, PL_COLOR_32_RED, 1.0f, "Unselected Entity");
-            }
-            else if(ptAppData->tSelectedEntity.uData != tNextEntity.uData)
-            {
-                plTagComponent* ptSelectedTag = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), tNextEntity);
-                gptScreenLog->add_message_ex(565168477883, -1.0, PL_COLOR_32_GREEN, 1.0f, "Selected Entity \"%s\" {%u, %u}", ptSelectedTag ? ptSelectedTag->pcName : "No Name", tNextEntity.uIndex, tNextEntity.uGeneration);
-                ptAppData->tSelectedEntity = tNextEntity;
-                gptPhysics->set_angular_velocity(ptLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
-                gptPhysics->set_linear_velocity(ptLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
-
-
-            }
-            ptSelectedObject = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
-            if(ptSelectedObject)
-            {
-                ptSelectedObject->tFlags |= PL_OBJECT_FLAGS_OUTLINE;
-                ptSelectedObject->tFlags |= PL_OBJECT_FLAGS_DIRTY;
-            }
+            ptAppData->bScenePickPending = false;
+            pl__select_entity(ptAppData, tNextEntity);
+            gptEcsTools->open(ptAppData->tSceneHandle);
         }
 
         if(!gptUI->wants_keyboard_capture())
@@ -974,8 +1025,7 @@ pl_app_update(plAppData* ptAppData)
         for(uint32_t i = 0; i < uEcsChangeCount; i++)
         {
             const plEcsChange* ptChange = &atEcsChanges[i];
-            if(ptChange->eType == PL_ECS_CHANGE_COMPONENT_ADDED &&
-               gptEcs->has_component(ptLibrary, ptChange->tComponentType, ptChange->tEntity))
+            if(ptChange->eType == PL_ECS_CHANGE_COMPONENT_ADDED && gptEcs->has_component(ptLibrary, ptChange->tComponentType, ptChange->tEntity))
                 gptRenderer->add_component_to_scene(ptAppData->ptScene, ptChange->tEntity, ptChange->tComponentType);
         }
 
@@ -1007,15 +1057,9 @@ pl_app_update(plAppData* ptAppData)
         {
             plDrawList3D* ptGizmoDrawlist =  gptRenderer->get_gizmo_drawlist(ptAppData->ptView);
             
-            if(gptEcs->has_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), ptAppData->tSelectedEntity))
-            {
-                gptGizmo->gizmo(ptLibrary, ptAppData->tSelectedEntity, ptGizmoDrawlist, ptCamera, ptAppData->tViewOffset, tViewScale);
-            }
-            else if(gptEcs->has_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity))
-            {
-                plObjectComponent* ptSelectedObject = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
-                gptGizmo->gizmo(ptLibrary, ptSelectedObject->tTransform, ptGizmoDrawlist, ptCamera, ptAppData->tViewOffset, tViewScale);
-            }
+            plEntity tTransform = gptEcsTools->get_transform_entity(ptLibrary, ptAppData->tSelectedEntity);
+            if(gptEcs->is_entity_valid(ptLibrary, tTransform))
+                gptGizmo->gizmo(ptLibrary, tTransform, ptGizmoDrawlist, ptCamera, ptAppData->tViewOffset, tViewScale);
         }
 
         // render scene
@@ -1058,6 +1102,8 @@ pl_app_update(plAppData* ptAppData)
             if(!gptUI->wants_keyboard_capture())
             {
                 gptLog->info_p(guLogChannel, "Unloading scene: %s", ptAppData->acCurrentScene);
+                gptEcsTools->cleanup();
+                gptSceneTools->cleanup();
                 gptPhysics->reset();
                 if(ptAppData->ptSecondaryView)
                     gptRenderer->destroy_view(ptAppData->ptSecondaryView);
@@ -1089,6 +1135,8 @@ pl_app_update(plAppData* ptAppData)
                 pl__refresh_files(ptAppData);
             if(gptUI->button("Clear Assets"))
             {
+                gptEcsTools->cleanup();
+                gptSceneTools->cleanup();
                 gptAssetTools->cleanup(); // Close inspectors before their assets and libraries disappear.
                 gptAsset->clear_assets();
             }
@@ -1156,6 +1204,9 @@ pl_app_update(plAppData* ptAppData)
                                 ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, &tViewDesc);
                                 
                                 gptRenderer->load_component_library(ptAppData->ptScene, ptLibrary);
+                                gptEcsTools->open(ptAppData->tSceneHandle);
+                                ptAppData->tSelectedEntity.uData = UINT64_MAX;
+                                ptAppData->bScenePickPending = false;
                                 gptEcs->clear_changes(ptLibrary);
 
                                 const plEntity* ptCameraEntities = NULL;
@@ -1304,6 +1355,7 @@ pl__show_main_menu(plAppData* ptAppData)
         if(gptUI->begin_menu("View", true))
         {
             gptUI->menu_item_toggle("Game Mode", "F5", &ptAppData->bGameMode, ptAppData->ptScene != NULL && !gptGizmo->active());
+            gptUI->menu_item_toggle("Entity Markers", NULL, &ptAppData->bShowEntityMarkers, ptAppData->ptScene != NULL);
             gptUI->menu_item_toggle("Secondary View", NULL, &ptAppData->bShowSecondaryView, ptAppData->ptScene != NULL);
             gptUI->end_menu();
         }
@@ -1311,6 +1363,9 @@ pl__show_main_menu(plAppData* ptAppData)
         {
             gptUI->menu_item_toggle("Assets", NULL, ptAppData->pbShowAssets, true);
             gptUI->menu_item_toggle("Renderer", NULL, ptAppData->pbShowRenderer, true);
+            bool* pbEcs = gptConsole->get_variable("t.ECS", NULL, NULL);
+            gptUI->menu_item_toggle("ECS", NULL, pbEcs, pbEcs != NULL);
+            gptUI->menu_item_toggle("Scene Tools", NULL, &ptAppData->bShowSceneTools, ptAppData->ptScene != NULL);
             gptUI->separator();
             gptUI->menu_item_toggle("Logging", NULL, ptAppData->pbShowLogging, true);
             gptUI->menu_item_toggle("GPU Profiling", NULL, ptAppData->pbShowGpuProfiling, true);
@@ -1380,6 +1435,8 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptProfile          = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptFile             = pl_get_api_latest(ptApiRegistry, plFileI);
     gptAssetTools       = pl_get_api_latest(ptApiRegistry, plAssetToolsI);
+    gptEcsTools         = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
+    gptSceneTools       = pl_get_api_latest(ptApiRegistry, plSceneToolsI);
     gptGizmo            = pl_get_api_latest(ptApiRegistry, plGizmoI);
     gptConsole          = pl_get_api_latest(ptApiRegistry, plConsoleI);
     gptScreenLog        = pl_get_api_latest(ptApiRegistry, plScreenLogI);
