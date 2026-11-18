@@ -626,7 +626,7 @@ pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 // the projected geometric error (fRho, in pixels) exceeds the terrain's tau &
 // all four children are resident. Missing chunks are requested as they're found.
 static void
-pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex, float fViewportWidth)
+pl__render_chunk_recursive(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex, const plFrustum* ptFrustum, float fK)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -635,13 +635,8 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         .tMax = ptChunk->tMaxBound
     };
 
-    plFrustum tFrustum = {0};
-    if(ptCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
-        pl__camera_build_perspective_frustum(ptCamera, &tFrustum);
-    else
-        pl__camera_build_orthographic_frustum(ptCamera, &tFrustum);
 
-    if(!gptGjk->pen(pl_gjk_support_aabb, &tAABB, pl_gjk_support_frustum, &tFrustum, NULL))
+    if(!gptGjk->pen(pl_gjk_support_aabb, &tAABB, pl_gjk_support_frustum, ptFrustum, NULL))
         return;
 
     plVec3 tClosestPoint = gptCollision->point_closest_point_aabb(ptCamera->tPositionF, tAABB);
@@ -653,9 +648,6 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         return;
     
     // screen-space error: fRho = error * fK / distance (fK = pixels per unit at distance 1)
-    float fHorizontalFieldOfView = 2.0f * atanf(tanf(0.5f * ptCamera->fYFov) * ptCamera->fAspectRatio);
-
-    float fK = fViewportWidth / (2.0f * tanf(0.5f * fHorizontalFieldOfView));
 
     float fGeometricError = ptFile->fMaxBaseError * (float)ptChunk->uLevel;
     float fRho = fGeometricError * fK / fDistance;
@@ -782,16 +774,16 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     {
         // Descend into children
         for(uint32_t i = 0; i < 4; i++)
-            pl__render_chunk(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk->aptChildren[i], ptFile, uGlobalIndex, fViewportWidth);
+            pl__render_chunk_recursive(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk->aptChildren[i], ptFile, uGlobalIndex, ptFrustum, fK);
     }
 }
 
-// same traversal as pl__render_chunk() but for an orthographic shadow camera
+// same traversal as pl__render_chunk_recursive() but for an orthographic shadow camera
 // (constant screen-space scale) & depth only
 static void
-pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera,
+pl__render_chunk_shadow_recursive(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera,
     plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex,
-    float fShadowViewportWidth, float fShadowViewportHeight)
+    const plFrustum* ptFrustum, float fPixelsPerWorldUnit)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -800,13 +792,8 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
         .tMax = ptChunk->tMaxBound
     };
 
-    plFrustum tFrustum = {0};
-    if(ptCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
-        pl__camera_build_perspective_frustum(ptCamera, &tFrustum);
-    else
-        pl__camera_build_orthographic_frustum(ptCamera, &tFrustum);
 
-    if(!gptGjk->pen(pl_gjk_support_aabb, &tAABB, pl_gjk_support_frustum, &tFrustum, NULL))
+    if(!gptGjk->pen(pl_gjk_support_aabb, &tAABB, pl_gjk_support_frustum, ptFrustum, NULL))
         return;
 
     pl__request_residency(ptTerrain, ptChunk);
@@ -819,15 +806,6 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
     // Geometric error is measured in world units.
     float fGeometricError = ptFile->fMaxBaseError * (float)ptChunk->uLevel;
 
-    // Orthographic projection has constant screen-space scale.
-    const float fProjectionScaleX = fabsf(ptCamera->tProjMat.col[0].x);
-    const float fProjectionScaleY = fabsf(ptCamera->tProjMat.col[1].y);
-    const float fPixelsPerWorldUnitX = 0.5f * fShadowViewportWidth * fProjectionScaleX;
-    const float fPixelsPerWorldUnitY = 0.5f * fShadowViewportHeight * fProjectionScaleY;
-
-    // Conservative choice: refine according to the axis with the
-    // greatest pixel density.
-    const float fPixelsPerWorldUnit = pl_max(fPixelsPerWorldUnitX, fPixelsPerWorldUnitY);
     const float fRho = fGeometricError * fPixelsPerWorldUnit;
     const float fTauSubdivide = ptTerrainComp->fTau;
     const bool bChildrenResident = pl__all_children_resident(ptChunk);
@@ -861,8 +839,33 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
         for(uint32_t i = 0; i < 4; i++)
         {
             if(ptChunk->aptChildren[i])
-                pl__render_chunk_shadow(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk->aptChildren[i], ptFile,
-                    uGlobalIndex, fShadowViewportWidth, fShadowViewportHeight);
+                pl__render_chunk_shadow_recursive(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk->aptChildren[i], ptFile, uGlobalIndex, ptFrustum, fPixelsPerWorldUnit);
         }
     }
+}
+
+// Reuse camera invariants throughout each terrain root traversal.
+static void
+pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex, float fViewportWidth)
+{
+    plFrustum tFrustum = {0};
+    if(ptCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
+        pl__camera_build_perspective_frustum(ptCamera, &tFrustum);
+    else
+        pl__camera_build_orthographic_frustum(ptCamera, &tFrustum);
+    const float fHorizontalFieldOfView = 2.0f * atanf(tanf(0.5f * ptCamera->fYFov) * ptCamera->fAspectRatio);
+    const float fK = fViewportWidth / (2.0f * tanf(0.5f * fHorizontalFieldOfView));
+    pl__render_chunk_recursive(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk, ptFile, uGlobalIndex, &tFrustum, fK);
+}
+
+static void
+pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, uint32_t uGlobalIndex, float fShadowViewportWidth, float fShadowViewportHeight)
+{
+    plFrustum tFrustum = {0};
+    if(ptCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
+        pl__camera_build_perspective_frustum(ptCamera, &tFrustum);
+    else
+        pl__camera_build_orthographic_frustum(ptCamera, &tFrustum);
+    const float fPixelsPerWorldUnit = pl_maxf(0.5f * fShadowViewportWidth * fabsf(ptCamera->tProjMat.col[0].x), 0.5f * fShadowViewportHeight * fabsf(ptCamera->tProjMat.col[1].y));
+    pl__render_chunk_shadow_recursive(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk, ptFile, uGlobalIndex, &tFrustum, fPixelsPerWorldUnit);
 }
