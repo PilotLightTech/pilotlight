@@ -4331,6 +4331,36 @@ pl__render_view_debug_pass(plView* ptView, const plCamera* ptCamera, const plCam
     gptGfx->return_command_buffer(ptPostCmdBuffer);
 }
 
+// Reject only boxes wholly outside a side plane of the picked pixel's frustum.
+// Homogeneous planes avoid divisions at the eye plane and work with either projection.
+static bool
+pl__renderer_pick_bounds_visible(const plAABB* ptBounds, const plMat4* ptViewProjection, plVec4 tPixelNdc)
+{
+    const plVec4 tRowX = {ptViewProjection->col[0].x, ptViewProjection->col[1].x, ptViewProjection->col[2].x, ptViewProjection->col[3].x};
+    const plVec4 tRowY = {ptViewProjection->col[0].y, ptViewProjection->col[1].y, ptViewProjection->col[2].y, ptViewProjection->col[3].y};
+    const plVec4 tRowW = {ptViewProjection->col[0].w, ptViewProjection->col[1].w, ptViewProjection->col[2].w, ptViewProjection->col[3].w};
+    plVec4 atPlanes[4];
+    for(uint32_t i = 0; i < 4; i++)
+    {
+        atPlanes[0].d[i] = tRowX.d[i] - tPixelNdc.x * tRowW.d[i];
+        atPlanes[1].d[i] = tPixelNdc.z * tRowW.d[i] - tRowX.d[i];
+        atPlanes[2].d[i] = tRowY.d[i] - tPixelNdc.y * tRowW.d[i];
+        atPlanes[3].d[i] = tPixelNdc.w * tRowW.d[i] - tRowY.d[i];
+    }
+    for(uint32_t i = 0; i < 4; i++)
+    {
+        const plVec4 tPlane = atPlanes[i];
+        const plVec3 tSupport = {
+            tPlane.x >= 0.0f ? ptBounds->tMax.x : ptBounds->tMin.x,
+            tPlane.y >= 0.0f ? ptBounds->tMax.y : ptBounds->tMin.y,
+            tPlane.z >= 0.0f ? ptBounds->tMax.z : ptBounds->tMin.z
+        };
+        if(pl_dot_vec3(tPlane.xyz, tSupport) + tPlane.w < -0.0001f)
+            return false;
+    }
+    return true;
+}
+
 static void
 pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBuffer* ptSceneCmdBuffer)
 {
@@ -4430,19 +4460,27 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
     plBindGroupHandle atBindGroups[2] = {tViewBG, ptView->atPickBindGroup[uFrameIdx]};
     gptGfx->bind_graphics_bind_groups(ptSceneCmdBuffer, tPickShader, 0, 2, atBindGroups, 0, NULL);
 
+    // Expand by one pixel for conservative rasterization/rounding at box edges.
+    const plVec4 tPixelNdc = {
+        2.0f * ((float)iPickX - 1.0f) / tDimensions.x - 1.0f,
+        2.0f * ((float)iPickY - 1.0f) / tDimensions.y - 1.0f,
+        2.0f * ((float)iPickX + 2.0f) / tDimensions.x - 1.0f,
+        2.0f * ((float)iPickY + 2.0f) / tDimensions.y - 1.0f
+    };
     const uint32_t uVisibleDrawCount = pl_sb_size(ptScene->sbuVisibleDrawables);
-    *gptData->pdDrawCalls += (double)uVisibleDrawCount;
+
     
     for(uint32_t i = 0; i < uVisibleDrawCount; i++)
     {
         plDrawable* ptDrawable = &ptScene->sbtDrawables[ptScene->sbuVisibleDrawables[i]];
         plDrawableResources* ptDrawableResources = &ptScene->sbtDrawableResources[ptScene->sbuVisibleDrawables[i]];
 
-        // base draw
+        plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->tEntity);
+        // A missed base object must not suppress its individually positioned instances.
+        if(pl__renderer_pick_bounds_visible(&ptObject->tAABB, &ptView->tViewData.tCameraViewProjection[0], tPixelNdc))
         {
             uint32_t uId = ptDrawableResources->tEntity.uIndex;
             
-            plObjectComponent* ptObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->tEntity);
             plTransformComponent* ptTransform = gptEcs->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
             
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynPick));
@@ -4465,12 +4503,15 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
                 .uInstanceCount = 1
             };
             gptGfx->draw_indexed(ptSceneCmdBuffer, 1, &tDraw);
+            *gptData->pdDrawCalls += 1.0;
         }
 
         // instance draw
         for(uint32_t uInstanceIndex = 0; uInstanceIndex < pl_sb_size(ptDrawableResources->sbtEntities); uInstanceIndex++)
         {
             plObjectComponent* ptInstanceObject = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawableResources->sbtEntities[uInstanceIndex]);
+            if(!pl__renderer_pick_bounds_visible(&ptInstanceObject->tAABB, &ptView->tViewData.tCameraViewProjection[0], tPixelNdc))
+                continue;
             plTransformComponent* ptTransform = gptEcs->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptInstanceObject->tTransform);
             
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynPick));
@@ -4490,8 +4531,8 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
                 .uInstanceCount = 1
             };
             gptGfx->draw_indexed(ptSceneCmdBuffer, 1, &tDraw);
+            *gptData->pdDrawCalls += 1.0;
         }
-
 
     }
     gptGfx->end_render_pass(ptSceneCmdBuffer);
