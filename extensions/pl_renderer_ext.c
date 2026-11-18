@@ -828,7 +828,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
 
     gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tMaterialDataBuffer);
     
-    for(uint32_t i = 0; i < 7; i++)
+    for(uint32_t i = 0; i < 6; i++)
     {
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atFilterWorkingBuffers[i]);
     }

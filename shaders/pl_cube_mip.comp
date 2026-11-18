@@ -1,0 +1,41 @@
+#version 450
+#extension GL_GOOGLE_include_directive : enable
+#include "pl_shader_interop.h"
+#include "pl_shader_interop_renderer.h"
+
+layout(set = 0, binding = 0) uniform sampler pointSampler;
+layout(set = 0, binding = 1) uniform texture2DArray sourceTexture;
+layout(std430, set = 1, binding = 0) buffer Face0 { uvec2 pixels[]; } face0;
+layout(std430, set = 1, binding = 1) buffer Face1 { uvec2 pixels[]; } face1;
+layout(std430, set = 1, binding = 2) buffer Face2 { uvec2 pixels[]; } face2;
+layout(std430, set = 1, binding = 3) buffer Face3 { uvec2 pixels[]; } face3;
+layout(std430, set = 1, binding = 4) buffer Face4 { uvec2 pixels[]; } face4;
+layout(std430, set = 1, binding = 5) buffer Face5 { uvec2 pixels[]; } face5;
+
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA { plGpuDynFilterSpec tData; } tDynamic;
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+void main()
+{
+    ivec3 p = ivec3(gl_GlobalInvocationID);
+    int width = tDynamic.tData.iWidth;
+    if(p.x >= width || p.y >= width)
+        return;
+    int mip = tDynamic.tData.iCurrentMipLevel;
+    ivec2 size = textureSize(sampler2DArray(sourceTexture, pointSampler), mip).xy;
+    ivec2 lo = p.xy * 2;
+    ivec2 hi = min(lo + 1, size - 1);
+    vec4 c00 = texelFetch(sampler2DArray(sourceTexture, pointSampler), ivec3(lo, p.z), mip);
+    vec4 c10 = texelFetch(sampler2DArray(sourceTexture, pointSampler), ivec3(hi.x, lo.y, p.z), mip);
+    vec4 c01 = texelFetch(sampler2DArray(sourceTexture, pointSampler), ivec3(lo.x, hi.y, p.z), mip);
+    vec4 c11 = texelFetch(sampler2DArray(sourceTexture, pointSampler), ivec3(hi, p.z), mip);
+    vec4 color = (c00 + c10 + c01 + c11) * 0.25;
+    uvec2 packed = uvec2(packHalf2x16(color.xy), packHalf2x16(color.zw));
+    int index = p.y * width + p.x;
+    if(p.z == 0) face0.pixels[index] = packed;
+    else if(p.z == 1) face1.pixels[index] = packed;
+    else if(p.z == 2) face2.pixels[index] = packed;
+    else if(p.z == 3) face3.pixels[index] = packed;
+    else if(p.z == 4) face4.pixels[index] = packed;
+    else if(p.z == 5) face5.pixels[index] = packed;
+}

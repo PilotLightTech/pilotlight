@@ -10,12 +10,12 @@
 
 layout(set = 0, binding = 0)  uniform sampler tDefaultSampler;
 layout(set = 0, binding = 1) uniform textureCube uCubeMap;
-layout(std140, set = 1, binding = 0) buffer _tBufferOut0{ vec4 atPixelData[]; } tFaceOut0;
-layout(std140, set = 1, binding = 1) buffer _tBufferOut1{ vec4 atPixelData[]; } tFaceOut1;
-layout(std140, set = 1, binding = 2) buffer _tBufferOut2{ vec4 atPixelData[]; } tFaceOut2;
-layout(std140, set = 1, binding = 3) buffer _tBufferOut3{ vec4 atPixelData[]; } tFaceOut3;
-layout(std140, set = 1, binding = 4) buffer _tBufferOut4{ vec4 atPixelData[]; } tFaceOut4;
-layout(std140, set = 1, binding = 5) buffer _tBufferOut5{ vec4 atPixelData[]; } tFaceOut5;
+layout(std430, set = 1, binding = 0) buffer _tBufferOut0{ uvec2 atPixelData[]; } tFaceOut0;
+layout(std430, set = 1, binding = 1) buffer _tBufferOut1{ uvec2 atPixelData[]; } tFaceOut1;
+layout(std430, set = 1, binding = 2) buffer _tBufferOut2{ uvec2 atPixelData[]; } tFaceOut2;
+layout(std430, set = 1, binding = 3) buffer _tBufferOut3{ uvec2 atPixelData[]; } tFaceOut3;
+layout(std430, set = 1, binding = 4) buffer _tBufferOut4{ uvec2 atPixelData[]; } tFaceOut4;
+layout(std430, set = 1, binding = 5) buffer _tBufferOut5{ uvec2 atPixelData[]; } tFaceOut5;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -113,7 +113,9 @@ main()
     }
 
 
-    const vec4 tColorOut = vec4(tColor.rgb, 1.0);
+    // Pack explicitly to match RGBA16F copies without requiring shaderFloat16.
+    const vec4 tHalfColor = clamp(vec4(tColor.rgb, 1.0), vec4(-65504.0), vec4(65504.0));
+    const uvec2 tColorOut = uvec2(packHalf2x16(tHalfColor.xy), packHalf2x16(tHalfColor.zw));
 
     if (iFace == 0)
         tFaceOut0.atPixelData[iCurrentPixel] = tColorOut;

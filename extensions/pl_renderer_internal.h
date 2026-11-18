@@ -639,7 +639,7 @@ typedef struct _plScene
     plBufferHandle atPointLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atSpotLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle tGPUProbeDataBuffers;
-    plBufferHandle atFilterWorkingBuffers[7]; // used for runtime filtering
+    plBufferHandle atFilterWorkingBuffers[6]; // used for runtime filtering
     plBufferHandle tIndexBuffer;
     plBufferHandle tVertexBuffer;
     plBufferHandle tStorageBuffer;
@@ -796,9 +796,6 @@ typedef struct _plRendererData
     plEcsTypeKey tDecalComponentType;
     plEcsTypeKey tEnvironmentComponentType;
     plEcsTypeKey tRendererComponentType;
-
-    // misc
-    plBufferHandle tReadbackBuffer;
 
     // debug tools
     bool bShowTools;

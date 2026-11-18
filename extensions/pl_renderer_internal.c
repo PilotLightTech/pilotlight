@@ -3083,7 +3083,8 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
 
     plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptProbe->tRawOutputTexture);
     const int iResolution = (int)(ptTexture->tDesc.tDimensions.x);
-    const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
+    const size_t uFilterWidth = pl_max((size_t)32, (size_t)iResolution);
+    const size_t uFaceSize = uFilterWidth * uFilterWidth * 4 * sizeof(uint16_t);
 
     // Step 0 builds source mips; then filter six diffuse faces, followed by
     // one GGX/sheen face per mip per turn. Initial creation still fills everything.
@@ -3094,133 +3095,6 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
     const uint32_t uSpecularStart = 7;
     const uint32_t uSheenStart = uSpecularStart + 6 * uMipCount;
     const uint32_t uSheenMips = (ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) ? gptGfx->get_texture(ptDevice, ptProbe->tSheenEnvTexture)->tDesc.uMips : 0;
-
-    // Keep the existing seam-aware CPU mip generation, in its own scheduled turn.
-    if(!bIncremental || uStep == 0)
-    {
-        // CPU path: read back, build seam-aware mips with gptImageOps, upload.
-        #if 1
-
-        gptStarter->get_readback_buffer(128000000, &gptData->tReadbackBuffer, "env readback");
-
-        plBuffer* ptReadbackBuffer = gptGfx->get_buffer(ptDevice, gptData->tReadbackBuffer);
-
-        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "map to cube env");
-        gptGfx->begin_command_recording(ptCommandBuffer);
-        gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
-
-        plBufferImageCopy tRegion = {
-            .uImageWidth = (uint32_t)iResolution,
-            .uImageHeight = (uint32_t)iResolution,
-            .uImageDepth = 1,
-            .uMipLevel = 0,
-            .uLayerCount = 6,
-            .szBufferOffset = 0
-        };
-        gptGfx->copy_texture_to_buffer(ptCommandBuffer, ptProbe->tRawOutputTexture, gptData->tReadbackBuffer, 1, &tRegion);
-
-        gptGfx->end_compute_pass(ptCommandBuffer);
-        gptGfx->end_command_recording(ptCommandBuffer);
-        const plSubmitInfo tSubmitInfo33 = {
-            .uWaitSemaphoreCount     = 1,
-            .atWaitSemaphores        = {ptSemaphore},
-            .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
-            .uSignalSemaphoreCount   = 1,
-            .atSignalSemaphores      = {ptSemaphore},
-            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-        };
-        gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo33);
-        gptGfx->wait_on_command_buffer(ptCommandBuffer);
-        gptGfx->return_command_buffer(ptCommandBuffer);
-
-        plMipMapCpuDesc tMipDesc = {
-            .pData        = ptReadbackBuffer->tMemoryAllocation.pHostMapped,
-            .uWidth       = tRegion.uImageWidth,
-            .uHeight      = tRegion.uImageHeight,
-            .uLayers      = 6,
-            .eFormat      = PL_FORMAT_R16G16B16A16_FLOAT,
-            .tTextureType = PL_TEXTURE_TYPE_CUBE,
-            // .tFilter      = PL_MIPMAP_FILTER_BOX,
-            // .tColorSpace  = PL_MIPMAP_COLOR_SPACE_LINEAR,
-            // .tContentType = PL_MIPMAP_CONTENT_COLOR,
-            .uMipCount    = ptTexture->tDesc.uMips
-        };
-
-        plMipMapChain tChain = {0};
-        gptImageOps->generate_mip_chain(&tMipDesc, &tChain);
-
-        ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "map to cube env");
-        gptGfx->begin_command_recording(ptCommandBuffer);
-        gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
-
-        size_t uStageOffset = tChain.atLevels[0].szFaceStride * 6;
-        for(uint32_t i = 1; i < tChain.uMipCount; i++)
-        {
-            // copy memory to mapped staging buffer
-            memcpy(&ptReadbackBuffer->tMemoryAllocation.pHostMapped[uStageOffset], tChain.atLevels[i].pData, tChain.atLevels[i].szFaceStride * 6);
-            
-
-            const plBufferImageCopy tBufferImageCopy = {
-                .uImageWidth    = tChain.atLevels[i].uWidth,
-                .uImageHeight   = tChain.atLevels[i].uHeight,
-                .uImageDepth    = 1,
-                .uLayerCount    = 6,
-                .szBufferOffset = uStageOffset,
-                .uMipLevel = i,
-            };
-            uStageOffset += tChain.atLevels[i].szFaceStride * 6;
-
-            gptGfx->copy_buffer_to_texture(ptCommandBuffer, gptData->tReadbackBuffer, ptProbe->tRawOutputTexture, 1, &tBufferImageCopy);
-        }
-
-        gptGfx->end_compute_pass(ptCommandBuffer);
-        gptGfx->end_command_recording(ptCommandBuffer);
-        const plSubmitInfo tSubmitInfo = {
-            .uWaitSemaphoreCount     = 1,
-            .atWaitSemaphores        = {ptSemaphore},
-            .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
-            .uSignalSemaphoreCount   = 1,
-            .atSignalSemaphores      = {ptSemaphore},
-            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-        };
-        gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
-        gptGfx->wait_on_command_buffer(ptCommandBuffer);
-        gptGfx->return_command_buffer(ptCommandBuffer);
-
-        gptImageOps->free_mip_chain(&tChain);
-
-        #else
-
-        // GPU path: one generate_mipmaps() call instead of the CPU readback
-        // round trip. Disabled because Metal 4's mip generation produces wrong
-        // values for this RGBA16F cube (they differ from Metal 3's); revisit
-        // once Apple fixes it.
-        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "map to cube env");
-        gptGfx->begin_command_recording(ptCommandBuffer);
-        gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
-        gptGfx->generate_mipmaps(ptCommandBuffer, ptProbe->tRawOutputTexture);
-        gptGfx->end_compute_pass(ptCommandBuffer);
-        gptGfx->end_command_recording(ptCommandBuffer);
-        const plSubmitInfo tSubmitInfo = {
-            .uWaitSemaphoreCount   = 1,
-            .atWaitSemaphores      = {ptSemaphore},
-            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-            .uSignalSemaphoreCount   = 1,
-            .atSignalSemaphores      = {ptSemaphore},
-            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-        };
-        gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
-        gptGfx->return_command_buffer(ptCommandBuffer);
-        #endif
-    }
-
-    if(bIncremental && uStep == 0)
-    {
-        ptProbe->uFilterStep++;
-        PL_PROFILE_END_SAMPLE(gptProfile, 0);
-        return;
-    }
-
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~common bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -3272,6 +3146,104 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
     gptGfx->update_bind_group(ptDevice, tCubeFilterBGSet1, &tCubeFilterBGSet1Data);
     gptGfx->queue_bind_group_for_deletion(ptDevice, tCubeFilterBGSet1);
 
+    // Match the CPU per-face box filter without readback or native mip generation.
+    // Metal 4's native RGBA16F cube mip generation has produced incorrect values.
+    if(!bIncremental || uStep == 0)
+    {
+        const plTextureViewDesc tSourceDesc = {
+            .tTexture    = ptProbe->tRawOutputTexture,
+            .eFormat     = PL_FORMAT_R16G16B16A16_FLOAT,
+            .eType       = PL_TEXTURE_TYPE_2D_ARRAY,
+            .pcDebugName = "probe mip source",
+            .uMips       = ptTexture->tDesc.uMips,
+            .uLayerCount = 6
+        };
+        const uint32_t uSourceMipCount = ptTexture->tDesc.uMips;
+        plTextureHandle tSource = gptGfx->create_texture_view(ptDevice, &tSourceDesc);
+        plBindGroupHandle tMipBG = gptGfx->create_bind_group(ptDevice, &tCubeFilterBGSet0Desc);
+        const plBindGroupUpdateData tMipBGData = {
+            .atSamplerBindings = {
+                {.uSlot = 0, .tSampler = gptData->tSamplerNearestClamp}
+            },
+            .atTextureBindings = {
+                {.uSlot = 1, .tTexture = tSource, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+            }
+        };
+        gptGfx->update_bind_group(ptDevice, tMipBG, &tMipBGData);
+        gptGfx->queue_bind_group_for_deletion(ptDevice, tMipBG);
+        gptGfx->queue_texture_for_deletion(ptDevice, tSource);
+        plBindGroupHandle atMipBGs[] = {tMipBG, tCubeFilterBGSet1};
+        plComputeShaderHandle tMipShader = gptShaderLibrary->get_compute_shader(ptScene->ptShaderLibrary, "cube_mip", NULL);
+        plCommandBuffer* ptCmd = gptGfx->request_command_buffer(ptCmdPool, "probe mip chain");
+        gptGfx->begin_command_recording(ptCmd);
+        for(uint32_t uMip = 1; uMip < uSourceMipCount; uMip++)
+        {
+            const uint32_t uWidth = pl_max(1u, (uint32_t)iResolution >> uMip);
+            plPassResources tResources = {
+                .atTextures = {
+                    {.tHandle = tSource, .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_READ, .eUsage = PL_TEXTURE_USAGE_SAMPLED}
+                }
+            };
+            for(uint32_t uFace = 0; uFace < 6; uFace++)
+            {
+                tResources.atBuffers[uFace] = (plPassBufferResource){
+                    .tHandle = ptScene->atFilterWorkingBuffers[uFace],
+                    .eStages = PL_SHADER_STAGE_COMPUTE,
+                    .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE,
+                    .eUsage  = PL_BUFFER_USAGE_STORAGE
+                };
+            }
+            gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_COMPUTE, PL_BARRIER_SCOPE_ALL);
+            gptGfx->begin_compute_pass(ptCmd, &tResources);
+            plDynamicBinding tDynamic = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynFilterSpec));
+            *(plGpuDynFilterSpec*)tDynamic.pcData = (plGpuDynFilterSpec){.iWidth = (int)uWidth, .iCurrentMipLevel = (int)uMip - 1};
+            gptGfx->bind_compute_shader(ptCmd, tMipShader);
+            gptGfx->bind_compute_bind_groups(ptCmd, tMipShader, 0, 2, atMipBGs, 1, &tDynamic);
+            const plDispatch tDispatch = {
+                .uGroupCountX     = (uWidth + 7) / 8,
+                .uGroupCountY     = (uWidth + 7) / 8,
+                .uGroupCountZ     = 6,
+                .uThreadPerGroupX = 8,
+                .uThreadPerGroupY = 8,
+                .uThreadPerGroupZ = 1
+            };
+            gptGfx->dispatch(ptCmd, 1, &tDispatch);
+            gptGfx->producer_barrier(ptCmd, PL_PIPELINE_STAGE_COMPUTE, PL_PIPELINE_STAGE_BLIT, PL_BARRIER_SCOPE_BUFFERS);
+            gptGfx->end_compute_pass(ptCmd);
+            gptGfx->begin_compute_pass(ptCmd, NULL);
+            for(uint32_t uFace = 0; uFace < 6; uFace++)
+            {
+                const plBufferImageCopy tCopy = {
+                    .uImageWidth     = uWidth,
+                    .uImageHeight    = uWidth,
+                    .uImageDepth     = 1,
+                    .uLayerCount     = 1,
+                    .uBaseArrayLayer = uFace,
+                    .uMipLevel       = uMip
+                };
+                gptGfx->copy_buffer_to_texture(ptCmd, ptScene->atFilterWorkingBuffers[uFace], ptProbe->tRawOutputTexture, 1, &tCopy);
+            }
+            gptGfx->end_compute_pass(ptCmd);
+        }
+        gptGfx->end_command_recording(ptCmd);
+        const plSubmitInfo tSubmit = {
+            .uWaitSemaphoreCount     = 1,
+            .atWaitSemaphores        = {ptSemaphore},
+            .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+            .uSignalSemaphoreCount   = 1,
+            .atSignalSemaphores      = {ptSemaphore},
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+        };
+        gptGfx->submit_command_buffer(ptCmd, &tSubmit);
+        gptGfx->return_command_buffer(ptCmd);
+        if(bIncremental)
+        {
+            ptProbe->uFilterStep++;
+            PL_PROFILE_END_SAMPLE(gptProfile, 0);
+            return;
+        }
+    }
+
     // brdf lut
     
     plBindGroupHandle atFullBindGroupHandles[2] = {tCubeFilterBGSet0, tCubeFilterBGSet1};
@@ -3279,9 +3251,10 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
     if(!bIncremental || uStep < uSpecularStart)
     {
 
+        const int iDiffuseResolution = (int)gptGfx->get_texture(ptDevice, ptProbe->tLambertianEnvTexture)->tDesc.tDimensions.x;
         const plDispatch tDispach = {
-            .uGroupCountX     = (uint32_t)iResolution / 16,
-            .uGroupCountY     = (uint32_t)iResolution / 16,
+            .uGroupCountX     = (uint32_t)iDiffuseResolution / 16,
+            .uGroupCountY     = (uint32_t)iDiffuseResolution / 16,
             .uGroupCountZ     = (uFaceCount + 1) / 2,
             .uThreadPerGroupX = 16,
             .uThreadPerGroupY = 16,
@@ -3300,7 +3273,6 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
                 { .tHandle = ptScene->atFilterWorkingBuffers[3], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
                 { .tHandle = ptScene->atFilterWorkingBuffers[4], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
                 { .tHandle = ptScene->atFilterWorkingBuffers[5], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
-                { .tHandle = ptScene->atFilterWorkingBuffers[6], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE }
             }
         };
 
@@ -3309,7 +3281,7 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         ptDynamicData->iResolution = iResolution;
         ptDynamicData->fRoughness = 0.0f;
         ptDynamicData->iSampleCount = (int)uSampleCount;
-        ptDynamicData->iWidth = iResolution;
+        ptDynamicData->iWidth = iDiffuseResolution;
         ptDynamicData->fLodBias = 0.0f;
         ptDynamicData->iCurrentMipLevel = 0;
         ptDynamicData->iFaceOffset = (int)uFaceStart;
@@ -3343,8 +3315,8 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
         for(uint32_t i = uFaceStart; i < uFaceStart + uFaceCount; i++)
         {
             const plBufferImageCopy tBufferImageCopy = {
-                .uImageWidth = iResolution,
-                .uImageHeight = iResolution,
+                .uImageWidth = iDiffuseResolution,
+                .uImageHeight = iDiffuseResolution,
                 .uImageDepth = 1,
                 .uLayerCount    = 1,
                 .szBufferOffset = 0,
@@ -3379,7 +3351,6 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
                 { .tHandle = ptScene->atFilterWorkingBuffers[3], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
                 { .tHandle = ptScene->atFilterWorkingBuffers[4], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
                 { .tHandle = ptScene->atFilterWorkingBuffers[5], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
-                { .tHandle = ptScene->atFilterWorkingBuffers[6], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE }
             }
         };
 
@@ -3479,7 +3450,6 @@ pl__renderer_probe_create_environment_map(plScene* ptScene, plEnvironmentProbeDa
                 { .tHandle = ptScene->atFilterWorkingBuffers[3], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
                 { .tHandle = ptScene->atFilterWorkingBuffers[4], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
                 { .tHandle = ptScene->atFilterWorkingBuffers[5], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE },
-                { .tHandle = ptScene->atFilterWorkingBuffers[6], .eStages = PL_SHADER_STAGE_COMPUTE, .eAccess = PL_PASS_RESOURCE_ACCESS_WRITE, .eUsage = PL_BUFFER_USAGE_STORAGE }
             }
         };
 
@@ -6109,7 +6079,7 @@ pl__renderer_probe_update_all(plScene* ptScene)
             PL_LOG_INFO(gptLog, gptData->uLogChannel, "creating required sheen env texture");
             const plTextureDesc tTextureDesc = {
                 .tDimensions = {ptProbe->tTargetSize.x, ptProbe->tTargetSize.y, 1},
-                .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+                .eFormat     = PL_FORMAT_R16G16B16A16_FLOAT,
                 .uLayers     = 6,
                 .uMips       = (uint32_t)floorf(log2f(ptProbe->tTargetSize.x)) - 3, // guarantee final dispatch during filtering is 16 threads
                 .eType       = PL_TEXTURE_TYPE_CUBE,
@@ -7677,6 +7647,18 @@ pl__renderer_scene_create_compute_shaders(plScene* ptScene)
 
     {
         plComputeShaderDesc tDesc = {
+            .pcDebugName = "cube_mip",
+            .tShader = gptShader->load_glsl("pl_cube_mip.comp", "main", NULL, NULL),
+            .atBindGroupLayouts = {
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "cube_filter_set_0"))->tDesc,
+                gptGfx->get_bind_group_layout(ptDevice, gptShaderLibrary->get_bind_group_layout(ptScene->ptShaderLibrary, "cube_filter_set_1"))->tDesc
+            }
+        };
+        gptShaderLibrary->register_compute_shader(ptScene->ptShaderLibrary, "cube_mip", &tDesc);
+    }
+
+    {
+        plComputeShaderDesc tDesc = {
             .pcDebugName = "cube_filter_diffuse",
             .tShader = gptShader->load_glsl("pl_cube_filter_diffuse.comp", "main", NULL, NULL),
             .atBindGroupLayouts = {
@@ -8841,10 +8823,10 @@ pl__renderer_scene_create_buffers(plScene* ptScene)
         
     }
 
-    // pre-create working buffers for environment filtering, later we should defer this
-    for(uint32_t i = 0; i < 7; i++)
+    // Packed RGBA16F probe output; buffer zero also serves the RGBA32F BRDF LUT.
+    for(uint32_t i = 0; i < 6; i++)
     {
-        const size_t uMaxFaceSize = ((size_t)1024 * (size_t)1024) * 4 * sizeof(float);
+        const size_t uMaxFaceSize = ((size_t)1024 * (size_t)1024) * 4 * (i == 0 ? sizeof(float) : sizeof(uint16_t));
 
         const plBufferDesc tInputBufferDesc = {
             .eUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER,
@@ -9129,7 +9111,7 @@ pl__renderer_view_create_textures(plView* ptView)
     gptStarter->create_texture(&tAOMetalRoughnessTextureDesc, NULL, 0, &ptView->tAOMetalRoughnessTexture);
     const plTextureDesc tAOResultDesc = {
         .tDimensions = tNewDimensions,
-        .eFormat     = PL_FORMAT_R32_FLOAT,
+        .eFormat     = PL_FORMAT_R16_FLOAT,
         .uLayers     = 1,
         .uMips       = 1,
         .eType       = PL_TEXTURE_TYPE_2D,
@@ -9529,8 +9511,8 @@ pl__renderer_probe_create_textures(plScene* ptScene, plEnvironmentProbeData* ptP
     gptStarter->create_texture(&tRawOutputTextureCubeDesc, NULL, 0, &ptProbeData->tRawOutputTexture);
 
     const plTextureDesc tSpecularTextureDesc = {
-        .tDimensions = {ptProbeData->tTargetSize.x, ptProbeData->tTargetSize.y, 1},
-        .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+        .tDimensions = {32, 32, 1},
+        .eFormat     = PL_FORMAT_R16G16B16A16_FLOAT,
         .uLayers     = 6,
         .uMips       = 1,
         .eType       = PL_TEXTURE_TYPE_CUBE,
@@ -9542,7 +9524,7 @@ pl__renderer_probe_create_textures(plScene* ptScene, plEnvironmentProbeData* ptP
 
     const plTextureDesc tTextureDesc = {
         .tDimensions = {ptProbeData->tTargetSize.x, ptProbeData->tTargetSize.y, 1},
-        .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+        .eFormat     = PL_FORMAT_R16G16B16A16_FLOAT,
         .uLayers     = 6,
         .uMips       = (uint32_t)floorf(log2f(ptProbeData->tTargetSize.x)) - 3, // guarantee final dispatch during filtering is 16 threads
         .eType       = PL_TEXTURE_TYPE_CUBE,
