@@ -1634,7 +1634,7 @@ pl_graphics_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptV
     else if (ptNewTexture->tDesc.eType == PL_TEXTURE_TYPE_3D)
         tImageViewType = VK_IMAGE_VIEW_TYPE_3D;
     else if (ptNewTexture->tDesc.eType == PL_TEXTURE_TYPE_2D_ARRAY)
-        tImageViewType = VK_IMAGE_VIEW_TYPE_2D; // VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     else
     {
         PL_ASSERT(false && "unsupported texture type");
@@ -2264,15 +2264,16 @@ pl__graphics_change_texture_role(plCommandBuffer* ptCmdBuffer, plTextureHandle t
     if(tOldRole == PL_TEXTURE_USAGE_INPUT_ATTACHMENT && tOldAccess == PL_PASS_RESOURCE_ACCESS_READ)
     {
         tBarrier.oldLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ;
+        // Input reads do not eliminate the writes performed by attachment storeOp.
         if(bDepthStencil)
         {
-            tBarrier.srcAccessMask |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            tBarrier.srcAccessMask |= VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
             tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
         }
         else
         {
-            tBarrier.srcAccessMask |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
-            tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+            tBarrier.srcAccessMask |= VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+            tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
         }
         bPreviousConfigValid = true;
     }
