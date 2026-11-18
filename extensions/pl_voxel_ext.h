@@ -41,6 +41,8 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 #include "pl.inc"
+#include "pl_ecs_ext.inl"
+#include "pl_asset_ext.inl"
 #include "pl_math.h"
 #include <stdbool.h> // bool
 #include <stdint.h>  // uint*_t
@@ -51,9 +53,11 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plVoxelGrid   plVoxelGrid;
-typedef struct _plVoxelCoord  plVoxelCoord;
-typedef struct _plVoxelRayHit plVoxelRayHit;
+typedef struct _plVoxelGrid              plVoxelGrid;
+typedef struct _plVoxelCoord             plVoxelCoord;
+typedef struct _plVoxelRayHit            plVoxelRayHit;
+typedef struct _plVoxelVolumeComponent   plVoxelVolumeComponent;
+typedef struct _plVoxelGeometryComponent plVoxelGeometryComponent;
 
 // external
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
@@ -73,6 +77,7 @@ PL_API void pl_unload_voxel_ext(plApiRegistryI*, bool reload);
 
 typedef struct _plVoxelI
 {
+    // Floating-point inputs must be finite; NaN/infinity are not validated.
     // Upper bounds round OUT to whole cells. init creates an empty grid.
     // Invalid input/allocation failure preserves the previous grid.
     // Each dimension <= INT_MAX; total cells <= UINT32_MAX; rounded bounds finite.
@@ -98,7 +103,7 @@ typedef struct _plVoxelI
     // Surface voxelization; indexed/nonindexed triangle lists. NULL matrix =
     // identity; otherwise an affine transform is required. Range is clamped;
     // count zero does nothing. Invalid triangles and incomplete tails are skipped.
-    // Returns finite, valid triangles submitted (including off-grid triangles),
+    // Returns valid triangles submitted (including off-grid triangles),
     // saturating at UINT32_MAX. Both helpers ADD occupancy; neither clears it.
     uint32_t (*inject_mesh)(plVoxelGrid*, const plMesh*, const plMat4*, uint32_t firstSubmesh, uint32_t submeshCount);
 
@@ -128,6 +133,24 @@ typedef struct _plVoxelI
     // Optional hitOut is unchanged on miss/invalid input. This is a point ray,
     // not an agent-body sweep; empty cells need not have ground support.
     bool (*raycast)(const plVoxelGrid*, plVec3 start, plVec3 end, plVoxelRayHit* hitOut);
+
+    //----------------------------ASSET INTEGRATION--------------------------------
+
+    void           (*register_asset_types)(void); // before asset finalize; binary .plvoxel
+    plAssetTypeKey (*get_asset_type_key)  (void); // asset data is plVoxelGrid
+    plAssetHandle  (*create_asset)        (const char* path, const plVoxelGrid*); // deep copy
+
+    //----------------------------ECS INTEGRATION----------------------------------
+
+    void               (*register_ecs_components)  (void); // before ECS finalize
+    plEcsTypeKey       (*get_ecs_type_key_volume)  (void);
+    plEcsTypeKey       (*get_ecs_type_key_geometry)(void);
+    bool               (*rebuild_volume)           (plComponentLibrary*, plEntity);
+    void               (*run_update_system)        (plComponentLibrary*);
+    const plVoxelGrid* (*get_volume_grid)          (const plComponentLibrary*, plEntity, uint64_t* revisionOut);
+    // Update transforms first. Builds are synchronous, failure preserves the old
+    // grid. Set bRebuild after geometry/settings changes. Asset reloads are detected.
+    // Grid pointers are borrowed until rebuild/removal; never mutate them directly.
 } plVoxelI;
 
 //-----------------------------------------------------------------------------
@@ -160,6 +183,33 @@ typedef struct _plVoxelRayHit
     plVec3       tPosition;
     double       dFraction; // [0, 1] along start -> end; zero when starting in solid
 } plVoxelRayHit;
+
+typedef struct _plVoxelVolumeComponent
+{
+    plAABB        tBounds;       // world space; volume entity transform is ignored
+    float         fVoxelSize;
+    uint32_t      uLayerMask;
+    bool          bFillInterior;
+    plAssetHandle tAsset;        // optional baked grid; replaces geometry build
+
+    // Runtime only. Owned storage is never shared by cloned components.
+    bool          bRebuild;
+    bool          bBuildFailed;
+    uint64_t      uRevision;
+    plVoxelGrid   _tGrid;
+    plAssetHandle _tLoadedAsset;
+    uint32_t      _uAssetVersion;
+} plVoxelVolumeComponent;
+
+typedef struct _plVoxelGeometryComponent
+{
+    plAssetHandle tMesh;
+    plEntityId    tTransformId; // zero uses this entity's transform (or identity)
+    uint32_t      uFirstSubmesh;
+    uint32_t      uSubmeshCount;
+    uint32_t      uLayerMask;
+    bool          bEnabled;
+} plVoxelGeometryComponent;
 
 #ifdef __cplusplus
 }

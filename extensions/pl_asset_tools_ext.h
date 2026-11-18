@@ -37,6 +37,7 @@ Index of this file:
         * plMemoryI (v1.x)
         * plMeshI (v0.2.x)
         * plPhysicsI (v0.2.x)
+        * plPathI (v1.2.x, optional navigation tools)
         * plRendererI (v0.3.x)
         * plResourceI (v2.x)
         * plScriptI (v0.1.x)
@@ -45,6 +46,7 @@ Index of this file:
         * plTextureI (v0.1.x)
         * plTransformI (v1.x)
         * plUiI (v2.x)
+        * plVoxelI (v1.1.x, optional navigation tools)
 */
 
 //-----------------------------------------------------------------------------
@@ -69,10 +71,7 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 #include "pl.inc"
-#include <stdint.h>
 #include <stdbool.h>
-#include "pl_ecs_ext.inl"
-#include "pl_asset_ext.inl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

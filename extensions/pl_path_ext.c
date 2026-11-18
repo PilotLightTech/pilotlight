@@ -5,10 +5,12 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] ECS data
 // [SECTION] global data
 // [SECTION] structs
 // [SECTION] internal api
 // [SECTION] public api implementation
+// [SECTION] ECS integration
 // [SECTION] extension loading
 */
 
@@ -30,6 +32,9 @@ Index of this file:
 #include "pl_path_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_voxel_ext.h"
+#include "pl_ecs_ext.h"
+#include "pl_json_ext.h"
+#include "pl_platform_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -37,6 +42,9 @@ Index of this file:
     static const plMemoryI* gptMemory = NULL;
     static const plVoxelI*  gptVoxel  = NULL;
     static const plDrawI*   gptDraw   = NULL;
+    static const plEcsI*    gptEcs    = NULL;
+    static const plJsonI*   gptJson   = NULL;
+    static const plTimerI*  gptTimer  = NULL;
 
     #define PL_ALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
     #define PL_FREE(x)  gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
@@ -49,6 +57,28 @@ Index of this file:
 #endif
 
 #include "pl_ds.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] ECS data
+//-----------------------------------------------------------------------------
+
+typedef struct _plPathContext
+{
+    plEcsTypeKey tAgentType;
+    uint64_t    uRequest;
+} plPathContext;
+
+typedef struct _plPathLibraryData
+{
+    plPathQuery tQuery;
+    plVoxelGrid tGrid;
+    plEntity    tAgent;
+    uint64_t    uRequest;
+    uint32_t    uNextAgent;
+    plPathDebugInfo tDebugInfo;
+} plPathLibraryData;
+
+static plPathContext* gptPathCtx = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal enums
@@ -827,6 +857,297 @@ pl__path_expand(plPathQuery* ptQuery, plPathWork* ptWork)
 }
 
 //-----------------------------------------------------------------------------
+// [SECTION] ECS integration
+//-----------------------------------------------------------------------------
+
+static void
+pl__path_agent_clear(plPathAgentComponent* ptAgent, plPathStatus tStatus)
+{
+    if(ptAgent->atWaypoints)
+        PL_FREE(ptAgent->atWaypoints);
+    ptAgent->atWaypoints = NULL;
+    ptAgent->uWaypointCount = 0;
+    ptAgent->fLength = 0;
+    ptAgent->uVolumeRevision = 0;
+    ptAgent->_uRequest = 0;
+    ptAgent->tStatus = tStatus;
+}
+
+static void
+pl__path_agent_destroy(void* pData, const plComponentLibrary* ptLibrary)
+{
+    pl__path_agent_clear(pData, PL_PATH_STATUS_NONE);
+}
+
+static void
+pl__path_agent_clone(const void* pSource, plComponentLibrary* ptSourceLibrary, void* pDest, plComponentLibrary* ptDestLibrary)
+{
+    const plPathAgentComponent* ptSource = pSource;
+    *(plPathAgentComponent*)pDest = (plPathAgentComponent){
+        .tVolumeId = ptSource->tVolumeId,
+        .tSettings = ptSource->tSettings
+    };
+}
+
+static void
+pl__path_agent_resolve(plComponentLibrary* ptLibrary, plEntityId tId, plHashMap64* ptMap, void* pData)
+{
+    plPathAgentComponent* ptAgent = pData;
+    if(ptMap && ptAgent->tVolumeId)
+    {
+        uint64_t uMapped = pl_hm_lookup(ptMap, ptAgent->tVolumeId);
+        if(uMapped != UINT64_MAX)
+            ptAgent->tVolumeId = uMapped;
+    }
+}
+
+static void
+pl__path_agent_serialize(void* pData, const plComponentLibrary* ptLibrary, plEntityId tId, plJsonObject* ptJson)
+{
+    const plPathAgentComponent* ptAgent = pData;
+    const plPathSettings* ptSettings = &ptAgent->tSettings;
+    gptJson->add_uint64_member(ptJson, "volume", ptAgent->tVolumeId);
+    gptJson->add_bool_member(ptJson, "flying", ptSettings->bFlying);
+    gptJson->add_bool_member(ptJson, "simplify", ptSettings->bSimplify);
+    gptJson->add_bool_member(ptJson, "diagonal", ptSettings->bAllowDiagonal);
+    gptJson->add_int_member(ptJson, "height", ptSettings->iAgentHeight);
+    gptJson->add_int_member(ptJson, "radius", ptSettings->iAgentRadius);
+    gptJson->add_int_member(ptJson, "max_step", ptSettings->iMaxStep);
+    gptJson->add_int_member(ptJson, "snap_radius", ptSettings->iSnapRadius);
+    gptJson->add_uint32_member(ptJson, "max_nodes", ptSettings->uMaxNodes);
+    gptJson->add_int_member(ptJson, "ground_support", ptSettings->tGroundSupport);
+}
+
+static bool
+pl__path_agent_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tId, void* pData)
+{
+    plPathAgentComponent* ptAgent = pData;
+    pl__path_agent_clear(ptAgent, PL_PATH_STATUS_NONE);
+    plPathSettings* ptSettings = &ptAgent->tSettings;
+    ptAgent->tVolumeId = gptJson->uint64_member(ptJson, "volume", 0);
+    ptSettings->bFlying = gptJson->bool_member(ptJson, "flying", ptSettings->bFlying);
+    ptSettings->bSimplify = gptJson->bool_member(ptJson, "simplify", ptSettings->bSimplify);
+    ptSettings->bAllowDiagonal = gptJson->bool_member(ptJson, "diagonal", ptSettings->bAllowDiagonal);
+    ptSettings->iAgentHeight = gptJson->int_member(ptJson, "height", ptSettings->iAgentHeight);
+    ptSettings->iAgentRadius = gptJson->int_member(ptJson, "radius", ptSettings->iAgentRadius);
+    ptSettings->iMaxStep = gptJson->int_member(ptJson, "max_step", ptSettings->iMaxStep);
+    ptSettings->iSnapRadius = gptJson->int_member(ptJson, "snap_radius", ptSettings->iSnapRadius);
+    ptSettings->uMaxNodes = gptJson->uint32_member(ptJson, "max_nodes", ptSettings->uMaxNodes);
+    ptSettings->tGroundSupport = gptJson->int_member(ptJson, "ground_support", ptSettings->tGroundSupport);
+    return ptSettings->iAgentHeight >= 1 && ptSettings->iAgentRadius >= 0 && ptSettings->iAgentRadius <= 1024 &&
+        ptSettings->iMaxStep >= 0 && ptSettings->iMaxStep <= 64 && ptSettings->iSnapRadius >= 0 &&
+        ptSettings->iSnapRadius <= 32 && ptSettings->uMaxNodes >= 1 && ptSettings->uMaxNodes <= 1048576 &&
+        (ptSettings->tGroundSupport == PL_PATH_GROUND_SUPPORT_FULL || ptSettings->tGroundSupport == PL_PATH_GROUND_SUPPORT_CENTER);
+}
+
+static void
+pl__path_library_cleanup(void* pData)
+{
+    plPathLibraryData* ptData = pData;
+    pl_path_cleanup(&ptData->tQuery);
+    gptVoxel->cleanup(&ptData->tGrid);
+    PL_FREE(ptData);
+}
+
+void
+pl_path_register_ecs_components(void)
+{
+    const plComponentDesc tDesc = {
+        .pcName      = "path_agent",
+        .szSize      = sizeof(plPathAgentComponent),
+        .serialize   = pl__path_agent_serialize,
+        .deserialize = pl__path_agent_deserialize,
+        .resolve     = pl__path_agent_resolve,
+        .clone       = pl__path_agent_clone,
+        .destroy     = pl__path_agent_destroy
+    };
+    const plPathAgentComponent tDefault = {
+        .tSettings = pl_path_default_settings()
+    };
+    gptPathCtx->tAgentType = gptEcs->register_type(tDesc, &tDefault);
+}
+
+plEcsTypeKey
+pl_path_get_ecs_type_key_agent(void)
+{
+    return gptPathCtx->tAgentType;
+}
+
+void
+pl_path_cancel_request(plComponentLibrary* ptLibrary, plEntity tEntity)
+{
+    plPathAgentComponent* ptAgent = gptEcs->get_component(ptLibrary, gptPathCtx->tAgentType, tEntity);
+    if(ptAgent)
+        pl__path_agent_clear(ptAgent, PL_PATH_STATUS_CANCELLED);
+    plPathLibraryData* ptData = gptEcs->get_library_type_data(ptLibrary, gptPathCtx->tAgentType);
+    if(ptData && ptData->uRequest && ptData->tAgent.uData == tEntity.uData)
+    {
+        pl_path_cancel(&ptData->tQuery);
+        gptVoxel->cleanup(&ptData->tGrid);
+        ptData->uRequest = 0;
+        ptData->tDebugInfo.tStatus = PL_PATH_STATUS_CANCELLED;
+    }
+}
+
+bool
+pl_path_request(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tStart, plVec3 tGoal)
+{
+    plPathAgentComponent* ptAgent = gptEcs->get_component(ptLibrary, gptPathCtx->tAgentType, tEntity);
+    if(!ptAgent)
+        return false;
+    pl_path_cancel_request(ptLibrary, tEntity);
+    const plVoxelGrid* ptGrid = gptVoxel->get_volume_grid(ptLibrary, gptEcs->get_entity_by_id(ptLibrary, ptAgent->tVolumeId), &ptAgent->uVolumeRevision);
+    if(!pl__path_settings_valid(ptGrid, &ptAgent->tSettings))
+    {
+        ptAgent->tStatus = PL_PATH_STATUS_INVALID_INPUT;
+        return false;
+    }
+    ptAgent->_tStart = tStart;
+    ptAgent->_tGoal = tGoal;
+    ptAgent->_tRequestVolumeId = ptAgent->tVolumeId;
+    ptAgent->_uRequest = ++gptPathCtx->uRequest;
+    ptAgent->tStatus = PL_PATH_STATUS_IN_PROGRESS;
+    return true;
+}
+
+static void
+pl__path_run_update_system(plComponentLibrary* ptLibrary, uint32_t uMaxWork)
+{
+    plPathAgentComponent* atAgents = NULL;
+    const plEntity* atEntities = NULL;
+    uint32_t uCount = gptEcs->get_components(ptLibrary, gptPathCtx->tAgentType, (void**)&atAgents, &atEntities);
+    bool bPending = false;
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        plPathAgentComponent* ptAgent = &atAgents[i];
+        if(ptAgent->tStatus != PL_PATH_STATUS_IN_PROGRESS && ptAgent->tStatus != PL_PATH_STATUS_SUCCESS)
+            continue;
+        uint64_t uRevision = 0;
+        const plVoxelGrid* ptGrid = gptVoxel->get_volume_grid(ptLibrary, gptEcs->get_entity_by_id(ptLibrary, ptAgent->tVolumeId), &uRevision);
+        if(!ptGrid || uRevision != ptAgent->uVolumeRevision || ptAgent->tVolumeId != ptAgent->_tRequestVolumeId)
+            pl__path_agent_clear(ptAgent, PL_PATH_STATUS_CANCELLED);
+        if(ptAgent->tStatus == PL_PATH_STATUS_IN_PROGRESS)
+            bPending = true;
+    }
+
+    plPathLibraryData* ptData = gptEcs->get_library_type_data(ptLibrary, gptPathCtx->tAgentType);
+    if(ptData && ptData->uRequest)
+    {
+        plPathAgentComponent* ptAgent = gptEcs->get_component(ptLibrary, gptPathCtx->tAgentType, ptData->tAgent);
+        if(!ptAgent || ptAgent->_uRequest != ptData->uRequest || ptAgent->tStatus != PL_PATH_STATUS_IN_PROGRESS)
+        {
+            pl_path_cancel(&ptData->tQuery);
+            gptVoxel->cleanup(&ptData->tGrid);
+            ptData->uRequest = 0;
+            ptData->tDebugInfo.tStatus = PL_PATH_STATUS_CANCELLED;
+        }
+    }
+    if(!uMaxWork || !bPending)
+        return;
+    if(!ptData)
+    {
+        ptData = PL_ALLOC(sizeof(*ptData));
+        if(!ptData)
+        {
+            for(uint32_t i = 0; i < uCount; i++)
+            {
+                if(atAgents[i].tStatus == PL_PATH_STATUS_IN_PROGRESS)
+                    pl__path_agent_clear(&atAgents[i], PL_PATH_STATUS_OUT_OF_MEMORY);
+            }
+            return;
+        }
+        memset(ptData, 0, sizeof(*ptData));
+        gptEcs->set_library_type_data(ptLibrary, gptPathCtx->tAgentType, ptData, pl__path_library_cleanup);
+    }
+    if(!ptData->uRequest)
+    {
+        for(uint32_t i = 0; i < uCount; i++)
+        {
+            uint32_t uIndex = (ptData->uNextAgent + i) % uCount;
+            plPathAgentComponent* ptAgent = &atAgents[uIndex];
+            if(ptAgent->tStatus != PL_PATH_STATUS_IN_PROGRESS)
+                continue;
+            ptData->uNextAgent = (uIndex + 1) % uCount;
+            ptData->tAgent = atEntities[uIndex];
+            ptData->uRequest = ptAgent->_uRequest;
+            ptData->tDebugInfo = (plPathDebugInfo){.tAgent = ptData->tAgent};
+            const plVoxelGrid* ptGrid = gptVoxel->get_volume_grid(ptLibrary, gptEcs->get_entity_by_id(ptLibrary, ptAgent->tVolumeId), NULL);
+            if(!gptVoxel->copy(&ptData->tGrid, ptGrid))
+            {
+                pl__path_agent_clear(ptAgent, PL_PATH_STATUS_OUT_OF_MEMORY);
+                ptData->uRequest = 0;
+                ptData->tDebugInfo.tStatus = PL_PATH_STATUS_OUT_OF_MEMORY;
+                return;
+            }
+            pl_path_begin(&ptData->tQuery, &ptData->tGrid, ptAgent->_tStart, ptAgent->_tGoal, &ptAgent->tSettings);
+            break;
+        }
+    }
+    plPathStatus tStatus = pl_path_step(&ptData->tQuery, uMaxWork);
+    ptData->tDebugInfo.tStatus = tStatus;
+    ptData->tDebugInfo.uVisitedNodes = ptData->tQuery.uVisitedNodes;
+    ptData->tDebugInfo.uExpandedNodes = ptData->tQuery.uExpandedNodes;
+    if(tStatus == PL_PATH_STATUS_IN_PROGRESS)
+        return;
+    plPathAgentComponent* ptAgent = gptEcs->get_component(ptLibrary, gptPathCtx->tAgentType, ptData->tAgent);
+    ptAgent->tStatus = tStatus;
+    if(tStatus == PL_PATH_STATUS_SUCCESS)
+    {
+        size_t szBytes = sizeof(plVec3) * ptData->tQuery.uWaypointCount;
+        ptAgent->atWaypoints = PL_ALLOC(szBytes);
+        if(!ptAgent->atWaypoints)
+            ptAgent->tStatus = PL_PATH_STATUS_OUT_OF_MEMORY;
+        else
+        {
+            memcpy(ptAgent->atWaypoints, ptData->tQuery.atWaypoints, szBytes);
+            ptAgent->uWaypointCount = ptData->tQuery.uWaypointCount;
+            ptAgent->fLength = ptData->tQuery.fLength;
+        }
+    }
+    ptData->tDebugInfo.tStatus = ptAgent->tStatus;
+    pl_path_cancel(&ptData->tQuery);
+    gptVoxel->cleanup(&ptData->tGrid);
+    ptData->uRequest = 0;
+}
+
+void
+pl_path_run_update_system(plComponentLibrary* ptLibrary, uint32_t uMaxWork)
+{
+    bool bTiming = gptTimer && gptTimer->get_raw_time;
+    double dStart = bTiming ? gptTimer->get_raw_time() : 0;
+    pl__path_run_update_system(ptLibrary, uMaxWork);
+    plPathLibraryData* ptData = gptEcs->get_library_type_data(ptLibrary, gptPathCtx->tAgentType);
+    if(ptData)
+    {
+        ptData->tDebugInfo.bTimingAvailable = bTiming;
+        ptData->tDebugInfo.dLastUpdateMilliseconds = bTiming ? (gptTimer->get_raw_time() - dStart) * 1000.0 : 0;
+    }
+}
+
+plPathDebugInfo
+pl_path_get_debug_info(const plComponentLibrary* ptLibrary)
+{
+    plPathDebugInfo tInfo = {0};
+    if(!ptLibrary)
+        return tInfo;
+    const plPathLibraryData* ptData = gptEcs->get_library_type_data((plComponentLibrary*)ptLibrary, gptPathCtx->tAgentType);
+    if(ptData)
+    {
+        tInfo = ptData->tDebugInfo;
+        const plPathAgentComponent* ptAgent = gptEcs->get_component(ptLibrary, gptPathCtx->tAgentType, ptData->tAgent);
+        tInfo.bActive = ptData->uRequest && ptAgent && ptAgent->_uRequest == ptData->uRequest && ptAgent->tStatus == PL_PATH_STATUS_IN_PROGRESS;
+    }
+    const plPathAgentComponent* atAgents = NULL;
+    uint32_t uCount = gptEcs->get_components(ptLibrary, gptPathCtx->tAgentType, (void**)&atAgents, NULL);
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        if(atAgents[i].tStatus == PL_PATH_STATUS_IN_PROGRESS)
+            tInfo.uPendingCount++;
+    }
+    return tInfo;
+}
+
+//-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
@@ -834,22 +1155,41 @@ PL_EXPORT void
 pl_load_path_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plPathI tApi = {
-        .default_settings       = pl_path_default_settings,
-        .cleanup                = pl_path_cleanup,
-        .process                = pl_path_process,
-        .is_walkable            = pl_path_is_walkable,
-        .status_string          = pl_path_status_string,
-        .debug_draw             = pl_path_debug_draw,
-        .begin                  = pl_path_begin,
-        .step                   = pl_path_step,
-        .cancel                 = pl_path_cancel,
-        .is_segment_traversable = pl_path_is_segment_traversable};
+        .default_settings        = pl_path_default_settings,
+        .cleanup                 = pl_path_cleanup,
+        .process                 = pl_path_process,
+        .is_walkable             = pl_path_is_walkable,
+        .status_string           = pl_path_status_string,
+        .debug_draw              = pl_path_debug_draw,
+        .begin                   = pl_path_begin,
+        .step                    = pl_path_step,
+        .cancel                  = pl_path_cancel,
+        .is_segment_traversable  = pl_path_is_segment_traversable,
+        .register_ecs_components = pl_path_register_ecs_components,
+        .get_ecs_type_key_agent  = pl_path_get_ecs_type_key_agent,
+        .request                 = pl_path_request,
+        .cancel_request          = pl_path_cancel_request,
+        .run_update_system       = pl_path_run_update_system,
+        .get_debug_info          = pl_path_get_debug_info};
 
     pl_set_api(ptApiRegistry,plPathI,&tApi);
 
     gptMemory = pl_get_api_latest(ptApiRegistry,plMemoryI);
     gptVoxel  = pl_get_api_latest(ptApiRegistry,plVoxelI);
     gptDraw   = pl_get_api_latest(ptApiRegistry,plDrawI);
+    gptEcs    = pl_get_api_latest(ptApiRegistry,plEcsI);
+    gptJson   = pl_get_api_latest(ptApiRegistry,plJsonI);
+    gptTimer  = pl_get_api_latest(ptApiRegistry,plTimerI);
+
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+    if(bReload)
+        gptPathCtx = ptDataRegistry->get_data("plPathContext");
+    else
+    {
+        static plPathContext tCtx = {0};
+        gptPathCtx = &tCtx;
+        ptDataRegistry->set_data("plPathContext", gptPathCtx);
+    }
 }
 
 PL_EXPORT void

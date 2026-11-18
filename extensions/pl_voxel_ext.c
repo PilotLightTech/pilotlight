@@ -5,9 +5,12 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] ECS data
 // [SECTION] internal api
 // [SECTION] public api implementation
 // [SECTION] internal api implementation
+// [SECTION] asset integration
+// [SECTION] ECS integration
 // [SECTION] extension loading
 */
 
@@ -33,6 +36,8 @@ Index of this file:
 #include "pl_transform_ext.h"
 #include "pl_renderer_ext.h"
 #include "pl_draw_ext.h"
+#include "pl_json_ext.h"
+#include "pl_vfs_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -43,10 +48,29 @@ Index of this file:
     static const plTransformI* gptTransform = NULL;
     static const plRendererI*  gptRenderer  = NULL;
     static const plDrawI*      gptDraw      = NULL;
+    static const plJsonI*      gptJson      = NULL;
+    static const plVfsI*       gptVfs       = NULL;
+    static const plMeshI*      gptMesh      = NULL;
 
     #define PL_ALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
     #define PL_FREE(x)  gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 #endif
+
+#include "pl_ds.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] ECS data
+//-----------------------------------------------------------------------------
+
+typedef struct _plVoxelContext
+{
+    plEcsTypeKey   tVolumeType;
+    plEcsTypeKey   tGeometryType;
+    plAssetTypeKey tAssetType;
+    uint64_t      uRevision;
+} plVoxelContext;
+
+static plVoxelContext* gptVoxelCtx = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -515,6 +539,7 @@ pl_voxel_voxelize_scene(plVoxelGrid* ptGrid, const plComponentLibrary* ptLibrary
 {
     if(!ptGrid || !ptGrid->_puBits || !ptLibrary)
         return 0;
+
     plObjectComponent* atObjects = NULL;
     uint32_t uCount = gptEcs->get_components(ptLibrary, gptRenderer->get_ecs_type_key_object(), (void**)&atObjects, NULL);
     uint32_t uTriangles = 0;
@@ -682,6 +707,419 @@ pl__voxel_ray_cells(const plVoxelGrid* ptGrid, const double adPoint[3], plVoxelC
 }
 
 //-----------------------------------------------------------------------------
+// [SECTION] asset integration
+//-----------------------------------------------------------------------------
+
+static inline uint32_t
+pl__voxel_read_u32(const uint8_t* puData)
+{
+    return (uint32_t)puData[0] | (uint32_t)puData[1] << 8 | (uint32_t)puData[2] << 16 | (uint32_t)puData[3] << 24;
+}
+
+static inline void
+pl__voxel_write_u32(uint8_t* puData, uint32_t uValue)
+{
+    for(uint32_t i = 0; i < 4; i++)
+        puData[i] = (uint8_t)(uValue >> (8 * i));
+}
+
+static inline void
+pl__voxel_asset_cleanup(void* pData)
+{
+    pl_voxel_cleanup(pData);
+}
+
+static bool
+pl__voxel_asset_serialize(const char* pcPath, const void* pData, plAssetEncoding tEncoding)
+{
+    const plVoxelGrid* ptGrid = pData;
+    if(tEncoding != PL_ASSET_ENCODING_BINARY || !ptGrid || !ptGrid->_puBits)
+        return false;
+
+    // Explicit little-endian fields, IEEE binary32 floats, then 64-bit occupancy
+    // words. No pointers, padding, size_t or compiler-dependent structs on disk.
+    size_t szSize = 40 + ptGrid->szMemory;
+    uint8_t* puData = PL_ALLOC(szSize);
+    if(!puData)
+        return false;
+    pl__voxel_write_u32(puData, PL_ASSET_MAGIC);
+    pl__voxel_write_u32(puData + 4, 1);
+    pl__voxel_write_u32(puData + 8, PL_FOURCC('V', 'O', 'X', 'L'));
+    float afValues[4] = {ptGrid->tMin.x, ptGrid->tMin.y, ptGrid->tMin.z, ptGrid->fVoxelSize};
+    for(uint32_t i = 0; i < 4; i++)
+    {
+        uint32_t uValue;
+        memcpy(&uValue, &afValues[i], sizeof(uValue));
+        pl__voxel_write_u32(puData + 12 + i * 4, uValue);
+    }
+    for(uint32_t i = 0; i < 3; i++)
+        pl__voxel_write_u32(puData + 28 + i * 4, ptGrid->auResolution[i]);
+    for(size_t i = 0; i < ptGrid->szMemory / 8; i++)
+    {
+        uint64_t uWord = ptGrid->_puBits[i];
+        if(i + 1 == ptGrid->szMemory / 8 && (ptGrid->uCellCount & 63))
+            uWord &= (UINT64_C(1) << (ptGrid->uCellCount & 63)) - 1;
+        pl__voxel_write_u32(puData + 40 + i * 8, (uint32_t)uWord);
+        pl__voxel_write_u32(puData + 44 + i * 8, (uint32_t)(uWord >> 32));
+    }
+    plVfsFileHandle tFile = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_WRITE);
+    bool bResult = false;
+    if(gptVfs->is_file_valid(tFile))
+    {
+        bResult = gptVfs->write_file(tFile, puData, szSize) == szSize;
+        gptVfs->close_file(tFile);
+    }
+    PL_FREE(puData);
+    return bResult;
+}
+
+static bool
+pl__voxel_asset_read(plVfsFileHandle tFile, plVoxelGrid* ptGrid)
+{
+    uint8_t auHeader[40];
+    size_t szSize = 0;
+    gptVfs->read_file(tFile, NULL, &szSize);
+    if(szSize < sizeof(auHeader) || gptVfs->read_file_stream(tFile, 1, sizeof(auHeader), auHeader) != sizeof(auHeader))
+        return false;
+    if(pl__voxel_read_u32(auHeader) != PL_ASSET_MAGIC || pl__voxel_read_u32(auHeader + 4) != 1 || pl__voxel_read_u32(auHeader + 8) != PL_FOURCC('V', 'O', 'X', 'L'))
+        return false;
+    float afValues[4] = {0};
+    for(uint32_t i = 0; i < 4; i++)
+    {
+        uint32_t uValue = pl__voxel_read_u32(auHeader + 12 + 4 * i);
+        memcpy(&afValues[i], &uValue, sizeof(uValue));
+    }
+    ptGrid->tMin = (plVec3){afValues[0], afValues[1], afValues[2]};
+    ptGrid->fVoxelSize = afValues[3];
+    if(ptGrid->fVoxelSize <= 0)
+        return false;
+    uint64_t uCells = 1;
+    for(uint32_t i = 0; i < 3; i++)
+    {
+        uint32_t uResolution = pl__voxel_read_u32(auHeader + 28 + i * 4);
+        if(!uResolution || uResolution > INT_MAX || uCells > UINT32_MAX / uResolution)
+            return false;
+        ptGrid->auResolution[i] = uResolution;
+        uCells *= uResolution;
+        double dMax = (double)ptGrid->tMin.d[i] + (double)ptGrid->fVoxelSize * uResolution;
+        if(dMax > FLT_MAX || (float)dMax <= ptGrid->tMin.d[i])
+            return false;
+    }
+    ptGrid->uCellCount = (uint32_t)uCells;
+    ptGrid->szMemory = (size_t)((uCells + 63) / 64) * 8;
+    if(szSize != 40 + ptGrid->szMemory)
+        return false;
+    ptGrid->_puBits = PL_ALLOC(ptGrid->szMemory);
+    if(!ptGrid->_puBits)
+        return false;
+    if(gptVfs->read_file_stream(tFile, 1, ptGrid->szMemory, ptGrid->_puBits) != ptGrid->szMemory)
+        return false;
+    for(size_t i = 0; i < ptGrid->szMemory / 8; i++)
+    {
+        const uint8_t* puWord = (const uint8_t*)&ptGrid->_puBits[i];
+        uint64_t uWord = pl__voxel_read_u32(puWord) | (uint64_t)pl__voxel_read_u32(puWord + 4) << 32;
+        ptGrid->_puBits[i] = uWord;
+    }
+    if(ptGrid->uCellCount & 63)
+        ptGrid->_puBits[ptGrid->szMemory / 8 - 1] &= (UINT64_C(1) << (ptGrid->uCellCount & 63)) - 1;
+    return true;
+}
+
+static bool
+pl__voxel_asset_deserialize(const char* pcPath, void* pData)
+{
+    plVfsFileHandle tFile = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
+    if(!gptVfs->is_file_valid(tFile))
+        return false;
+    plVoxelGrid tGrid = {0};
+    bool bResult = pl__voxel_asset_read(tFile, &tGrid);
+    if(bResult)
+    {
+        pl_voxel_cleanup(pData);
+        *(plVoxelGrid*)pData = tGrid;
+        tGrid = (plVoxelGrid){0};
+    }
+    pl_voxel_cleanup(&tGrid);
+    gptVfs->close_file(tFile);
+    return bResult;
+}
+
+void
+pl_voxel_register_asset_types(void)
+{
+    const plAssetTypeDesc tDesc = {
+        .pcName           = "Voxel",
+        .szSize           = sizeof(plVoxelGrid),
+        .pcFileExtension  = "plvoxel",
+        .eDefaultEncoding = PL_ASSET_ENCODING_BINARY,
+        .cleanup          = pl__voxel_asset_cleanup,
+        .serialize        = pl__voxel_asset_serialize,
+        .deserialize      = pl__voxel_asset_deserialize
+    };
+    gptVoxelCtx->tAssetType = gptAsset->register_type(tDesc);
+}
+
+plAssetTypeKey
+pl_voxel_get_asset_type_key(void)
+{
+    return gptVoxelCtx->tAssetType;
+}
+
+plAssetHandle
+pl_voxel_create_asset(const char* pcPath, const plVoxelGrid* ptGrid)
+{
+    if(!pcPath || !pcPath[0] || gptAsset->is_valid(gptAsset->find(pcPath)))
+        return (plAssetHandle){0};
+    plVoxelGrid tCopy = {0};
+    if(!pl_voxel_copy(&tCopy, ptGrid))
+        return (plAssetHandle){0};
+    const plAssetDesc tDesc = {.tType = gptVoxelCtx->tAssetType, .pcPath = pcPath};
+    plAssetHandle tAsset = gptAsset->create(&tDesc, &tCopy);
+    if(!gptAsset->is_valid(tAsset))
+        pl_voxel_cleanup(&tCopy);
+    return tAsset;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] ECS integration
+//-----------------------------------------------------------------------------
+
+static bool
+pl__voxel_json_vec3(plJsonObject* ptJson, const char* pcName, plVec3* ptValue)
+{
+    if(!gptJson->member_exist(ptJson, pcName))
+        return true;
+    if(gptJson->get_type(gptJson->member(ptJson, pcName)) != PL_JSON_TYPE_ARRAY)
+        return false;
+    uint32_t uCount = 0;
+    gptJson->float_array_member(ptJson, pcName, NULL, &uCount);
+    if(uCount != 3)
+        return false;
+    gptJson->float_array_member(ptJson, pcName, ptValue->d, NULL);
+    return true;
+}
+
+static void
+pl__voxel_volume_destroy(void* pData, const plComponentLibrary* ptLibrary)
+{
+    plVoxelVolumeComponent* ptVolume = pData;
+    pl_voxel_cleanup(&ptVolume->_tGrid);
+}
+
+static void
+pl__voxel_volume_clone(const void* pSource, plComponentLibrary* ptSourceLibrary, void* pDest, plComponentLibrary* ptDestLibrary)
+{
+    const plVoxelVolumeComponent* ptSource = pSource;
+    plVoxelVolumeComponent* ptDest = pDest;
+    *ptDest = (plVoxelVolumeComponent){
+        .tBounds = ptSource->tBounds, .fVoxelSize = ptSource->fVoxelSize,
+        .uLayerMask = ptSource->uLayerMask, .bFillInterior = ptSource->bFillInterior,
+        .tAsset = ptSource->tAsset, .bRebuild = true
+    };
+    // Clone configuration only. A scene instance builds its own runtime grid.
+}
+
+static void
+pl__voxel_volume_serialize(void* pData, const plComponentLibrary* ptLibrary, plEntityId tId, plJsonObject* ptJson)
+{
+    const plVoxelVolumeComponent* ptVolume = pData;
+    gptJson->add_float_array(ptJson, "min", ptVolume->tBounds.tMin.d, 3);
+    gptJson->add_float_array(ptJson, "max", ptVolume->tBounds.tMax.d, 3);
+    gptJson->add_float_member(ptJson, "voxel_size", ptVolume->fVoxelSize);
+    gptJson->add_uint32_member(ptJson, "layers", ptVolume->uLayerMask);
+    gptJson->add_bool_member(ptJson, "fill_interior", ptVolume->bFillInterior);
+    if(gptAsset->is_valid(ptVolume->tAsset))
+        gptJson->add_string_member(ptJson, "asset", gptAsset->get_path(ptVolume->tAsset));
+}
+
+static bool
+pl__voxel_volume_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tId, void* pData)
+{
+    plVoxelVolumeComponent* ptVolume = pData;
+    if(!pl__voxel_json_vec3(ptJson, "min", &ptVolume->tBounds.tMin) || !pl__voxel_json_vec3(ptJson, "max", &ptVolume->tBounds.tMax))
+        return false;
+    ptVolume->fVoxelSize = gptJson->float_member(ptJson, "voxel_size", ptVolume->fVoxelSize);
+    ptVolume->uLayerMask = gptJson->uint32_member(ptJson, "layers", ptVolume->uLayerMask);
+    ptVolume->bFillInterior = gptJson->bool_member(ptJson, "fill_interior", ptVolume->bFillInterior);
+    ptVolume->bRebuild = true;
+    char acPath[1024] = {0};
+    gptJson->string_member(ptJson, "asset", acPath, sizeof(acPath));
+    if(acPath[0])
+    {
+        ptVolume->tAsset = gptAsset->load(acPath);
+        if(!gptAsset->is_valid(ptVolume->tAsset) || gptAsset->get_type_key(ptVolume->tAsset) != gptVoxelCtx->tAssetType)
+            return false;
+    }
+    return ptVolume->fVoxelSize > 0 && ptVolume->tBounds.tMax.x > ptVolume->tBounds.tMin.x && ptVolume->tBounds.tMax.y > ptVolume->tBounds.tMin.y && ptVolume->tBounds.tMax.z > ptVolume->tBounds.tMin.z;
+}
+
+static void
+pl__voxel_geometry_serialize(void* pData, const plComponentLibrary* ptLibrary, plEntityId tId, plJsonObject* ptJson)
+{
+    const plVoxelGeometryComponent* ptGeometry = pData;
+    if(gptAsset->is_valid(ptGeometry->tMesh))
+        gptJson->add_string_member(ptJson, "mesh", gptAsset->get_path(ptGeometry->tMesh));
+    gptJson->add_uint64_member(ptJson, "transform", ptGeometry->tTransformId);
+    gptJson->add_uint32_member(ptJson, "first_submesh", ptGeometry->uFirstSubmesh);
+    gptJson->add_uint32_member(ptJson, "submesh_count", ptGeometry->uSubmeshCount);
+    gptJson->add_uint32_member(ptJson, "layers", ptGeometry->uLayerMask);
+    gptJson->add_bool_member(ptJson, "enabled", ptGeometry->bEnabled);
+}
+
+static bool
+pl__voxel_geometry_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tId, void* pData)
+{
+    plVoxelGeometryComponent* ptGeometry = pData;
+    ptGeometry->tTransformId = gptJson->uint64_member(ptJson, "transform", 0);
+    ptGeometry->uFirstSubmesh = gptJson->uint32_member(ptJson, "first_submesh", 0);
+    ptGeometry->uSubmeshCount = gptJson->uint32_member(ptJson, "submesh_count", UINT32_MAX);
+    ptGeometry->uLayerMask = gptJson->uint32_member(ptJson, "layers", UINT32_MAX);
+    ptGeometry->bEnabled = gptJson->bool_member(ptJson, "enabled", true);
+    char acPath[1024] = {0};
+    gptJson->string_member(ptJson, "mesh", acPath, sizeof(acPath));
+    if(!acPath[0])
+        return !ptGeometry->bEnabled;
+    ptGeometry->tMesh = gptAsset->load(acPath);
+    return gptAsset->is_valid(ptGeometry->tMesh) && gptAsset->get_type_key(ptGeometry->tMesh) == gptMesh->get_asset_type_key();
+}
+
+static void
+pl__voxel_geometry_resolve(plComponentLibrary* ptLibrary, plEntityId tId, plHashMap64* ptMap, void* pData)
+{
+    plVoxelGeometryComponent* ptGeometry = pData;
+    if(ptMap && ptGeometry->tTransformId)
+    {
+        uint64_t uMapped = pl_hm_lookup(ptMap, ptGeometry->tTransformId);
+        if(uMapped != UINT64_MAX)
+            ptGeometry->tTransformId = uMapped;
+    }
+}
+
+void
+pl_voxel_register_ecs_components(void)
+{
+    const plComponentDesc tVolumeDesc = {
+        .pcName      = "voxel_volume",
+        .szSize      = sizeof(plVoxelVolumeComponent),
+        .serialize   = pl__voxel_volume_serialize,
+        .deserialize = pl__voxel_volume_deserialize,
+        .clone       = pl__voxel_volume_clone,
+        .destroy     = pl__voxel_volume_destroy
+    };
+    const plVoxelVolumeComponent tVolumeDefault = {
+        .tBounds    = {{-10, -2, -10}, {10, 10, 10}},
+        .fVoxelSize = 0.5f,
+        .uLayerMask = UINT32_MAX,
+        .bRebuild   = true
+    };
+    gptVoxelCtx->tVolumeType = gptEcs->register_type(tVolumeDesc, &tVolumeDefault);
+    const plComponentDesc tGeometryDesc = {
+        .pcName      = "voxel_geometry",
+        .szSize      = sizeof(plVoxelGeometryComponent),
+        .serialize   = pl__voxel_geometry_serialize,
+        .deserialize = pl__voxel_geometry_deserialize,
+        .resolve     = pl__voxel_geometry_resolve
+    };
+    const plVoxelGeometryComponent tGeometryDefault = {
+        .uSubmeshCount = UINT32_MAX,
+        .uLayerMask    = UINT32_MAX,
+        .bEnabled      = true
+    };
+    gptVoxelCtx->tGeometryType = gptEcs->register_type(tGeometryDesc, &tGeometryDefault);
+}
+
+plEcsTypeKey
+pl_voxel_get_ecs_type_key_volume(void)
+{
+    return gptVoxelCtx->tVolumeType;
+}
+
+plEcsTypeKey
+pl_voxel_get_ecs_type_key_geometry(void)
+{
+    return gptVoxelCtx->tGeometryType;
+}
+
+const plVoxelGrid*
+pl_voxel_get_volume_grid(const plComponentLibrary* ptLibrary, plEntity tEntity, uint64_t* puRevision)
+{
+    const plVoxelVolumeComponent* ptVolume = gptEcs->get_component(ptLibrary, gptVoxelCtx->tVolumeType, tEntity);
+    if(puRevision)
+        *puRevision = ptVolume ? ptVolume->uRevision : 0;
+    return ptVolume && ptVolume->_tGrid._puBits ? &ptVolume->_tGrid : NULL;
+}
+
+bool
+pl_voxel_rebuild_volume(plComponentLibrary* ptLibrary, plEntity tEntity)
+{
+    plVoxelVolumeComponent* ptVolume = gptEcs->get_component(ptLibrary, gptVoxelCtx->tVolumeType, tEntity);
+    if(!ptVolume)
+        return false;
+    plVoxelGrid tGrid = {0};
+    bool bResult = false;
+    ptVolume->bRebuild = false;
+    if(ptVolume->tAsset.uData)
+    {
+        bResult = gptAsset->is_valid(ptVolume->tAsset) && gptAsset->get_type_key(ptVolume->tAsset) == gptVoxelCtx->tAssetType && pl_voxel_copy(&tGrid, gptAsset->get_data(ptVolume->tAsset));
+    }
+    else if(pl_voxel_init(&tGrid, ptVolume->tBounds, ptVolume->fVoxelSize))
+    {
+        bResult = true;
+        plVoxelGeometryComponent* atGeometry = NULL;
+        const plEntity* atEntities = NULL;
+        uint32_t uCount = gptEcs->get_components(ptLibrary, gptVoxelCtx->tGeometryType, (void**)&atGeometry, &atEntities);
+        for(uint32_t i = 0; i < uCount; i++)
+        {
+            const plVoxelGeometryComponent* ptGeometry = &atGeometry[i];
+            if(!ptGeometry->bEnabled || !(ptGeometry->uLayerMask & ptVolume->uLayerMask))
+                continue;
+            if(!gptAsset->is_valid(ptGeometry->tMesh) || gptAsset->get_type_key(ptGeometry->tMesh) != gptMesh->get_asset_type_key())
+            {
+                bResult = false;
+                break;
+            }
+            plEntity tTransform = ptGeometry->tTransformId ? gptEcs->get_entity_by_id(ptLibrary, ptGeometry->tTransformId) : atEntities[i];
+            const plTransformComponent* ptTransform = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tTransform);
+            if(ptGeometry->tTransformId && !ptTransform)
+            {
+                bResult = false;
+                break;
+            }
+            pl_voxel_inject_mesh(&tGrid, gptAsset->get_data(ptGeometry->tMesh), ptTransform ? &ptTransform->tWorld : NULL, ptGeometry->uFirstSubmesh, ptGeometry->uSubmeshCount);
+        }
+        if(bResult && ptVolume->bFillInterior)
+            bResult = pl_voxel_fill_interior(&tGrid);
+    }
+    if(bResult)
+    {
+        pl_voxel_cleanup(&ptVolume->_tGrid);
+        ptVolume->_tGrid = tGrid;
+        tGrid = (plVoxelGrid){0};
+        ptVolume->uRevision = ++gptVoxelCtx->uRevision;
+    }
+    ptVolume->_tLoadedAsset = ptVolume->tAsset;
+    ptVolume->_uAssetVersion = gptAsset->is_valid(ptVolume->tAsset) ? gptAsset->get_version(ptVolume->tAsset) : 0;
+    ptVolume->bBuildFailed = !bResult;
+    pl_voxel_cleanup(&tGrid);
+    return bResult;
+}
+
+void
+pl_voxel_run_update_system(plComponentLibrary* ptLibrary)
+{
+    plVoxelVolumeComponent* atVolumes = NULL;
+    const plEntity* atEntities = NULL;
+    uint32_t uCount = gptEcs->get_components(ptLibrary, gptVoxelCtx->tVolumeType, (void**)&atVolumes, &atEntities);
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        plVoxelVolumeComponent* ptVolume = &atVolumes[i];
+        uint32_t uVersion = gptAsset->is_valid(ptVolume->tAsset) ? gptAsset->get_version(ptVolume->tAsset) : 0;
+        if(ptVolume->bRebuild || ptVolume->tAsset.uData != ptVolume->_tLoadedAsset.uData || uVersion != ptVolume->_uAssetVersion)
+            pl_voxel_rebuild_volume(ptLibrary, atEntities[i]);
+    }
+}
+
+//-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
@@ -689,25 +1127,34 @@ PL_EXPORT void
 pl_load_voxel_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plVoxelI tApi = {
-        .init            = pl_voxel_init,
-        .cleanup         = pl_voxel_cleanup,
-        .clear           = pl_voxel_clear,
-        .world_to_coord  = pl_voxel_world_to_coord,
-        .coord_to_world  = pl_voxel_coord_to_world,
-        .is_valid        = pl_voxel_is_valid,
-        .check           = pl_voxel_check,
-        .set             = pl_voxel_set,
-        .inject_aabb     = pl_voxel_inject_aabb,
-        .inject_triangle = pl_voxel_inject_triangle,
-        .inject_sphere   = pl_voxel_inject_sphere,
-        .inject_mesh     = pl_voxel_inject_mesh,
-        .voxelize_scene  = pl_voxel_voxelize_scene,
-        .fill_interior   = pl_voxel_fill_interior,
-        .debug_draw      = pl_voxel_debug_draw,
-        .copy            = pl_voxel_copy,
-        .get_bounds      = pl_voxel_get_bounds,
-        .count_occupied  = pl_voxel_count_occupied,
-        .raycast         = pl_voxel_raycast
+        .init                        = pl_voxel_init,
+        .cleanup                     = pl_voxel_cleanup,
+        .clear                       = pl_voxel_clear,
+        .world_to_coord              = pl_voxel_world_to_coord,
+        .coord_to_world              = pl_voxel_coord_to_world,
+        .is_valid                    = pl_voxel_is_valid,
+        .check                       = pl_voxel_check,
+        .set                         = pl_voxel_set,
+        .inject_aabb                 = pl_voxel_inject_aabb,
+        .inject_triangle             = pl_voxel_inject_triangle,
+        .inject_sphere               = pl_voxel_inject_sphere,
+        .inject_mesh                 = pl_voxel_inject_mesh,
+        .voxelize_scene              = pl_voxel_voxelize_scene,
+        .fill_interior               = pl_voxel_fill_interior,
+        .debug_draw                  = pl_voxel_debug_draw,
+        .copy                        = pl_voxel_copy,
+        .get_bounds                  = pl_voxel_get_bounds,
+        .count_occupied              = pl_voxel_count_occupied,
+        .raycast                     = pl_voxel_raycast,
+        .register_asset_types        = pl_voxel_register_asset_types,
+        .get_asset_type_key          = pl_voxel_get_asset_type_key,
+        .create_asset                = pl_voxel_create_asset,
+        .register_ecs_components     = pl_voxel_register_ecs_components,
+        .get_ecs_type_key_volume     = pl_voxel_get_ecs_type_key_volume,
+        .get_ecs_type_key_geometry   = pl_voxel_get_ecs_type_key_geometry,
+        .rebuild_volume              = pl_voxel_rebuild_volume,
+        .run_update_system           = pl_voxel_run_update_system,
+        .get_volume_grid             = pl_voxel_get_volume_grid
     };
     pl_set_api(ptApiRegistry, plVoxelI, &tApi);
 
@@ -717,6 +1164,19 @@ pl_load_voxel_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptTransform = pl_get_api_latest(ptApiRegistry, plTransformI);
     gptRenderer  = pl_get_api_latest(ptApiRegistry, plRendererI);
     gptDraw      = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptJson      = pl_get_api_latest(ptApiRegistry, plJsonI);
+    gptVfs       = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptMesh      = pl_get_api_latest(ptApiRegistry, plMeshI);
+
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+    if(bReload)
+        gptVoxelCtx = ptDataRegistry->get_data("plVoxelContext");
+    else
+    {
+        static plVoxelContext tCtx = {0};
+        gptVoxelCtx = &tCtx;
+        ptDataRegistry->set_data("plVoxelContext", gptVoxelCtx);
+    }
 }
 
 PL_EXPORT void

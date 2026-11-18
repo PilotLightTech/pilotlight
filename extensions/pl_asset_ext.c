@@ -598,7 +598,8 @@ pl_asset_reload(plAssetHandle tAssetHandle)
     plAsset* ptAsset = &gptAssetCtx->sbtAssets[tAssetHandle.uIndex];
 
     plAssetRegisteredType* ptType = &gptAssetCtx->sbtTypeDescriptions[ptAsset->tType];
-    ptType->tDesc.deserialize(ptAsset->pcName, &((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize]);
+    if(ptType->tDesc.deserialize(ptAsset->pcName, &((char*)ptType->pAssets)[ptAsset->uDataIndex * ptType->tDesc.szSize]))
+        pl_asset_mark_changed(tAssetHandle);
 }
 
 bool

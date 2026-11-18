@@ -3,6 +3,7 @@
      - bounded A* queries on plVoxelGrid.
        Dependencies: plMemoryI, plVoxelI;
        debug drawing additionally uses plDrawI. No renderer or GPU needed to query.
+       ECS worker timing optionally uses plTimerI.
        Queries own reusable scratch/result storage; zero initialize and cleanup.
        One query per worker, immutable grid for the entire begin/step lifetime.
        No concurrent calls on the same query. No global query state.
@@ -42,23 +43,27 @@ extern "C" {
 
 #include <stdbool.h> // bool
 #include <stdint.h>  // uint*_t
+#include "pl_ecs_ext.inl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plPathSettings plPathSettings;
-typedef struct _plPathQuery    plPathQuery;
+typedef struct _plPathSettings       plPathSettings;
+typedef struct _plPathQuery          plPathQuery;
+typedef struct _plPathAgentComponent plPathAgentComponent;
+typedef struct _plPathDebugInfo      plPathDebugInfo;
 
 // enums & flags
 typedef int plPathStatus;
 typedef int plPathGroundSupport;
 
 // external
-typedef struct _plDrawList3D plDrawList3D; // pl_draw_ext.h
-typedef struct _plVoxelGrid  plVoxelGrid;  // pl_voxel_ext.h
-typedef struct _plVoxelCoord plVoxelCoord; // pl_voxel_ext.h
+typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
+typedef struct _plDrawList3D       plDrawList3D;       // pl_draw_ext.h
+typedef struct _plVoxelGrid        plVoxelGrid;        // pl_voxel_ext.h
+typedef struct _plVoxelCoord       plVoxelCoord;       // pl_voxel_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public apis
@@ -113,6 +118,20 @@ typedef struct _plPathI
     // misc.
     const char* (*status_string)(plPathStatus);    
     void        (*debug_draw)   (const plPathQuery*, plDrawList3D*, bool rawPath, bool waypoints); // Cyan raw path, magenta simplified path, green start and red goal.
+
+    //----------------------------ECS INTEGRATION----------------------------------
+
+    void         (*register_ecs_components)(void);
+    plEcsTypeKey (*get_ecs_type_key_agent) (void);
+    bool         (*request)               (plComponentLibrary*, plEntity agent, plVec3 start, plVec3 goal);
+    void         (*cancel_request)        (plComponentLibrary*, plEntity agent);
+    void         (*run_update_system)     (plComponentLibrary*, uint32_t maxWork);
+    
+    // One reusable worker per library; at most one query begins per update.
+    // maxWork bounds step work, not snapshot allocation/copy or begin(). Zero
+    // budget still invalidates stale results. Call after voxel updates, before
+    // movement. No automatic movement or replan. Requests/results are transient.
+    plPathDebugInfo (*get_debug_info)(const plComponentLibrary*); // read-only worker/queue statistics
 } plPathI;
 
 //-----------------------------------------------------------------------------
@@ -149,6 +168,36 @@ typedef struct _plPathQuery
     void*    _pScratch;
     uint32_t _uCapacity;
 } plPathQuery;
+
+typedef struct _plPathAgentComponent
+{
+    plEntityId     tVolumeId;
+    plPathSettings tSettings;
+
+    // Runtime only. Waypoints are bottom-cell centers, owned by this component.
+    // Valid on SUCCESS until request/cancel/volume invalidation/component removal.
+    plPathStatus tStatus;
+    plVec3*      atWaypoints;
+    uint32_t     uWaypointCount;
+    float        fLength;
+    uint64_t     uVolumeRevision;
+    plVec3       _tStart;
+    plVec3       _tGoal;
+    uint64_t     _uRequest;
+    plEntityId   _tRequestVolumeId;
+} plPathAgentComponent;
+
+typedef struct _plPathDebugInfo
+{
+    plEntity     tAgent;         // most recent worker query; may have been removed
+    plPathStatus tStatus;
+    uint32_t     uPendingCount;  // includes the active query
+    uint32_t     uVisitedNodes;
+    uint32_t     uExpandedNodes;
+    double       dLastUpdateMilliseconds; // entire last ECS path update, not total query time
+    bool         bActive;
+    bool         bTimingAvailable; // optional plTimerI
+} plPathDebugInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums

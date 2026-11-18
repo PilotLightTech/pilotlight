@@ -456,6 +456,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptMaterial->register_asset_types();
     gptAnimation->register_asset_types();
     gptMesh->register_asset_types();
+    gptVoxel->register_asset_types();
     gptSkeleton->register_asset_types();
     gptEcs->register_asset_types();
     gptTerrain->register_asset_types();
@@ -584,6 +585,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptAnimation->register_ecs_components();
     gptCameraEcs->register_ecs_components();
     gptPhysics->register_ecs_components();
+    gptVoxel->register_ecs_components();
+    gptPath->register_ecs_components();
     gptEcs->finalize();
 
     // sbtImportFiles
@@ -900,6 +903,8 @@ pl_app_update(plAppData* ptAppData)
         gptPhysics->update(ptIO->fDeltaTime, ptLibrary, ptDrawlist);
         gptTransform->run_transform_update_system(ptLibrary);
         gptTransform->run_hierarchy_update_system(ptLibrary);
+        gptVoxel->run_update_system(ptLibrary);
+        gptPath->run_update_system(ptLibrary, 2048);
         gptRenderer->run_light_update_system(ptLibrary);
         gptCameraEcs->run_ecs(ptLibrary);
         gptIk->run_ecs_update_system(ptLibrary);
