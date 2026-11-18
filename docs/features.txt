@@ -23,6 +23,8 @@ General:
     * file streaming
     * asset system (serialization)
     * gizmos (translate, rotate, scale w/ snapping)
+    * 3D path finding
+    * scene voxelizer
 
 Custom math:
     * vectors
@@ -182,5 +184,4 @@ Wishlist:
     * Virtual textures
     * Animation retargeting
     * Video decoding: H264
-    * 3D path finding
     * Texture streaming

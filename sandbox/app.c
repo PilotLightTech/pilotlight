@@ -85,6 +85,8 @@ Index of this file:
 #include "pl_terrain_ext.h"
 #include "pl_stl_ext.h"
 #include "pl_dialog_ext.h"
+#include "pl_voxel_ext.h"
+#include "pl_path_ext.h"
 
 // shaders
 #include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
@@ -140,6 +142,8 @@ const plTextureI*           gptTexture          = NULL;
 const plTerrainI*           gptTerrain          = NULL;
 const plStlI*               gptStl              = NULL;
 const plDialogI*            gptDialog           = NULL;
+const plVoxelI*             gptVoxel            = NULL;
+const plPathI*              gptPath             = NULL;
 
 static uint64_t guLogChannel;
 static bool gbLogFileErrorReported;
@@ -1397,6 +1401,8 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptTerrain          = pl_get_api_latest(ptApiRegistry, plTerrainI);
     gptStl              = pl_get_api_latest(ptApiRegistry, plStlI);
     gptDialog           = pl_get_api_latest(ptApiRegistry, plDialogI);
+    gptVoxel            = pl_get_api_latest(ptApiRegistry, plVoxelI);
+    gptPath             = pl_get_api_latest(ptApiRegistry, plPathI);
 }
 
 static void
