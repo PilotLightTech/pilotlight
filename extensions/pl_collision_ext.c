@@ -17,6 +17,7 @@ Index of this file:
 #include <float.h>
 #include "pl.h"
 #include "pl_collision_ext.h"
+#include "pl_gjk_ext.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -25,6 +26,7 @@ Index of this file:
     #include "pl_unity_ext.inc"
 #else
     static const plMemoryI*  gptMemory = NULL;
+    static const plGjkI*     gptGjk = NULL;
     #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
     #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
     #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
@@ -658,6 +660,246 @@ pl_collision_pen_box_sphere(const plBox* ptBox, const plSphere* ptSphere, plColl
     return true;
 }
 
+// Convex descriptors borrow their vertex data; queries allocate no shape storage.
+plVec3
+pl_collision_support_convex(const plConvexShape* ptShape, plVec3 tDirection)
+{
+    plVec3 tLocal = {
+        pl_dot_vec3(ptShape->tTransform.col[0].xyz, tDirection),
+        pl_dot_vec3(ptShape->tTransform.col[1].xyz, tDirection),
+        pl_dot_vec3(ptShape->tTransform.col[2].xyz, tDirection)
+    };
+    plVec3 tPoint = {0};
+    switch(ptShape->tType)
+    {
+        case PL_CONVEX_SHAPE_BOX:
+            for(uint32_t i = 0; i < 3; i++)
+                tPoint.d[i] = tLocal.d[i] < 0 ? -ptShape->tHalfSize.d[i] : ptShape->tHalfSize.d[i];
+            break;
+        case PL_CONVEX_SHAPE_SPHERE:
+        case PL_CONVEX_SHAPE_CAPSULE:
+            tPoint = pl_mul_vec3_scalarf(pl_norm_vec3(tLocal), ptShape->fRadius);
+            if(ptShape->tType == PL_CONVEX_SHAPE_CAPSULE)
+                tPoint.y += tLocal.y < 0 ? -0.5f * ptShape->fHeight : 0.5f * ptShape->fHeight;
+            break;
+        case PL_CONVEX_SHAPE_CYLINDER:
+        case PL_CONVEX_SHAPE_CONE:
+        {
+            float fLength = sqrtf(tLocal.x * tLocal.x + tLocal.z * tLocal.z);
+            if(fLength > 0)
+            {
+                tPoint.x = ptShape->fRadius * tLocal.x / fLength;
+                tPoint.z = ptShape->fRadius * tLocal.z / fLength;
+            }
+            if(ptShape->tType == PL_CONVEX_SHAPE_CYLINDER)
+                tPoint.y = tLocal.y < 0 ? -0.5f * ptShape->fHeight : 0.5f * ptShape->fHeight;
+            else
+            {
+                tPoint.y = -0.25f * ptShape->fHeight;
+                plVec3 tTip = {0, 0.75f * ptShape->fHeight, 0};
+                if(pl_dot_vec3(tTip, tLocal) > pl_dot_vec3(tPoint, tLocal))
+                    tPoint = tTip;
+            }
+            break;
+        }
+        case PL_CONVEX_SHAPE_HULL:
+        {
+            float fBest = -FLT_MAX;
+            for(uint32_t i = 0; i < ptShape->uVertexCount; i++)
+            {
+                float fDot = pl_dot_vec3(ptShape->atVertices[i], tLocal);
+                if(fDot > fBest)
+                {
+                    fBest = fDot;
+                    tPoint = ptShape->atVertices[i];
+                }
+            }
+            break;
+        }
+    }
+    return pl_mul_mat4_vec3(&ptShape->tTransform, tPoint);
+}
+
+plAABB
+pl_collision_convex_bounds(const plConvexShape* ptShape)
+{
+    plAABB tBounds = {0};
+    for(uint32_t i = 0; i < 3; i++)
+    {
+        plVec3 tAxis = {0};
+        tAxis.d[i] = 1;
+        plVec3 tMax = pl_collision_support_convex(ptShape, tAxis);
+        plVec3 tMin = pl_collision_support_convex(ptShape, pl_mul_vec3_scalarf(tAxis, -1));
+        tBounds.tMax.d[i] = tMax.d[i];
+        tBounds.tMin.d[i] = tMin.d[i];
+    }
+    return tBounds;
+}
+
+static plVec3
+pl__collision_support_convex(const void* pShape, plVec3 tDirection)
+{
+    return pl_collision_support_convex(pShape, tDirection);
+}
+
+bool
+pl_collision_pen_convex_convex(const plConvexShape* a, const plConvexShape* b, plCollisionInfo* ptInfo)
+{
+    if((a->tType == PL_CONVEX_SHAPE_HULL && (!a->atVertices || !a->uVertexCount)) || (b->tType == PL_CONVEX_SHAPE_HULL && (!b->atVertices || !b->uVertexCount)))
+        return false;
+    if((a->tType == PL_CONVEX_SHAPE_SPHERE || a->tType == PL_CONVEX_SHAPE_CAPSULE) && (b->tType == PL_CONVEX_SHAPE_SPHERE || b->tType == PL_CONVEX_SHAPE_CAPSULE))
+    {
+        plVec3 da = pl_mul_vec3_scalarf(a->tTransform.col[1].xyz, a->tType == PL_CONVEX_SHAPE_CAPSULE ? a->fHeight : 0);
+        plVec3 db = pl_mul_vec3_scalarf(b->tTransform.col[1].xyz, b->tType == PL_CONVEX_SHAPE_CAPSULE ? b->fHeight : 0);
+        plVec3 p = pl_sub_vec3(a->tTransform.col[3].xyz, pl_mul_vec3_scalarf(da, 0.5f));
+        plVec3 q = pl_sub_vec3(b->tTransform.col[3].xyz, pl_mul_vec3_scalarf(db, 0.5f));
+        plVec3 r = pl_sub_vec3(p, q);
+        float aa = pl_dot_vec3(da, da), bb = pl_dot_vec3(db, db), ab = pl_dot_vec3(da, db);
+        float ar = pl_dot_vec3(da, r), br = pl_dot_vec3(db, r);
+        float s = 0, t = 0;
+        if(aa > 0)
+        {
+            float fDenom = aa * bb - ab * ab;
+            s = fDenom > 1e-12f ? pl_clampf(0, (ab * br - ar * bb) / fDenom, 1) : 0;
+        }
+        if(bb > 0)
+        {
+            t = pl_clampf(0, (ab * s + br) / bb, 1);
+            if(aa > 0)
+                s = pl_clampf(0, (ab * t - ar) / aa, 1);
+        }
+        else if(aa > 0)
+            s = pl_clampf(0, -ar / aa, 1);
+        p = pl_add_vec3(p, pl_mul_vec3_scalarf(da, s));
+        q = pl_add_vec3(q, pl_mul_vec3_scalarf(db, t));
+        plVec3 tDelta = pl_sub_vec3(p, q);
+        float fDistance = pl_length_vec3(tDelta);
+        if(fDistance > a->fRadius + b->fRadius)
+            return false;
+        if(ptInfo)
+        {
+            plVec3 tNormal = fDistance > 1e-8f ? pl_mul_vec3_scalarf(tDelta, 1 / fDistance) : pl_norm_vec3(pl_cross_vec3(da, db));
+            if(pl_length_sqr_vec3(tNormal) < 0.5f)
+            {
+                plVec3 tAxis = aa > 0 ? pl_norm_vec3(da) : bb > 0 ? pl_norm_vec3(db) : (plVec3){0, 1, 0};
+                tNormal = pl_norm_vec3(pl_cross_vec3(tAxis, fabsf(tAxis.y) < 0.9f ? (plVec3){0, 1, 0} : (plVec3){0, 0, 1}));
+            }
+            *ptInfo = (plCollisionInfo){
+                .tNormal      = tNormal,
+                .fPenetration = a->fRadius + b->fRadius - fDistance,
+                .tPoint       = pl_mul_vec3_scalarf(pl_add_vec3(pl_sub_vec3(p, pl_mul_vec3_scalarf(tNormal, a->fRadius)), pl_add_vec3(q, pl_mul_vec3_scalarf(tNormal, b->fRadius))), 0.5f)};
+        }
+        return true;
+    }
+    plAABB tA = pl_collision_convex_bounds(a);
+    plAABB tB = pl_collision_convex_bounds(b);
+    if(!pl_collision_aabb_aabb(&tA, &tB))
+        return false;
+    plGjkCollisionInfo tInfo = {0};
+    if(!gptGjk->pen(pl__collision_support_convex, a, pl__collision_support_convex, b, ptInfo ? &tInfo : NULL))
+        return false;
+    if(ptInfo)
+    {
+        // EPA's outward Minkowski normal is the direction to move B, not A.
+        *ptInfo = (plCollisionInfo){
+            .fPenetration = tInfo.fPenetration,
+            .tNormal      = pl_mul_vec3_scalarf(tInfo.tNormal, -1),
+            .tPoint       = tInfo.tPoint
+        };
+        if(pl_length_sqr_vec3(ptInfo->tNormal) < 0.5f)
+            return false;
+    }
+    return true;
+}
+
+plVec3
+pl_collision_point_closest_point_triangle(plVec3 p, plVec3 a, plVec3 b, plVec3 c)
+{
+    plVec3 ab = pl_sub_vec3(b, a), ac = pl_sub_vec3(c, a), ap = pl_sub_vec3(p, a);
+    if(pl_length_sqr_vec3(pl_cross_vec3(ab, ac)) < 1e-16f)
+    {
+        plVec3 tBest = a;
+        plVec3 atPoints[3] = {a, b, c};
+        for(int i = 0; i < 3; i++)
+        {
+            float fT;
+            plVec3 tPoint = pl_collision_point_closest_point_line_segment(p, atPoints[i], atPoints[(i + 1) % 3], &fT);
+            if(pl_length_sqr_vec3(pl_sub_vec3(p, tPoint)) < pl_length_sqr_vec3(pl_sub_vec3(p, tBest)))
+                tBest = tPoint;
+        }
+        return tBest;
+    }
+    float d1 = pl_dot_vec3(ab, ap), d2 = pl_dot_vec3(ac, ap);
+    if(d1 <= 0 && d2 <= 0)
+        return a;
+    plVec3 bp = pl_sub_vec3(p, b);
+    float d3 = pl_dot_vec3(ab, bp), d4 = pl_dot_vec3(ac, bp);
+    if(d3 >= 0 && d4 <= d3)
+        return b;
+    float vc = d1 * d4 - d3 * d2;
+    if(vc <= 0 && d1 >= 0 && d3 <= 0)
+        return pl_add_vec3(a, pl_mul_vec3_scalarf(ab, d1 / (d1 - d3)));
+    plVec3 cp = pl_sub_vec3(p, c);
+    float d5 = pl_dot_vec3(ab, cp), d6 = pl_dot_vec3(ac, cp);
+    if(d6 >= 0 && d5 <= d6)
+        return c;
+    float vb = d5 * d2 - d1 * d6;
+    if(vb <= 0 && d2 >= 0 && d6 <= 0)
+        return pl_add_vec3(a, pl_mul_vec3_scalarf(ac, d2 / (d2 - d6)));
+    float va = d3 * d6 - d5 * d4;
+    if(va <= 0 && d4 >= d3 && d5 >= d6)
+        return pl_add_vec3(b, pl_mul_vec3_scalarf(pl_sub_vec3(c, b), (d4 - d3) / ((d4 - d3) + (d5 - d6))));
+    float fInv = 1.0f / (va + vb + vc);
+    return pl_add_vec3(a, pl_add_vec3(pl_mul_vec3_scalarf(ab, vb * fInv), pl_mul_vec3_scalarf(ac, vc * fInv)));
+}
+
+bool
+pl_collision_pen_convex_triangle(const plConvexShape* ptShape, plVec3 a, plVec3 b, plVec3 c, plCollisionInfo* ptInfo)
+{
+    plVec3 tNormal = pl_cross_vec3(pl_sub_vec3(b, a), pl_sub_vec3(c, a));
+    if(pl_length_sqr_vec3(tNormal) < 1e-16f)
+        return false;
+    if(ptShape->tType == PL_CONVEX_SHAPE_SPHERE)
+    {
+        plVec3 tCenter = ptShape->tTransform.col[3].xyz;
+        plVec3 tPoint = pl_collision_point_closest_point_triangle(tCenter, a, b, c);
+        plVec3 tDelta = pl_sub_vec3(tCenter, tPoint);
+        float fDistance = pl_length_vec3(tDelta);
+        if(fDistance > ptShape->fRadius)
+            return false;
+        if(ptInfo)
+            *ptInfo = (plCollisionInfo){
+                .tPoint       = tPoint,
+                .tNormal      = fDistance > 1e-8f ? pl_mul_vec3_scalarf(tDelta, 1.0f / fDistance) : pl_norm_vec3(tNormal),
+                .fPenetration = ptShape->fRadius - fDistance};
+        return true;
+    }
+    plVec3 atVertices[] = {a, b, c};
+    plConvexShape tTriangle = {
+        .tType        = PL_CONVEX_SHAPE_HULL,
+        .tTransform   = pl_identity_mat4(),
+        .atVertices   = atVertices,
+        .uVertexCount = 3
+    };
+    return pl_collision_pen_convex_convex(ptShape, &tTriangle, ptInfo);
+}
+
+bool
+pl_collision_pen_convex_half_space(const plConvexShape* ptShape, const plPlane* ptPlane, plCollisionInfo* ptInfo)
+{
+    float fLength = pl_length_vec3(ptPlane->tDirection);
+    if(fLength <= 0)
+        return false;
+    plVec3 tNormal = pl_mul_vec3_scalarf(ptPlane->tDirection, 1.0f / fLength);
+    plVec3 tPoint = pl_collision_support_convex(ptShape, pl_mul_vec3_scalarf(tNormal, -1));
+    float fDepth = ptPlane->fOffset / fLength - pl_dot_vec3(tPoint, tNormal);
+    if(fDepth < 0)
+        return false;
+    if(ptInfo)
+        *ptInfo = (plCollisionInfo){.tPoint = pl_add_vec3(tPoint, pl_mul_vec3_scalarf(tNormal, fDepth)), .tNormal = tNormal, .fPenetration = fDepth};
+    return true;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -681,10 +923,19 @@ pl_load_collision_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .pen_sphere_sphere                = pl_collision_pen_sphere_sphere,
         .pen_box_box                      = pl_collision_pen_box_box,
         .pen_box_sphere                   = pl_collision_pen_box_sphere,
+        .support_convex                   = pl_collision_support_convex,
+        .convex_bounds                    = pl_collision_convex_bounds,
+        .pen_convex_convex                = pl_collision_pen_convex_convex,
+        .pen_convex_triangle              = pl_collision_pen_convex_triangle,
+        .pen_convex_half_space            = pl_collision_pen_convex_half_space,
+        .point_closest_point_triangle     = pl_collision_point_closest_point_triangle,
     };
     pl_set_api(ptApiRegistry, plCollisionI, &tApi);
 
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    #ifndef PL_UNITY_BUILD
+    gptGjk = pl_get_api_latest(ptApiRegistry, plGjkI);
+    #endif
 }
 
 void

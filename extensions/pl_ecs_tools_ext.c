@@ -160,6 +160,7 @@ typedef struct _plLibraryToolHelper
     plEntity       tNavigationEntity;
     plVec3         tPathStart;
     plVec3         tPathGoal;
+    plEntityId     tPathGoalId;
     char           acNavigationPath[1024];
     char           acNavigationMeshPath[1024];
 } plLibraryToolHelper;
@@ -409,6 +410,7 @@ pl__ecs_tools_navigation(plAssetHandle tLibraryAsset, plComponentLibrary* ptLibr
         ptHelper->tNavigationEntity = tEntity;
         ptHelper->tPathStart = (plVec3){0};
         ptHelper->tPathGoal = (plVec3){0};
+        ptHelper->tPathGoalId = 0;
         pl_snprintf(ptHelper->acNavigationPath, sizeof(ptHelper->acNavigationPath), "/cache/navigation_%" PRIu64 ".plvoxel", gptEcs->get_entity_id(ptLibrary, tEntity));
         ptHelper->acNavigationMeshPath[0] = 0;
         const plVoxelVolumeComponent* ptSelectedVolume = gptEcs->get_component(ptLibrary, tVolumeType, tEntity);
@@ -529,7 +531,20 @@ pl__ecs_tools_navigation(plAssetHandle tLibraryAsset, plComponentLibrary* ptLibr
             gptEcs->mark_component_changed(ptLibrary, tEntity, tAgentType);
         }
         gptUI->input_float3("Start", ptHelper->tPathStart.d, "%g", 0);
-        gptUI->input_float3("Goal", ptHelper->tPathGoal.d, "%g", 0);
+        pl__ecs_tools_entity_combo("Goal entity", ptLibrary, gptTransform->get_ecs_type_key_transform(), &ptHelper->tPathGoalId, "Manual coordinates");
+        const plTransformComponent* ptGoalTransform = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), gptEcs->get_entity_by_id(ptLibrary, ptHelper->tPathGoalId));
+        if(ptHelper->tPathGoalId)
+        {
+            if(ptGoalTransform)
+            {
+                ptHelper->tPathGoal = ptGoalTransform->tWorld.col[3].xyz;
+                gptUI->labeled_text("Goal", "%g, %g, %g", ptHelper->tPathGoal.x, ptHelper->tPathGoal.y, ptHelper->tPathGoal.z);
+            }
+            else
+                gptUI->text("Goal entity is missing its transform. Select another goal.");
+        }
+        else
+            gptUI->input_float3("Goal", ptHelper->tPathGoal.d, "%g", 0);
         if(gptUI->button("Start at agent transform"))
         {
             const plTransformComponent* ptTransform = gptEcs->get_component(ptLibrary, gptTransform->get_ecs_type_key_transform(), tEntity);
@@ -537,8 +552,11 @@ pl__ecs_tools_navigation(plAssetHandle tLibraryAsset, plComponentLibrary* ptLibr
                 ptHelper->tPathStart = ptTransform->tWorld.col[3].xyz;
         }
         gptUI->text("Endpoints are world-space bottom-cell centers.");
-        if(gptUI->button("Request path"))
-            gptPath->request(ptLibrary, tEntity, ptHelper->tPathStart, ptHelper->tPathGoal);
+        if(!ptHelper->tPathGoalId || ptGoalTransform)
+        {
+            if(gptUI->button("Request path"))
+                gptPath->request(ptLibrary, tEntity, ptHelper->tPathStart, ptHelper->tPathGoal);
+        }
         if(gptUI->button("Cancel path"))
             gptPath->cancel_request(ptLibrary, tEntity);
         gptUI->text("Status: %s", gptPath->status_string(ptAgent->tStatus));
@@ -877,7 +895,7 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
             gptUI->end_combo();
         }
 
-        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 135.0f, 2, pfRatios);
+        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 170.0f, 2, pfRatios);
 
         if(gptUI->begin_child("Entities", 0, 0))
         {
@@ -1179,6 +1197,19 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
                         gptUI->separator_text("Collision Shape");
                         gptUI->radio_button("Box", &ptRigidComp->tShape, PL_COLLISION_SHAPE_BOX);
                         gptUI->radio_button("Sphere", &ptRigidComp->tShape, PL_COLLISION_SHAPE_SPHERE);
+                        gptUI->radio_button("Capsule", &ptRigidComp->tShape, PL_COLLISION_SHAPE_CAPSULE);
+                        gptUI->radio_button("Cylinder", &ptRigidComp->tShape, PL_COLLISION_SHAPE_CYLINDER);
+                        gptUI->radio_button("Cone", &ptRigidComp->tShape, PL_COLLISION_SHAPE_CONE);
+                        gptUI->radio_button("Convex Hull", &ptRigidComp->tShape, PL_COLLISION_SHAPE_CONVEX_HULL);
+                        gptUI->radio_button("Plane", &ptRigidComp->tShape, PL_COLLISION_SHAPE_PLANE);
+                        gptUI->radio_button("Triangle Mesh", &ptRigidComp->tShape, PL_COLLISION_SHAPE_TRIANGULAR_MESH);
+                        gptUI->radio_button("Terrain", &ptRigidComp->tShape, PL_COLLISION_SHAPE_TERRAIN);
+                        if(ptRigidComp->tShape >= PL_COLLISION_SHAPE_PLANE)
+                        {
+                            ptRigidComp->fMass = 0;
+                            ptRigidComp->tFlags &= ~PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC;
+                            gptUI->text("Static collider (mass 0).");
+                        }
 
                         gptUI->vertical_spacing();
 
@@ -1186,9 +1217,20 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
                         {
                             gptUI->input_float3("Extents", ptRigidComp->tExtents.d, "%g", 0);
                         }
-                        else if(ptRigidComp->tShape == PL_COLLISION_SHAPE_SPHERE)
+                        else if(ptRigidComp->tShape >= PL_COLLISION_SHAPE_SPHERE && ptRigidComp->tShape <= PL_COLLISION_SHAPE_CONE)
                         {
                             gptUI->input_float("Radius", &ptRigidComp->fRadius, "%g", 0);
+                            if(ptRigidComp->tShape != PL_COLLISION_SHAPE_SPHERE)
+                                gptUI->input_float(ptRigidComp->tShape == PL_COLLISION_SHAPE_CAPSULE ? "Height between cap centers" : "Height", &ptRigidComp->fHeight, "%g", 0);
+                        }
+                        else if(ptRigidComp->tShape == PL_COLLISION_SHAPE_CONVEX_HULL || ptRigidComp->tShape == PL_COLLISION_SHAPE_TRIANGULAR_MESH)
+                        {
+                            pl__ecs_tools_asset_combo("Collision mesh", gptMesh->get_asset_type_key(), &ptRigidComp->tCollisionAsset);
+                            gptUI->input_uint("Collision submesh", &ptRigidComp->uCollisionSubmesh, 0);
+                        }
+                        else if(ptRigidComp->tShape == PL_COLLISION_SHAPE_TERRAIN)
+                        {
+                            pl__ecs_tools_asset_combo("Collision terrain", gptTerrain->get_asset_type_key(), &ptRigidComp->tCollisionAsset);
                         }
 
                         static plVec3 tPoint = {0};
