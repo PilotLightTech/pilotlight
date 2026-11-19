@@ -686,6 +686,7 @@ typedef struct _plScene
     // bvh data
     plBVH       tBvh;
     plAABB*     sbtBvhAABBs;
+    plAABB*     sbtSunCasterBoundsLS; // scratch shared by cascades within one update
     plBVHNode** sbptNodeStack;
 
     // CPU-side data for GPU buffers
@@ -806,6 +807,8 @@ typedef struct _plCullData
 {
     plScene*        ptScene;
     plFrustum       tFrustum;
+    plVec3          atFrustumCorners[8];
+    uint32_t        uFrustumCornerCount;
     plSphere        tSphere;
     plCone          tCone;
 } plCullData;

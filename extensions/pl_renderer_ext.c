@@ -857,6 +857,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
     pl_sb_free(ptScene->sbtVisibleDrawables1);
     pl_sb_free(ptScene->sbtProbeDataPacks);
     pl_sb_free(ptScene->sbtBvhAABBs);
+    pl_sb_free(ptScene->sbtSunCasterBoundsLS);
     pl_sb_free(ptScene->sbptNodeStack);
     pl_sb_free(ptScene->sbtGPUProbeData);
     pl_sb_free(ptScene->sbtProbeData);
@@ -2290,6 +2291,8 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         pl__camera_build_perspective_frustum(ptCullCamera, &tCullData.tFrustum);
     else if(ptCullCamera)
         pl__camera_build_orthographic_frustum(ptCullCamera, &tCullData.tFrustum);
+    if(ptCullCamera)
+        pl__renderer_prepare_cull_frustum(&tCullData);
 
     pl_sb_reset(ptScene->sbuVisibleDrawables);
     if(ptCullCamera)
