@@ -76,7 +76,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plStarterI_version {2, 1, 3}
+#define plStarterI_version {2, 1, 4}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -272,6 +272,9 @@ enum _plStarterFlags
     PL_STARTER_FLAGS_MSAA         = 1 << 11,
     PL_STARTER_FLAGS_VSYNC_OFF    = 1 << 12,
     PL_STARTER_FLAGS_REVERSE_Z    = 1 << 13,
+
+    // graphics initialization (validation otherwise defaults on in debug)
+    PL_STARTER_FLAGS_VALIDATION_OFF = 1 << 14,
 
     PL_STARTER_FLAGS_ALL_EXTENSIONS = PL_STARTER_FLAGS_SHADER_EXT | PL_STARTER_FLAGS_DRAW_EXT | PL_STARTER_FLAGS_UI_EXT |
                             PL_STARTER_FLAGS_CONSOLE_EXT | PL_STARTER_FLAGS_PROFILE_EXT | PL_STARTER_FLAGS_STATS_EXT |

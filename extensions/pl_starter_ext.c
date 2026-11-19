@@ -160,6 +160,8 @@ pl_starter_initialize(plStarterInit tInit)
             .eFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED
             #endif
         };
+        if(tInit.eFlags & PL_STARTER_FLAGS_VALIDATION_OFF)
+            tGraphicsDesc.eFlags &= ~PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
         gptGfx->initialize(&tGraphicsDesc);
     }
 
