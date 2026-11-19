@@ -983,11 +983,11 @@ pl_app_update(plAppData* ptAppData)
                 gptEcsTools->draw_transforms(ptLibrary, ptAppData->tSelectedEntity, &ptAppData->tSecondaryCamera, ptAppData->tSecondarySize, gptRenderer->get_gizmo_drawlist(ptAppData->ptSecondaryView));
         }
         if(ptAppData->bShowSceneTools && !ptAppData->bGameMode)
-            gptSceneTools->draw(ptLibrary, ptDrawlist, gptRenderer->get_gizmo_drawlist(ptAppData->ptView));
+            gptSceneTools->draw(ptLibrary, ptAppData->ptView);
         if(bSecondaryVisible)
         {
             if(ptAppData->bShowSceneTools && !ptAppData->bGameMode)
-                gptSceneTools->draw(ptLibrary, gptRenderer->get_drawlist(ptAppData->ptSecondaryView), gptRenderer->get_gizmo_drawlist(ptAppData->ptSecondaryView));
+                gptSceneTools->draw(ptLibrary, ptAppData->ptSecondaryView);
         }
         PL_PROFILE_END_SAMPLE(gptProfile, 0);
 

@@ -109,6 +109,12 @@ typedef struct _plSceneToolsContext
     int                       iTool;
     plNavigationDebug         tNavigationDebug;
     plTerrainDebug            tTerrainDebug;
+    plDrawList3D*             ptVoxelDrawlist;
+    const plVoxelGrid*        ptCachedVoxelGrid; // identity only; never dereferenced
+    plEntityId                tCachedVolumeId;
+    uint64_t                  uCachedVoxelRevision;
+    int                       iCachedVoxelSlice;
+    uint32_t                  uCachedMaxVoxels;
 } plSceneToolsContext;
 
 //-----------------------------------------------------------------------------
@@ -345,8 +351,39 @@ pl__scene_tools_navigation(plComponentLibrary* ptLibrary, plEntity tSelected, bo
     ptDebug->bShow = *pbOpen;
 }
 
+static plDrawList3D*
+pl__scene_tools_cache_voxels(const plVoxelGrid* ptGrid, uint64_t uRevision)
+{
+    plNavigationDebug* ptDebug = &gptSceneToolsCtx->tNavigationDebug;
+    if(!ptGrid)
+    {
+        if(gptSceneToolsCtx->ptCachedVoxelGrid && gptSceneToolsCtx->ptVoxelDrawlist)
+            gptDraw->clear_3d_drawlist(gptSceneToolsCtx->ptVoxelDrawlist);
+        gptSceneToolsCtx->ptCachedVoxelGrid = NULL;
+        ptDebug->uDrawn = 0;
+        return NULL;
+    }
+    if(!gptSceneToolsCtx->ptVoxelDrawlist)
+        gptSceneToolsCtx->ptVoxelDrawlist = gptDraw->request_3d_drawlist(PL_DRAW_LIST_3D_FLAG_PERSISTENT);
+    if(!gptSceneToolsCtx->ptVoxelDrawlist)
+        return NULL;
+
+    const uint32_t uMaxVoxels = ptDebug->bVoxels ? ptDebug->uMaxVoxels : 0;
+    if(gptSceneToolsCtx->ptCachedVoxelGrid != ptGrid || gptSceneToolsCtx->tCachedVolumeId != ptDebug->tVolumeId || gptSceneToolsCtx->uCachedVoxelRevision != uRevision || gptSceneToolsCtx->iCachedVoxelSlice != ptDebug->iSlice || gptSceneToolsCtx->uCachedMaxVoxels != uMaxVoxels)
+    {
+        gptDraw->clear_3d_drawlist(gptSceneToolsCtx->ptVoxelDrawlist);
+        ptDebug->uDrawn = gptVoxel->debug_draw(ptGrid, gptSceneToolsCtx->ptVoxelDrawlist, PL_COLOR_32_GREEN, ptDebug->iSlice, uMaxVoxels);
+        gptSceneToolsCtx->ptCachedVoxelGrid = ptGrid;
+        gptSceneToolsCtx->tCachedVolumeId = ptDebug->tVolumeId;
+        gptSceneToolsCtx->uCachedVoxelRevision = uRevision;
+        gptSceneToolsCtx->iCachedVoxelSlice = ptDebug->iSlice;
+        gptSceneToolsCtx->uCachedMaxVoxels = uMaxVoxels;
+    }
+    return gptSceneToolsCtx->ptVoxelDrawlist;
+}
+
 static void
-pl__scene_tools_draw_navigation(const plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist, plDrawList3D* ptOverlay)
+pl__scene_tools_draw_navigation(const plComponentLibrary* ptLibrary, plView* ptView, plDrawList3D* ptDrawlist, plDrawList3D* ptOverlay)
 {
     plNavigationDebug* ptDebug = &gptSceneToolsCtx->tNavigationDebug;
     if(!ptDebug->bShow || ptDebug->ptLibrary != ptLibrary || !ptDrawlist || !pl__scene_tools_navigation_available())
@@ -355,7 +392,9 @@ pl__scene_tools_draw_navigation(const plComponentLibrary* ptLibrary, plDrawList3
         ptDrawlist = ptOverlay;
     uint64_t uRevision = 0;
     const plVoxelGrid* ptGrid = gptVoxel->get_volume_grid(ptLibrary, gptEcs->get_entity_by_id((plComponentLibrary*)ptLibrary, ptDebug->tVolumeId), &uRevision);
-    ptDebug->uDrawn = ptGrid ? gptVoxel->debug_draw(ptGrid, ptDrawlist, PL_COLOR_32_GREEN, ptDebug->iSlice, ptDebug->bVoxels ? ptDebug->uMaxVoxels : 0) : 0;
+    plDrawList3D* ptVoxelDrawlist = pl__scene_tools_cache_voxels(ptGrid, uRevision);
+    if(ptVoxelDrawlist)
+        gptRenderer->queue_drawlist(ptView, ptVoxelDrawlist, ptDebug->bXray);
     const plPathAgentComponent* atAgents = NULL;
     const plEntity* atEntities = NULL;
     uint32_t uCount = gptEcs->get_components(ptLibrary, gptPath->get_ecs_type_key_agent(), (void**)&atAgents, &atEntities);
@@ -631,16 +670,20 @@ pl__scene_tools_lighting(plScene* ptScene)
 void
 pl_scene_tools_cleanup(void)
 {
+    if(gptSceneToolsCtx->ptVoxelDrawlist)
+        gptDraw->return_3d_drawlist(gptSceneToolsCtx->ptVoxelDrawlist);
     *gptSceneToolsCtx = (plSceneToolsContext){0};
 }
 
 void
-pl_scene_tools_draw(const plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist, plDrawList3D* ptOverlay)
+pl_scene_tools_draw(const plComponentLibrary* ptLibrary, plView* ptView)
 {
-    if(gptSceneToolsCtx->ptLibrary != ptLibrary)
+    if(gptSceneToolsCtx->ptLibrary != ptLibrary || !ptView)
         return;
+    plDrawList3D* ptDrawlist = gptRenderer->get_drawlist(ptView);
+    plDrawList3D* ptOverlay = gptRenderer->get_gizmo_drawlist(ptView);
     pl__scene_tools_draw_terrain(ptDrawlist, ptOverlay);
-    pl__scene_tools_draw_navigation(ptLibrary, ptDrawlist, ptOverlay);
+    pl__scene_tools_draw_navigation(ptLibrary, ptView, ptDrawlist, ptOverlay);
 }
 
 void

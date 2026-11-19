@@ -4286,6 +4286,8 @@ pl__render_view_debug_pass(plView* ptView, const plCamera* ptCamera, const plCam
 
     gptDraw->submit_3d_drawlist(ptView->pt3DDrawList, ptPostCmdBuffer, tDimensions.x, tDimensions.y, &ptCamera->tViewProjMat, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1, &tRenderAttachmentInfo);
     gptDraw->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptPostCmdBuffer, tDimensions.x, tDimensions.y, &ptCamera->tViewProjMat, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1, &tRenderAttachmentInfo);
+    for(uint32_t i = 0; i < pl_sb_size(ptView->sbptQueuedDrawlists); i++)
+        gptDraw->submit_3d_drawlist(ptView->sbptQueuedDrawlists[i], ptPostCmdBuffer, tDimensions.x, tDimensions.y, &ptCamera->tViewProjMat, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1, &tRenderAttachmentInfo);
     gptGfx->end_render_pass(ptPostCmdBuffer);
     gptGfx->end_command_recording(ptPostCmdBuffer);
 
@@ -4795,6 +4797,8 @@ pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
         .aeColorFormats = { PL_FORMAT_R16G16B16A16_FLOAT}
     };
     gptDraw->submit_3d_drawlist(ptView->pt3DGizmoDrawList, ptCommandBuffer, tDimensions.x, tDimensions.y, &ptCamera->tViewProjMat, 0, 1, &tRenderAttachmentInfo);
+    for(uint32_t i = 0; i < pl_sb_size(ptView->sbptQueuedOverlayDrawlists); i++)
+        gptDraw->submit_3d_drawlist(ptView->sbptQueuedOverlayDrawlists[i], ptCommandBuffer, tDimensions.x, tDimensions.y, &ptCamera->tViewProjMat, 0, 1, &tRenderAttachmentInfo);
     gptGfx->pop_debug_group(ptCommandBuffer);
     gptGfx->end_render_pass(ptCommandBuffer);
 

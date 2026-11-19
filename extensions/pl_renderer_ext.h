@@ -236,6 +236,11 @@ typedef struct _plRendererI
     // Borrowed live terrain data; NULL when index is out of range. Reacquire each
     // frame; invalidated by terrain/scene unload. Do not modify the chunk tree.
     const plTerrainChunkFile* (*get_terrain_chunk_file)(const plScene*, uint32_t index);
+
+    // Queue a borrowed drawlist after begin_frame(), before render_view().
+    // Queue resets each frame; keep the list alive through rendering all views.
+    // Overlay draws through geometry, like the gizmo drawlist.
+    void (*queue_drawlist)(plView*, plDrawList3D*, bool overlay);
 } plRendererI;
 
 //-----------------------------------------------------------------------------

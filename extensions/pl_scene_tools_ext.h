@@ -28,7 +28,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plSceneToolsI_version {0, 1, 0}
+#define plSceneToolsI_version {0, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -45,7 +45,7 @@ extern "C" {
 // external
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef struct _plScene            plScene;            // pl_renderer_ext.h
-typedef struct _plDrawList3D       plDrawList3D;       // pl_draw_ext.h
+typedef struct _plView             plView;             // pl_renderer_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -64,10 +64,11 @@ typedef struct _plSceneToolsI
     // Scene may be NULL for navigation-only hosts. Settings remain in Assets.
     void (*run)(plComponentLibrary*, plScene*, plEntity selected, bool* open);
 
-    // After scene systems, once per view. Borrows live terrain/grids/routes; owns none.
-    void (*draw)(const plComponentLibrary*, plDrawList3D*, plDrawList3D* overlay);
+    // After scene systems and renderer begin_frame(), once per view before rendering.
+    // Borrows live terrain/grids/routes; caches voxel debug geometry in its own drawlist.
+    void (*draw)(const plComponentLibrary*, plView*);
 
-    // Reset borrowed scene references and tool state before scene unload.
+    // Release cached drawing, borrowed scene references and tool state before scene unload.
     void (*cleanup)(void);
 } plSceneToolsI;
 

@@ -466,6 +466,8 @@ pl_renderer_destroy_view(plView* ptView)
     gptDraw->return_3d_drawlist(ptView->pt3DDrawList);
     gptDraw->return_3d_drawlist(ptView->pt3DGizmoDrawList);
     gptDraw->return_3d_drawlist(ptView->pt3DSelectionDrawList);
+    pl_sb_free(ptView->sbptQueuedDrawlists);
+    pl_sb_free(ptView->sbptQueuedOverlayDrawlists);
 
     for(uint32_t i = 0; i < pl_sb_size(ptView->ptParentScene->sbptViews); i++)
     {
@@ -3021,6 +3023,16 @@ pl_renderer_begin_frame(void)
 {
     PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
 
+    for(uint32_t i = 0; i < pl_sb_size(gptData->sbptScenes); i++)
+    {
+        plScene* ptScene = gptData->sbptScenes[i];
+        for(uint32_t j = 0; j < pl_sb_size(ptScene->sbptViews); j++)
+        {
+            pl_sb_reset(ptScene->sbptViews[j]->sbptQueuedDrawlists);
+            pl_sb_reset(ptScene->sbptViews[j]->sbptQueuedOverlayDrawlists);
+        }
+    }
+
     plDevice* ptDevice = gptData->ptDevice;
 
     gptStage->flush();
@@ -3537,6 +3549,17 @@ plDrawList3D*
 pl_renderer_editor_get_gizmo_drawlist(plView* ptView)
 {
     return ptView->pt3DGizmoDrawList;
+}
+
+void
+pl_renderer_queue_drawlist(plView* ptView, plDrawList3D* ptDrawlist, bool bOverlay)
+{
+    if(!ptView || !ptDrawlist)
+        return;
+    if(bOverlay)
+        pl_sb_push(ptView->sbptQueuedOverlayDrawlists, ptDrawlist);
+    else
+        pl_sb_push(ptView->sbptQueuedDrawlists, ptDrawlist);
 }
 
 plBindGroupHandle
@@ -4845,6 +4868,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi0.create_view                    = pl_renderer_create_view;
     tApi0.destroy_view                   = pl_renderer_destroy_view;
     tApi0.begin_frame                    = pl_renderer_begin_frame;
+    tApi0.queue_drawlist                 = pl_renderer_queue_drawlist;
     tApi0.prepare_scene                  = pl_renderer_prepare_scene;
     tApi0.prepare_view                   = pl_renderer_prepare_view;
     tApi0.render_view                    = pl_renderer_render_view;

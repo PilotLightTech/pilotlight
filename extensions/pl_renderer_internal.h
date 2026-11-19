@@ -454,6 +454,8 @@ typedef struct _plView
     plDrawList3D* pt3DGizmoDrawList;
     plDrawList3D* pt3DDrawList;
     plDrawList3D* pt3DSelectionDrawList;
+    plDrawList3D** sbptQueuedDrawlists;
+    plDrawList3D** sbptQueuedOverlayDrawlists;
 
     // view based options
     bool bDrawLightsDebug;
