@@ -1444,9 +1444,14 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
                         if(ptLightComp->tType != PL_LIGHT_TYPE_POINT)
                         {
                             gptUI->separator_text("Direction");
-                            gptUI->slider_float("x", &ptLightComp->tDirection.x, -1.0f, 1.0f, 0);
-                            gptUI->slider_float("y", &ptLightComp->tDirection.y, -1.0f, 1.0f, 0);
-                            gptUI->slider_float("z", &ptLightComp->tDirection.z, -1.0f, 1.0f, 0);
+                            if(ptTransformComp)
+                                gptUI->text("Uses Transform rotation (+Z forward).");
+                            else
+                            {
+                                gptUI->slider_float("x", &ptLightComp->tDirection.x, -1.0f, 1.0f, 0);
+                                gptUI->slider_float("y", &ptLightComp->tDirection.y, -1.0f, 1.0f, 0);
+                                gptUI->slider_float("z", &ptLightComp->tDirection.z, -1.0f, 1.0f, 0);
+                            }
                         }
 
                         gptUI->separator_text("Shadows");
@@ -1563,7 +1568,10 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
                             gptUI->input_float("Height", &ptCameraComp->fHeight, NULL, 0);
                         }
 
-                        gptUI->input_float3("Position", ptCameraComp->tPositionF.d, NULL, 0);
+                        if(ptTransformComp)
+                            gptUI->text("Position and rotation come from Transform.");
+                        else if(gptUI->input_float3("Position", ptCameraComp->tPositionF.d, NULL, 0))
+                            gptCamera->set_position(ptCameraComp, (plVec3d){ptCameraComp->tPositionF.x, ptCameraComp->tPositionF.y, ptCameraComp->tPositionF.z});
                         gptUI->input_float("Near Z Plane", &ptCameraComp->fNearZ, NULL, 0);
                         gptUI->input_float("Far Z Plane", &ptCameraComp->fFarZ, NULL, 0);
 

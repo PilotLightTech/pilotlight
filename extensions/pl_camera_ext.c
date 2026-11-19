@@ -476,6 +476,26 @@ pl_camera_ecs_run_ecs(plComponentLibrary* ptLibrary)
             ptCamera->tPosition.x = (double)ptTransform->tWorld.col[3].x;
             ptCamera->tPosition.y = (double)ptTransform->tWorld.col[3].y;
             ptCamera->tPosition.z = (double)ptTransform->tWorld.col[3].z;
+            // Preserve world forward and roll while removing scale and shear
+            // from the camera basis. A collapsed basis keeps its last rotation.
+            plVec3 tForward = pl_norm_vec3(ptTransform->tWorld.col[2].xyz);
+            plVec3 tRight = pl_norm_vec3(pl_cross_vec3(ptTransform->tWorld.col[1].xyz, tForward));
+            if(pl_length_sqr_vec3(tForward) > 0.0f && pl_length_sqr_vec3(tRight) > 0.0f)
+            {
+                plVec3 tUp = pl_norm_vec3(pl_cross_vec3(tForward, tRight));
+                ptCamera->tRotation = pl__quat_from_mat3_basis(tRight, tUp, tForward);
+                ptCamera->fPitch = asinf(pl_clampf(-1.0f, tForward.y, 1.0f));
+                if(tForward.x * tForward.x + tForward.z * tForward.z > 1e-12f)
+                {
+                    ptCamera->fYaw = atan2f(tForward.x, tForward.z);
+                    ptCamera->fRoll = atan2f(tRight.y, tUp.y);
+                }
+                else
+                {
+                    ptCamera->fYaw = atan2f(-tRight.z, tRight.x);
+                    ptCamera->fRoll = 0.0f;
+                }
+            }
             ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_VIEW;
 
             pl_camera_update(ptCamera);

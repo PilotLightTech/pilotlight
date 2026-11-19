@@ -138,9 +138,12 @@ typedef struct _plCameraEcsI
 
     // system setup/shutdown/etc
     void         (*register_ecs_components)(void);
-    void         (*run_ecs)            (plComponentLibrary*);
-    plEcsTypeKey (*get_ecs_type_key)   (void);
+    plEcsTypeKey (*get_ecs_type_key)       (void);
 
+    // Run after transform/hierarchy updates. Entities with a Transform use its
+    // world position, +Z forward and +Y up; cameras without one keep their pose.
+    void (*run_ecs) (plComponentLibrary*);
+    
 } plCameraEcsI;
 
 //-----------------------------------------------------------------------------

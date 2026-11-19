@@ -606,7 +606,7 @@ typedef struct _plLightComponent
     float        fInnerConeAngle; // radians; default: 0
     float        fOuterConeAngle; // radians; default: PI/8
     plVec3       tPosition;
-    plVec3       tDirection;
+    plVec3       tDirection; // world direction; transform +Z overrides this for spot/directional lights
     uint32_t     uShadowResolution; // 0 -> automatic
 } plLightComponent;
 

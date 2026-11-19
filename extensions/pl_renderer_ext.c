@@ -4725,7 +4725,10 @@ pl_renderer_run_light_update_system(plComponentLibrary* ptLibrary)
             plTransformComponent* ptTransform = gptEcs->get_component(ptLibrary, tTransformKey, tEntity);
             ptLight->tPosition = ptTransform->tWorld.col[3].xyz;
 
-            // TODO: direction
+            // Lights use the transform's world +Z axis, including parent rotation.
+            plVec3 tForward = ptTransform->tWorld.col[2].xyz;
+            if(ptLight->tType != PL_LIGHT_TYPE_POINT && pl_length_sqr_vec3(tForward) > 0.0f)
+                ptLight->tDirection = pl_norm_vec3(tForward);
         }
     }
     PL_PROFILE_END_SAMPLE(gptProfile, 0);
