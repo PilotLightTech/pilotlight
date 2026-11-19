@@ -13,6 +13,7 @@ Index of this file:
 // [SECTION] global apis
 // [SECTION] structs
 // [SECTION] helper forward declarations
+// [SECTION] pl_app_info
 // [SECTION] pl_app_load
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
@@ -151,6 +152,7 @@ const plPathI*              gptPath             = NULL;
 
 static uint64_t guLogChannel;
 static bool gbLogFileErrorReported;
+static bool gbDisableValidation;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -278,6 +280,32 @@ static float pl__show_main_menu(plAppData*);
 static bool  pl__show_secondary_view(plAppData*);
 static void  pl__update_secondary_camera(plAppData*);
 static void  pl__show_sandbox_tools(plAppData*);
+
+//-----------------------------------------------------------------------------
+// [SECTION] pl_app_info
+//-----------------------------------------------------------------------------
+
+PL_EXPORT bool
+pl_app_info(const plApiRegistryI* ptApiRegistry)
+{
+    const plIOI* ptIO = pl_get_api_latest(ptApiRegistry, plIOI);
+    const plIO* ptIOContext = ptIO->get_io();
+    gbDisableValidation = false;
+    for(int i = 1; i < ptIOContext->iArgc; i++)
+    {
+        if(strcmp(ptIOContext->apArgv[i], "--app-help") == 0)
+        {
+            printf("Pilot Light Sandbox options:\n");
+            printf("  --no-validation  Disable application-requested graphics validation for this run.\n");
+            printf("  --app-help       Show these options and exit.\n");
+            printf("Validation defaults on in debug builds and off in release builds.\n");
+            return false;
+        }
+        if(strcmp(ptIOContext->apArgv[i], "--no-validation") == 0)
+            gbDisableValidation = true;
+    }
+    return true;
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -422,6 +450,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .eFlags = PL_STARTER_FLAGS_NONE,
         .ptWindow = ptAppData->ptWindow
     };
+    if(gbDisableValidation)
+        tStarterInit.eFlags |= PL_STARTER_FLAGS_VALIDATION_OFF;
 
     // extensions handled by starter
     tStarterInit.eFlags |= PL_STARTER_FLAGS_GRAPHICS_EXT;
