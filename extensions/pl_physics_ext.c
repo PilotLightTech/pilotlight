@@ -72,6 +72,9 @@ Index of this file:
 #include "pl_ecs_ext.h"
 #include "pl_animation_ext.h"
 #include "pl_collision_ext.h"
+#include "pl_asset_ext.h"
+#include "pl_mesh_ext.h"
+#include "pl_terrain_ext.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -101,6 +104,9 @@ Index of this file:
     static const plConsoleI*   gptConsole   = NULL;
     static const plUiI*        gptUI        = NULL;
     static const plJsonI*      gptJson      = NULL;
+    static const plAssetI*     gptAsset     = NULL;
+    static const plMeshI*      gptMesh      = NULL;
+    static const plTerrainI*   gptTerrain   = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -130,7 +136,7 @@ enum _plCollisionPrimitiveType
 {
     PL_COLLISION_PRIMITIVE_TYPE_BOX,
     PL_COLLISION_PRIMITIVE_TYPE_SPHERE,
-    PL_COLLISION_PRIMITIVE_TYPE_PLANE
+    PL_COLLISION_PRIMITIVE_TYPE_PLANE = PL_COLLISION_SHAPE_PLANE
 };
 
 enum _plRigidBodyMotionType
@@ -207,6 +213,11 @@ typedef struct _plCollisionPrimitive
     // plane
     plVec3 tDirection;
     float  fOffset;
+
+    plConvexShape tConvex;
+    plAABB tBounds;
+    const plSubmesh* ptMesh;
+    plTerrainAsset* ptTerrain;
 } plCollisionPrimitive;
 
 typedef struct _plPhysicsClock
@@ -405,11 +416,107 @@ pl__physics_read_vec3(plJsonObject* ptJson, const char* pcName, plVec3* ptValue)
     return isfinite(ptValue->x) && isfinite(ptValue->y) && isfinite(ptValue->z);
 }
 
+static const char* gapcPhysicsShapes[] = {
+    "box", "sphere", "capsule", "cylinder", "cone", "convex_hull", "plane", "triangle_mesh", "terrain"
+};
+
+static bool
+pl__physics_shape_valid(const plRigidBodyPhysicsComponent* p)
+{
+    if(p->tShape < 0 || p->tShape >= PL_COLLISION_SHAPE_COUNT)
+        return false;
+    if(p->tShape >= PL_COLLISION_SHAPE_PLANE)
+        return p->fMass == 0 && !(p->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC);
+    if(p->tShape == PL_COLLISION_SHAPE_CONVEX_HULL)
+        return true; // asset data is checked when constructing the runtime collider
+    if(p->tShape == PL_COLLISION_SHAPE_BOX)
+        return p->tExtents.x > 0 && p->tExtents.y > 0 && p->tExtents.z > 0;
+    return p->fRadius > 0 && (p->tShape == PL_COLLISION_SHAPE_SPHERE ||
+        (p->tShape == PL_COLLISION_SHAPE_CAPSULE ? p->fHeight >= 0 : p->fHeight > 0));
+}
+
+static const plSubmesh*
+pl__physics_mesh(const plRigidBodyPhysicsComponent* p)
+{
+    if(!gptAsset->is_valid(p->tCollisionAsset) || gptAsset->get_type_key(p->tCollisionAsset) != gptMesh->get_asset_type_key())
+        return NULL;
+    const plMesh* ptMesh = gptAsset->get_data(p->tCollisionAsset);
+    if(p->uCollisionSubmesh >= ptMesh->uSubmeshCount)
+        return NULL;
+    const plSubmesh* ptSubmesh = &ptMesh->atSubmeshes[p->uCollisionSubmesh];
+    if(!ptSubmesh->ptVertexPositions || !ptSubmesh->szVertexCount || ptSubmesh->szVertexCount > UINT32_MAX)
+        return NULL;
+    return ptSubmesh;
+}
+
+static plConvexShape
+pl__physics_convex(const plRigidBodyPhysicsComponent* p, plMat4 tTransform)
+{
+    plConvexShape tShape = {
+        .tType = p->tShape, // convex enum values match the rigid-body shape values
+        .tTransform = tTransform,
+        .tHalfSize = pl_mul_vec3_scalarf(p->tExtents, 0.5f),
+        .fRadius = p->fRadius,
+        .fHeight = p->fHeight
+    };
+    if(p->tShape == PL_COLLISION_SHAPE_CONVEX_HULL)
+    {
+        const plSubmesh* ptMesh = pl__physics_mesh(p);
+        if(ptMesh)
+        {
+            tShape.atVertices = ptMesh->ptVertexPositions;
+            tShape.uVertexCount = (uint32_t)ptMesh->szVertexCount;
+        }
+    }
+    return tShape;
+}
+
+static plMat3
+pl__physics_inverse_inertia(const plRigidBodyPhysicsComponent* p)
+{
+    float fRadius2 = p->fRadius * p->fRadius;
+    float fHeight2 = p->fHeight * p->fHeight;
+    plVec3 tMoments = {0};
+    if(p->tShape == PL_COLLISION_SHAPE_SPHERE)
+        tMoments = (plVec3){0.4f * fRadius2, 0.4f * fRadius2, 0.4f * fRadius2};
+    else if(p->tShape == PL_COLLISION_SHAPE_CYLINDER)
+        tMoments = (plVec3){(3 * fRadius2 + fHeight2) / 12, 0.5f * fRadius2, (3 * fRadius2 + fHeight2) / 12};
+    else if(p->tShape == PL_COLLISION_SHAPE_CONE)
+        tMoments = (plVec3){0.15f * fRadius2 + 0.0375f * fHeight2, 0.3f * fRadius2, 0.15f * fRadius2 + 0.0375f * fHeight2};
+    else if(p->tShape == PL_COLLISION_SHAPE_CAPSULE)
+    {
+        float fCylinder = p->fHeight / (p->fHeight + 4.0f * p->fRadius / 3.0f);
+        float fSphere = 1 - fCylinder;
+        float fSide = fCylinder * (3 * fRadius2 + fHeight2) / 12 + fSphere * (0.4f * fRadius2 + 0.25f * fHeight2 + 0.375f * p->fHeight * p->fRadius);
+        tMoments = (plVec3){fSide, (0.5f * fCylinder + 0.4f * fSphere) * fRadius2, fSide};
+    }
+    else
+    {
+        plVec3 tExtents = p->tExtents;
+        if(p->tShape == PL_COLLISION_SHAPE_CONVEX_HULL)
+        {
+            plConvexShape tShape = pl__physics_convex(p, pl_identity_mat4());
+            plAABB tBounds = gptCollision->convex_bounds(&tShape);
+            tExtents = pl_sub_vec3(tBounds.tMax, tBounds.tMin);
+        }
+        plVec3 tSquares = pl_mul_vec3(tExtents, tExtents);
+        tMoments = (plVec3){(tSquares.y + tSquares.z) / 12, (tSquares.x + tSquares.z) / 12, (tSquares.x + tSquares.y) / 12};
+    }
+    plMat3 tInverse = {0};
+    for(uint32_t i = 0; i < 3; i++)
+        tInverse.col[i].d[i] = tMoments.d[i] > 0 ? 1.0f / (p->fMass * tMoments.d[i]) : 0;
+    return tInverse;
+}
+
 static void
 pl__ecs_rigid_body_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
 {
     const plRigidBodyPhysicsComponent* p = pComponent;
-    gptJson->add_string_member(ptJson, "shape", p->tShape == PL_COLLISION_SHAPE_BOX ? "box" : "sphere");
+    gptJson->add_string_member(ptJson, "shape", gapcPhysicsShapes[p->tShape]);
+    gptJson->add_float_member(ptJson, "height", p->fHeight);
+    gptJson->add_uint32_member(ptJson, "collision_submesh", p->uCollisionSubmesh);
+    if(gptAsset->is_valid(p->tCollisionAsset))
+        gptJson->add_string_member(ptJson, "collision_asset", gptAsset->get_path(p->tCollisionAsset));
     gptJson->add_float_member(ptJson, "mass", p->fMass);
     gptJson->add_float_member(ptJson, "restitution", p->fRestitution);
     gptJson->add_float_member(ptJson, "linear_damping", p->fLinearDamping);
@@ -428,15 +535,23 @@ static bool
 pl__ecs_rigid_body_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
     plRigidBodyPhysicsComponent* p = pComponent;
-    char acShape[16] = "sphere";
-    if(p->tShape == PL_COLLISION_SHAPE_BOX)
-        strcpy(acShape, "box");
+    char acShape[32] = {0};
+    pl_snprintf(acShape, sizeof(acShape), "%s", gapcPhysicsShapes[p->tShape]);
     gptJson->string_member(ptJson, "shape", acShape, sizeof(acShape));
-    if(strcmp(acShape, "box") == 0)
-        p->tShape = PL_COLLISION_SHAPE_BOX;
-    else if(strcmp(acShape, "sphere") == 0)
-        p->tShape = PL_COLLISION_SHAPE_SPHERE;
-    else
+    p->tShape = PL_COLLISION_SHAPE_COUNT;
+    for(int i = 0; i < PL_COLLISION_SHAPE_COUNT; i++)
+    {
+        if(strcmp(acShape, gapcPhysicsShapes[i]) == 0)
+            p->tShape = i;
+    }
+    if(p->tShape == PL_COLLISION_SHAPE_COUNT)
+        return false;
+    p->fHeight = gptJson->float_member(ptJson, "height", p->fHeight);
+    p->uCollisionSubmesh = gptJson->uint32_member(ptJson, "collision_submesh", 0);
+    char acAsset[PL_MAX_PATH_LENGTH] = {0};
+    gptJson->string_member(ptJson, "collision_asset", acAsset, sizeof(acAsset));
+    p->tCollisionAsset = acAsset[0] ? gptAsset->load(acAsset) : (plAssetHandle){0};
+    if(acAsset[0] && !gptAsset->is_valid(p->tCollisionAsset))
         return false;
     p->fMass = gptJson->float_member(ptJson, "mass", p->fMass);
     if(p->fMass < 0.0f)
@@ -477,7 +592,7 @@ pl__ecs_rigid_body_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibra
     else
         p->tFlags &= ~PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC;
     p->uPhysicsObject = UINT64_MAX;
-    return p->fLinearDamping <= 1.0f && p->fAngularDamping <= 1.0f && p->fRestitution <= 1.0f &&(p->tShape == PL_COLLISION_SHAPE_SPHERE ? p->fRadius > 0.0f : p->tExtents.x > 0.0f && p->tExtents.y > 0.0f && p->tExtents.z > 0.0f);
+    return p->fLinearDamping <= 1.0f && p->fAngularDamping <= 1.0f && p->fRestitution <= 1.0f && pl__physics_shape_valid(p);
 }
 
 static void
@@ -578,6 +693,7 @@ pl_physics_register_ecs_components(void)
         .fMass           = 1.0f,
         .tFlags          = PL_RIGID_BODY_PHYSICS_FLAG_NONE,
         .fRadius         = 0.5f,
+        .fHeight         = 1.0f,
         .tExtents        = {1.0f, 1.0f, 1.0f},
         .tShape          = PL_COLLISION_SHAPE_SPHERE,
         .fRestitution    = 0.2f,
@@ -658,6 +774,28 @@ pl_physics_create_rigid_body(plComponentLibrary* ptLibrary, plEntity tEntity)
 
     if(!ptRigidBody)
         return;
+    if(!pl__physics_shape_valid(ptRigidBody))
+    {
+        pl__ecs_rigid_body_destroy(ptRigidBody, ptLibrary);
+        return;
+    }
+    if(ptRigidBody->tShape == PL_COLLISION_SHAPE_CONVEX_HULL || ptRigidBody->tShape == PL_COLLISION_SHAPE_TRIANGULAR_MESH)
+    {
+        const plSubmesh* ptMesh = pl__physics_mesh(ptRigidBody);
+        if(!ptMesh || (ptRigidBody->tShape == PL_COLLISION_SHAPE_CONVEX_HULL && ptMesh->szVertexCount < 4))
+        {
+            pl__ecs_rigid_body_destroy(ptRigidBody, ptLibrary);
+            return;
+        }
+    }
+    if(ptRigidBody->tShape == PL_COLLISION_SHAPE_TERRAIN && (!gptAsset->is_valid(ptRigidBody->tCollisionAsset) || gptAsset->get_type_key(ptRigidBody->tCollisionAsset) != gptTerrain->get_asset_type_key()))
+    {
+        pl__ecs_rigid_body_destroy(ptRigidBody, ptLibrary);
+        return;
+    }
+    plTransformComponent tIdentity = {.tScale = {1, 1, 1}, .tRotation = {0, 0, 0, 1}};
+    if(!ptTransform && ptRigidBody->tShape == PL_COLLISION_SHAPE_TERRAIN)
+        ptTransform = &tIdentity;
     if(!ptTransform)
     {
         pl__ecs_rigid_body_destroy(ptRigidBody, ptLibrary);
@@ -679,6 +817,9 @@ pl_physics_create_rigid_body(plComponentLibrary* ptLibrary, plEntity tEntity)
     plVec3 tPosition = {0};
     plVec4 tRotation = {0};
     pl_decompose_matrix(&tTransform, &tUnUsedScale, &tRotation, &tPosition);
+
+    tRotation = pl_norm_quat(tRotation);
+    tTransform = pl_rotation_translation_scale(tRotation, tPosition, (plVec3){1, 1, 1});
 
     plRigidBodyMotionType tMotionType = PL_RIGID_BODY_MOTION_TYPE_DYNAMIC;
 
@@ -730,40 +871,6 @@ pl_physics_create_rigid_body(plComponentLibrary* ptLibrary, plEntity tEntity)
         else
             pl__set_awake(&tBody, true);
 
-        if(tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
-        {
-            if(ptRigidBody->tShape == PL_COLLISION_SHAPE_BOX)
-            {
-
-                plVec3 tSquares = pl_mul_vec3_scalarf(ptRigidBody->tExtents, 0.5f);
-                tSquares = pl_mul_vec3(tSquares, tSquares);
-
-                float ix = (1.0f / 3.0f) * ptRigidBody->fMass * (tSquares.y + tSquares.z);
-                float iy = (1.0f / 3.0f) * ptRigidBody->fMass * (tSquares.x + tSquares.z);
-                float iz = (1.0f / 3.0f) * ptRigidBody->fMass * (tSquares.x + tSquares.y);
-
-                plMat3 tInertiaTensor = {0};
-
-                tInertiaTensor.col[0].x  = ix;
-                tInertiaTensor.col[1].y  = iy;
-                tInertiaTensor.col[2].z  = iz;
-                tBody.tInverseInertiaTensor = pl_mat3_invert(&tInertiaTensor);
-            }
-            else if(ptRigidBody->tShape == PL_COLLISION_SHAPE_SPHERE)
-            {
-
-                float ix = (2.0f / 5.0f) * ptRigidBody->fMass * ptRigidBody->fRadius * ptRigidBody->fRadius;
-                plMat3 tInertiaTensor = {0};
-
-                tInertiaTensor.col[0].x  = ix;
-                tInertiaTensor.col[1].y  = ix;
-                tInertiaTensor.col[2].z  = ix;
-                tBody.tInverseInertiaTensor = pl_mat3_invert(&tInertiaTensor);
-            }
-
-            pl__transform_inertia_tensor(&tBody.tInverseInertiaTensorWorld, &tBody.tOrientation, &tBody.tInverseInertiaTensor, &tBody.tTransform);
-        }
-
         pl_sb_push(gptPhysicsCtx->sbtRigidBodies, tBody);
     }
 
@@ -788,41 +895,14 @@ pl_physics_create_rigid_body(plComponentLibrary* ptLibrary, plEntity tEntity)
         gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tMotionType = tMotionType;
         gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tInverseInertiaTensor = (plMat3){0};
         gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tInverseInertiaTensorWorld = (plMat3){0};
-
-        if(tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
-        {
-            if(ptRigidBody->tShape == PL_COLLISION_SHAPE_BOX)
-            {
-
-                plVec3 tSquares = pl_mul_vec3_scalarf(ptRigidBody->tExtents, 0.5f);
-                tSquares = pl_mul_vec3(tSquares, tSquares);
-
-                float ix = (1.0f / 3.0f) * ptRigidBody->fMass * (tSquares.y + tSquares.z);
-                float iy = (1.0f / 3.0f) * ptRigidBody->fMass * (tSquares.x + tSquares.z);
-                float iz = (1.0f / 3.0f) * ptRigidBody->fMass * (tSquares.x + tSquares.y);
-
-                plMat3 tInertiaTensor = {0};
-
-                tInertiaTensor.col[0].x  = ix;
-                tInertiaTensor.col[1].y  = iy;
-                tInertiaTensor.col[2].z  = iz;
-                gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tInverseInertiaTensor = pl_mat3_invert(&tInertiaTensor);
-            }
-            else if(ptRigidBody->tShape == PL_COLLISION_SHAPE_SPHERE)
-            {
-
-                float ix = (2.0f / 5.0f) * ptRigidBody->fMass * ptRigidBody->fRadius * ptRigidBody->fRadius;
-                plMat3 tInertiaTensor = {0};
-
-                tInertiaTensor.col[0].x  = ix;
-                tInertiaTensor.col[1].y  = ix;
-                tInertiaTensor.col[2].z  = ix;
-                gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tInverseInertiaTensor = pl_mat3_invert(&tInertiaTensor);
-            }
-
-            pl__transform_inertia_tensor(&gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tInverseInertiaTensorWorld, &ptTransform->tRotation, &gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tInverseInertiaTensor, &gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform);
-        }
     }
+    plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject];
+    if(tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
+    {
+        ptBody->tInverseInertiaTensor = pl__physics_inverse_inertia(ptRigidBody);
+        pl__transform_inertia_tensor(&ptBody->tInverseInertiaTensorWorld, &ptBody->tOrientation, &ptBody->tInverseInertiaTensor, &ptBody->tTransform);
+    }
+
 }
 
 static void
@@ -895,6 +975,63 @@ pl__physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
             gptDraw->add_3d_line(ptDrawlist, tP2, tP6, (plDrawLineOptions){.uColor = uColor, .fThickness = 0.05f});
             gptDraw->add_3d_line(ptDrawlist, tP3, tP7, (plDrawLineOptions){.uColor = uColor, .fThickness = 0.05f});
         }
+        else if(ptBody->tShape >= PL_COLLISION_SHAPE_CAPSULE && ptBody->tShape <= PL_COLLISION_SHAPE_CONE)
+        {
+            float fBase = ptBody->tShape == PL_COLLISION_SHAPE_CONE ? -0.25f : -0.5f;
+            plVec3 tBase = pl_mul_mat4_vec3(&tTransform, (plVec3){0, fBase * ptBody->fHeight, 0});
+            plVec3 tTip = pl_mul_mat4_vec3(&tTransform, (plVec3){0, (fBase + 1) * ptBody->fHeight, 0});
+            plDrawLineOptions tOptions = {.uColor = uColor, .fThickness = 0.01f};
+            if(ptBody->tShape == PL_COLLISION_SHAPE_CAPSULE)
+                gptDraw->add_3d_capsule(ptDrawlist, (plCapsule){tBase, tTip, ptBody->fRadius}, 8, 16, tOptions);
+            else if(ptBody->tShape == PL_COLLISION_SHAPE_CYLINDER)
+                gptDraw->add_3d_cylinder(ptDrawlist, (plCylinder){tBase, tTip, ptBody->fRadius}, 16, tOptions);
+            else
+                gptDraw->add_3d_cone(ptDrawlist, (plCone){tBase, tTip, ptBody->fRadius}, 16, tOptions);
+        }
+        else if(ptBody->tShape == PL_COLLISION_SHAPE_CONVEX_HULL)
+        {
+            // Source triangles need not describe the convex hull; show its support bounds.
+            plConvexShape tShape = pl__physics_convex(ptBody, tTransform);
+            plAABB tBounds = gptCollision->convex_bounds(&tShape);
+            gptDraw->add_3d_aabb(ptDrawlist, tBounds.tMin, tBounds.tMax, (plDrawLineOptions){.uColor = uColor, .fThickness = 0.01f});
+        }
+        else if(ptBody->tShape == PL_COLLISION_SHAPE_TRIANGULAR_MESH)
+        {
+            const plSubmesh* ptMesh = pl__physics_mesh(ptBody);
+            if(ptMesh)
+            {
+                size_t szCount = ptMesh->puIndices ? ptMesh->szIndexCount : ptMesh->szVertexCount;
+                szCount = szCount < 3 * 2048 ? szCount : 3 * 2048; // Bound editor debug draw cost.
+                for(size_t j = 0; j + 2 < szCount; j += 3)
+                {
+                    size_t auIndices[3] = {j, j + 1, j + 2};
+                    if(ptMesh->puIndices)
+                    {
+                        for(uint32_t k = 0; k < 3; k++)
+                            auIndices[k] = ptMesh->puIndices[j + k];
+                    }
+                    if(auIndices[0] >= ptMesh->szVertexCount || auIndices[1] >= ptMesh->szVertexCount || auIndices[2] >= ptMesh->szVertexCount)
+                        continue;
+                    for(uint32_t k = 0; k < 3; k++)
+                        gptDraw->add_3d_line(ptDrawlist, pl_mul_mat4_vec3(&tTransform, ptMesh->ptVertexPositions[auIndices[k]]), pl_mul_mat4_vec3(&tTransform, ptMesh->ptVertexPositions[auIndices[(k + 1) % 3]]), (plDrawLineOptions){.uColor = uColor, .fThickness = 0.01f});
+                }
+            }
+        }
+        else if(ptBody->tShape == PL_COLLISION_SHAPE_PLANE)
+        {
+            plVec3 atCorners[] = {{-5, 0, -5}, {5, 0, -5}, {5, 0, 5}, {-5, 0, 5}};
+            for(uint32_t j = 0; j < 4; j++)
+                gptDraw->add_3d_line(ptDrawlist, pl_mul_mat4_vec3(&tTransform, atCorners[j]), pl_mul_mat4_vec3(&tTransform, atCorners[(j + 1) % 4]), (plDrawLineOptions){.uColor = uColor, .fThickness = 0.01f});
+            gptDraw->add_3d_line(ptDrawlist, tPosition, pl_add_vec3(tPosition, tTransform.col[1].xyz), (plDrawLineOptions){.uColor = uColor, .fThickness = 0.01f});
+        }
+    }
+
+    // Contacts also expose the actual terrain surface independently of renderer LOD.
+    for(uint32_t i = 0; i < pl_sb_size(gptPhysicsCtx->sbtContactArray); i++)
+    {
+        const plContact* ptContact = &gptPhysicsCtx->sbtContactArray[i];
+        gptDraw->add_3d_cross(ptDrawlist, ptContact->tContactPoint, 0.08f, (plDrawLineOptions){.uColor = PL_COLOR_32_RED, .fThickness = 0.01f});
+        gptDraw->add_3d_line(ptDrawlist, ptContact->tContactPoint, pl_add_vec3(ptContact->tContactPoint, pl_mul_vec3_scalarf(ptContact->tContactNormal, 0.3f)), (plDrawLineOptions){.uColor = PL_COLOR_32_RED, .fThickness = 0.01f});
     }
 
     // draw force field
@@ -1388,87 +1525,255 @@ pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
     PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
+static plAABB
+pl__physics_transform_bounds(plAABB tBounds, const plMat4* ptTransform)
+{
+    plAABB tResult = {.tMin = {FLT_MAX, FLT_MAX, FLT_MAX}, .tMax = {-FLT_MAX, -FLT_MAX, -FLT_MAX}};
+    for(uint32_t i = 0; i < 8; i++)
+    {
+        plVec3 tPoint = {i & 1 ? tBounds.tMax.x : tBounds.tMin.x,
+            i & 2 ? tBounds.tMax.y : tBounds.tMin.y, i & 4 ? tBounds.tMax.z : tBounds.tMin.z};
+        tPoint = pl_mul_mat4_vec3(ptTransform, tPoint);
+        tResult.tMin = pl_min_vec3(tResult.tMin, tPoint);
+        tResult.tMax = pl_max_vec3(tResult.tMax, tPoint);
+    }
+    return tResult;
+}
+
+static void
+pl__physics_add_contact(const plCollisionPrimitive* a, const plCollisionPrimitive* b, plCollisionInfo tInfo, uint32_t uFirst)
+{
+    if(tInfo.fPenetration < 0 || pl_length_sqr_vec3(tInfo.tNormal) < 0.5f)
+        return;
+    plContact tContact = {
+        .atBodyIndices  = {a->uBodyIndex, b->uBodyIndex},
+        .fFriction      = sqrtf(a->fFriction * b->fFriction),
+        .fRestitution   = pl_maxf(a->fRestitution, b->fRestitution),
+        .tContactPoint  = tInfo.tPoint,
+        .tContactNormal = tInfo.tNormal,
+        .fPenetration   = tInfo.fPenetration
+    };
+    uint32_t uShallowest = uFirst;
+    for(uint32_t i = uFirst; i < pl_sb_size(gptPhysicsCtx->sbtContactArray); i++)
+    {
+        plContact* ptOld = &gptPhysicsCtx->sbtContactArray[i];
+        if(pl_length_sqr_vec3(pl_sub_vec3(ptOld->tContactPoint, tInfo.tPoint)) < 1e-6f && pl_dot_vec3(ptOld->tContactNormal, tInfo.tNormal) > 0.99f)
+        {
+            if(tInfo.fPenetration > ptOld->fPenetration)
+                *ptOld = tContact;
+            return;
+        }
+        if(ptOld->fPenetration < gptPhysicsCtx->sbtContactArray[uShallowest].fPenetration)
+            uShallowest = i;
+    }
+    if(pl_sb_size(gptPhysicsCtx->sbtContactArray) - uFirst < 32)
+        pl_sb_push(gptPhysicsCtx->sbtContactArray, tContact);
+    else if(tInfo.fPenetration > gptPhysicsCtx->sbtContactArray[uShallowest].fPenetration)
+        gptPhysicsCtx->sbtContactArray[uShallowest] = tContact;
+}
+
+// Sample the support face to keep flat shapes stable on planes/triangles.
+static uint32_t
+pl__physics_face_contacts(const plCollisionPrimitive* a, const plCollisionPrimitive* b, plVec3 tNormal, float fOffset, const plVec3* atTriangle, uint32_t uFirst)
+{
+    plVec3 tAxis = fabsf(tNormal.y) < 0.9f ? (plVec3){0, 1, 0} : (plVec3){1, 0, 0};
+    plVec3 tU = pl_norm_vec3(pl_cross_vec3(tNormal, tAxis));
+    plVec3 tV = pl_cross_vec3(tNormal, tU);
+    uint32_t uCount = 0;
+    for(uint32_t i = 0; i < 4; i++)
+    {
+        plVec3 tDirection = pl_add_vec3(pl_mul_vec3_scalarf(tNormal, -1), pl_add_vec3(pl_mul_vec3_scalarf(tU, i & 1 ? 0.0001f : -0.0001f), pl_mul_vec3_scalarf(tV, i & 2 ? 0.0001f : -0.0001f)));
+        plVec3 tPoint = gptCollision->support_convex(&a->tConvex, tDirection);
+        float fDepth = fOffset - pl_dot_vec3(tNormal, tPoint);
+        if(fDepth < 0)
+            continue;
+        tPoint = pl_add_vec3(tPoint, pl_mul_vec3_scalarf(tNormal, fDepth));
+        if(atTriangle)
+        {
+            plVec3 tClosest = gptCollision->point_closest_point_triangle(tPoint, atTriangle[0], atTriangle[1], atTriangle[2]);
+            if(pl_length_sqr_vec3(pl_sub_vec3(tClosest, tPoint)) > 1e-6f)
+                continue;
+        }
+        pl__physics_add_contact(a, b, (plCollisionInfo){.tPoint = tPoint, .tNormal = tNormal, .fPenetration = fDepth}, uFirst);
+        uCount++;
+    }
+    return uCount;
+}
+
+static void
+pl__physics_triangle_contact(const plCollisionPrimitive* a, const plCollisionPrimitive* b, plVec3 p0, plVec3 p1, plVec3 p2, uint32_t uFirst)
+{
+    plAABB tBounds = {pl_min_vec3(p0, pl_min_vec3(p1, p2)), pl_max_vec3(p0, pl_max_vec3(p1, p2))};
+    if(!gptCollision->aabb_aabb(&a->tBounds, &tBounds))
+        return;
+    plCollisionInfo tInfo = {0};
+    if(!gptCollision->pen_convex_triangle(&a->tConvex, p0, p1, p2, &tInfo))
+        return;
+    plVec3 tNormal = pl_norm_vec3(pl_cross_vec3(pl_sub_vec3(p1, p0), pl_sub_vec3(p2, p0)));
+    if(pl_dot_vec3(tNormal, tInfo.tNormal) < 0)
+        tNormal = pl_mul_vec3_scalarf(tNormal, -1);
+    plVec3 atTriangle[] = {p0, p1, p2};
+    if(pl_dot_vec3(tNormal, tInfo.tNormal) > 0.99f &&
+        pl__physics_face_contacts(a, b, tNormal, pl_dot_vec3(tNormal, p0), atTriangle, uFirst))
+        return;
+    pl__physics_add_contact(a, b, tInfo, uFirst);
+}
+
+static void
+pl__physics_surface_contacts(const plCollisionPrimitive* a, const plCollisionPrimitive* b)
+{
+    uint32_t uFirst = pl_sb_size(gptPhysicsCtx->sbtContactArray);
+    if(b->tType == PL_COLLISION_SHAPE_PLANE)
+    {
+        plVec3 tNormal = b->tTransform.col[1].xyz;
+        pl__physics_face_contacts(a, b, tNormal, pl_dot_vec3(tNormal, b->tTransform.col[3].xyz), NULL, uFirst);
+    }
+    else if(b->tType == PL_COLLISION_SHAPE_TRIANGULAR_MESH)
+    {
+        const plSubmesh* ptMesh = b->ptMesh;
+        size_t szCount = ptMesh->puIndices ? ptMesh->szIndexCount : ptMesh->szVertexCount;
+        for(size_t i = 0; i + 2 < szCount; i += 3)
+        {
+            plVec3 atPoints[3] = {0};
+            bool bValid = true;
+            for(uint32_t j = 0; j < 3; j++)
+            {
+                size_t szVertex = ptMesh->puIndices ? ptMesh->puIndices[i + j] : i + j;
+                if(szVertex >= ptMesh->szVertexCount)
+                {
+                    bValid = false;
+                    break;
+                }
+                atPoints[j] = pl_mul_mat4_vec3(&b->tTransform, ptMesh->ptVertexPositions[szVertex]);
+            }
+            if(bValid)
+                pl__physics_triangle_contact(a, b, atPoints[0], atPoints[1], atPoints[2], uFirst);
+        }
+    }
+    else if(b->tType == PL_COLLISION_SHAPE_TERRAIN)
+    {
+        plTerrainAsset* ptTerrain = b->ptTerrain;
+        float fSpacing = ptTerrain->fMetersPerPixel;
+        if(fSpacing <= 0 || !ptTerrain->uSize || !ptTerrain->uHorizontalTiles || !ptTerrain->uVerticalTiles || !ptTerrain->atTiles || (uint64_t)ptTerrain->uHorizontalTiles * ptTerrain->uVerticalTiles > ptTerrain->uTileCount || (uint64_t)ptTerrain->uSize * ptTerrain->uHorizontalTiles > UINT32_MAX || (uint64_t)ptTerrain->uSize * ptTerrain->uVerticalTiles > UINT32_MAX)
+            return;
+        // Only visit cells under this body's local-space AABB, never the whole heightfield.
+        plMat4 tInverse = pl_mat4_invert(&b->tTransform);
+        plAABB tLocal = pl__physics_transform_bounds(a->tBounds, &tInverse);
+        uint32_t uWidth = ptTerrain->uSize * ptTerrain->uHorizontalTiles;
+        uint32_t uDepth = ptTerrain->uSize * ptTerrain->uVerticalTiles;
+        float fStartX = ptTerrain->tCenter.x - 0.5f * (float)uWidth * fSpacing;
+        float fStartZ = ptTerrain->tCenter.z - 0.5f * (float)uDepth * fSpacing;
+        if(tLocal.tMax.x < fStartX || tLocal.tMin.x > fStartX + uWidth * fSpacing || tLocal.tMax.z < fStartZ || tLocal.tMin.z > fStartZ + uDepth * fSpacing)
+            return;
+        uint32_t uX0 = (uint32_t)pl_clampf(0, floorf((tLocal.tMin.x - fStartX) / fSpacing), (float)uWidth - 1);
+        uint32_t uZ0 = (uint32_t)pl_clampf(0, floorf((tLocal.tMin.z - fStartZ) / fSpacing), (float)uDepth - 1);
+        uint32_t uX1 = (uint32_t)pl_clampf(0, floorf((tLocal.tMax.x - fStartX) / fSpacing), (float)uWidth - 1);
+        uint32_t uZ1 = (uint32_t)pl_clampf(0, floorf((tLocal.tMax.z - fStartZ) / fSpacing), (float)uDepth - 1);
+        for(uint32_t z = uZ0; z <= uZ1; z++)
+        {
+            for(uint32_t x = uX0; x <= uX1; x++)
+            {
+                plVec3 atPoints[4];
+                bool bReady = true;
+                for(uint32_t i = 0; i < 4; i++)
+                {
+                    atPoints[i] = (plVec3){fStartX + (float)(x + (i & 1)) * fSpacing, 0, fStartZ + (float)(z + (i >> 1)) * fSpacing};
+                    if(gptTerrain->sample_height(ptTerrain, atPoints[i].x, atPoints[i].z, &atPoints[i].y) != PL_TERRAIN_SAMPLE_SUCCESS)
+                    {
+                        bReady = false;
+                        break;
+                    }
+                    atPoints[i] = pl_mul_mat4_vec3(&b->tTransform, atPoints[i]);
+                }
+                if(!bReady)
+                    continue;
+                pl__physics_triangle_contact(a, b, atPoints[0], atPoints[2], atPoints[1], uFirst);
+                pl__physics_triangle_contact(a, b, atPoints[1], atPoints[2], atPoints[3], uFirst);
+            }
+        }
+    }
+}
+
 static void
 pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
 {
     PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, "Collision Detection");
-
-    const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
-    const plEcsTypeKey tRigidBodyPhysicsComponentType = gptPhysicsCtx->tRigidBodyPhysicsComponentType;
-
-    const plEntity* ptRigidBodyEntities = NULL;
-    const uint32_t uRigidBodyCount = gptEcs->get_components(ptLibrary, tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
-
-    // plCollisionPrimitive tPrimFloor = {
-    //     .tType = PL_COLLISION_PRIMITIVE_TYPE_PLANE,
-    //     .uBodyIndex = UINT32_MAX,
-    //     .tTransform = pl_identity_mat4(),
-    //     .tDirection = {0.0f, 1.0f, 0.0f},
-    //     .fFriction = 0.9f
-    // };
-
+    const plEntity* atEntities = NULL;
+    plRigidBodyPhysicsComponent* atComponents = NULL;
+    uint32_t uCount = gptEcs->get_components(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, (void**)&atComponents, &atEntities);
     pl_sb_reset(gptPhysicsCtx->sbtContactArray);
     pl_sb_reset(gptPhysicsCtx->sbtPrimitives);
-
-    // adding primitives for detection & going ahead and checking collision with the floor
-    for(uint32_t i = 0; i < uRigidBodyCount; i++)
+    for(uint32_t i = 0; i < uCount; i++)
     {
-        plEntity tEntity = ptRigidBodyEntities[i];
-        plRigidBodyPhysicsComponent* ptRigidBody = gptEcs->get_component(ptLibrary, tRigidBodyPhysicsComponentType, tEntity);
-        plTransformComponent* ptTransform = gptEcs->get_component(ptLibrary, tTransformComponentType, tEntity);
-
-        if(!pl__physics_body_valid(ptLibrary, tEntity, ptRigidBody))
+        const plRigidBodyPhysicsComponent* ptComponent = &atComponents[i];
+        if(!pl__physics_body_valid(ptLibrary, atEntities[i], ptComponent))
             continue;
-        if(ptRigidBody->tShape == PL_COLLISION_SHAPE_BOX)
+        const plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[ptComponent->uPhysicsObject];
+        plCollisionPrimitive tPrim = {
+            .tType        = ptComponent->tShape,
+            .uBodyIndex   = (uint32_t)ptComponent->uPhysicsObject,
+            .tTransform   = ptBody->tTransform,
+            .fFriction    = ptBody->fFriction,
+            .fRestitution = ptBody->fRestitution,
+            .fRadius      = ptComponent->fRadius,
+            .tHalfSize    = pl_mul_vec3_scalarf(ptComponent->tExtents, 0.5f)
+        };
+        if(ptComponent->tShape == PL_COLLISION_SHAPE_TRIANGULAR_MESH || ptComponent->tShape == PL_COLLISION_SHAPE_CONVEX_HULL)
         {
-            plCollisionPrimitive tPrim = {
-                .tType         = PL_COLLISION_PRIMITIVE_TYPE_BOX,
-                .uBodyIndex    = (uint32_t)ptRigidBody->uPhysicsObject,
-                .tTransform    = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform,
-                .tHalfSize     = pl_mul_vec3_scalarf(ptRigidBody->tExtents, 0.5f),
-                .fFriction     = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fFriction,
-                .fRestitution  = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fRestitution
-            };
-            pl_sb_push(gptPhysicsCtx->sbtPrimitives, tPrim);
-            // pl__collision_box_half_space(&tPrim, &tPrimFloor);
+            tPrim.ptMesh = pl__physics_mesh(ptComponent);
+            if(!tPrim.ptMesh)
+                continue;
         }
-        else if(ptRigidBody->tShape == PL_COLLISION_SHAPE_SPHERE)
+        if(ptComponent->tShape == PL_COLLISION_SHAPE_TERRAIN)
         {
-            plCollisionPrimitive tPrim = {
-                .tType        = PL_COLLISION_PRIMITIVE_TYPE_SPHERE,
-                .uBodyIndex   = (uint32_t)ptRigidBody->uPhysicsObject,
-                .tTransform   = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform,
-                .fRadius      = ptRigidBody->fRadius,
-                .fFriction    = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fFriction,
-                .fRestitution = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fRestitution
-            };
-            pl_sb_push(gptPhysicsCtx->sbtPrimitives, tPrim);
-            // pl__collision_sphere_half_space(&tPrim, &tPrimFloor);
+            if(!gptAsset->is_valid(ptComponent->tCollisionAsset) || gptAsset->get_type_key(ptComponent->tCollisionAsset) != gptTerrain->get_asset_type_key())
+                continue;
+            tPrim.ptTerrain = gptAsset->get_data(ptComponent->tCollisionAsset);
         }
+        else if(ptComponent->tShape == PL_COLLISION_SHAPE_TRIANGULAR_MESH)
+            tPrim.tBounds = pl__physics_transform_bounds(tPrim.ptMesh->tAABB, &tPrim.tTransform);
+        else if(ptComponent->tShape < PL_COLLISION_SHAPE_PLANE)
+        {
+            tPrim.tConvex = pl__physics_convex(ptComponent, tPrim.tTransform);
+            tPrim.tBounds = gptCollision->convex_bounds(&tPrim.tConvex);
+        }
+        pl_sb_push(gptPhysicsCtx->sbtPrimitives, tPrim);
     }
-
-    // very nasty hack but checking collision between all objects (we need to add
-    // a broad pass ASAP)
     for(uint32_t i = 0; i + 1 < pl_sb_size(gptPhysicsCtx->sbtPrimitives); i++)
     {
         for(uint32_t j = i + 1; j < pl_sb_size(gptPhysicsCtx->sbtPrimitives); j++)
         {
-            if(gptPhysicsCtx->sbtRigidBodies[gptPhysicsCtx->sbtPrimitives[i].uBodyIndex].tMotionType != PL_RIGID_BODY_MOTION_TYPE_DYNAMIC && gptPhysicsCtx->sbtRigidBodies[gptPhysicsCtx->sbtPrimitives[j].uBodyIndex].tMotionType != PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
-               continue;
-            if(gptPhysicsCtx->sbtRigidBodies[gptPhysicsCtx->sbtPrimitives[i].uBodyIndex].bIsAwake || gptPhysicsCtx->sbtRigidBodies[gptPhysicsCtx->sbtPrimitives[j].uBodyIndex].bIsAwake)
+            const plCollisionPrimitive* a = &gptPhysicsCtx->sbtPrimitives[i];
+            const plCollisionPrimitive* b = &gptPhysicsCtx->sbtPrimitives[j];
+            const plRigidBody* ptA = &gptPhysicsCtx->sbtRigidBodies[a->uBodyIndex];
+            const plRigidBody* ptB = &gptPhysicsCtx->sbtRigidBodies[b->uBodyIndex];
+            if(ptA->tMotionType != PL_RIGID_BODY_MOTION_TYPE_DYNAMIC && ptB->tMotionType != PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
+                continue;
+            if(!ptA->bIsAwake && !ptB->bIsAwake)
+                continue;
+            if(a->tType == PL_COLLISION_SHAPE_PLANE || a->tType == PL_COLLISION_SHAPE_TERRAIN || b->tType == PL_COLLISION_SHAPE_PLANE || b->tType == PL_COLLISION_SHAPE_TERRAIN || gptCollision->aabb_aabb(&a->tBounds, &b->tBounds))
             {
-                if(gptPhysicsCtx->sbtPrimitives[i].tType == PL_COLLISION_PRIMITIVE_TYPE_BOX && gptPhysicsCtx->sbtPrimitives[j].tType == PL_COLLISION_PRIMITIVE_TYPE_BOX)
-                    pl__collision_box_box(&gptPhysicsCtx->sbtPrimitives[i], &gptPhysicsCtx->sbtPrimitives[j]);
-                else if(gptPhysicsCtx->sbtPrimitives[i].tType == PL_COLLISION_PRIMITIVE_TYPE_BOX && gptPhysicsCtx->sbtPrimitives[j].tType == PL_COLLISION_PRIMITIVE_TYPE_SPHERE)
-                    pl__collision_box_sphere(&gptPhysicsCtx->sbtPrimitives[i], &gptPhysicsCtx->sbtPrimitives[j]);
-                else if(gptPhysicsCtx->sbtPrimitives[i].tType == PL_COLLISION_PRIMITIVE_TYPE_SPHERE && gptPhysicsCtx->sbtPrimitives[j].tType == PL_COLLISION_PRIMITIVE_TYPE_BOX)
-                    pl__collision_box_sphere(&gptPhysicsCtx->sbtPrimitives[j], &gptPhysicsCtx->sbtPrimitives[i]);
-                else if(gptPhysicsCtx->sbtPrimitives[i].tType == PL_COLLISION_PRIMITIVE_TYPE_SPHERE && gptPhysicsCtx->sbtPrimitives[j].tType == PL_COLLISION_PRIMITIVE_TYPE_SPHERE)
-                    pl__collision_sphere_sphere(&gptPhysicsCtx->sbtPrimitives[i], &gptPhysicsCtx->sbtPrimitives[j]);
+                if(a->tType >= PL_COLLISION_SHAPE_PLANE)
+                    pl__physics_surface_contacts(b, a);
+                else if(b->tType >= PL_COLLISION_SHAPE_PLANE)
+                    pl__physics_surface_contacts(a, b);
+                else if(a->tType == PL_COLLISION_SHAPE_BOX && b->tType == PL_COLLISION_SHAPE_BOX)
+                    pl__collision_box_box(a, b);
+                else if(a->tType == PL_COLLISION_SHAPE_BOX && b->tType == PL_COLLISION_SHAPE_SPHERE)
+                    pl__collision_box_sphere(a, b);
+                else if(a->tType == PL_COLLISION_SHAPE_SPHERE && b->tType == PL_COLLISION_SHAPE_BOX)
+                    pl__collision_box_sphere(b, a);
+                else if(a->tType == PL_COLLISION_SHAPE_SPHERE && b->tType == PL_COLLISION_SHAPE_SPHERE)
+                    pl__collision_sphere_sphere(a, b);
+                else
+                {
+                    plCollisionInfo tInfo = {0};
+                    if(gptCollision->pen_convex_convex(&a->tConvex, &b->tConvex, &tInfo))
+                        pl__physics_add_contact(a, b, tInfo, pl_sb_size(gptPhysicsCtx->sbtContactArray));
+                }
             }
         }
     }
-
     PL_PROFILE_END_SAMPLE(gptProfile, 0);
 }
 
@@ -2492,6 +2797,9 @@ pl_load_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptConsole   = pl_get_api_latest(ptApiRegistry, plConsoleI);
         gptUI        = pl_get_api_latest(ptApiRegistry, plUiI);
         gptJson      = pl_get_api_latest(ptApiRegistry, plJsonI);
+        gptAsset     = pl_get_api_latest(ptApiRegistry, plAssetI);
+        gptMesh      = pl_get_api_latest(ptApiRegistry, plMeshI);
+        gptTerrain   = pl_get_api_latest(ptApiRegistry, plTerrainI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

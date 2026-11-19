@@ -1,6 +1,6 @@
 /*
    pl_physics_ext.h
-     - rigid body physics (spheres & boxes) & force fields
+     - rigid body physics, convex/mesh/terrain colliders & force fields
 */
 
 /*
@@ -25,7 +25,8 @@ Index of this file:
         The provided implementation retrieves the following APIs. Core services
         are included; this lists direct dependencies, not their dependencies.
 
-        * plCollisionI (v0.2.x)
+        * plAssetI (v1.x)
+        * plCollisionI (v0.3.x)
         * plConsoleI (v2.x)
         * plDataRegistryI (v1.x)
         * plDrawI (v4.x)
@@ -33,8 +34,10 @@ Index of this file:
         * plJsonI (v1.x)
         * plLogI (v2.x)
         * plMemoryI (v1.x)
+        * plMeshI (v0.2.x)
         * plProfileI (v2.x)
         * plStatsI (v1.x)
+        * plTerrainI (v0.1.x)
         * plTransformI (v1.x)
         * plUiI (v2.x)
 */
@@ -54,7 +57,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plPhysicsI_version {0, 2, 0}
+#define plPhysicsI_version {0, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -63,6 +66,7 @@ extern "C" {
 #include "pl.inc"
 #include <stdbool.h>
 #include <stdint.h>
+#include "pl_asset_ext.inl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -176,11 +180,18 @@ typedef struct _plRigidBodyPhysicsComponent
     plVec3                  tGravity;
     plVec3                  tLocalOffset;
 
-    // sphere
+    // sphere/capsule/cylinder/cone
     float fRadius;
 
     // box
     plVec3 tExtents; // full collider dimensions; independent of transform scale
+
+    // capsule/cylinder/cone: +Y axis; capsule height is between cap centers
+    float fHeight;
+
+    // hull/triangle mesh: mesh asset (one submesh); terrain: terrain asset
+    plAssetHandle tCollisionAsset;
+    uint32_t      uCollisionSubmesh;
 
     uint64_t uPhysicsObject; // runtime only; never serialize or copy this index
 } plRigidBodyPhysicsComponent;
@@ -200,10 +211,14 @@ enum _plCollisionShape
 {
     PL_COLLISION_SHAPE_BOX,
     PL_COLLISION_SHAPE_SPHERE,
-    // PL_COLLISION_SHAPE_CAPSULE,
-    // PL_COLLISION_SHAPE_CONVEX_HULL,
-    // PL_COLLISION_SHAPE_TRIANGULAR_MESH,
-    // PL_COLLISION_SHAPE_CYLINDER
+    PL_COLLISION_SHAPE_CAPSULE,
+    PL_COLLISION_SHAPE_CYLINDER,
+    PL_COLLISION_SHAPE_CONE,
+    PL_COLLISION_SHAPE_CONVEX_HULL,
+    PL_COLLISION_SHAPE_PLANE,           // local +Y half-space; mass must be zero
+    PL_COLLISION_SHAPE_TRIANGULAR_MESH, // static, double-sided triangle surface
+    PL_COLLISION_SHAPE_TERRAIN,         // static terrain heightfield; renderer independent
+    PL_COLLISION_SHAPE_COUNT
 };
 
 enum _plRigidBodyPhysicsFlags
