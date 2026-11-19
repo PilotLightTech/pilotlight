@@ -106,7 +106,7 @@ pl__sample_transmission_at_pos(vec3 atmospherePosition, vec3 rayDirection, float
 
     // The LUT generator places altitude/direction endpoints at texel centers.
     // Linear filtering avoids visible steps as the small disk crosses rows.
-    uv = vec2(skyLutUnitToSubUv(uv.x, float(lutSize.x)), skyLutUnitToSubUv(uv.y, float(lutSize.y)));
+    uv = pl_atmosphere_lut_uv(uv, lutSize);
 
     return textureLod(sampler2D(transmissionLut, tSamplerLinearClamp), uv, 0.0).rgb;
 }

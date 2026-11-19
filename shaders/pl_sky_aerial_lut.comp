@@ -74,13 +74,6 @@ textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
     return (dist <= proj.z) ? 1.0 : 0.0;
 }
 
-vec2
-pl_aerial_clamp_lut_uv(vec2 uv, ivec2 lutSize)
-{
-    vec2 halfTexel = 0.5 / vec2(lutSize);
-    return clamp(uv, halfTexel, vec2(1.0) - halfTexel);
-}
-
 vec3
 pl_integrate_source(vec3 source, vec3 extinction, float segmentLength)
 {
@@ -216,9 +209,9 @@ void main()
 
             vec2 atmosphereUV = pl_compute_lut_uv(currentHeight, tGpuScene.tData.atmosphereHeight, localUp, sunDirection);
 
-            vec2 transmissionUV = pl_aerial_clamp_lut_uv(atmosphereUV, transmissionSize);
+            vec2 transmissionUV = pl_atmosphere_lut_uv(atmosphereUV, transmissionSize);
 
-            vec2 multiscatterUV = pl_aerial_clamp_lut_uv(atmosphereUV, multiscatterSize);
+            vec2 multiscatterUV = pl_atmosphere_lut_uv(atmosphereUV, multiscatterSize);
 
             vec3 transmittanceToSun = textureLod(sampler2D(transmissionLut, tSamplerLinearClamp), transmissionUV, 0.0).rgb;
 

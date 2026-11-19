@@ -261,13 +261,12 @@ pl_final_ray_sphere_nearest(vec3 rayOrigin, vec3 rayDirection, float sphereRadiu
 //-----------------------------------------------------------------------------
 
 vec2
-pl_clamp_lut_uv(vec2 tUv, ivec2 tLutSize)
+pl_atmosphere_lut_uv(vec2 tUv, ivec2 tLutSize)
 {
-    // Keeps bilinear samples inside actual texel centers instead of allowing
-    // filtering against an exact LUT boundary.
-
-    vec2 tHalfTexel = 0.5 / vec2(tLutSize);
-    return clamp(tUv, tHalfTexel, vec2(1.0) - tHalfTexel);
+    // Altitude/light-zenith endpoints are stored at the first and last texel
+    // centers. Remap the entire interval, not just samples at the boundary.
+    return vec2(skyLutUnitToSubUv(tUv.x, float(tLutSize.x)),
+                skyLutUnitToSubUv(tUv.y, float(tLutSize.y)));
 }
 
 struct plAtmosphereCoefficients
@@ -331,10 +330,10 @@ pl_atmosphere_light_source(vec3 position, vec3 toLight, vec3 radiance, vec2 phas
     vec3 up = position / max(radialDistance, 1e-20);
     float altitude = clamp(radialDistance - atmosphere.planetRadius, 0.0, atmosphere.atmosphereHeight);
     vec2 uv = pl_compute_lut_uv(altitude, atmosphere.atmosphereHeight, up, toLight);
-    vec2 transmissionSize = vec2(textureSize(sampler2D(transmission, linearSampler), 0));
-    vec2 multiscatterSize = vec2(textureSize(sampler2D(multiscatter, linearSampler), 0));
-    vec2 transmissionUV = (clamp(uv, vec2(0.0), vec2(1.0)) * (transmissionSize - 1.0) + 0.5) / transmissionSize;
-    vec2 multiscatterUV = (clamp(uv, vec2(0.0), vec2(1.0)) * (multiscatterSize - 1.0) + 0.5) / multiscatterSize;
+    ivec2 transmissionSize = textureSize(sampler2D(transmission, linearSampler), 0);
+    ivec2 multiscatterSize = textureSize(sampler2D(multiscatter, linearSampler), 0);
+    vec2 transmissionUV = pl_atmosphere_lut_uv(uv, transmissionSize);
+    vec2 multiscatterUV = pl_atmosphere_lut_uv(uv, multiscatterSize);
     vec3 transmittance = textureLod(sampler2D(transmission, linearSampler), transmissionUV, 0.0).rgb;
     vec3 multiple = atmosphere.bMultiScatter != 0 ? textureLod(sampler2D(multiscatter, linearSampler), multiscatterUV, 0.0).rgb : vec3(0.0);
     float visibility = pl_planet_visibility(position, toLight, vec3(0.0), atmosphere.planetRadius);

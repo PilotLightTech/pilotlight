@@ -193,9 +193,9 @@ void main()
 
         vec2 atmosphereUV = pl_compute_lut_uv(fCurrentHeight, tGpuScene.tData.atmosphereHeight, tUpDirection, tDirectionToSun);
 
-        vec2 transmissionUV = pl_clamp_lut_uv(atmosphereUV, tTransmissionLutSize);
+        vec2 transmissionUV = pl_atmosphere_lut_uv(atmosphereUV, tTransmissionLutSize);
 
-        vec2 multiscatterUV = pl_clamp_lut_uv(atmosphereUV, tMultiscatterLutSize);
+        vec2 multiscatterUV = pl_atmosphere_lut_uv(atmosphereUV, tMultiscatterLutSize);
 
         vec3 transmittanceToSun = textureLod(sampler2D(transmissionLut, tSamplerLinearClamp), transmissionUV, 0.0).rgb;
 

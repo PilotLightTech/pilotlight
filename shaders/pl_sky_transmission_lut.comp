@@ -59,19 +59,18 @@ void main()
     if(any(greaterThanEqual(uv, imageSize(outputImage))))
         return;
 
-    float x = uv.x / float(imageSize(outputImage).x - 1); // height in atmosphere
-    float y = uv.y / float(imageSize(outputImage).y - 1); // direction relative to "up"
+    float x = uv.x / float(max(imageSize(outputImage).x - 1, 1)); // height in atmosphere
+    float y = uv.y / float(max(imageSize(outputImage).y - 1, 1)); // direction relative to "up"
 
     // height 0 -> ground
     // height 1 -> top of atmosphere
     float fHeight = mix(0, tGpuScene.tData.atmosphereHeight, x);
 
     float fUpDot = y * 2.0 - 1.0; // basically dot(up, V)
-    fUpDot = max(fUpDot, -0.999); // problems with fUpDot == -1.0
 
     // view direction (constructed such that the dot product with local up
     // equals fUpDot)
-    vec3 V = vec3(0, fUpDot, sqrt(1 - (fUpDot * fUpDot))); // assuming spherical symmetry
+    vec3 V = vec3(0, fUpDot, sqrt(max(1 - (fUpDot * fUpDot), 0.0))); // assuming spherical symmetry
 
     vec3 P = vec3(0, fHeight + tGpuScene.tData.planetRadius, 0);
     vec3 tEarthCenter = vec3(0);

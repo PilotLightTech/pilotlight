@@ -3184,7 +3184,7 @@ pl_renderer_begin_frame(void)
                     gptUI->checkbox("Wireframe", &ptScene->bWireframe);
 
 
-                    gptUI->layout_static(0.0f, 200.0f, 2);
+                    gptUI->layout_static(0.0f, 200.0f, 1);
 
                     if(gptUI->button("Reload Shaders"))
                         bReloadShaders = true;

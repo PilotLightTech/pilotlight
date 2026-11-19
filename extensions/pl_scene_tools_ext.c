@@ -747,3 +747,21 @@ pl_unload_scene_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(!bReload)
         ptApiRegistry->remove_api(pl_get_api_latest(ptApiRegistry, plSceneToolsI));
 }
+
+#ifndef PL_UNITY_BUILD
+
+    #define PL_STRING_IMPLEMENTATION
+    #include "pl_string.h"
+    #undef PL_STRING_IMPLEMENTATION
+
+    #define PL_MEMORY_IMPLEMENTATION
+    #include "pl_memory.h"
+    #undef PL_MEMORY_IMPLEMENTATION
+
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+
+#endif

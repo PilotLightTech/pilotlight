@@ -34,7 +34,6 @@ Index of this file:
 // [SECTION] defines
 //-----------------------------------------------------------------------------
 
-// #define approximation
 #define PL_INNER_SAMPLE_COUNT 20
 
 //-----------------------------------------------------------------------------
@@ -59,23 +58,25 @@ void main()
     if(any(greaterThanEqual(uv, imageSize(multiscatterLut))))
         return;
 
-    float x = uv.x / float(imageSize(multiscatterLut).x); // altitude, height in atomosphere
-    float y = uv.y / float(imageSize(multiscatterLut).y); // solar zenith angle
+    // Match the transmission LUT: endpoints occupy the first/last texel centers.
+    float x = uv.x / float(max(imageSize(multiscatterLut).x - 1, 1)); // altitude
+    float y = uv.y / float(max(imageSize(multiscatterLut).y - 1, 1)); // solar zenith angle
+    ivec2 transmissionSize = textureSize(sampler2D(transmissionLut, tSamplerLinearClamp), 0);
 
     float fHeight = mix(0, tGpuScene.tData.atmosphereHeight, x);
     vec3 P = vec3(0, fHeight + tGpuScene.tData.planetRadius, 0);
     vec3 tEarthCenter = vec3(0);
 
     float fUpDot = y * 2 - 1;
-    fUpDot = max(fUpDot, -0.999); // problems with fUpDot == -1.0
-    vec3 L = vec3(0, fUpDot, sqrt(1 - (fUpDot * fUpDot))); // direction towards sun
+    vec3 L = vec3(0, fUpDot, sqrt(max(1 - (fUpDot * fUpDot), 0.0))); // direction towards sun
 
     vec3 L_2nd = vec3(0); // radiance available from second scattering order
     vec3 f_ms = vec3(0);  // fraction of light that may be scattered again
 
     float fIsotropicPhase = 1.0 / (4.0 * PL_PI);
 
-    // sampling over sphere
+    // Equal-solid-angle samples over the entire sphere. Uniform cos(theta)
+    // spacing makes the spherical average a plain average of these samples.
     int iSampleCountSqrt = 8;
     float fSampleCountSqrtRcp = 1.0 / float(iSampleCountSqrt);
     for(int i = 0; i < iSampleCountSqrt; i++)
@@ -83,18 +84,24 @@ void main()
         for(int j = 0; j < iSampleCountSqrt; j++)
         {
 
-            float fTheta =     PL_PI * (float(i)) * fSampleCountSqrtRcp;
+            float fCosTheta = 1.0 - 2.0 * (float(i) + 0.5) * fSampleCountSqrtRcp;
             float fPhi   = 2 * PL_PI * (float(j) + 0.5) * fSampleCountSqrtRcp;
 
-            float fSinTheta = sin(fTheta);
-            float fCosTheta = cos(fTheta);
-            vec3 V = vec3(fSinTheta * cos(fPhi), fSinTheta, fSinTheta * sin(fPhi));
+            float fSinTheta = sqrt(max(1.0 - fCosTheta * fCosTheta, 0.0));
+            vec3 V = vec3(fSinTheta * cos(fPhi), fCosTheta, fSinTheta * sin(fPhi));
 
             vec3 inscattered = vec3(0.0);
             plIntersection intersection = pl_ray_intersection_planet(P, V, tEarthCenter, tGpuScene.tData.planetRadius, tGpuScene.tData.atmosphereHeight);
-            vec3 tCurrentPosition = P;
-            float fStepSize = intersection.fDistance / PL_INNER_SAMPLE_COUNT;
-            V *= fStepSize;
+            // At the ground endpoint, downward rays hit immediately. Avoid
+            // cancellation in the sphere intersection turning t = 0 negative
+            // and incorrectly marching these rays through the planet.
+            if(fHeight == 0.0 && V.y < 0.0)
+            {
+                intersection.bHitEarth = true;
+                intersection.fDistance = 0.0;
+                intersection.tPos = P;
+            }
+            float fStepSize = max(intersection.fDistance, 0.0) / PL_INNER_SAMPLE_COUNT;
 
             vec3 L_f = vec3(0.0);
 
@@ -103,44 +110,31 @@ void main()
             vec3 tEarthHitNormal = normalize(intersection.tPos - tEarthCenter);
             float fEarthNoL = clamp(dot(tEarthHitNormal, L), 0, 1);
 
-            vec3 tUp = normalize(tCurrentPosition - tEarthCenter);
             vec2 lutUV = pl_compute_lut_uv(0, tGpuScene.tData.atmosphereHeight, tEarthHitNormal, L);
-            vec3 transmissionToIntersection = texture(sampler2D(transmissionLut, tSamplerLinearClamp), lutUV).rgb;
+            lutUV = pl_atmosphere_lut_uv(lutUV, transmissionSize);
+            vec3 transmissionToIntersection = textureLod(sampler2D(transmissionLut, tSamplerLinearClamp), lutUV, 0.0).rgb;
             vec3 incomingLight = transmissionToIntersection;
             vec3 planetLit = tEarthAlbedo / PL_PI * incomingLight * fEarthNoL;
             vec3 direct = intersection.bHitEarth ? planetLit : vec3(0.0);
 
             vec3 transmission = vec3(1.0);
 
-            
-            //assumes height and tUp vector is constant, allows sun transmission LUT lookup to be pulled out of loop
-            #ifdef approximation
-            float currentHeight = -tCurrentPosition.y - tGpuScene.tData.planetRadius;
-            #endif
-
             for(int k = 0; k < PL_INNER_SAMPLE_COUNT; k++)
             {
-
-                tCurrentPosition += V;
-
-                vec3 tUp;
-                
-                #ifdef approximation
-                tUp = vec3(0, 1, 0);
-                float currentHeight = fHeight
-                #else
-                tUp = tCurrentPosition - tEarthCenter;
+                // Sample within each segment, including rays toward the ground.
+                vec3 tCurrentPosition = P + V * ((float(k) + 0.5) * fStepSize);
+                vec3 tUp = tCurrentPosition - tEarthCenter;
                 float tUpLength = length(tUp);
-                float currentHeight = tUpLength - tGpuScene.tData.planetRadius;
+                float currentHeight = clamp(tUpLength - tGpuScene.tData.planetRadius, 0.0, tGpuScene.tData.atmosphereHeight);
                 tUp /= tUpLength;
-                #endif
 
                 plAtmosphereCoefficients tCoefficients = pl_calculate_coefficients(currentHeight, tGpuScene.tData);
                 vec3 tScatteringCo = tCoefficients.tScatterRayleigh + tCoefficients.tScatterMie;
 
                 // light arriving at point
                 vec2 lutUV = pl_compute_lut_uv(currentHeight, tGpuScene.tData.atmosphereHeight, tUp, L);
-                vec3 transmissionSun = texture(sampler2D(transmissionLut, tSamplerLinearClamp), lutUV).rgb;
+                lutUV = pl_atmosphere_lut_uv(lutUV, transmissionSize);
+                vec3 transmissionSun = textureLod(sampler2D(transmissionLut, tSamplerLinearClamp), lutUV, 0.0).rgb;
 
                 // inscattering from light at point
                 vec3 coefficientIntegral = pl_integrate_inscattering(tScatteringCo, tCoefficients.tExtinction, fStepSize);
@@ -153,8 +147,8 @@ void main()
                 transmission *= exp(-tCoefficients.tExtinction * fStepSize);
             }
 
-            f_ms += L_f * fSinTheta;  // isotropic phase function reduced with integral over sphere(factor 4 x pi)
-            L_2nd += (direct * transmission + inscattered) * fSinTheta; // isotropic phase function reduced with integral over sphere(factor 4 x pi)
+            f_ms += L_f;
+            L_2nd += direct * transmission + inscattered;
         }
     }
 
