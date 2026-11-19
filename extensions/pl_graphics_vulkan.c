@@ -2874,6 +2874,7 @@ pl_graphics_draw_stream(plCommandBuffer* ptCmdBuffer, uint32_t uAreaCount, plDra
             if (uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET_0)
             {
                 uDynamicBufferOffset0 = ptStream->_auStream[uCurrentStreamIndex];
+                uUpdateCount = pl_max(1, uUpdateCount);
                 uCurrentStreamIndex++;
             }
 
@@ -2882,7 +2883,7 @@ pl_graphics_draw_stream(plCommandBuffer* ptCmdBuffer, uint32_t uAreaCount, plDra
                 const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
                 plVulkanBindGroup* ptBindGroup0 = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
                 auSlots[0] = ptBindGroup0->tDescriptorSet;
-                uUpdateCount = pl_max(3, uUpdateCount);
+                uUpdateCount = pl_max(4, uUpdateCount);
                 uCurrentStreamIndex++;
             }
 
@@ -2890,7 +2891,7 @@ pl_graphics_draw_stream(plCommandBuffer* ptCmdBuffer, uint32_t uAreaCount, plDra
             {
                 const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
                 plVulkanBindGroup* ptBindGroup1 = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
-                uUpdateCount = pl_max(2, uUpdateCount);
+                uUpdateCount = pl_max(3, uUpdateCount);
                 auSlots[1] = ptBindGroup1->tDescriptorSet;
                 uCurrentStreamIndex++;
             }
@@ -2899,7 +2900,7 @@ pl_graphics_draw_stream(plCommandBuffer* ptCmdBuffer, uint32_t uAreaCount, plDra
             {
                 const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
                 plVulkanBindGroup* ptBindGroup2 = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
-                uUpdateCount = pl_max(1, uUpdateCount);
+                uUpdateCount = pl_max(2, uUpdateCount);
                 auSlots[2] = ptBindGroup2->tDescriptorSet;
                 uCurrentStreamIndex++;
             }
@@ -2965,8 +2966,15 @@ pl_graphics_draw_stream(plCommandBuffer* ptCmdBuffer, uint32_t uAreaCount, plDra
                 uCurrentStreamIndex++;
             }
 
-            vkCmdBindDescriptorSets(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                ptVulkanShader->tPipelineLayout, 4 - uUpdateCount, uUpdateCount, auSlots, 1, &uDynamicBufferOffset0);
+            // Bind the changed suffix, including its dynamic set/offset. A shader
+            // switch rebinds all sets because pipeline layouts may be incompatible.
+            if(uUpdateCount)
+            {
+                const uint32_t uFirstSet = 4 - uUpdateCount;
+                vkCmdBindDescriptorSets(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    ptVulkanShader->tPipelineLayout, uFirstSet, uUpdateCount, &auSlots[uFirstSet], 1, &uDynamicBufferOffset0);
+                uUpdateCount = 0;
+            }
 
             if (tIndexBuffer.uData == 0)
                 vkCmdDraw(ptCmdBuffer->tCmdBuffer, uTriangleCount * 3, uInstanceCount, uVertexBufferOffset, uInstanceStart);
