@@ -4309,8 +4309,8 @@ pl__ecs_object_serialize(void* pComponent, const plComponentLibrary* ptLibrary, 
 
     if(ptComponent->atMaterialOverrides)
     {
-        const char** ppcMaterials = PL_ALLOC(ptComponent->uSubmeshCount);
-        memset(ppcMaterials, 0, ptComponent->uSubmeshCount);
+        const char** ppcMaterials = PL_ALLOC(sizeof(const char*) * ptComponent->uSubmeshCount);
+        memset(ppcMaterials, 0, sizeof(const char*) * ptComponent->uSubmeshCount);
 
         for(uint32_t i = 0; i < ptComponent->uSubmeshCount; i++)
         {
