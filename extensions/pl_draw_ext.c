@@ -106,8 +106,19 @@ typedef struct _plDraw3DText
     float    fWrap;
 } plDraw3DText;
 
+typedef struct _plDraw3DBufferCache
+{
+    plBufferHandle tVertexBuffer;
+    plBufferHandle tIndexBuffer;
+    uint32_t       uVertexBytes;
+    uint32_t       uIndexBytes;
+} plDraw3DBufferCache;
+
 typedef struct _plDrawList3D
 {
+    plDrawList3DFlags tFlags;
+    plDraw3DBufferCache atBufferCache[2]; // solids, lines
+
     // solid
     plDrawVertex3DSolid* sbtSolidVertexBuffer;
     uint32_t*            sbtSolidIndexBuffer;
@@ -690,6 +701,31 @@ pl_draw_initialize(const plDrawInit* ptInit)
     }
 }
 
+static void
+pl__release_3d_buffer_cache(plDrawList3D* ptDrawlist)
+{
+    for(uint32_t i = 0; i < 2; i++)
+    {
+        plDraw3DBufferCache* ptCache = &ptDrawlist->atBufferCache[i];
+        if(ptCache->uVertexBytes)
+            gptGfx->queue_buffer_for_deletion(gptDrawCtx->ptDevice, ptCache->tVertexBuffer);
+        if(ptCache->uIndexBytes)
+            gptGfx->queue_buffer_for_deletion(gptDrawCtx->ptDevice, ptCache->tIndexBuffer);
+        *ptCache = (plDraw3DBufferCache){0};
+    }
+}
+
+void
+pl_draw_clear_3d_drawlist(plDrawList3D* ptDrawlist)
+{
+    pl__release_3d_buffer_cache(ptDrawlist);
+    pl_sb_reset(ptDrawlist->sbtSolidVertexBuffer);
+    pl_sb_reset(ptDrawlist->sbtLineVertexBuffer);
+    pl_sb_reset(ptDrawlist->sbtSolidIndexBuffer);
+    pl_sb_reset(ptDrawlist->sbtLineIndexBuffer);
+    pl_sb_reset(ptDrawlist->sbtTextEntries);
+}
+
 void
 pl_draw_cleanup(void)
 {
@@ -714,6 +750,7 @@ pl_draw_cleanup(void)
         plDrawList3D* ptDrawlist = gptDrawCtx->aptDrawlists3D[i];
         if(ptDrawlist)
         {
+            pl__release_3d_buffer_cache(ptDrawlist);
             if(ptDrawlist->sbtSolidIndexBuffer)
             {
                 pl_sb_free(ptDrawlist->sbtSolidIndexBuffer);
@@ -803,12 +840,13 @@ pl_draw_request_2d_layer(plDrawList2D* ptDrawlist)
 }
 
 plDrawList3D*
-pl_draw_request_3d_drawlist(void)
+pl_draw_request_3d_drawlist(plDrawList3DFlags tFlags)
 {
     plDrawList3D* ptDrawlist = pl_pool_allocator_alloc(&gptDrawCtx->tDrawlistPool3D);
 
     if(ptDrawlist)
     {
+        ptDrawlist->tFlags = tFlags;
         pl_sb_reserve(ptDrawlist->sbtLineIndexBuffer, 1024);
         pl_sb_reserve(ptDrawlist->sbtLineVertexBuffer, 1024);
         pl_sb_reserve(ptDrawlist->sbtSolidIndexBuffer, 1024);
@@ -876,6 +914,8 @@ pl_draw_return_2d_layer(plDrawLayer2D* ptLayer)
 void
 pl_draw_return_3d_drawlist(plDrawList3D* ptDrawlist)
 {
+    pl__release_3d_buffer_cache(ptDrawlist);
+    ptDrawlist->tFlags = PL_DRAW_LIST_3D_FLAG_NONE;
     pl_draw_return_2d_layer(ptDrawlist->ptLayer);
     pl_draw_return_2d_drawlist(ptDrawlist->pt2dDrawlist);
     pl_sb_free(ptDrawlist->sbtLineIndexBuffer);
@@ -3355,11 +3395,8 @@ pl_draw_new_frame(void)
     {
         plDrawList3D* ptDrawlist = gptDrawCtx->aptDrawlists3D[i];
 
-        pl_sb_reset(ptDrawlist->sbtSolidVertexBuffer);
-        pl_sb_reset(ptDrawlist->sbtLineVertexBuffer);
-        pl_sb_reset(ptDrawlist->sbtSolidIndexBuffer);    
-        pl_sb_reset(ptDrawlist->sbtLineIndexBuffer);    
-        pl_sb_reset(ptDrawlist->sbtTextEntries);
+        if(!(ptDrawlist->tFlags & PL_DRAW_LIST_3D_FLAG_PERSISTENT))
+            pl_draw_clear_3d_drawlist(ptDrawlist);
     }
 
     // reset 2d drawlists
@@ -5060,6 +5097,71 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plCommandBuffer* ptCommandB
     gptGfx->pop_debug_group(ptCommandBuffer);
 }
 
+// Geometry is append-only between resets, so byte counts identify changes.
+// Replace submitted buffers instead of overwriting data used by in-flight draws.
+static void
+pl__submit_persistent_3d_geometry(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandBuffer, const plPipelineEntry* ptEntry, const plMat4* ptMVP, float fAspectRatio)
+{
+    plDevice* ptDevice = gptDrawCtx->ptDevice;
+    for(uint32_t i = 0; i < 2; i++)
+    {
+        const void* pVertices = i ? (void*)ptDrawlist->sbtLineVertexBuffer : (void*)ptDrawlist->sbtSolidVertexBuffer;
+        const uint32_t* puIndices = i ? ptDrawlist->sbtLineIndexBuffer : ptDrawlist->sbtSolidIndexBuffer;
+        const uint32_t uVertexBytes = i ? sizeof(plDrawVertex3DLine) * pl_sb_size(ptDrawlist->sbtLineVertexBuffer) : sizeof(plDrawVertex3DSolid) * pl_sb_size(ptDrawlist->sbtSolidVertexBuffer);
+        const uint32_t uIndexBytes = sizeof(uint32_t) * pl_sb_size(puIndices);
+        if(!uVertexBytes || !uIndexBytes)
+            continue;
+        plDraw3DBufferCache* ptCache = &ptDrawlist->atBufferCache[i];
+        if(ptCache->uVertexBytes != uVertexBytes || ptCache->uIndexBytes != uIndexBytes)
+        {
+            if(ptCache->uVertexBytes)
+                gptGfx->queue_buffer_for_deletion(ptDevice, ptCache->tVertexBuffer);
+            if(ptCache->uIndexBytes)
+                gptGfx->queue_buffer_for_deletion(ptDevice, ptCache->tIndexBuffer);
+            const plBufferDesc tVertexDesc = {
+                .eUsage      = PL_BUFFER_USAGE_VERTEX,
+                .szByteSize  = uVertexBytes,
+                .pcDebugName = "Persistent 3D Draw Vertices"
+            };
+            const plBufferDesc tIndexDesc = {
+                .eUsage      = PL_BUFFER_USAGE_INDEX,
+                .szByteSize  = uIndexBytes,
+                .pcDebugName = "Persistent 3D Draw Indices"
+            };
+            ptCache->tVertexBuffer = pl__create_staging_buffer(&tVertexDesc, tVertexDesc.pcDebugName, i);
+            ptCache->tIndexBuffer = pl__create_staging_buffer(&tIndexDesc, tIndexDesc.pcDebugName, i);
+            memcpy(gptGfx->get_buffer(ptDevice, ptCache->tVertexBuffer)->tMemoryAllocation.pHostMapped, pVertices, uVertexBytes);
+            memcpy(gptGfx->get_buffer(ptDevice, ptCache->tIndexBuffer)->tMemoryAllocation.pHostMapped, puIndices, uIndexBytes);
+            ptCache->uVertexBytes = uVertexBytes;
+            ptCache->uIndexBytes = uIndexBytes;
+            PL_DRAW_STAT("draw / uploaded bytes", (double)uVertexBytes + uIndexBytes);
+        }
+        struct {
+            plMat4 tMVP;
+            float  fAspect;
+            int    aiPadding[3];
+        } tData = {
+            *ptMVP,
+            fAspectRatio,
+            {0}
+        };
+        plDynamicBinding tDynamic = pl_allocate_dynamic_data(gptGfx, ptDevice, &gptDrawCtx->tCurrentDynamicDataBlock, sizeof(tData));
+        memcpy(tDynamic.pcData, &tData, sizeof(tData));
+        const plShaderHandle tShader = i ? ptEntry->tSecondaryPipeline : ptEntry->tRegularPipeline;
+        gptGfx->bind_vertex_buffer(ptCommandBuffer, ptCache->tVertexBuffer);
+        gptGfx->bind_shader(ptCommandBuffer, tShader);
+        gptGfx->bind_graphics_bind_groups(ptCommandBuffer, tShader, 0, 0, NULL, 1, &tDynamic);
+        const plDrawIndex tDrawIndex = {
+            .tIndexBuffer   = ptCache->tIndexBuffer,
+            .uIndexCount    = uIndexBytes / sizeof(uint32_t),
+            .uInstanceCount = 1
+        };
+        PL_DRAW_STAT("draw / 3D draw calls", 1);
+        PL_DRAW_STAT("draw / 3D submitted triangles", tDrawIndex.uIndexCount / 3);
+        gptGfx->draw_indexed(ptCommandBuffer, 1, &tDrawIndex);
+    }
+}
+
 void
 pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandBuffer, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags tFlags, uint32_t uMSAASampleCount, const plRenderAttachmentInfo* ptFormatInfo)
 {
@@ -5087,7 +5189,10 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandB
     gptGfx->set_viewport(ptCommandBuffer, &tViewport);
 
     // regular 3D
-    if(pl_sb_size(ptDrawlist->sbtSolidVertexBuffer) > 0)
+    if(ptDrawlist->tFlags & PL_DRAW_LIST_3D_FLAG_PERSISTENT)
+        pl__submit_persistent_3d_geometry(ptDrawlist, ptCommandBuffer, ptEntry, ptMVP, fAspectRatio);
+
+    if(!(ptDrawlist->tFlags & PL_DRAW_LIST_3D_FLAG_PERSISTENT) && pl_sb_size(ptDrawlist->sbtSolidVertexBuffer) > 0)
     {
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -5182,7 +5287,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandB
     }
 
     // 3D lines
-    if(pl_sb_size(ptDrawlist->sbtLineVertexBuffer) > 0u)
+    if(!(ptDrawlist->tFlags & PL_DRAW_LIST_3D_FLAG_PERSISTENT) && pl_sb_size(ptDrawlist->sbtLineVertexBuffer) > 0u)
     {
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -5282,6 +5387,17 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandB
         ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
         gptDrawCtx->auIndexBufferOffset[uFrameIdx] += uIdxBufSzNeeded;
     }
+
+    // Reproject text per submission, including multiple cameras in one frame.
+    plDrawList2D* ptTextDrawlist = ptDrawlist->pt2dDrawlist;
+    ptTextDrawlist->uIndexBufferByteSize = 0;
+    pl_sb_reset(ptTextDrawlist->sbtDrawCommands);
+    pl_sb_reset(ptTextDrawlist->sbtVertexBuffer);
+    pl_sb_reset(ptTextDrawlist->sbuIndexBuffer);
+    pl_sb_reset(ptTextDrawlist->_sbtSubmittedLayers);
+    pl_sb_reset(ptDrawlist->ptLayer->sbtCommandBuffer);
+    pl_sb_reset(ptDrawlist->ptLayer->sbuIndexBuffer);
+    ptDrawlist->ptLayer->uVertexCount = 0;
 
     const uint32_t uTextCount = pl_sb_size(ptDrawlist->sbtTextEntries);
     for(uint32_t i = 0; i < uTextCount; i++)
@@ -5847,6 +5963,7 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .request_3d_drawlist           = pl_draw_request_3d_drawlist,
         .return_3d_drawlist            = pl_draw_return_3d_drawlist,
         .new_frame                     = pl_draw_new_frame,
+        .clear_3d_drawlist             = pl_draw_clear_3d_drawlist,
         .add_3d_triangle_filled        = pl_draw_add_3d_triangle_filled,
         .add_3d_circle_xz_filled       = pl_draw_add_3d_circle_xz_filled,
         .add_3d_band_xz_filled         = pl_draw_add_3d_band_xz_filled,

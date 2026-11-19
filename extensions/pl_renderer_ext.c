@@ -945,9 +945,9 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
     pl__renderer_view_update_bindgroups(ptView);
 
     // register debug 3D drawlist
-    ptView->pt3DDrawList = gptDraw->request_3d_drawlist();
-    ptView->pt3DGizmoDrawList = gptDraw->request_3d_drawlist();
-    ptView->pt3DSelectionDrawList = gptDraw->request_3d_drawlist();
+    ptView->pt3DDrawList = gptDraw->request_3d_drawlist(PL_DRAW_LIST_3D_FLAG_NONE);
+    ptView->pt3DGizmoDrawList = gptDraw->request_3d_drawlist(PL_DRAW_LIST_3D_FLAG_NONE);
+    ptView->pt3DSelectionDrawList = gptDraw->request_3d_drawlist(PL_DRAW_LIST_3D_FLAG_NONE);
     
     return ptView;
 }

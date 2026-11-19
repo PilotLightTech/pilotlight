@@ -163,7 +163,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptStarter->finalize();
 
     // request 3d drawlists
-    ptAppData->pt3dDrawlist = gptDraw->request_3d_drawlist();
+    ptAppData->pt3dDrawlist = gptDraw->request_3d_drawlist(PL_DRAW_LIST_3D_FLAG_NONE);
 
     // create camera
     gptCamera->init(&ptAppData->tCamera);

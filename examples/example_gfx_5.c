@@ -190,7 +190,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->ptFGLayer     = gptDraw->request_2d_layer(ptAppData->ptAppDrawlist);
 
     // request 3D drawlist
-    ptAppData->pt3dDrawlist  = gptDraw->request_3d_drawlist();
+    ptAppData->pt3dDrawlist  = gptDraw->request_3d_drawlist(PL_DRAW_LIST_3D_FLAG_NONE);
 
     // for convenience
     plDevice* ptDevice = gptStarter->get_device();

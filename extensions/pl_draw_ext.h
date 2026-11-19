@@ -106,6 +106,7 @@ typedef uint16_t plUiWChar;
 
 // enums
 typedef int plDrawFlags;       // -> enum _plDrawFlags
+typedef int plDrawList3DFlags; // -> enum _plDrawList3DFlags
 typedef int plDrawStrokeFlags; // -> enum _plDrawStrokeFlags
 typedef int plDrawRectFlags;   // -> enum _plDrawRectFlags
 
@@ -252,8 +253,12 @@ typedef struct _plDrawI
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3D~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // drawlists
-    plDrawList3D* (*request_3d_drawlist)(void);
-    void          (*return_3d_drawlist)(plDrawList3D*);
+    // Persistent lists retain geometry/text across new_frame(). Add calls append.
+    // Clear before rebuilding. Unchanged solid/line geometry uploads only once.
+    // Text is retained but projected/uploaded on each submission.
+    plDrawList3D* (*request_3d_drawlist)(plDrawList3DFlags);
+    void          (*return_3d_drawlist) (plDrawList3D*);
+    void          (*clear_3d_drawlist)  (plDrawList3D*); // clears contents, preserves flags
 
     // text
     void (*add_3d_text)   (plDrawList3D*, plVec3 p, plDrawTextOptions, const char* fmt, ...);
@@ -293,6 +298,12 @@ typedef struct _plDrawI
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
+
+enum _plDrawList3DFlags
+{
+    PL_DRAW_LIST_3D_FLAG_NONE       = 0,
+    PL_DRAW_LIST_3D_FLAG_PERSISTENT = 1 << 0,
+};
 
 enum _plDrawFlags
 {
