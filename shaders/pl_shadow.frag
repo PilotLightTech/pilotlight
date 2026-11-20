@@ -68,7 +68,11 @@ void main()
     vec4 tBaseColor = getBaseColor(
         tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex].tBaseColorFactor);
 
-    if(tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex].eAlphaMode == PL_SHADER_ALPHA_MODE_MASK)
+    // Blended materials (e.g. dirt decals hugging walls) must not cast solid shadows;
+    // otherwise thin overlays only millimeters off a surface shadow it in the
+    // small near cascades, where texels are finer than the depth bias.
+    int iAlphaMode = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex].eAlphaMode;
+    if(iAlphaMode == PL_SHADER_ALPHA_MODE_MASK || iAlphaMode == PL_SHADER_ALPHA_MODE_BLEND)
     {
         if(tBaseColor.a <  tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex].fAlphaCutoff)
         {
