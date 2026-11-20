@@ -3463,7 +3463,6 @@ pl__slider_int_ex(const char* pcLabel, int* piValue, int iMin, int iMax, const c
 
         *piValue = pl_clampi(iMin, *piValue, iMax);
         const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
-        const int iBlocks = iMax - iMin + 1;
         const int iBlock = *piValue - iMin;
 
         char acTextBuffer[64] = {0};
@@ -3491,10 +3490,16 @@ pl__slider_int_ex(const char* pcLabel, int* piValue, int iMin, int iMax, const c
             tFrameStartPos.x + tFrameStartPos.x + tSize.x / 2.0f - tTextActualCenter.x,
             tFrameStartPos.y + tFrameStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
         };
-        const float fBlockLength = tSize.x / (float)iBlocks;
+        // Like Dear ImGui: the grab represents one unit when there is room,
+        // but never shrinks below the style's slider size (large ranges would
+        // otherwise produce a sub-pixel, ungrabbable handle).
+        const double dRange = (double)iMax - (double)iMin;
+        const float fBlockLength = pl_minf(pl_maxf(tSize.x / (float)(dRange + 1.0), gptCtx->tStyle.fSliderSize), tSize.x);
+        const float fUsableLength = tSize.x - fBlockLength;
+        const float fGrabRatio = dRange > 0.0 ? (float)((double)iBlock / dRange) : 0.0f;
         
         const plVec2 tGrabStartPos = {
-            .x = tFrameStartPos.x + (float)iBlock * fBlockLength,
+            .x = tFrameStartPos.x + fGrabRatio * fUsableLength,
             .y = tFrameStartPos.y
         };
 
@@ -3528,9 +3533,10 @@ pl__slider_int_ex(const char* pcLabel, int* piValue, int iMin, int iMax, const c
         if(gptCtx->uActiveId == uHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
         {
             const plVec2 tMousePos = gptIOI->get_mouse_pos();
-            const float fRatio = (tMousePos.x - tFrameStartPos.x) / (tBoundingBox.tMax.x - tBoundingBox.tMin.x);
+            // Map the grab's center across the usable track, as Dear ImGui does.
+            const float fRatio = fUsableLength > 0.0f ? pl_clampf(0.0f, (tMousePos.x - tFrameStartPos.x - fBlockLength * 0.5f) / fUsableLength, 1.0f) : 0.0f;
             gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
-            (*piValue) = iMin + (int)(fRatio * (float)(iMax - iMin));
+            (*piValue) = (int)((double)iMin + floor((double)fRatio * dRange + 0.5));
 
             *piValue = pl_clampi(iMin, *piValue, iMax);
             pl__set_active_id(uHash, ptWindow);
@@ -3647,7 +3653,6 @@ pl__slider_uint_ex(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint32
 
         *puValue = pl_clampu(uMin, *puValue, uMax);
         const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
-        const uint32_t uBlocks = uMax - uMin + 1;
         const uint32_t uBlock = *puValue - uMin;
 
         char acTextBuffer[64] = {0};
@@ -3675,10 +3680,16 @@ pl__slider_uint_ex(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint32
             tFrameStartPos.x + tFrameStartPos.x + tSize.x / 2.0f - tTextActualCenter.x,
             tFrameStartPos.y + tFrameStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
         };
-        const float fBlockLength = tSize.x / (float)uBlocks;
+        // Like Dear ImGui: the grab represents one unit when there is room,
+        // but never shrinks below the style's slider size (large ranges would
+        // otherwise produce a sub-pixel, ungrabbable handle).
+        const double dRange = (double)uMax - (double)uMin;
+        const float fBlockLength = pl_minf(pl_maxf(tSize.x / (float)(dRange + 1.0), gptCtx->tStyle.fSliderSize), tSize.x);
+        const float fUsableLength = tSize.x - fBlockLength;
+        const float fGrabRatio = dRange > 0.0 ? (float)((double)uBlock / dRange) : 0.0f;
         
         const plVec2 tGrabStartPos = {
-            .x = tFrameStartPos.x + (float)uBlock * fBlockLength,
+            .x = tFrameStartPos.x + fGrabRatio * fUsableLength,
             .y = tFrameStartPos.y
         };
 
@@ -3712,9 +3723,10 @@ pl__slider_uint_ex(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint32
         if(gptCtx->uActiveId == uHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
         {
             const plVec2 tMousePos = gptIOI->get_mouse_pos();
-            const float fRatio = (tMousePos.x - tFrameStartPos.x) / (tBoundingBox.tMax.x - tBoundingBox.tMin.x);
+            // Map the grab's center across the usable track, as Dear ImGui does.
+            const float fRatio = fUsableLength > 0.0f ? pl_clampf(0.0f, (tMousePos.x - tFrameStartPos.x - fBlockLength * 0.5f) / fUsableLength, 1.0f) : 0.0f;
             gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
-            (*puValue) = uMin + (uint32_t)(fRatio * (float)(uMax - uMin));
+            (*puValue) = (uint32_t)((double)uMin + floor((double)fRatio * dRange + 0.5));
 
             *puValue = pl_clampu(uMin, *puValue, uMax);
             pl__set_active_id(uHash, ptWindow);
