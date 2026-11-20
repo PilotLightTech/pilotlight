@@ -401,7 +401,9 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
             char* sbtNameConcat = NULL;
             char acFileNameOnly[256] = {0};
             pl_str_get_file_name_only(pcName, acFileNameOnly, 256);
-            pl_sb_sprintf(sbtNameConcat, "/cache/textures/%s.dds", acFileNameOnly);
+
+            // Regenerate block-compressed caches produced by the old edge/mip code.
+            pl_sb_sprintf(sbtNameConcat, "/cache/textures/%s%s.dds", acFileNameOnly, tFlags & PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED ? "_bc2" : "");
 
             // prep texture for GPU if not done already
             if(tFlags & PL_RESOURCE_LOAD_FLAG_NO_CACHING)
@@ -517,7 +519,7 @@ pl_resource_is_resident(plResourceHandle tHandle, plResourceEvictFlags tFlags)
         char acFinalFile[512] = {0};
         char acFileNameOnly[256] = {0};
         pl_str_get_file_name_only(gptResourceManager->sbtResources[tHandle.uIndex].acName, acFileNameOnly, 256);
-        pl_sprintf(acFinalFile, "/cache/textures/%s.dds", acFileNameOnly);
+        pl_sprintf(acFinalFile, "/cache/textures/%s%s.dds", acFileNameOnly, gptResourceManager->sbtResources[tHandle.uIndex].tFlags & PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED ? "_bc2" : "");
 
         // prep texture for GPU if not done already
         if(!gptVfs->does_file_exist(acFinalFile))
@@ -553,7 +555,8 @@ pl_resource_evict_ex(plResourceHandle tHandle, plResourceEvictFlags tFlags)
         char acFinalFile[512] = {0};
         char acFileNameOnly[256] = {0};
         pl_str_get_file_name_only(gptResourceManager->sbtResources[tHandle.uIndex].acName, acFileNameOnly, 256);
-        pl_sprintf(acFinalFile, "/cache/textures/%s.dds", acFileNameOnly);
+        pl_sprintf(acFinalFile, "/cache/textures/%s%s.dds", acFileNameOnly,
+            gptResourceManager->sbtResources[tHandle.uIndex].tFlags & PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED ? "_bc2" : "");
 
         // prep texture for GPU if not done already
         if(gptVfs->does_file_exist(acFinalFile))
@@ -597,7 +600,7 @@ pl_resource_make_resident(plResourceHandle tHandle)
             char* sbtNameConcat = NULL;
             char acFileNameOnly[256] = {0};
             pl_str_get_file_name_only(ptResource->acName, acFileNameOnly, 256);
-            pl_sb_sprintf(sbtNameConcat, "/cache/textures/%s.dds", acFileNameOnly);
+            pl_sb_sprintf(sbtNameConcat, "/cache/textures/%s%s.dds", acFileNameOnly, ptResource->tFlags & PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED ? "_bc2" : "");
 
             plDevice* ptDevice = gptResourceManager->tDesc.ptDevice;
             
@@ -639,8 +642,8 @@ pl_resource_make_resident(plResourceHandle tHandle)
                             iNewHeight = (int)gptResourceManager->tDesc.uMaxTextureResolution;
                         }
 
-                        tImageInfo.iWidth = iNewWidth;
-                        tImageInfo.iHeight = iNewHeight;
+                        tImageInfo.iWidth = pl_max(1, iNewWidth);
+                        tImageInfo.iHeight = pl_max(1, iNewHeight);
                     }
 
                     uMips = gptGfx->calculate_mip_count((uint32_t)tImageInfo.iWidth, (uint32_t)tImageInfo.iHeight);
@@ -702,8 +705,8 @@ pl_resource_make_resident(plResourceHandle tHandle)
                         for(uint32_t uMipLevel = 1; uMipLevel < uMips; uMipLevel++)
                         {
 
-                            int iCurrentWidth = (int)tImageInfo.iWidth / ((1 << (int)uMipLevel));
-                            int iCurrentHeight = (int)tImageInfo.iHeight / ((1 << (int)uMipLevel));
+                            int iCurrentWidth = pl_max(1, tImageInfo.iWidth >> uMipLevel);
+                            int iCurrentHeight = pl_max(1, tImageInfo.iHeight >> uMipLevel);
 
                             plDxtInfo tDxtInfo = {
                                 .eFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
@@ -738,38 +741,17 @@ pl_resource_make_resident(plResourceHandle tHandle)
                             uint8_t* puSrcBuffer = auWorkingBuffer[uMipLevel % 2];
                             uint8_t* puDstBuffer = auWorkingBuffer[(uMipLevel + 1) % 2];
 
-                            int iCurrentWidth = (int)tImageInfo.iWidth / ((1 << (int)uMipLevel));
-                            int iCurrentHeight = (int)tImageInfo.iHeight / ((1 << (int)uMipLevel));
+                            int iCurrentWidth = pl_max(1, tImageInfo.iWidth >> uMipLevel);
+                            int iCurrentHeight = pl_max(1, tImageInfo.iHeight >> uMipLevel);
 
-                            int iLastWidth = iCurrentWidth * 2;
-                            int iLastHeight = iCurrentHeight * 2;
+                            int iLastWidth = pl_max(1, tImageInfo.iWidth >> (uMipLevel - 1));
+                            int iLastHeight = pl_max(1, tImageInfo.iHeight >> (uMipLevel - 1));
 
                             szCurrentSize = 0;
 
-                            // manual mip mapping
-                            for(uint32_t i = 0; i < (uint32_t)iCurrentWidth; i++)
-                            {
-                                for(uint32_t j = 0; j < (uint32_t)iCurrentHeight; j++)
-                                {
-                                    uint32_t uSrcOriginX = i * 2;
-                                    uint32_t uSrcOriginY = j * 2;
-
-                                    uint8_t* ptPixel0 = &puSrcBuffer[uSrcOriginY * iLastWidth * 4 + uSrcOriginX * 4];
-                                    uint8_t* ptPixel1 = &puSrcBuffer[uSrcOriginY * iLastWidth * 4 + (uSrcOriginX + 1) * 4];
-                                    uint8_t* ptPixel2 = &puSrcBuffer[(uSrcOriginY + 1) * iLastWidth * 4 + uSrcOriginX * 4];
-                                    uint8_t* ptPixel3 = &puSrcBuffer[(uSrcOriginY + 1) * iLastWidth * 4 + (uSrcOriginX + 1) * 4];
-
-                                    uint8_t uRed   = (ptPixel0[0] + ptPixel1[0] + ptPixel2[0] + ptPixel3[0]) / 4;
-                                    uint8_t uGreen = (ptPixel0[1] + ptPixel1[1] + ptPixel2[1] + ptPixel3[1]) / 4;
-                                    uint8_t uBlue  = (ptPixel0[2] + ptPixel1[2] + ptPixel2[2] + ptPixel3[2]) / 4;
-                                    uint8_t uAlpha = (ptPixel0[3] + ptPixel1[3] + ptPixel2[3] + ptPixel3[3]) / 4;
-
-                                    puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 0] = uRed;
-                                    puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 1] = uGreen;
-                                    puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 2] = uBlue;
-                                    puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 3] = uAlpha;
-                                }
-                            }
+                            // Resize from the actual preceding mip, including odd and 1-pixel dimensions.
+                            unsigned char* puResized = stbir_resize_uint8_linear(puSrcBuffer, iLastWidth, iLastHeight, 0, puDstBuffer, iCurrentWidth, iCurrentHeight, 0, STBIR_RGBA);
+                            PL_ASSERT(puResized);
 
                             // compression
 
@@ -847,8 +829,8 @@ pl_resource_make_resident(plResourceHandle tHandle)
                 size_t szRequiredStagingSize = 0;
                 for(uint32_t uMipLevel = 0; uMipLevel < ptTexture->tDesc.uMips; uMipLevel++)
                 {
-                    int iCurrentWidth = (int)tImageInfo.iWidth / ((1 << (int)uMipLevel));
-                    int iCurrentHeight = (int)tImageInfo.iHeight / ((1 << (int)uMipLevel));
+                    int iCurrentWidth = pl_max(1, tImageInfo.iWidth >> uMipLevel);
+                    int iCurrentHeight = pl_max(1, tImageInfo.iHeight >> uMipLevel);
                     szRequiredStagingSize += iCurrentWidth * iCurrentHeight * 4 * iTextureFormatStride;
                 }
 
@@ -914,8 +896,8 @@ pl_resource_make_resident(plResourceHandle tHandle)
                 for(uint32_t uMipLevel = 1; uMipLevel < uMips; uMipLevel++)
                 {
 
-                    int iCurrentWidth = (int)tImageInfo.iWidth / ((1 << (int)uMipLevel));
-                    int iCurrentHeight = (int)tImageInfo.iHeight / ((1 << (int)uMipLevel));
+                    int iCurrentWidth = pl_max(1, tImageInfo.iWidth >> uMipLevel);
+                    int iCurrentHeight = pl_max(1, tImageInfo.iHeight >> uMipLevel);
 
                     plBufferImageCopy tImageBufferCopy = {
                         .uMipLevel      = uMipLevel,
