@@ -1297,24 +1297,19 @@ pl__import_gltf_animation(cgltf_data* ptGltfData, const char* pcFileNameOnly, co
         tAnimation.atChannels[i] = tChannel;
     }
 
-    char acFileNameOnly[128] = {0};
-
     char acBuffer[256] = {0};
-    if(ptGltfAnimation->name)
-    {
-        pl_sprintf(acBuffer, "/assets/animations/%s.planimation", ptGltfAnimation->name);
-    }
-    else
-    {
-        pl_sprintf(acBuffer, "/assets/animations/%s_%u.planimation", acFileNameOnly, uAnimationIndex);
-    }
+
+    // Display names can contain filesystem-reserved characters (e.g. FBX '|')
+    // or be duplicated/absent. Use the source identity and glTF index instead.
+    snprintf(acBuffer, sizeof(acBuffer), "/assets/animations/gltf_%016llx_%u.planimation", (unsigned long long)gptGltfCtx->ulSourceHash, uAnimationIndex);
 
     plAssetDesc tAssetDesc = {
         .tType = gptAnimation->get_asset_type_key(),
         .pcPath = acBuffer
     };
     plAssetHandle tAsset = gptAsset->create(&tAssetDesc, &tAnimation);
-    gptAsset->save(tAsset, PL_ASSET_ENCODING_AUTO);
+    if(tAsset.uData == UINT64_MAX || !gptAsset->save(tAsset, PL_ASSET_ENCODING_AUTO))
+        gptGltfCtx->bImportFailed = true;
     return tAsset;
 }
 
@@ -1402,6 +1397,20 @@ pl__import_gltf_mesh(cgltf_data* ptGltfData, const char* pcFileNameOnly, const c
             ptrdiff_t tMaterialIndex = ptPrimitive->material - ptGltfData->materials;
             tMesh.atSubmeshes[szPrimitiveIndex].tMaterial = pl__import_gltf_material(ptGltfData, pcFileNameOnly, pcDirectory, ptPrimitive->material, (uint32_t)tMaterialIndex);
         }
+        else
+        {
+            // glTF permits omitted materials: use its default PBR material.
+            const cgltf_material tDefault = {
+                .has_pbr_metallic_roughness = true,
+                .pbr_metallic_roughness = {
+                    .base_color_factor = {1, 1, 1, 1},
+                    .metallic_factor   = 1,
+                    .roughness_factor  = 1
+                },
+                .alpha_cutoff = 0.5f
+            };
+            tMesh.atSubmeshes[szPrimitiveIndex].tMaterial = pl__import_gltf_material(ptGltfData, pcFileNameOnly, pcDirectory, &tDefault, (uint32_t)ptGltfData->materials_count);
+        }
     }
     gptMesh->calculate_bounds(&tMesh);
 
@@ -1420,7 +1429,8 @@ pl__import_gltf_mesh(cgltf_data* ptGltfData, const char* pcFileNameOnly, const c
         .tType = gptMesh->get_asset_type_key()
     };
     plAssetHandle tAsset =  gptAsset->create(&tMeshDesc, &tMesh);
-    gptAsset->save(tAsset, PL_ASSET_ENCODING_AUTO);
+    if(tAsset.uData == UINT64_MAX || !gptAsset->save(tAsset, PL_ASSET_ENCODING_AUTO))
+        gptGltfCtx->bImportFailed = true;
     return tAsset;
 }
 
@@ -1651,7 +1661,8 @@ pl__import_gltf_material(cgltf_data* ptGltfData, const char* pcFileNameOnly, con
         .pcPath = acTempBuffer
     };
     plAssetHandle tAsset = gptAsset->create(&tAssetDesc, ptMaterial);
-    gptAsset->save(tAsset, PL_ASSET_ENCODING_AUTO);
+    if(tAsset.uData == UINT64_MAX || !gptAsset->save(tAsset, PL_ASSET_ENCODING_AUTO))
+        gptGltfCtx->bImportFailed = true;
     return tAsset;
 }
 
