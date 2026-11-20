@@ -72,7 +72,7 @@ pl_dxt_compress(const plDxtInfo* ptInfo, uint8_t* puDataOut, size_t* szSizeOut)
     const uint32_t uBlockSize = (ptInfo->uChannels == 2 || ptInfo->uChannels == 4 ? 16 : 8);
 
     if(szSizeOut)
-        *szSizeOut = uAdjustedImageWidth * uAdjustedImageHeight * ptInfo->uChannels * uBlockSize / (16 * ptInfo->uChannels);
+        *szSizeOut = (size_t)(uAdjustedImageWidth / 4) * (uAdjustedImageHeight / 4) * uBlockSize;
 
     if(puDataOut == NULL)
         return;
@@ -108,11 +108,11 @@ pl_dxt_compress(const plDxtInfo* ptInfo, uint8_t* puDataOut, size_t* szSizeOut)
     if(ptInfo->uChannels > 2)
     {
 
-        for (uint32_t uRowStart = 0; uRowStart < uAdjustedImageHeight; uRowStart += 4)
+        for (uint32_t uRowStart = 0; uRowStart < uWrapPosV; uRowStart += 4)
         {
             const uint32_t uBlockRowOffset = (uBlocksPerRow * uRowStart / 4);
             const uint32_t uBlockRowBytesOffset = (ptInfo->uWidth * uBytesPerPixel * uRowStart);
-            for (uint32_t uColumnStart = 0; uColumnStart < uAdjustedImageWidth; uColumnStart += 4)
+            for (uint32_t uColumnStart = 0; uColumnStart < uWrapPosH; uColumnStart += 4)
             {
 
                 uint32_t uBlockIndex =  uBlockRowOffset + uColumnStart / 4;
@@ -137,11 +137,11 @@ pl_dxt_compress(const plDxtInfo* ptInfo, uint8_t* puDataOut, size_t* szSizeOut)
     }
     else if(ptInfo->uChannels == 2)
     {
-        for (uint32_t uRowStart = 0; uRowStart < uAdjustedImageHeight; uRowStart += 4)
+        for (uint32_t uRowStart = 0; uRowStart < uWrapPosV; uRowStart += 4)
         {
             const uint32_t uBlockRowOffset = (uBlocksPerRow * uRowStart / 4);
             const uint32_t uBlockRowBytesOffset = (ptInfo->uWidth * uBytesPerPixel * uRowStart);
-            for (uint32_t uColumnStart = 0; uColumnStart < uAdjustedImageWidth; uColumnStart += 4)
+            for (uint32_t uColumnStart = 0; uColumnStart < uWrapPosH; uColumnStart += 4)
             {
 
                 uint32_t uBlockIndex = uBlockRowOffset + uColumnStart / 4;
@@ -166,11 +166,11 @@ pl_dxt_compress(const plDxtInfo* ptInfo, uint8_t* puDataOut, size_t* szSizeOut)
     }
     else if(ptInfo->uChannels == 1)
     {
-        for (uint32_t uRowStart = 0; uRowStart < uAdjustedImageHeight; uRowStart += 4)
+        for (uint32_t uRowStart = 0; uRowStart < uWrapPosV; uRowStart += 4)
         {
             const uint32_t uBlockRowOffset = (uBlocksPerRow * uRowStart / 4);
             const uint32_t uBlockRowBytesOffset = (ptInfo->uWidth * uBytesPerPixel * uRowStart);
-            for (uint32_t uColumnStart = 0; uColumnStart < uAdjustedImageWidth; uColumnStart += 4)
+            for (uint32_t uColumnStart = 0; uColumnStart < uWrapPosH; uColumnStart += 4)
             {
                 uint32_t uBlockIndex = uBlockRowOffset + uColumnStart / 4;
                 uOffset = uBlockSize * uBlockIndex;

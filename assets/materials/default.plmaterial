@@ -2,13 +2,14 @@
     "format": "plmaterial", 
     "version": 1, 
     "model": "pbr_metallic_roughness", 
-    "base_color": [0.2140318, 0.2140318, 0.2140318, 1.0], 
-    "metalness": 0.0, 
+    "base_color": [ 0.48, 0.48, 0.48, 1 ], 
+    "metalness": 0, 
     "roughness": 0.5, 
     "ior": 1.5, 
-    "normal_map_strength": 1.0, 
-    "occlusion_strength": 1.0, 
+    "normal_map_strength": 1, 
+    "occlusion_strength": 1, 
     "double_sided": true, 
+    "foliage_normals": false, 
     "alpha": {        
         "mode": "opaque", 
         "cutoff": 0.5
