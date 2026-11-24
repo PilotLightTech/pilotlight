@@ -113,23 +113,26 @@ typedef struct _plViewDesc                plViewDesc;                // view des
 typedef struct _plRenderViewDesc          plRenderViewDesc;          // view descriptions render options
 typedef struct _plScene                   plScene;                   // opaque type for scene
 typedef struct _plView                    plView;                    // opaque type for view into scene
+typedef struct _plProbeCaptureSettings    plProbeCaptureSettings;    // Reflection probes and diffuse volumes share capture settings, not their ECS type or outputs.
 
 // assets
 typedef struct _plRenderEnvironment plRenderEnvironment; // renderer environment options
+typedef struct _plProbeAsset        plProbeAsset;
 typedef struct _plRenderSettings    plRenderSettings;    // general render options
 
 // ecs components
-typedef struct _plObjectComponent           plObjectComponent;           // renderable object in the scene
-typedef struct _plLightComponent            plLightComponent;            // light component
-typedef struct _plEnvironmentProbeComponent plEnvironmentProbeComponent; // environment probe
-typedef struct _plTerrainComponent          plTerrainComponent;          // terrain component
-typedef struct _plDecalComponent            plDecalComponent;            // projected base-color decal
-typedef struct _plEnvironmentComponent      plEnvironmentComponent;      // environment component (just holds a plRenderEnvironment asset)
-typedef struct _plRendererComponent         plRendererComponent;         // renderer component (just holds a plRenderSettings asset)
+typedef struct _plObjectComponent             plObjectComponent;             // renderable object in the scene
+typedef struct _plLightComponent              plLightComponent;              // light component
+typedef struct _plReflectionProbeComponent    plReflectionProbeComponent;    // reflection (GGX/sheen) probe
+typedef struct _plDiffuseProbeVolumeComponent plDiffuseProbeVolumeComponent;
+typedef struct _plTerrainComponent            plTerrainComponent;            // terrain component
+typedef struct _plDecalComponent              plDecalComponent;              // projected base-color decal
+typedef struct _plEnvironmentComponent        plEnvironmentComponent;        // environment component (just holds a plRenderEnvironment asset)
+typedef struct _plRendererComponent           plRendererComponent;           // renderer component (just holds a plRenderSettings asset)
 
 // enums & flags
 typedef int plLightFlags;            // -> enum _plLightFlags            // Flag: light flags (PL_LIGHT_FLAG_XXXX)
-typedef int plEnvironmentProbeFlags; // -> enum _plEnvironmentProbeFlags // Flag: probe flags (PL_ENVIRONMENT_PROBE_FLAGS_XXXX)
+typedef int plProbeFlags;            // -> enum _plProbeFlags            // Flag: probe flags (PL_PROBE_FLAGS_XXXX)
 typedef int plObjectFlags;           // -> enum _plObjectFlags           // Flag: object flags (PL_OBJECT_FLAGS_XXXX)
 typedef int plTerrainFlags;          // -> enum _plTerrainFlags          // Flag: terrain flags (PL_TERRAIN_FLAGS_XXXX)
 typedef int plRendererLightingFlags; // -> enum _plRendererLightingFlags // Flag: lighting flags (PL_RENDERER_LIGHTING_FLAGS_XXXX)
@@ -209,21 +212,22 @@ typedef struct _plRendererI
     void           (*register_asset_types)          (void);
     plAssetTypeKey (*get_asset_type_key_environment)(void);
     plAssetTypeKey (*get_asset_type_key_settings)   (void);
+    plAssetTypeKey (*get_asset_type_key_probe)      (void);
 
     // ecs keys
-    void         (*register_ecs_components)           (void);
-    plEcsTypeKey (*get_ecs_type_key_object)           (void);
-    plEcsTypeKey (*get_ecs_type_key_light)            (void);
-    plEcsTypeKey (*get_ecs_type_key_environment_probe)(void);
-    plEcsTypeKey (*get_ecs_type_key_terrain)          (void);
-    plEcsTypeKey (*get_ecs_type_key_environment)      (void);
-    plEcsTypeKey (*get_ecs_type_key_renderer)         (void);
-    plEcsTypeKey (*get_ecs_type_key_decal)            (void);
+    void         (*register_ecs_components)              (void);
+    plEcsTypeKey (*get_ecs_type_key_object)              (void);
+    plEcsTypeKey (*get_ecs_type_key_light)               (void);
+    plEcsTypeKey (*get_ecs_type_key_reflection_probe)    (void);
+    plEcsTypeKey (*get_ecs_type_key_diffuse_probe_volume)(void);
+    plEcsTypeKey (*get_ecs_type_key_terrain)             (void);
+    plEcsTypeKey (*get_ecs_type_key_environment)         (void);
+    plEcsTypeKey (*get_ecs_type_key_renderer)            (void);
+    plEcsTypeKey (*get_ecs_type_key_decal)               (void);
 
     // ecs system updates (run in the following order)
     void (*run_light_update_system)            (plComponentLibrary*);
     void (*run_object_update_system)           (plComponentLibrary*);
-    void (*run_environment_probe_update_system)(plComponentLibrary*); // currently a no-op
 
     // editor stuff
     plDrawList3D* (*get_drawlist)         (plView*);
@@ -241,6 +245,9 @@ typedef struct _plRendererI
     // Queue resets each frame; keep the list alive through rendering all views.
     // Overlay draws through geometry, like the gizmo drawlist.
     void (*queue_drawlist)(plView*, plDrawList3D*, bool overlay);
+
+    // misc.
+    bool (*bake_probe)(plScene*, plEntity, plEcsTypeKey, const char* path); // save a complete capture and assign its asset
 } plRendererI;
 
 //-----------------------------------------------------------------------------
@@ -434,6 +441,27 @@ typedef struct _plRenderSettings
     bool                      bFXAAEnabled; // post-tonemap antialiasing; default: false
 } plRenderSettings;
 
+typedef struct _plProbeCaptureSettings
+{
+    plProbeFlags  tFlags;
+    plAssetHandle tBakedProbe;   // optional .plprobe; clear to resume capture
+    uint32_t      uResolution;   // default: 128 reflection, 32 diffuse (power of two)
+    uint32_t      uSamples;      // reflection filter samples; default: 128
+    uint32_t      uInterval;     // default: 1 (1 to 6 capture faces per scheduled turn)
+    float         fRange;        // influence radius
+    float         fCaptureRange; // capture far plane; zero uses fRange
+} plProbeCaptureSettings;
+
+typedef struct _plProbeAsset
+{
+    uint32_t uFlags;       // bit 0: SH, bit 1: GGX, bit 2: sheen, bit 3: visibility
+    uint32_t uResolution;
+    uint32_t uMipCount;
+    uint32_t auProbeCount[3]; // zero for a reflection probe
+    plVec3   tSpacing;
+    uint8_t* puData;       // owned: SH RGBA16F, GGX/sheen RGBA16F mip chains, then visibility RG16F
+} plProbeAsset;
+
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
@@ -458,11 +486,13 @@ enum _plRendererBloomFlags
 
 enum _plRendererLightingFlags
 {
-    PL_RENDERER_LIGHTING_FLAGS_NONE             = 0,
-    PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED      = 1 << 0,
-    PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING   = 1 << 1,
-    PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS  = 1 << 2,
-    PL_RENDERER_LIGHTING_FLAGS_NO_SHADOWS       = 1 << 3
+    PL_RENDERER_LIGHTING_FLAGS_NONE                 = 0,
+    PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED          = 1 << 0,
+    PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING       = 1 << 1,
+    PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS      = 1 << 2,
+    PL_RENDERER_LIGHTING_FLAGS_NO_SHADOWS           = 1 << 3,
+    PL_RENDERER_LIGHTING_FLAGS_NO_DIFFUSE_PROBES    = 1 << 4,
+    PL_RENDERER_LIGHTING_FLAGS_NO_REFLECTION_PROBES = 1 << 5
 };
 
 enum _plRendererSkyMode
@@ -514,13 +544,13 @@ enum _plLightFlags
     PL_LIGHT_FLAG_NO_CONTACT_SHADOWS = 1 << 3, // opt out; global setting remains the master switch
 };
 
-enum _plEnvironmentProbeFlags
+enum _plProbeFlags
 {
-    PL_ENVIRONMENT_PROBE_FLAGS_NONE                    = 0,
-    PL_ENVIRONMENT_PROBE_FLAGS_DIRTY                   = 1 << 0,
-    PL_ENVIRONMENT_PROBE_FLAGS_REALTIME                = 1 << 1,
-    PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY             = 1 << 2,
-    PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX = 1 << 3,
+    PL_PROBE_FLAGS_NONE                    = 0,
+    PL_PROBE_FLAGS_DIRTY                   = 1 << 0,
+    PL_PROBE_FLAGS_REALTIME                = 1 << 1,
+    PL_PROBE_FLAGS_INCLUDE_SKY             = 1 << 2,
+    PL_PROBE_FLAGS_PARALLAX_CORRECTION_BOX = 1 << 3,
 };
 
 enum _plObjectFlags
@@ -591,14 +621,20 @@ typedef struct _plRendererComponent
     plAssetHandle tRenderer;
 } plRendererComponent;
 
-typedef struct _plEnvironmentProbeComponent
+typedef struct _plReflectionProbeComponent
 {
-    plEnvironmentProbeFlags tFlags;
-    uint32_t                uResolution; // default: 128 (must be power of two)
-    uint32_t                uSamples;    // default: 128
-    uint32_t                uInterval;   // default: 1 (1 to 6 capture faces per scheduled turn)
-    float                   fRange;
-} plEnvironmentProbeComponent;
+    plProbeCaptureSettings tSettings;
+} plReflectionProbeComponent;
+
+// Axis-aligned grid centered at the entity translation. Spacing is in world units.
+typedef struct _plDiffuseProbeVolumeComponent
+{
+    plProbeCaptureSettings tCapture; // range is the influence distance outside the grid
+    plVec3                 tSpacing;
+    uint32_t               auProbeCount[3];
+    bool                   bVisibility;
+    float                  fNormalBias; // world units; applied to visibility queries
+} plDiffuseProbeVolumeComponent;
 
 typedef struct _plLightComponent
 {

@@ -90,6 +90,12 @@ Index of this file:
 // modulo indexing. More buckets than entries guarantees lookup termination.
 #define PL_PROBE_SELECTION_HASH_SIZE 4093
 
+// v3: SH atlas stored as RGBA16F (v1/v2 used RGBA32F and are rejected; rebake)
+#define PL_PROBE_ASSET_VERSION 3
+
+// Diffuse volume samples captured (and SH-projected) per frame, in one submission.
+#define PL_PROBE_SAMPLES_PER_FRAME 4
+
 //-----------------------------------------------------------------------------
 // [SECTION] global APIs
 //-----------------------------------------------------------------------------
@@ -187,6 +193,7 @@ enum _plDrawableFlags
     PL_DRAWABLE_FLAG_HAS_ALPHA         = 1 << 3, // for shadow pass
     PL_DRAWABLE_FLAG_CASTS_SHADOW      = 1 << 4,
     PL_DRAWABLE_FLAG_PATH_FOLIAGE      = 1 << 5,
+    PL_DRAWABLE_FLAG_PROBE             = 1 << 6,
 };
 
 enum _plSceneInternalFlags
@@ -347,20 +354,48 @@ typedef struct _plEnvironmentProbeDataPack
     plBindGroupHandle atLightingBindGroup[6];
 } plEnvironmentProbeDataPack;
 
+// Capture state of one capture location. Reflection probes and the sky have one;
+// a diffuse volume has one per grid sample (no other per-sample data is kept).
+typedef struct _plProbeSample
+{
+    plVec3   tCapturePosition; // where it was last captured (detects moves)
+    uint32_t uCurrentFace;
+    uint32_t uDirtyFaces;
+    uint32_t uFilterStep;
+    bool     bFiltering;
+    bool     bInitialized;
+    bool     bRefreshPending;
+} plProbeSample;
+
 typedef struct _plEnvironmentProbeData
 {
-    plEntity tEntity;
-    plVec2 tTargetSize;
-    plGpuViewData tViewData;
+    plEntity       tEntity;
+    plEcsTypeKey   tComponentType;
+    bool           bDiffuse;
+    bool           bReflection;
+    bool           bBaked;
+    bool           bVisibility;
+    plAssetHandle  tBakedAsset;
+    uint32_t       uBakedVersion;
+    plProbeSample* sbtSamples;   // one per capture location
+    uint32_t       uActiveSample; // sample currently captured/filtered (set by the scheduler)
+    uint32_t       auProbeCount[3];
+    plVec3         tSpacing;
+    plVec2         tTargetSize;
+    plGpuViewData  tViewData;
 
     plGpuDirectionLightShadow* sbtDLightShadowData;
 
     uint32_t uDataPackIndex;
     plTextureHandle tRawOutputTexture;
     plTextureHandle atRawOutputTextureViews[6];
+    plTextureHandle tRawOutputMipView; // 2D-array view of every face and mip (source for the reflection mip chain)
 
-    plTextureHandle tLambertianEnvTexture;
-    uint32_t        uLambertianEnvSampler;
+    plTextureHandle tRawDistanceTexture;
+    plTextureHandle tVisibilityTexture;
+    uint32_t        uVisibilitySampler;
+    plTextureHandle tDiffuseSHTexture;
+    uint32_t        uDiffuseSHSampler;
     plTextureHandle tGGXEnvTexture;
     uint32_t        uGGXEnvSampler;
     plTextureHandle tSheenEnvTexture;
@@ -379,14 +414,12 @@ typedef struct _plEnvironmentProbeData
     plBufferHandle tDShadowCameraBuffers;
     plBufferHandle tDLightShadowDataBuffer;
 
-    // intervals
-    uint32_t uCurrentFace;
-    uint32_t uDirtyFaces;
-    uint32_t uFilterStep;
-    bool     bFiltering;
-    bool     bInitialized;
-    bool     bRefreshPending;
+    bool bRealtime; // cached from the owning component once per update
     int iMips;
+
+    // capture workspaces only (plScene::sbtProbeCaptures)
+    uint32_t uCaptureFrame;     // frame-in-flight index + batch slot * PL_MAX_FRAMES_IN_FLIGHT owning the host-visible buffers
+    bool     bBorrowedTextures; // raw textures belong to the slot-independent workspace
 } plEnvironmentProbeData;
 
 typedef struct _plView
@@ -651,6 +684,13 @@ typedef struct _plScene
     plProbeSelectionTable tProbeSelections;
     bool                  bProbeSelectionOverflowReported;
 
+    // Object probe selections are recomputed only when the candidate records change or
+    // an object's bounds center moves (cache indexed by transform slot).
+    uint64_t  uProbeSelectionSignature;
+    uint32_t* sbuProbeSelectionCache;
+    plVec3*   sbtProbeSelectionCenters;
+    uint32_t  auProbeSelectionsSynced[PL_MAX_FRAMES_IN_FLIGHT]; // table entries already in each frame's buffer
+
     // freelists
     plFreeList tIndexBufferFreeList;
     plFreeList tVertexBufferFreeList;
@@ -697,11 +737,14 @@ typedef struct _plScene
     bool                 bProbeEnvironmentValid;
     bool                 bProbeRefreshPending;
     uint32_t             uProbeUpdateIndex;
+    uint32_t             uProbeUpdateSample;
     uint32_t             uScheduledProbe;
+    uint32_t             uScheduledSample;
     plGpuPointLight*     sbtPointLightData;
     plGpuSpotLight*      sbtSpotLightData;
     plGpuDirectionLight* sbtDirectionLightData;
     plGpuProbe*          sbtGPUProbeData;
+    uint32_t*            sbuProbeCandidates;
 
     // misc.
     plRendererLight*        sbtPointLights;
@@ -710,6 +753,7 @@ typedef struct _plScene
     plEnvironmentProbeData* sbtProbeData;
     uint32_t*               sbuFreeProbeDataSlots;
     plEnvironmentProbeData  tDefaultProbeData;
+    plEnvironmentProbeData* sbtProbeCaptures; // shared temporary capture resources, one per capture resolution
 
     // skin data management
     plSkinData* sbtSkinData;
@@ -728,6 +772,8 @@ typedef struct _plScene
     // debug stuff
     bool bWireframe;
     bool bShowProbes;
+    bool bShowProbeLighting;
+    float fProbeDisplayRadius;
     bool bShowProbeRange;
     plShaderDebugMode tShaderDebugMode;
 
@@ -789,10 +835,12 @@ typedef struct _plRendererData
     // asset keys
     plAssetTypeKey tAssetTypeKeyEnvironment;
     plAssetTypeKey tAssetTypeKeySettings;
+    plAssetTypeKey tAssetTypeKeyProbe;
 
     // ecs key cache
     plEcsTypeKey tLightComponentType;
-    plEcsTypeKey tEnvironmentProbeComponentType;
+    plEcsTypeKey tReflectionProbeComponentType;
+    plEcsTypeKey tDiffuseProbeVolumeComponentType;
     plEcsTypeKey tObjectComponentType;
     plEcsTypeKey tTerrainComponentType;
     plEcsTypeKey tDecalComponentType;
@@ -819,6 +867,7 @@ typedef struct _plCSMInfo
     plBufferHandle             tDLightShadowDataBuffer;
     plGpuDirectionLightShadow* sbtDLightShadowData;
     plBindGroupHandle          tBindGroup;
+    bool                       bProbe; // fit the cube around the camera (shared by all six probe faces)
 } plCSMInfo;
 
 typedef struct _plCloudShadowGrid
@@ -901,18 +950,23 @@ static void pl__renderer_view_create_sky_luts_textures  (plView*);
 static void pl__renderer_view_update_sky_luts_bindgroups(plView*);
 
 // environment probe helpers
-static void     pl__renderer_probe_create_textures       (plScene*, plEnvironmentProbeData*);
-static void     pl__renderer_probe_create_buffers        (plScene*, plEnvironmentProbeData*);
-static void     pl__renderer_probe_create_bindgroups     (plScene*, plEnvironmentProbeData*);
-static void     pl__renderer_probe_update_bindgroups     (plScene*, plEnvironmentProbeData*);
-static uint32_t pl__renderer_probe_data_pack_index       (plScene*, uint32_t res);
-static void     pl__renderer_probe_update_all            (plScene*);
-static void     pl__renderer_update_sky_probe            (plScene*);
-static void     pl__renderer_probe_create_environment_map(plScene*, plEnvironmentProbeData*, uint32_t uSampleCount, bool bIncremental);
+static plProbeCaptureSettings* pl__renderer_probe_capture                  (plScene*, plEcsTypeKey, plEntity);
+static const plProbeAsset*     pl__renderer_probe_asset                    (plAssetHandle, plEcsTypeKey);
+static void                    pl__renderer_probe_upload_bake              (plScene*, plEnvironmentProbeData*, const plProbeAsset*);
+static void                    pl__renderer_probe_create_capture           (plScene*, plEnvironmentProbeData*);
+static void                    pl__renderer_probe_create_textures          (plScene*, plEnvironmentProbeData*);
+static void                    pl__renderer_probe_create_buffers           (plScene*, plEnvironmentProbeData*);
+static void                    pl__renderer_probe_create_bindgroups        (plScene*, plEnvironmentProbeData*);
+static void                    pl__renderer_probe_update_bindgroups        (plScene*, plEnvironmentProbeData*);
+static void                    pl__renderer_probe_update_capture_bindgroups(plScene*);
+static uint32_t                pl__renderer_probe_data_pack_index          (plScene*, uint32_t res);
+static void                    pl__renderer_probe_update_all               (plScene*);
+static void                    pl__renderer_update_sky_probe               (plScene*);
+static void                    pl__renderer_probe_create_environment_map   (plScene*, plEnvironmentProbeData*, uint32_t uSampleCount, bool bIncremental, plCommandBuffer* ptBatchCmd);
 
 // ecs helpers
 static bool pl__renderer_add_drawable_objects_to_scene(plScene*, uint32_t count, const plEntity* objects);
-static void pl__renderer_add_probes_to_scene          (plScene*, uint32_t count, const plEntity* probes);
+static void pl__renderer_add_probes_to_scene          (plScene*, uint32_t count, const plEntity* probes, plEcsTypeKey);
 static void pl__renderer_add_lights_to_scene          (plScene*, uint32_t count, const plEntity* lights);
 
 // terrain
@@ -933,7 +987,20 @@ bool              pl_renderer_remove_component_from_scene(plScene*, plEntity, pl
 static void                pl__probe_selection_table_reset     (plProbeSelectionTable*, bool bSkyAvailable);
 static uint32_t            pl__probe_selection_table_intern    (plProbeSelectionTable*, plGpuProbeSelection);
 static uint32_t            pl__renderer_intern_probe_selection(plScene*, plGpuProbeSelection);
-static plGpuProbeSelection pl__renderer_select_probes         (const plGpuProbe*, uint32_t uProbeCount, plVec3 tPosition);
+static plGpuProbeSelection pl__renderer_select_probes         (const plScene*, plVec3 tPosition);
 static void                pl__renderer_update_object_probes  (plScene*);
+
+static inline uint32_t
+pl__probe_read_u32(const uint8_t* puData)
+{
+    return (uint32_t)puData[0] | (uint32_t)puData[1] << 8 | (uint32_t)puData[2] << 16 | (uint32_t)puData[3] << 24;
+}
+
+static inline void
+pl__probe_write_u32(uint8_t* puData, uint32_t uValue)
+{
+    for(uint32_t i = 0; i < 4; i++)
+        puData[i] = (uint8_t)(uValue >> (8 * i));
+}
 
 #endif // PL_RENDERER_INTERNAL_H

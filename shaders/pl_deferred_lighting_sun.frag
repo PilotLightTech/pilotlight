@@ -143,6 +143,7 @@ void main()
             else
             {
                 cascadeIndex = 0;
+                iCascadeCount = 1;
             }
 
             // if(cascadeIndex < 4)

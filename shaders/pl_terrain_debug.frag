@@ -4,8 +4,8 @@
 #include "pl_math.glsl"
 #include "pl_shader_interop_terrain.h"
 #include "pl_bg_scene.inc"
-#include "pl_probe_debug.glsl"
 #include "pl_bg_view.inc"
+#include "pl_probe.glsl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -243,4 +243,6 @@ void main()
     outAOMetalnessRoughness.a = float(tObjectInfo.tData.uProbeSelection & ~PL_PROBE_SELECTION_FALLBACK_FLAG);
     if(tShaderDebugMode == PL_SHADER_DEBUG_PROBE_SELECTION)
         outAlbedo = vec4(pl_probe_debug_color(tObjectInfo.tData.uProbeSelection), 1.0);
+    if(tShaderDebugMode == PL_SHADER_DEBUG_PROBE_VISIBILITY)
+        outAlbedo = vec4(pl_probe_visibility_debug(tObjectInfo.tData.uProbeSelection, tShaderIn.tWorldPosition, normalize(tShaderIn.tWorldNormal)), 1.0);
 }

@@ -3,8 +3,8 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #include "pl_bg_scene.inc"
-#include "pl_probe_debug.glsl"
 #include "pl_bg_view.inc"
+#include "pl_probe.glsl"
 #include "pl_brdf.glsl"
 #include "pl_math.glsl"
 
@@ -355,4 +355,6 @@ void main()
     }
     if(tShaderDebugMode == PL_SHADER_DEBUG_PROBE_SELECTION)
         outColor = vec4(pl_probe_debug_color(tShaderIn.uProbeSelection), 1.0);
+    if(tShaderDebugMode == PL_SHADER_DEBUG_PROBE_VISIBILITY)
+        outColor = vec4(pl_probe_visibility_debug(tShaderIn.uProbeSelection, tShaderIn.tWorldPosition, n), 1.0);
 }

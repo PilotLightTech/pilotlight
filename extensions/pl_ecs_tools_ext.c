@@ -133,7 +133,6 @@ static const char* apcComponentNames[] = {
     PL_ICON_FA_PLAY " Animation",
     PL_ICON_FA_DRAW_POLYGON " Inverse Kinematics",
     PL_ICON_FA_LIGHTBULB " Light",
-    PL_ICON_FA_MAP_PIN " Environment Probe",
     PL_ICON_FA_PERSON " Humanoid",
     PL_ICON_FA_CODE " Script",
     PL_ICON_FA_BOXES_STACKED " Rigid Body Physics",
@@ -146,6 +145,8 @@ static const char* apcComponentNames[] = {
     PL_ICON_FA_VECTOR_SQUARE " Voxel Volume",
     PL_ICON_FA_SHAPES " Voxel Geometry",
     PL_ICON_FA_ROUTE " Path Agent",
+    PL_ICON_FA_MAP_PIN " Reflection Probe",
+    PL_ICON_FA_LIGHTBULB " Diffuse Probe Volume (SH)",
 };
 
 //-----------------------------------------------------------------------------
@@ -586,7 +587,6 @@ pl__ecs_tools_entity(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, 
     const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
     const plEcsTypeKey tInverseKinematicsComponentType = gptIk->get_ecs_type_key();
     const plEcsTypeKey tLightComponentType = gptRenderer->get_ecs_type_key_light();
-    const plEcsTypeKey tEnvironmentProbeComponentType = gptRenderer->get_ecs_type_key_environment_probe();
     const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
     const plEcsTypeKey tScriptComponentType = gptScript->get_ecs_type_key();
     const plEcsTypeKey tRigidBodyComponentType = gptPhysics->get_ecs_type_key_rigid_body_physics();
@@ -597,55 +597,53 @@ pl__ecs_tools_entity(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, 
     const plEcsTypeKey tDecalComponentType = gptRenderer->get_ecs_type_key_decal();
 
     bool bResult = false;
-    plTagComponent*               ptTagComp           = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), tEntity);
-    plLibraryComponent*           ptLibraryComp       = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_library(), tEntity);
-    plTransformComponent*         ptTransformComp     = gptEcs->get_component(ptLibrary, tTransformComponentType, tEntity);
-    plObjectComponent*            ptObjectComp        = gptEcs->get_component(ptLibrary, tObjectComponentType, tEntity);
-    plHierarchyComponent*         ptHierarchyComp     = gptEcs->get_component(ptLibrary, tHierarchyComponentType, tEntity);
-    plSkinComponent*              ptSkinComp          = gptEcs->get_component(ptLibrary, tSkinComponentType, tEntity);
-    plCamera*                     ptCameraComp        = gptEcs->get_component(ptLibrary, tCameraComponentType, tEntity);
-    plAnimationComponent*         ptAnimationComp     = gptEcs->get_component(ptLibrary, tAnimationComponentType, tEntity);
-    plInverseKinematicsComponent* ptIKComp            = gptEcs->get_component(ptLibrary, tInverseKinematicsComponentType, tEntity);
-    plLightComponent*             ptLightComp         = gptEcs->get_component(ptLibrary, tLightComponentType, tEntity);
-    plEnvironmentProbeComponent*  ptProbeComp         = gptEcs->get_component(ptLibrary, tEnvironmentProbeComponentType, tEntity);
-    plHumanoidComponent*          ptHumanComp         = gptEcs->get_component(ptLibrary, tHumanoidComponentType, tEntity);
-    plScriptComponent*            ptScriptComp        = gptEcs->get_component(ptLibrary, tScriptComponentType, tEntity);
-    plRigidBodyPhysicsComponent*  ptRigidComp         = gptEcs->get_component(ptLibrary, tRigidBodyComponentType, tEntity);
-    plForceFieldComponent*        ptForceField        = gptEcs->get_component(ptLibrary, tForceFieldComponentType, tEntity);
-    plEnvironmentComponent*       ptEnvironment       = gptEcs->get_component(ptLibrary, tEnvironmentComponentType, tEntity);
-    plRendererComponent*          ptRenderer          = gptEcs->get_component(ptLibrary, tRendererComponentType, tEntity);
-    plTerrainComponent*           ptTerrain           = gptEcs->get_component(ptLibrary, tTerrainComponentType, tEntity);
-    plDecalComponent*             ptDecal             = gptEcs->get_component(ptLibrary, tDecalComponentType, tEntity);
-
+    plTagComponent*                ptTagComp           = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), tEntity);
+    plLibraryComponent*            ptLibraryComp       = gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_library(), tEntity);
+    plTransformComponent*          ptTransformComp     = gptEcs->get_component(ptLibrary, tTransformComponentType, tEntity);
+    plObjectComponent*             ptObjectComp        = gptEcs->get_component(ptLibrary, tObjectComponentType, tEntity);
+    plHierarchyComponent*          ptHierarchyComp     = gptEcs->get_component(ptLibrary, tHierarchyComponentType, tEntity);
+    plSkinComponent*               ptSkinComp          = gptEcs->get_component(ptLibrary, tSkinComponentType, tEntity);
+    plCamera*                      ptCameraComp        = gptEcs->get_component(ptLibrary, tCameraComponentType, tEntity);
+    plAnimationComponent*          ptAnimationComp     = gptEcs->get_component(ptLibrary, tAnimationComponentType, tEntity);
+    plInverseKinematicsComponent*  ptIKComp            = gptEcs->get_component(ptLibrary, tInverseKinematicsComponentType, tEntity);
+    plLightComponent*              ptLightComp         = gptEcs->get_component(ptLibrary, tLightComponentType, tEntity);
+    plHumanoidComponent*           ptHumanComp         = gptEcs->get_component(ptLibrary, tHumanoidComponentType, tEntity);
+    plScriptComponent*             ptScriptComp        = gptEcs->get_component(ptLibrary, tScriptComponentType, tEntity);
+    plRigidBodyPhysicsComponent*   ptRigidComp         = gptEcs->get_component(ptLibrary, tRigidBodyComponentType, tEntity);
+    plForceFieldComponent*         ptForceField        = gptEcs->get_component(ptLibrary, tForceFieldComponentType, tEntity);
+    plEnvironmentComponent*        ptEnvironment       = gptEcs->get_component(ptLibrary, tEnvironmentComponentType, tEntity);
+    plRendererComponent*           ptRenderer          = gptEcs->get_component(ptLibrary, tRendererComponentType, tEntity);
+    plTerrainComponent*            ptTerrain           = gptEcs->get_component(ptLibrary, tTerrainComponentType, tEntity);
+    plDecalComponent*              ptDecal             = gptEcs->get_component(ptLibrary, tDecalComponentType, tEntity);
+    plReflectionProbeComponent*    ptReflectionProbe   = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_reflection_probe(), tEntity);
+    plDiffuseProbeVolumeComponent* ptDiffuseProbe      = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_diffuse_probe_volume(), tEntity);
+    plVoxelVolumeComponent*        ptVoxelVolume       = gptEcs->get_component(ptLibrary, gptVoxel->get_ecs_type_key_volume(), tEntity);
+    plVoxelGeometryComponent*      ptVoxelGeometry     = gptEcs->get_component(ptLibrary, gptVoxel->get_ecs_type_key_geometry(), tEntity);
+    plPathAgentComponent*          ptPathAgent         = gptEcs->get_component(ptLibrary, gptPath->get_ecs_type_key_agent(), tEntity);
 
     pl_sb_reset(gptEcsToolsCtx->sbcBuffer);
-    if(ptHierarchyComp) { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_SITEMAP);                    pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptTransformComp) { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT);  pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptObjectComp)    { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_GHOST);                      pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptSkinComp)      { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_USER_INJURED);               pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptCameraComp)    { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_CAMERA);                     pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptAnimationComp) { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_PLAY);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptIKComp)        { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_DRAW_POLYGON);               pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptLightComp)     { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_LIGHTBULB);                  pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptProbeComp)     { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_MAP_PIN);                    pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptHumanComp)     { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_PERSON);                     pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptScriptComp)    { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_CODE);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptRigidComp)     { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_BOXES_STACKED);              pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptForceField)    { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_WIND);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptEnvironment)   { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_CLOUD_SUN);                  pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptRenderer)      { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_FILM);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptLibraryComp)   { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_FOLDER_OPEN);                pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptTerrain)       { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_GLOBE);                      pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(ptDecal)         { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_STAR);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    if(gptEcsToolsCtx->bNavigationComponents)
-    {
-        if(gptEcs->has_component(ptLibrary, gptVoxel->get_ecs_type_key_volume(), tEntity))
-        { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_VECTOR_SQUARE); pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-        if(gptEcs->has_component(ptLibrary, gptVoxel->get_ecs_type_key_geometry(), tEntity))
-        { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_SHAPES); pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-        if(gptEcs->has_component(ptLibrary, gptPath->get_ecs_type_key_agent(), tEntity))
-        { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_ROUTE); pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
-    }
+    if(ptHierarchyComp)    { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_SITEMAP);                    pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptTransformComp)    { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT);  pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptObjectComp)       { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_GHOST);                      pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptSkinComp)         { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_USER_INJURED);               pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptCameraComp)       { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_CAMERA);                     pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptAnimationComp)    { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_PLAY);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptIKComp)           { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_DRAW_POLYGON);               pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptLightComp)        { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_LIGHTBULB);                  pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptReflectionProbe)  { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_MAP_PIN);                    pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptDiffuseProbe)     { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_MAP_PIN);                    pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptHumanComp)        { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_PERSON);                     pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptScriptComp)       { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_CODE);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptRigidComp)        { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_BOXES_STACKED);              pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptForceField)       { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_WIND);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptEnvironment)      { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_CLOUD_SUN);                  pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptRenderer)         { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_FILM);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptLibraryComp)      { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_FOLDER_OPEN);                pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptTerrain)          { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_GLOBE);                      pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptDecal)            { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_STAR);                       pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptVoxelVolume)      { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_VECTOR_SQUARE);              pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptVoxelGeometry)    { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_SHAPES);                     pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
+    if(ptPathAgent)        { pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, "%s", PL_ICON_FA_ROUTE);                      pl_sb_pop(gptEcsToolsCtx->sbcBuffer); }
     pl_sb_sprintf(gptEcsToolsCtx->sbcBuffer, " %s", pcName);
 
     bool bLocal = gptEcs->is_local(ptLibrary, tEntity);
@@ -840,7 +838,6 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
         const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
         const plEcsTypeKey tInverseKinematicsComponentType = gptIk->get_ecs_type_key();
         const plEcsTypeKey tLightComponentType = gptRenderer->get_ecs_type_key_light();
-        const plEcsTypeKey tEnvironmentProbeComponentType = gptRenderer->get_ecs_type_key_environment_probe();
         const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
         const plEcsTypeKey tScriptComponentType = gptScript->get_ecs_type_key();
         const plEcsTypeKey tRigidBodyComponentType = gptPhysics->get_ecs_type_key_rigid_body_physics();
@@ -850,6 +847,9 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
         const plEcsTypeKey tTerrainComponentType = gptRenderer->get_ecs_type_key_terrain();
         const plEcsTypeKey tLibraryComponentType = gptEcs->get_ecs_type_key_library();
         const plEcsTypeKey tDecalComponentType = gptRenderer->get_ecs_type_key_decal();
+        const plEcsTypeKey tVoxelVolumeType = gptVoxel->get_ecs_type_key_volume();
+        const plEcsTypeKey tVoxelGeometryType = gptVoxel->get_ecs_type_key_geometry();
+        const plEcsTypeKey tPathAgentType = gptPath->get_ecs_type_key_agent();
 
         plEcsTypeKey atComponentTypes[] = {
             INT32_MAX,
@@ -861,7 +861,6 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
             tAnimationComponentType,
             tInverseKinematicsComponentType,
             tLightComponentType,
-            tEnvironmentProbeComponentType,
             tHumanoidComponentType,
             tScriptComponentType,
             tRigidBodyComponentType,
@@ -871,9 +870,11 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
             tTerrainComponentType,
             tLibraryComponentType,
             tDecalComponentType,
-            gptEcsToolsCtx->bNavigationComponents ? gptVoxel->get_ecs_type_key_volume() : UINT32_MAX,
-            gptEcsToolsCtx->bNavigationComponents ? gptVoxel->get_ecs_type_key_geometry() : UINT32_MAX,
-            gptEcsToolsCtx->bNavigationComponents ? gptPath->get_ecs_type_key_agent() : UINT32_MAX,
+            tVoxelVolumeType,
+            tVoxelGeometryType,
+            tPathAgentType,
+            gptRenderer->get_ecs_type_key_reflection_probe(),
+            gptRenderer->get_ecs_type_key_diffuse_probe_volume(),
         };
 
         if(ptLibraryHelper->uComponentFilter >= PL_ARRAYSIZE(atComponentTypes) || atComponentTypes[ptLibraryHelper->uComponentFilter] == UINT32_MAX)
@@ -963,7 +964,6 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
                 plAnimationComponent*         ptAnimationComp     = gptEcs->get_component(ptLibrary, tAnimationComponentType, *ptSelectedEntity);
                 plInverseKinematicsComponent* ptIKComp            = gptEcs->get_component(ptLibrary, tInverseKinematicsComponentType, *ptSelectedEntity);
                 plLightComponent*             ptLightComp         = gptEcs->get_component(ptLibrary, tLightComponentType, *ptSelectedEntity);
-                plEnvironmentProbeComponent*  ptProbeComp         = gptEcs->get_component(ptLibrary, tEnvironmentProbeComponentType, *ptSelectedEntity);
                 plHumanoidComponent*          ptHumanComp         = gptEcs->get_component(ptLibrary, tHumanoidComponentType, *ptSelectedEntity);
                 plScriptComponent*            ptScriptComp        = gptEcs->get_component(ptLibrary, tScriptComponentType, *ptSelectedEntity);
                 plRigidBodyPhysicsComponent*  ptRigidComp         = gptEcs->get_component(ptLibrary, tRigidBodyComponentType, *ptSelectedEntity);
@@ -973,8 +973,6 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
                 plRendererComponent*          ptRenderer          = gptEcs->get_component(ptLibrary, tRendererComponentType, *ptSelectedEntity);
                 plTerrainComponent*           ptTerrain           = gptEcs->get_component(ptLibrary, tTerrainComponentType, *ptSelectedEntity);
                 plDecalComponent*             ptDecal             = gptEcs->get_component(ptLibrary, gptRenderer->get_ecs_type_key_decal(), *ptSelectedEntity);
-
-
 
                 gptUI->layout_template_begin(0.0f);
                 gptUI->layout_template_push_dynamic();
@@ -1003,7 +1001,6 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
                     ptAnimationComp     = NULL;
                     ptIKComp            = NULL;
                     ptLightComp         = NULL;
-                    ptProbeComp         = NULL;
                     ptHumanComp         = NULL;
                     ptScriptComp        = NULL;
                     ptRigidComp         = NULL;
@@ -1066,7 +1063,7 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
 
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##1"))
                     {
-                        gptEcs->remove_component(ptLibrary, tEnvironmentProbeComponentType, *ptSelectedEntity);
+                        gptEcs->remove_component(ptLibrary, tEnvironmentComponentType, *ptSelectedEntity);
                         ptEnvironment = NULL;
                     }
                 }
@@ -1279,52 +1276,91 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
                     }
                 }
 
-                if(ptProbeComp)
+                const plEcsTypeKey atProbeTypes[] = {
+                    gptRenderer->get_ecs_type_key_reflection_probe(),
+                    gptRenderer->get_ecs_type_key_diffuse_probe_volume(),
+                };
+                const char* apcProbeNames[] = {"Reflection Probe", "Diffuse Probe Volume (SH)"};
+                for(uint32_t uProbeType = 0; uProbeType < PL_ARRAYSIZE(atProbeTypes); uProbeType++)
                 {
-                    if(gptUI->collapsing_header("Environment Probe", 0))
+                    void* pProbeComponent = gptEcs->get_component(ptLibrary, atProbeTypes[uProbeType], *ptSelectedEntity);
+                    plDiffuseProbeVolumeComponent* ptVolume = uProbeType == 1 ? pProbeComponent : NULL;
+                    plReflectionProbeComponent* ptReflection = uProbeType == 0 ? pProbeComponent : NULL;
+                    plProbeCaptureSettings* ptCaptureComp = ptVolume ? &ptVolume->tCapture : (ptReflection ? &ptReflection->tSettings : NULL);
+                    if(!ptCaptureComp)
+                        continue;
+                    gptUI->push_id_uint(atProbeTypes[uProbeType]);
+                    plProbeCaptureSettings tPrevious = *ptCaptureComp;
+                    if(gptUI->collapsing_header(apcProbeNames[uProbeType], 0))
                     {
                         gptUI->stash_layout();
-                        gptUI->checkbox_flags("Real Time", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_REALTIME);
-                        gptUI->checkbox_flags("Include Sky", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY);
-                        gptUI->checkbox_flags("Box Parallax Correction", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX);
+                        pl__ecs_tools_asset_combo("Baked Probe", gptRenderer->get_asset_type_key_probe(), &ptCaptureComp->tBakedProbe);
+                        gptUI->text("Clear the baked asset to capture again. Bake in Scene Tools / Lighting.");
+                        gptUI->checkbox_flags("Real Time", &ptCaptureComp->tFlags, PL_PROBE_FLAGS_REALTIME);
+                        gptUI->checkbox_flags("Include Sky", &ptCaptureComp->tFlags, PL_PROBE_FLAGS_INCLUDE_SKY);
+                        if(uProbeType != 1)
+                            gptUI->checkbox_flags("Box Parallax Correction", &ptCaptureComp->tFlags, PL_PROBE_FLAGS_PARALLAX_CORRECTION_BOX);
 
                         if(gptUI->button("Update"))
-                            ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
-                        gptUI->input_float("Range", &ptProbeComp->fRange, NULL, 0);
+                            ptCaptureComp->tFlags |= PL_PROBE_FLAGS_DIRTY;
+                        gptUI->input_float("Range", &ptCaptureComp->fRange, NULL, 0);
+                        ptCaptureComp->fRange = pl_maxf(0.5f, ptCaptureComp->fRange);
+                        gptUI->input_float("Capture Range", &ptCaptureComp->fCaptureRange, NULL, 0);
+                        ptCaptureComp->fCaptureRange = pl_maxf(0.0f, ptCaptureComp->fCaptureRange);
+                        gptUI->text("Capture Resolution: %u", ptCaptureComp->uResolution);
 
-                        uint32_t auSamples[] = {
-                            32,
-                            64,
-                            128,
-                            256,
-                            512,
-                            1024,
-                            2048,
-                            4096,
-                        };
-                        int iSelection = 0;
-                        if(ptProbeComp->uSamples == 32)        iSelection = 0;
-                        else if(ptProbeComp->uSamples == 64)   iSelection = 1;
-                        else if(ptProbeComp->uSamples == 128)  iSelection = 2;
-                        else if(ptProbeComp->uSamples == 256)  iSelection = 3;
-                        else if(ptProbeComp->uSamples == 512)  iSelection = 4;
-                        else if(ptProbeComp->uSamples == 1024) iSelection = 5;
-                        else if(ptProbeComp->uSamples == 2048) iSelection = 6;
-                        else if(ptProbeComp->uSamples == 4096) iSelection = 7;
-                        gptUI->separator_text("Samples");
-                        gptUI->radio_button("32", &iSelection, 0);
-                        gptUI->radio_button("64", &iSelection, 1);
-                        gptUI->radio_button("128", &iSelection, 2);
-                        gptUI->radio_button("256", &iSelection, 3);
-                        gptUI->radio_button("512", &iSelection, 4);
-                        gptUI->radio_button("1024", &iSelection, 5);
-                        gptUI->radio_button("2048", &iSelection, 6);
-                        gptUI->radio_button("4096", &iSelection, 7);
-                        ptProbeComp->uSamples = auSamples[iSelection];
+                        if(uProbeType != 1)
+                        {
+                            uint32_t auSamples[] = {
+                                32,
+                                64,
+                                128,
+                                256,
+                                512,
+                                1024,
+                                2048,
+                                4096,
+                            };
+                            int iSelection = 0;
+                            if(ptCaptureComp->uSamples == 32)        iSelection = 0;
+                            else if(ptCaptureComp->uSamples == 64)   iSelection = 1;
+                            else if(ptCaptureComp->uSamples == 128)  iSelection = 2;
+                            else if(ptCaptureComp->uSamples == 256)  iSelection = 3;
+                            else if(ptCaptureComp->uSamples == 512)  iSelection = 4;
+                            else if(ptCaptureComp->uSamples == 1024) iSelection = 5;
+                            else if(ptCaptureComp->uSamples == 2048) iSelection = 6;
+                            else if(ptCaptureComp->uSamples == 4096) iSelection = 7;
+                            gptUI->separator_text("Samples");
+                            gptUI->radio_button("32", &iSelection, 0);
+                            gptUI->radio_button("64", &iSelection, 1);
+                            gptUI->radio_button("128", &iSelection, 2);
+                            gptUI->radio_button("256", &iSelection, 3);
+                            gptUI->radio_button("512", &iSelection, 4);
+                            gptUI->radio_button("1024", &iSelection, 5);
+                            gptUI->radio_button("2048", &iSelection, 6);
+                            gptUI->radio_button("4096", &iSelection, 7);
+                            ptCaptureComp->uSamples = auSamples[iSelection];
+
+                        }
+                        else
+                        {
+                            gptUI->text("9 RGB SH coefficients per grid sample (L2)");
+                            gptUI->text("World-aligned grid centered at the entity translation");
+                            int aiCount[3] = {(int)ptVolume->auProbeCount[0], (int)ptVolume->auProbeCount[1], (int)ptVolume->auProbeCount[2]};
+                            if(gptUI->input_int3("Probe Count", aiCount, 0))
+                            {
+                                for(uint32_t i = 0; i < 3; i++)
+                                    ptVolume->auProbeCount[i] = (uint32_t)pl_max(1, pl_min(aiCount[i], 64));
+                            }
+                            gptUI->input_float3("Probe Spacing", ptVolume->tSpacing.d, NULL, 0);
+                            gptUI->checkbox("Visibility Weighting", &ptVolume->bVisibility);
+                            gptUI->slider_float("Visibility Normal Bias", &ptVolume->fNormalBias, 0.0f, 0.5f, 0);
+                            gptUI->text("Older bakes need recapturing to add visibility data.");
+                        }
 
                         gptUI->separator_text("Capture Faces per Scheduled Turn");
 
-                        int iSelection0 = (int)ptProbeComp->uInterval;
+                        int iSelection0 = (int)ptCaptureComp->uInterval;
                         gptUI->radio_button("1", &iSelection0, 1);
                         gptUI->radio_button("2", &iSelection0, 2);
                         gptUI->radio_button("3", &iSelection0, 3);
@@ -1332,14 +1368,17 @@ pl__ecs_tools_show_window(plAssetHandle tAssetHandle, plEntity* ptSelectedEntity
                         gptUI->radio_button("5", &iSelection0, 5);
                         gptUI->radio_button("6", &iSelection0, 6);
 
-                        ptProbeComp->uInterval = (uint32_t)iSelection0;
+                        ptCaptureComp->uInterval = (uint32_t)iSelection0;
                         gptUI->apply_layout();
                     }
+                    if(memcmp(&tPrevious, ptCaptureComp, sizeof(tPrevious)) != 0)
+                        ptCaptureComp->tFlags |= PL_PROBE_FLAGS_DIRTY;
                     if(gptUI->button(PL_ICON_FA_TRASH_CAN "##6"))
                     {
-                        gptEcs->remove_component(ptLibrary, tEnvironmentProbeComponentType, *ptSelectedEntity);
-                        ptProbeComp = NULL;
+                        gptEcs->remove_component(ptLibrary, atProbeTypes[uProbeType], *ptSelectedEntity);
+                        ptCaptureComp = NULL;
                     }
+                    gptUI->pop_id();
                 }
 
                 if(ptTransformComp)

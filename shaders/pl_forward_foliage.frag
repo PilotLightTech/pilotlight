@@ -132,20 +132,13 @@ void main()
     vec3 f_metal_brdf_ibl = vec3(0.0);
 
     // Calculate lighting contribution from image based lighting source (IBL)
-    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_USE_IBL) && tShaderIn.tSelectedProbes.w > 0u)
+    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_USE_IBL) && tShaderIn.tSelectedProbes.w > 0u && !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
     {
 
-        // The CPU supplies up to three probes, sorted nearest first.
+        // The CPU supplies up to three diffuse probes and an independent reflection probe.
         int aiActiveProbes[3] = int[3](int(tShaderIn.tSelectedProbes.x), int(tShaderIn.tSelectedProbes.y), int(tShaderIn.tSelectedProbes.z));
         int K = int(tShaderIn.tSelectedProbes.w);
-        vec3 R = reflect(-v, n);
-
-        float weights[3];
-        weights[0] = 0.0;
-        weights[1] = 0.0;
-        weights[2] = 0.0;
-        float summing = computeProbeWeights(tShaderIn.tWorldPosition.xyz, R, 2.0, K, aiActiveProbes, weights);
-        int iClosestProbeIndex = aiActiveProbes[0];
+        int iClosestProbeIndex = tProbeSelections.atData[tShaderIn.uProbeSelection & ~PL_PROBE_SELECTION_FALLBACK_FLAG].iReflectionProbe;
 
         int iMips2 = tProbeData.atData[iClosestProbeIndex].iMips;
         if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
@@ -159,25 +152,22 @@ void main()
             f_specular_dielectric = f_specular_metal;
         }
 
-        for(int i = 0; i < K; i++)
+        // Weights sum to one (sky fills the remainder): blend the SH, then shade once.
+        vec3 atSH[9];
+        pl_probe_blended_sh(tShaderIn.tWorldPosition.xyz, n, K, aiActiveProbes, atSH);
         {
-            int iProbeIndex = aiActiveProbes[i];
-            
-
-            f_diffuse = getDiffuseLight(n, iProbeIndex) * tBaseColor.rgb;
-
-            int iMips = tProbeData.atData[iClosestProbeIndex].iMips;
+            f_diffuse = pl_sh_irradiance(atSH, n) * tBaseColor.rgb;
 
             // Calculate fresnel mix for IBL  
 
-            vec3 f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, tBaseColor.rgb, 1.0, iProbeIndex);
+            vec3 f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, tBaseColor.rgb, 1.0, 0);
             f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
         
-            vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, iProbeIndex);
+            vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, 0);
             f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);
 
             vec3 icolor = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
-            color += icolor * weights[i];
+            color += icolor;
         }
     }
 

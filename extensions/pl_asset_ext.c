@@ -111,6 +111,8 @@ static plAssetContext* gptAssetCtx = NULL;
 bool
 pl_asset_is_valid(plAssetHandle tHandle)
 {
+    if(tHandle.uIndex >= pl_sb_size(gptAssetCtx->sbtAssetGenerations))
+        return false;
     if(tHandle.uGeneration != gptAssetCtx->sbtAssetGenerations[tHandle.uIndex])
         return false;
     return true;

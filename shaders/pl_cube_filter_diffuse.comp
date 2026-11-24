@@ -1,99 +1,74 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-#include "pl_math.glsl"
-#include "pl_sampling.inc"
 #include "pl_cube.inc"
-#include "pl_shader_interop.h"
 #include "pl_shader_interop_renderer.h"
+#include "pl_probe_common.glsl"
 
-layout(set = 0, binding = 0)  uniform sampler tDefaultSampler;
+layout(set = 0, binding = 0) uniform sampler tDefaultSampler;
 layout(set = 0, binding = 1) uniform textureCube uCubeMap;
-layout(std430, set = 1, binding = 0) buffer _tBufferOut0{ uvec2 atPixelData[]; } tFaceOut0;
-layout(std430, set = 1, binding = 1) buffer _tBufferOut1{ uvec2 atPixelData[]; } tFaceOut1;
-layout(std430, set = 1, binding = 2) buffer _tBufferOut2{ uvec2 atPixelData[]; } tFaceOut2;
-layout(std430, set = 1, binding = 3) buffer _tBufferOut3{ uvec2 atPixelData[]; } tFaceOut3;
-layout(std430, set = 1, binding = 4) buffer _tBufferOut4{ uvec2 atPixelData[]; } tFaceOut4;
-layout(std430, set = 1, binding = 5) buffer _tBufferOut5{ uvec2 atPixelData[]; } tFaceOut5;
-
-//-----------------------------------------------------------------------------
-// [SECTION] dynamic bind group
-//-----------------------------------------------------------------------------
+// Packed RGBA16F texels (two halves per uint) copied straight into the SH atlas.
+layout(std430, set = 1, binding = 0) buffer _tBufferOut0 { uvec2 atCoefficients[]; } tSHOut;
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
     plGpuDynFilterSpec tData;
 } tDynamicData;
 
-layout (local_size_x = 16, local_size_y = 16, local_size_z = 2) in;
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+// One workgroup projects all nine coefficients: each texel is fetched once.
+// Slots 0-8 hold the coefficient sums, slot 9 the total solid angle.
+shared vec3 atPartial[64][10];
+
+float
+pl_sh_area(vec2 tUV)
+{
+    return atan(tUV.x * tUV.y, sqrt(dot(tUV, tUV) + 1.0));
+}
 
 void
 main()
 {
-    const float fXCoord = gl_WorkGroupID.x * 16 + gl_LocalInvocationID.x;
-    const float fYCoord = gl_WorkGroupID.y * 16 + gl_LocalInvocationID.y;
-
-    const int iLocalFace = int(gl_GlobalInvocationID.z);
-    if(iLocalFace >= tDynamicData.tData.iFaceCount)
-        return;
-    const int iFace = tDynamicData.tData.iFaceOffset + iLocalFace;
-    const float fXinc = 1.0 / tDynamicData.tData.iWidth;
-    const float fYinc = 1.0 / tDynamicData.tData.iWidth;
-    const vec2 tInUV = vec2((fXCoord + 0.5) * fXinc, (fYCoord + 0.5) * fYinc);
-    const int iCurrentPixel = int(fXCoord + fYCoord * tDynamicData.tData.iWidth);
-
-    vec2 tNewUV = tInUV * (1 << tDynamicData.tData.iCurrentMipLevel);
-    tNewUV = tNewUV * 2.0 - 1.0;
-
-    const vec3 tScan = pl_uv_to_xyz(iFace, tNewUV);
-
-    vec3 tN = normalize(tScan);
-
-    vec3 tColor = vec3(0.0);
-    for(int i = 0; i < tDynamicData.tData.iSampleCount; ++i)
+    const uint uThread = gl_LocalInvocationID.x;
+    const int iWidth = tDynamicData.tData.iResolution;
+    vec3 atSum[9];
+    for(int c = 0; c < 9; c++)
+        atSum[c] = vec3(0.0);
+    float fWeightSum = 0.0;
+    for(int i = int(uThread); i < 6 * iWidth * iWidth; i += 64)
     {
-
-        vec2 tXi = pl_hammersley_2d(i, tDynamicData.tData.iSampleCount);
-        vec3 tSampleDirection = pl_get_importance_sample_cosine(tXi, tN);
-
-        float NoL = dot(tN, tSampleDirection);
-        // float fPdf = NoL / PL_PI;
-        float fPdf = NoL;
-
-        // mipmap filtered samples (GPU Gems 3, 20.4)
-        float fLod = 0.5 * log2( 6.0 * float(tDynamicData.tData.iResolution) * float(tDynamicData.tData.iResolution) / (float(tDynamicData.tData.iSampleCount) * fPdf));
-
-        // apply the bias to the lod
-        fLod += tDynamicData.tData.fLodBias;
-
-        // sample lambertian at a lower giResolution to avoid fireflies
-        const vec3 tSampleColor = textureLod(samplerCube(uCubeMap, tDefaultSampler), tSampleDirection, fLod).rgb;
-
-        //// the below operations cancel each other out
-        // lambertian *= NdotH; // lamberts law
-        // lambertian /= pdf; // invert bias from importance sampling
-        // lambertian /= PL_PI; // convert irradiance to radiance https://seblagarde.wordpress.com/2012/01/08/pi-or-not-to-pi-in-game-lighting-equation/
-
-        tColor += tSampleColor;
+        int iFace = i / (iWidth * iWidth);
+        ivec2 tPixel = ivec2(i % iWidth, (i / iWidth) % iWidth);
+        vec2 tMin = 2.0 * vec2(tPixel) / float(iWidth) - 1.0;
+        vec2 tMax = 2.0 * vec2(tPixel + 1) / float(iWidth) - 1.0;
+        float fWeight = pl_sh_area(tMax) - pl_sh_area(vec2(tMin.x, tMax.y)) - pl_sh_area(vec2(tMax.x, tMin.y)) + pl_sh_area(tMin);
+        vec3 n = normalize(pl_uv_to_xyz(iFace, (tMin + tMax) * 0.5));
+        vec3 tRadiance = textureLod(samplerCube(uCubeMap, tDefaultSampler), n, 0.0).rgb;
+        tRadiance *= fWeight;
+        for(int c = 0; c < 9; c++)
+            atSum[c] += tRadiance * pl_sh_basis(c, n);
+        fWeightSum += fWeight;
     }
-
-    tColor /= float(tDynamicData.tData.iSampleCount);
-    // tColor *= PL_PI;
-
-    // Pack explicitly to match RGBA16F copies without requiring shaderFloat16.
-    const vec4 tHalfColor = clamp(vec4(tColor.rgb, 1.0), vec4(-65504.0), vec4(65504.0));
-    const uvec2 tColorOut = uvec2(packHalf2x16(tHalfColor.xy), packHalf2x16(tHalfColor.zw));
-
-    if (iFace == 0)
-        tFaceOut0.atPixelData[iCurrentPixel] = tColorOut;
-    else if (iFace == 1)
-        tFaceOut1.atPixelData[iCurrentPixel] = tColorOut;
-    else if (iFace == 2)
-        tFaceOut2.atPixelData[iCurrentPixel] = tColorOut;
-    else if (iFace == 3)
-        tFaceOut3.atPixelData[iCurrentPixel] = tColorOut;
-    else if (iFace == 4)
-        tFaceOut4.atPixelData[iCurrentPixel] = tColorOut;
-    else if(iFace == 5)
-        tFaceOut5.atPixelData[iCurrentPixel] = tColorOut;
+    for(int c = 0; c < 9; c++)
+        atPartial[uThread][c] = atSum[c];
+    atPartial[uThread][9] = vec3(fWeightSum);
+    barrier();
+    for(uint uStride = 32; uStride > 0; uStride >>= 1)
+    {
+        if(uThread < uStride)
+        {
+            for(int c = 0; c < 10; c++)
+                atPartial[uThread][c] += atPartial[uThread + uStride][c];
+        }
+        barrier();
+    }
+    if(uThread < 9)
+    {
+        // Cosine convolution divided by pi: band factors 1, 2/3 and 1/4.
+        const int iCoefficient = int(uThread);
+        float fBand = iCoefficient == 0 ? 1.0 : (iCoefficient < 4 ? 2.0 / 3.0 : 0.25);
+        vec3 tCoefficient = atPartial[0][iCoefficient] * (12.5663706144 / atPartial[0][9].x) * fBand;
+        tCoefficient = clamp(tCoefficient, vec3(-65504.0), vec3(65504.0)); // stay finite in half precision
+        tSHOut.atCoefficients[iCoefficient] = uvec2(packHalf2x16(tCoefficient.xy), packHalf2x16(vec2(tCoefficient.z, 0.0)));
+    }
 }

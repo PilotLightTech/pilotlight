@@ -107,6 +107,9 @@ typedef struct _plSceneToolsContext
     const plComponentLibrary* ptLibrary;
     const plScene*            ptScene;
     int                       iTool;
+    int                       iProbeType;
+    char                      acProbePath[1024];
+    char                      acProbeMessage[256];
     plNavigationDebug         tNavigationDebug;
     plTerrainDebug            tTerrainDebug;
     plDrawList3D*             ptVoxelDrawlist;
@@ -238,7 +241,7 @@ pl__scene_tools_navigation(plComponentLibrary* ptLibrary, plEntity tSelected, bo
             .bXray        = true,
             .bFollowAgent = true,
             .iSlice       = -1,
-            .uMaxVoxels   = 25000
+            .uMaxVoxels   = 250000
         };
         const plEntity* atVolumes = NULL;
         if(gptEcs->get_components(ptLibrary, gptVoxel->get_ecs_type_key_volume(), NULL, &atVolumes))
@@ -322,7 +325,7 @@ pl__scene_tools_navigation(plComponentLibrary* ptLibrary, plEntity tSelected, bo
             ptDebug->iSlice = -1;
         gptUI->slider_int("Y slice (-1 = all)", &ptDebug->iSlice, -1, (int)ptGrid->auResolution[1] - 1, 0);
     }
-    gptUI->slider_uint("Voxel box limit", &ptDebug->uMaxVoxels, 0, 25000, 0);
+    gptUI->slider_uint("Voxel box limit", &ptDebug->uMaxVoxels, 0, 250000, 0);
     gptUI->text("Last draw: %u occupied boxes", ptDebug->uDrawn);
     gptUI->checkbox("Show agent routes", &ptDebug->bPaths);
     gptUI->checkbox("All agents in volume", &ptDebug->bAllPaths);
@@ -650,7 +653,7 @@ pl__scene_tools_terrain(plScene* ptScene)
 }
 
 static void
-pl__scene_tools_lighting(plScene* ptScene)
+pl__scene_tools_lighting(plScene* ptScene, plComponentLibrary* ptLibrary, plEntity tSelected)
 {
     gptUI->text("Edit lights, probes and environment settings in Assets / ECS.");
     if(!ptScene)
@@ -660,7 +663,24 @@ pl__scene_tools_lighting(plScene* ptScene)
     }
     if(gptUI->button("Update Environment"))
         gptRenderer->set_scene_flags(ptScene, gptRenderer->get_scene_flags(ptScene) | PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY | PL_RENDERER_SCENE_FLAGS_SKY_LUTS_DIRTY);
-    gptUI->text("Refreshes scene probes and sky lookup tables.");
+    gptUI->text("Refreshes unbaked scene probes and sky lookup tables.");
+    gptUI->separator_text("Bake selected probe");
+    const plEcsTypeKey atTypes[] = {gptRenderer->get_ecs_type_key_reflection_probe(), gptRenderer->get_ecs_type_key_diffuse_probe_volume()};
+    gptUI->radio_button("Reflection", &gptSceneToolsCtx->iProbeType, 0);
+    gptUI->radio_button("Diffuse volume", &gptSceneToolsCtx->iProbeType, 1);
+    gptSceneToolsCtx->iProbeType = pl_max(0, pl_min(gptSceneToolsCtx->iProbeType, 1));
+    plEcsTypeKey tType = atTypes[gptSceneToolsCtx->iProbeType];
+    if(!gptEcs->has_component(ptLibrary, tType, tSelected))
+    {
+        gptUI->text("Select an entity with this probe component in ECS Tools.");
+        return;
+    }
+    gptUI->input_text("Probe asset path", gptSceneToolsCtx->acProbePath, sizeof(gptSceneToolsCtx->acProbePath), 0);
+    gptUI->text("Use a writable /assets/.../*.plprobe path. Wait for captures to finish.");
+    if(gptUI->button("Bake, save and assign"))
+        pl_snprintf(gptSceneToolsCtx->acProbeMessage, sizeof(gptSceneToolsCtx->acProbeMessage), "%s", gptRenderer->bake_probe(ptScene, tSelected, tType, gptSceneToolsCtx->acProbePath) ? "Saved and assigned. Save the scene to retain the reference." : "Bake failed: check the path and wait for capture/filtering to finish. Disable Real Time before baking.");
+    if(gptSceneToolsCtx->acProbeMessage[0])
+        gptUI->text("%s", gptSceneToolsCtx->acProbeMessage);
 }
 
 //-----------------------------------------------------------------------------
@@ -743,7 +763,7 @@ pl_scene_tools_run(plComponentLibrary* ptLibrary, plScene* ptScene, plEntity tSe
                 gptSceneToolsCtx->tTerrainDebug.bShow = *pbOpen;
                 break;
             case 2:
-                pl__scene_tools_lighting(ptScene);
+                pl__scene_tools_lighting(ptScene, ptLibrary, tSelected);
                 break;
         }
     }

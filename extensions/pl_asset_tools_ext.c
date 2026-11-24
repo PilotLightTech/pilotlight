@@ -133,6 +133,7 @@ static const char* apcAssetIcons[] = {
     PL_ICON_FA_USER_INJURED,
     PL_ICON_FA_BONE,
     PL_ICON_FA_CUBES,
+    PL_ICON_FA_LIGHTBULB,
 };
 
 static const char* apcAssetNames[] = {
@@ -148,6 +149,7 @@ static const char* apcAssetNames[] = {
     PL_ICON_FA_USER_INJURED " skin",
     PL_ICON_FA_BONE " skeleton",
     PL_ICON_FA_CUBES " voxel",
+    PL_ICON_FA_LIGHTBULB " probe",
 };
 
 //-----------------------------------------------------------------------------
@@ -233,6 +235,7 @@ pl_asset_tools_show_assets(bool* bValue)
             gptSkeleton->get_asset_type_key_skin(),
             gptSkeleton->get_asset_type_key_skeleton(),
             gptAssetToolsCtx->bVoxelAssets ? gptVoxel->get_asset_type_key() : UINT32_MAX,
+            gptRenderer->get_asset_type_key_probe(),
         };
 
         const float afSizes[] = {0.20f, 0.80f};
@@ -432,6 +435,46 @@ pl_asset_tools_show_assets(bool* bValue)
                     gptUI->text("Version: %u", gptAsset->get_version(tAssetHandle));
                     gptUI->text("Binary .plvoxel asset; volumes own independent copies.");
                     pl__asset_tools_voxel_properties(gptAsset->get_data(tAssetHandle));
+                }
+
+                if(tAssetType == gptRenderer->get_asset_type_key_probe())
+                {
+                    const plProbeAsset* ptProbe = gptAsset->get_data(tAssetHandle);
+                    gptUI->separator_text("Baked probe lighting");
+                    gptUI->text("Version: %u", gptAsset->get_version(tAssetHandle));
+                    if(ptProbe && ptProbe->puData)
+                    {
+                        const bool bVolume = ptProbe->auProbeCount[0] != 0;
+                        const uint32_t uSamples = bVolume ? ptProbe->auProbeCount[0] * ptProbe->auProbeCount[1] * ptProbe->auProbeCount[2] : 1;
+                        size_t szPayload = (ptProbe->uFlags & 1u) ? (size_t)uSamples * 9 * 8 : 0; // RGBA16F
+                        size_t szCube = 0;
+                        for(uint32_t i = 0; i < ptProbe->uMipCount; i++)
+                        {
+                            const size_t szSide = ptProbe->uResolution >> i;
+                            szCube += szSide * szSide * 6 * 8;
+                        }
+                        if(ptProbe->uFlags & 2u) szPayload += szCube;
+                        if(ptProbe->uFlags & 4u) szPayload += szCube;
+                        if(ptProbe->uFlags & 8u) szPayload += (size_t)pl_min(uSamples, 32u) * ((uSamples + 31u) / 32u) * 18 * 18 * 4;
+                        gptUI->text("Kind: %s", bVolume ? "Diffuse volume" : (ptProbe->uFlags & 1u) ? "Environment probe" : "Reflection probe");
+                        gptUI->text("Capture resolution: %u", ptProbe->uResolution);
+                        gptUI->text("Lighting payload: %.2f KiB", (double)szPayload / 1024.0);
+                        if(ptProbe->uFlags & 1u)
+                            gptUI->text("SH: %u samples, 9 RGB coefficients per sample (RGBA16F)", uSamples);
+                        if(bVolume)
+                        {
+                            gptUI->text("Visibility: %s", (ptProbe->uFlags & 8u) ? "16 x 16 RG16F moments per sample" : "not baked");
+                            gptUI->text("Grid: %u x %u x %u", ptProbe->auProbeCount[0], ptProbe->auProbeCount[1], ptProbe->auProbeCount[2]);
+                            gptUI->text("Spacing: %g, %g, %g", ptProbe->tSpacing.x, ptProbe->tSpacing.y, ptProbe->tSpacing.z);
+                            gptUI->text("Extent: %g, %g, %g", (ptProbe->auProbeCount[0] - 1) * ptProbe->tSpacing.x, (ptProbe->auProbeCount[1] - 1) * ptProbe->tSpacing.y, (ptProbe->auProbeCount[2] - 1) * ptProbe->tSpacing.z);
+                        }
+                        if(ptProbe->uFlags & 2u)
+                            gptUI->text("Reflection mips: %u / sheen: %s", ptProbe->uMipCount, (ptProbe->uFlags & 4u) ? "yes" : "no");
+                    }
+                    else
+                        gptUI->text("No baked lighting loaded");
+                    gptUI->text("Binary .plprobe asset. Bake and assign in Scene Tools / Lighting.");
+                    gptUI->text("Save the scene to retain its baked probe reference.");
                 }
 
                 if(tAssetType == gptMaterial->get_asset_type_key())
@@ -881,6 +924,8 @@ pl_asset_tools_show_assets(bool* bValue)
                         gptUI->checkbox_flags("Punctual Lighting", &ptSettings->tLighting.tFlags, PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS);
                         gptUI->checkbox_flags("Normal Mapping", &ptSettings->tLighting.tFlags, PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING);
                         gptUI->checkbox_flags("No Shadows", &ptSettings->tLighting.tFlags, PL_RENDERER_LIGHTING_FLAGS_NO_SHADOWS);
+                        gptUI->checkbox_flags("No Diffuse Probes", &ptSettings->tLighting.tFlags, PL_RENDERER_LIGHTING_FLAGS_NO_DIFFUSE_PROBES);
+                        gptUI->checkbox_flags("No Reflection Probes", &ptSettings->tLighting.tFlags, PL_RENDERER_LIGHTING_FLAGS_NO_REFLECTION_PROBES);
                         gptUI->apply_layout();
                     }
 

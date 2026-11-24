@@ -1005,7 +1005,6 @@ pl_app_update(plAppData* ptAppData)
         gptIk->run_ecs_update_system(ptLibrary);
         gptSkeleton->run_skin_update_system(ptLibrary);
         gptRenderer->run_object_update_system(ptLibrary);
-        gptRenderer->run_environment_probe_update_system(ptLibrary); // run after object update
         if(ptAppData->bShowEntityMarkers && !ptAppData->bGameMode)
         {
             gptEcsTools->draw_transforms(ptLibrary, ptAppData->tSelectedEntity, ptCamera, ptAppData->tViewSize, gptRenderer->get_gizmo_drawlist(ptAppData->ptView));

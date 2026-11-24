@@ -23,8 +23,8 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl_bg_scene.inc"
-#include "pl_probe_debug.glsl"
 #include "pl_bg_view.inc"
+#include "pl_probe.glsl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -194,4 +194,6 @@ void main()
     }
     if(tShaderDebugMode == PL_SHADER_DEBUG_PROBE_SELECTION)
         outAlbedo = vec4(pl_probe_debug_color(tShaderIn.uProbeSelection), 1.0);
+    if(tShaderDebugMode == PL_SHADER_DEBUG_PROBE_VISIBILITY)
+        outAlbedo = vec4(pl_probe_visibility_debug(tShaderIn.uProbeSelection, tShaderIn.tWorldPosition, tNormalInfo.n), 1.0);
 }

@@ -81,14 +81,16 @@ PL_BEGIN_ENUM(plMaterialShaderFlags)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plSceneFlags)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_HEIGHT_FOG,          1 << 0)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_LINEAR_FOG,          1 << 1)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_USE_IBL,             1 << 2)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_SHADOWS,             1 << 3)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_USE_NORMAL_MAPS,     1 << 4)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_PCF_SHADOWS,         1 << 5)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_PUNCTUAL,            1 << 6)
-    PL_ENUM_ITEM(PL_SCENE_FLAG_SUN_CONTACT_SHADOWS, 1 << 7)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_HEIGHT_FOG,           1 << 0)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_LINEAR_FOG,           1 << 1)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_USE_IBL,              1 << 2)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_SHADOWS,              1 << 3)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_USE_NORMAL_MAPS,      1 << 4)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_PCF_SHADOWS,          1 << 5)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_PUNCTUAL,             1 << 6)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_SUN_CONTACT_SHADOWS,  1 << 7)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_NO_DIFFUSE_PROBES,    1 << 8)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_NO_REFLECTION_PROBES, 1 << 9)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plObjectShaderFlags)
@@ -152,6 +154,7 @@ PL_BEGIN_ENUM(plShaderDebugMode)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_DIFFUSE_TRANSMISSION_STRENGTH, 24)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_DIFFUSE_TRANSMISSION_COLOR, 25)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_PROBE_SELECTION, 26)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_PROBE_VISIBILITY, 27)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plShaderTextureSlot)
@@ -217,7 +220,13 @@ PL_BEGIN_STRUCT(plGpuProbeSelection)
     int iCount;
     // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~16 bytes total~~~~~~~~~~~~~~~~
+    int iReflectionProbe;
+    int _unused0;
+    int _unused1;
+    int _unused2;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 16)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~32 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuProbeSelection)
 
 PL_BEGIN_STRUCT(plGpuTransform)
@@ -464,6 +473,36 @@ PL_END_STRUCT(plGpuViewData)
 //-----------------------------------------------------------------------------
 // [SECTION] grid
 //-----------------------------------------------------------------------------
+
+// pl_probe_visibility.comp
+PL_BEGIN_STRUCT(plGpuDynProbeVisibility)
+
+    int   iWidth;       // output width in texels
+    int   iFace;        // cube face to convert to normalized distance; -1 filters the moments tile
+    float fFarZ;        // capture far plane, for depth linearization
+    float fMaxDistance; // distances are stored divided by this (2 x volume spacing length, at least 2)
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~16 bytes total~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plGpuDynProbeVisibility)
+
+PL_BEGIN_STRUCT(plGpuDynProbeDebug)
+
+    mat4 tCameraViewProjection;
+    // ~~~~~~~~~~~~~~~~64 bytes (offset 0)~~~~~~~~~~~~~~~~
+
+    vec4 tOriginRadius;
+    vec4 tSpacing;
+    // ~~~~~~~~~~~~~~~~32 bytes (offset 64)~~~~~~~~~~~~~~~~
+
+    int iGridX;
+    int iGridY;
+    int iFirstSample;
+    uint uDiffuseSHSampler;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 96)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~112 bytes total~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plGpuDynProbeDebug)
 
 PL_BEGIN_STRUCT(plGpuDynGrid)
 
@@ -756,13 +795,18 @@ PL_BEGIN_STRUCT(plGpuDirectionLight)
     // ~~~~~~~~~~~~~~~~48 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDirectionLight)
 
+#define PL_PROBE_VISIBILITY_NEAR_Z 0.05f
+#define PL_PROBE_VISIBILITY_SIZE 16
+#define PL_PROBE_VISIBILITY_TILE 18
+#define PL_PROBE_VISIBILITY_COLUMNS 32
+
 PL_BEGIN_STRUCT(plGpuProbe)
 
     vec3  tPosition;
     float fRangeSqr;
     // ~~~~~~~~~~~~~~~~16 bytes (offset 0)~~~~~~~~~~~~~~~~
 
-    uint uLambertianEnvSampler;
+    uint uDiffuseSHSampler;
     uint uGGXEnvSampler;
     int  uCharlieEnvSampler;
     int  iParallaxCorrection;
@@ -774,12 +818,18 @@ PL_BEGIN_STRUCT(plGpuProbe)
     // ~~~~~~~~~~~~~~~~16 bytes (offset 48)~~~~~~~~~~~~~~~~
 
     int iMips;
-    int _unused1;
-    int _unused2;
-    int _unused3;
+    int iDiffuse;
+    int iReflection;
+    uint uVisibilitySampler;
     // ~~~~~~~~~~~~~~~~16 bytes (offset 64)~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~80 bytes total~~~~~~~~~~~~~~~~
+    int iGridX;
+    int iGridY;
+    int iGridZ;
+    float fNormalBias;
+    // ~~~~~~~~~~~~~~~~16 bytes (offset 80)~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~96 bytes total~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuProbe)
 
 PL_BEGIN_STRUCT(plGpuPointLightShadow)

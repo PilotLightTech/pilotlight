@@ -1,0 +1,62 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+#include "pl_cube.inc"
+#include "pl_shader_interop_renderer.h"
+#include "pl_probe_common.glsl"
+
+layout(set = 0, binding = 0) uniform sampler tDefaultSampler;
+layout(set = 0, binding = 1) uniform textureCube tSource;
+layout(std430, set = 1, binding = 0) buffer _tOutput { uint auData[]; } tOutput;
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA { plGpuDynProbeVisibility tData; } tDynamicData;
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+void
+main()
+{
+    ivec2 tPixel = ivec2(gl_GlobalInvocationID.xy);
+    int iWidth = tDynamicData.tData.iWidth;
+    if(any(greaterThanEqual(tPixel, ivec2(iWidth))))
+        return;
+    int iOffset = tPixel.y * iWidth + tPixel.x;
+    if(tDynamicData.tData.iFace >= 0)
+    {
+        // Convert one captured depth face to normalized radial distance.
+        vec3 n = normalize(pl_uv_to_xyz(tDynamicData.tData.iFace, (vec2(tPixel) + 0.5) * (2.0 / float(iWidth)) - 1.0));
+        float fDepth = textureLod(samplerCube(tSource, tDefaultSampler), n, 0.0).r;
+        float fDistance = 1.0;
+        if(fDepth > 0.0)
+        {
+            float fNear = PL_PROBE_VISIBILITY_NEAR_Z;
+            float fFar = tDynamicData.tData.fFarZ;
+            float fZ = fNear * fFar / (fNear + fDepth * (fFar - fNear));
+            fDistance = min(1.0, fZ / (max(max(abs(n.x), abs(n.y)), abs(n.z)) * tDynamicData.tData.fMaxDistance));
+        }
+        tOutput.auData[iOffset] = floatBitsToUint(fDistance);
+        return;
+    }
+
+    // Mirror border texels across octahedron edges, including the four corners.
+    ivec2 p = tPixel - 1;
+    const int iSize = PL_PROBE_VISIBILITY_SIZE;
+    if(p.x < 0 || p.x >= iSize)
+        p = ivec2(clamp(p.x, 0, iSize - 1), iSize - 1 - p.y);
+    if(p.y < 0 || p.y >= iSize)
+        p = ivec2(iSize - 1 - p.x, clamp(p.y, 0, iSize - 1));
+    vec3 n = pl_probe_oct_decode((vec2(p) + 0.5) * (2.0 / float(iSize)) - 1.0);
+    vec3 t = normalize(cross(abs(n.z) < 0.99 ? vec3(0, 0, 1) : vec3(0, 1, 0), n));
+    vec3 b = cross(n, t);
+    vec2 tMoments = vec2(0.0);
+    float fWeights = 0.0;
+    for(int i = 0; i < 64; i++)
+    {
+        float r = 0.3 * sqrt((float(i) + 0.5) / 64.0);
+        float a = float(i) * 2.39996323;
+        vec3 d = normalize(n + r * (cos(a) * t + sin(a) * b));
+        float fDistance = textureLod(samplerCube(tSource, tDefaultSampler), d, 0.0).r;
+        float w = exp(-50.0 * r * r);
+        tMoments += vec2(fDistance, fDistance * fDistance) * w;
+        fWeights += w;
+    }
+    tOutput.auData[iOffset] = packHalf2x16(tMoments / fWeights);
+}

@@ -5,16 +5,59 @@
 #define PL_SCENE_SHADER_FLAGS tGpuScene.tData.iSceneFlags
 #endif
 
-vec3
-getDiffuseLight(vec3 n, int iProbeIndex)
+#include "pl_probe.glsl"
+
+// Adds fWeight times the (unevaluated) SH coefficients of one diffuse source at
+// tPosition. For volumes, the eight surrounding samples are interpolated with the
+// volume's visibility weights for normal n; corners without support are skipped.
+void
+pl_probe_accumulate_sh(int iProbeIndex, vec3 tPosition, vec3 n, float fWeight, inout vec3 atSH[9])
 {
-    // n.z = -n.z; // uncomment if not reverse z
-    return texture(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uLambertianEnvSampler)], tSamplerLinearClamp), n).rgb;
+    plGpuProbe tProbe = tProbeData.atData[iProbeIndex];
+    if(tProbe.iGridX == 0)
+    {
+        for(int i = 0; i < 9; i++)
+            atSH[i] += texelFetch(sampler2D(at2DTextures[nonuniformEXT(tProbe.uDiffuseSHSampler)], tSamplerNearestClamp), ivec2(i, 0), 0).rgb * fWeight;
+        return;
+    }
+    int aiRows[8];
+    float afWeights[8];
+    pl_probe_volume_weights(tProbe, tPosition, n, aiRows, afWeights);
+    for(int j = 0; j < 8; j++)
+    {
+        float w = afWeights[j] * fWeight;
+        if(w <= 0.0)
+            continue;
+        for(int i = 0; i < 9; i++)
+            atSH[i] += texelFetch(sampler2D(at2DTextures[nonuniformEXT(tProbe.uDiffuseSHSampler)], tSamplerNearestClamp), ivec2(i, aiRows[j]), 0).rgb * w;
+    }
+}
+
+// Evaluates interpolated signed coefficients, then clamps the reconstructed light.
+vec3
+pl_sh_irradiance(vec3 atSH[9], vec3 n)
+{
+    vec3 tLight = vec3(0.0);
+    for(int i = 0; i < 9; i++)
+        tLight += atSH[i] * pl_sh_basis(i, n);
+    return max(tLight, vec3(0.0));
+}
+
+vec3
+getDiffuseLight(vec3 n, vec3 tPosition, int iProbeIndex)
+{
+    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_NO_DIFFUSE_PROBES))
+        return vec3(0.0);
+    vec3 atSH[9] = vec3[9](vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0));
+    pl_probe_accumulate_sh(iProbeIndex, tPosition, n, 1.0, atSH);
+    return pl_sh_irradiance(atSH, n);
 }
 
 vec4
 getSpecularSample(vec3 reflection, float lod, int iProbeIndex)
 {
+    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_NO_REFLECTION_PROBES))
+        return vec4(0.0);
     // reflection.z = -reflection.z; // uncomment if not reverse z
     // reflection.x = -reflection.x; // uncomment if not reverse z
     // lod = max(lod, 4);
@@ -24,6 +67,8 @@ getSpecularSample(vec3 reflection, float lod, int iProbeIndex)
 vec4
 getSheenSample(vec3 reflection, float lod, int iProbeIndex)
 {
+    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_NO_REFLECTION_PROBES))
+        return vec4(0.0);
     // vec4 textureSample =  textureLod(u_CharlieEnvSampler, u_EnvRotation * reflection, lod);
     // textureSample.rgb *= u_EnvIntensity;
     // return textureSample;
@@ -432,7 +477,7 @@ float specularAlign(vec3 P, vec3 R, vec3 probeCenter, float alignPow)
 // Compute unnormalized weight for a probe at point P (and reflection R if using alignment)
 float probeWeightAt(in plGpuProbe p, vec3 P, vec3 R, float alignPow)
 {
-    float d   = distance(P, p.tPosition);
+    float d   = p.iGridX > 0 ? distance(P, clamp(P, p.tMin.xyz, p.tMax.xyz)) : distance(P, p.tPosition);
     float w   = smoothFalloff(d * d, 0, p.fRangeSqr);
     // float w   = smoothFalloff(d, p.inner, p.outer);
     // w        *= p.intensity * p.occlusion;       // authorable scalars
@@ -452,8 +497,10 @@ float computeProbeWeights(vec3 P, vec3 R, float alignPow, int count, in int aiAc
         W += weights[i];
     }
 
-    // Normalize (energy-safe). If all zero, leave equal tiny weights or keep zeros—your choice.
-    if (W > 1e-6)
+    // Overlapping sources are normalized. Below a total of one the weights are kept
+    // as-is: callers give the remainder to the sky probe (index 0), so a volume fades
+    // out over its range instead of being stretched to full weight.
+    if (W > 1.0)
     {
         float invW = 1.0 / W;
         for (int i = 0; i < K; ++i)
@@ -461,15 +508,29 @@ float computeProbeWeights(vec3 P, vec3 R, float alignPow, int count, in int aiAc
             weights[i] *= invW;
         }
     }
-    else
-    {
-        // fallback: distribute evenly or favor your global/sky probe slot
-        for (int i = 0; i < K; ++i)
-        {
-            weights[i] = (1.0 / float(K));
-        }
-    }
     return W;
+}
+
+// Blended SH coefficients of the selected diffuse sources at P. The weights always
+// sum to one: whatever the selected sources leave is filled by the sky probe.
+// Evaluate the result with pl_sh_irradiance (it may be reused for several normals).
+void
+pl_probe_blended_sh(vec3 P, vec3 n, int K, in int aiActiveProbes[3], out vec3 atSH[9])
+{
+    for(int i = 0; i < 9; i++)
+        atSH[i] = vec3(0.0);
+    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_NO_DIFFUSE_PROBES))
+        return;
+    float weights[3] = float[3](0.0, 0.0, 0.0);
+    float W = computeProbeWeights(P, n, 0.0, K, aiActiveProbes, weights);
+    for(int i = 0; i < K; i++)
+    {
+        if(weights[i] > 0.0)
+            pl_probe_accumulate_sh(aiActiveProbes[i], P, n, weights[i], atSH);
+    }
+    float fSky = 1.0 - min(W, 1.0);
+    if(fSky > 0.0001)
+        pl_probe_accumulate_sh(0, P, n, fSky, atSH);
 }
 
 #endif // LIGHTING_GLSL

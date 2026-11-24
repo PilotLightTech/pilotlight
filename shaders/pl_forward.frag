@@ -442,20 +442,13 @@ void main()
 
 
     // Calculate lighting contribution from image based lighting source (IBL)
-    if(bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_USE_IBL) && tShaderIn.tSelectedProbes.w > 0u)
+    if(bool(PL_SCENE_SHADER_FLAGS & PL_SCENE_FLAG_USE_IBL) && tShaderIn.tSelectedProbes.w > 0u && !bool(tObjectInfo.tData.iObjectShaderFlags & PL_OBJECT_SHADER_FLAG_PROBE))
     {
 
-        // The CPU supplies up to three probes, sorted nearest first.
+        // The CPU supplies up to three diffuse probes and an independent reflection probe.
         int aiActiveProbes[3] = int[3](int(tShaderIn.tSelectedProbes.x), int(tShaderIn.tSelectedProbes.y), int(tShaderIn.tSelectedProbes.z));
         int K = int(tShaderIn.tSelectedProbes.w);
-        vec3 R = reflect(-v, n);
-
-        float weights[3];
-        weights[0] = 0.0;
-        weights[1] = 0.0;
-        weights[2] = 0.0;
-        float summing = computeProbeWeights(tShaderIn.tWorldPosition.xyz, R, 2.0, K, aiActiveProbes, weights);
-        int iClosestProbeIndex = aiActiveProbes[0];
+        int iClosestProbeIndex = tProbeSelections.atData[tShaderIn.uProbeSelection & ~PL_PROBE_SELECTION_FALLBACK_FLAG].iReflectionProbe;
 
         int iMips2 = tProbeData.atData[iClosestProbeIndex].iMips;
         if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
@@ -469,19 +462,20 @@ void main()
             f_specular_dielectric = f_specular_metal;
         }
 
-        for(int i = 0; i < K; i++)
+        // The diffuse sources' weights sum to one (the sky fills any remainder) and the
+        // shading below is linear in the diffuse terms, so blend the SH coefficients once
+        // and evaluate them for every normal needed, then shade a single time.
+        vec3 atSH[9];
+        pl_probe_blended_sh(tShaderIn.tWorldPosition.xyz, n, K, aiActiveProbes, atSH);
         {
-            int iProbeIndex = aiActiveProbes[i];
-            
-
-            f_diffuse = getDiffuseLight(n, iProbeIndex) * tBaseColor.rgb;
+            f_diffuse = pl_sh_irradiance(atSH, n) * tBaseColor.rgb;
 
             int iMips = tProbeData.atData[iClosestProbeIndex].iMips;
 
 
             if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
             {
-                vec3 diffuseTransmissionIBL = getDiffuseLight(-n, iProbeIndex) * materialInfo.diffuseTransmissionColorFactor;
+                vec3 diffuseTransmissionIBL = pl_sh_irradiance(atSH, -n) * materialInfo.diffuseTransmissionColorFactor;
                 if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
                 {
                     diffuseTransmissionIBL = applyVolumeAttenuation(diffuseTransmissionIBL, diffuseTransmissionThickness, materialInfo.attenuationColor, materialInfo.attenuationDistance);
@@ -498,10 +492,10 @@ void main()
 
             // Calculate fresnel mix for IBL  
 
-            vec3 f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, tBaseColor.rgb, 1.0, iProbeIndex);
+            vec3 f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, tBaseColor.rgb, 1.0, 0);
             f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
         
-            vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, iProbeIndex);
+            vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, 0);
             f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);
 
             if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
@@ -512,25 +506,25 @@ void main()
 
             if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
             {
-                clearcoat_brdf = getIBLRadianceGGX(materialInfo.clearcoatNormal, v, materialInfo.clearcoatRoughness, iMips, tShaderIn.tWorldPosition.xyz, iProbeIndex);
+                clearcoat_brdf = getIBLRadianceGGX(materialInfo.clearcoatNormal, v, materialInfo.clearcoatRoughness, iMips, tShaderIn.tWorldPosition.xyz, iClosestProbeIndex);
             }
 
             if(bool(material.iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
             {
-                f_sheen = getIBLRadianceCharlie(n, v, materialInfo.sheenRoughnessFactor, materialInfo.sheenColorFactor, iMips, iProbeIndex);
+                f_sheen = getIBLRadianceCharlie(n, v, materialInfo.sheenRoughnessFactor, materialInfo.sheenColorFactor, iMips, iClosestProbeIndex);
                 albedoSheenScaling = 1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor);
             }
 
             vec3 icolor = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
             icolor = f_sheen + icolor * albedoSheenScaling;
             icolor = mix(icolor, clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
-            color += icolor * weights[i];
+            color += icolor;
             if(bWater)
             {
-                waterReflection += mix(f_dielectric_fresnel_ibl, vec3(1.0), waterReflectionOverride) * f_specular_dielectric * weights[i];
+                waterReflection += mix(f_dielectric_fresnel_ibl, vec3(1.0), waterReflectionOverride) * f_specular_dielectric;
                 // Diffuse convolution represents ambient radiance for a uniform
                 // environment. Use an uncolored upper-hemisphere sample.
-                waterIllumination += getDiffuseLight(vec3(0.0, 1.0, 0.0), iProbeIndex) * weights[i];
+                waterIllumination += pl_sh_irradiance(atSH, vec3(0.0, 1.0, 0.0));
             }
         }
     }

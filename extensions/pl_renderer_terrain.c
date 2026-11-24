@@ -696,9 +696,7 @@ pl__render_chunk_recursive(plScene* ptScene, plTerrain* ptTerrain, const plCamer
         plDynamicBinding tDynamicBinding =  pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynTerrainData));
         
         plGpuDynTerrainData tDynamic = {0};
-        tDynamic.uProbeSelection = pl__renderer_intern_probe_selection(ptScene,
-            pl__renderer_select_probes(ptScene->sbtGPUProbeData, pl_sb_size(ptScene->sbtGPUProbeData),
-            pl_mul_vec3_scalarf(pl_add_vec3(ptChunk->tMinBound, ptChunk->tMaxBound), 0.5f)));
+        tDynamic.uProbeSelection = pl__renderer_intern_probe_selection(ptScene, pl__renderer_select_probes(ptScene, pl_mul_vec3_scalarf(pl_add_vec3(ptChunk->tMinBound, ptChunk->tMaxBound), 0.5f)));
 
         tDynamic.iLevel = (int)ptChunk->uLevel;
         tDynamic.tDebugColor = (plVec4){1.0f, 1.0f, 1.0f, 1.0f};

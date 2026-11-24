@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] baked probe assets
 // [SECTION] decals
 // [SECTION] ecs type keys
 // [SECTION] setup & cleanup
@@ -28,6 +29,321 @@ Index of this file:
 #include "pl_renderer_internal.h"
 #include "pl_renderer_terrain.c"
 #include "pl_renderer_internal.c"
+
+//-----------------------------------------------------------------------------
+// [SECTION] baked probe assets
+//-----------------------------------------------------------------------------
+
+static size_t
+pl__probe_asset_size(const plProbeAsset* ptAsset)
+{
+    if(!ptAsset || !(ptAsset->uFlags & 3) || (ptAsset->uFlags & ~15u) || ((ptAsset->uFlags & 4) && !(ptAsset->uFlags & 2)) || ptAsset->uResolution < 32 || ptAsset->uResolution > 1024 || (ptAsset->uResolution & (ptAsset->uResolution - 1)))
+        return 0;
+
+    uint32_t uCount = 1;
+    if(ptAsset->auProbeCount[0])
+    {
+        if((ptAsset->uFlags & ~8u) != 1)
+            return 0;
+        for(uint32_t i = 0; i < 3; i++)
+        {
+            if(!ptAsset->auProbeCount[i] || ptAsset->auProbeCount[i] > 64 || uCount > 4096 / ptAsset->auProbeCount[i] || ptAsset->tSpacing.d[i] < 0.01f)
+                return 0;
+            uCount *= ptAsset->auProbeCount[i];
+        }
+    }
+    else if(ptAsset->auProbeCount[1] || ptAsset->auProbeCount[2] || (ptAsset->uFlags & ~4u) != 2)
+        return 0;
+    uint32_t uMips = 0;
+    for(uint32_t uSize = ptAsset->uResolution; uSize >= 16; uSize >>= 1)
+        uMips++;
+    if(ptAsset->uMipCount != ((ptAsset->uFlags & 2) ? uMips : 0))
+        return 0;
+    size_t szSize = (ptAsset->uFlags & 1) ? (size_t)uCount * 9 * 8 : 0; // RGBA16F SH atlas
+    for(uint32_t i = 0; i < ptAsset->uMipCount; i++)
+    {
+        size_t szWidth = ptAsset->uResolution >> i;
+        szSize += szWidth * szWidth * 6 * 8 * ((ptAsset->uFlags & 4) ? 2 : 1);
+    }
+    if(ptAsset->uFlags & 8)
+        szSize += (size_t)pl_min(uCount, PL_PROBE_VISIBILITY_COLUMNS) * ((uCount + PL_PROBE_VISIBILITY_COLUMNS - 1) / PL_PROBE_VISIBILITY_COLUMNS) * PL_PROBE_VISIBILITY_TILE * PL_PROBE_VISIBILITY_TILE * 4;
+    return szSize;
+}
+
+static void
+pl__probe_asset_cleanup(void* pData)
+{
+    plProbeAsset* ptAsset = pData;
+    PL_FREE(ptAsset->puData);
+    *ptAsset = (plProbeAsset){0};
+}
+
+static bool
+pl__probe_asset_serialize(const char* pcPath, const void* pData, plAssetEncoding tEncoding)
+{
+    const plProbeAsset* ptAsset = pData;
+    size_t szSize = pl__probe_asset_size(ptAsset);
+    if(tEncoding != PL_ASSET_ENCODING_BINARY || !szSize || !ptAsset->puData)
+        return false;
+    uint8_t auHeader[48] = {0};
+    uint32_t auFields[12] = {
+        PL_ASSET_MAGIC,
+        PL_PROBE_ASSET_VERSION,
+        PL_FOURCC('P', 'R', 'O', 'B'),
+        ptAsset->uFlags,
+        ptAsset->uResolution,
+        ptAsset->uMipCount,
+        ptAsset->auProbeCount[0],
+        ptAsset->auProbeCount[1],
+        ptAsset->auProbeCount[2]
+    };
+    memcpy(auFields + 9, &ptAsset->tSpacing, sizeof(plVec3));
+    for(uint32_t i = 0; i < 12; i++)
+        pl__probe_write_u32(auHeader + 4 * i, auFields[i]);
+    plVfsFileHandle tFile = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_WRITE);
+    if(!gptVfs->is_file_valid(tFile))
+        return false;
+    
+    // Payload uses the little-endian IEEE float/half texture representation of supported backends.
+    bool bResult = gptVfs->write_file(tFile, auHeader, sizeof(auHeader)) == sizeof(auHeader) && gptVfs->write_file(tFile, ptAsset->puData, szSize) == szSize;
+    gptVfs->close_file(tFile);
+    return bResult;
+}
+
+static bool
+pl__probe_asset_deserialize(const char* pcPath, void* pData)
+{
+    plVfsFileHandle tFile = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
+    if(!gptVfs->is_file_valid(tFile))
+        return false;
+    size_t szFile = 0;
+    gptVfs->read_file(tFile, NULL, &szFile);
+    uint8_t auHeader[48];
+    uint32_t auFields[12] = {0};
+    bool bResult = szFile >= sizeof(auHeader) && gptVfs->read_file_stream(tFile, 1, sizeof(auHeader), auHeader) == sizeof(auHeader);
+    if(bResult)
+    {
+        for(uint32_t i = 0; i < 12; i++)
+            auFields[i] = pl__probe_read_u32(auHeader + i * 4);
+    }
+    plProbeAsset tAsset = {
+        .uFlags      = auFields[3],
+        .uResolution = auFields[4],
+        .uMipCount   = auFields[5],
+        .auProbeCount = {
+            auFields[6],
+            auFields[7],
+            auFields[8]
+        }
+    };
+    memcpy(&tAsset.tSpacing, auFields + 9, sizeof(plVec3));
+    size_t szSize = pl__probe_asset_size(&tAsset);
+    bResult = bResult && auFields[0] == PL_ASSET_MAGIC && auFields[1] == PL_PROBE_ASSET_VERSION && auFields[2] == PL_FOURCC('P', 'R', 'O', 'B') && szSize && szFile == sizeof(auHeader) + szSize;
+    if(bResult)
+    {
+        tAsset.puData = PL_ALLOC(szSize);
+        bResult = tAsset.puData && gptVfs->read_file_stream(tFile, 1, szSize, tAsset.puData) == szSize;
+    }
+    gptVfs->close_file(tFile);
+    if(bResult)
+    {
+        pl__probe_asset_cleanup(pData);
+        *(plProbeAsset*)pData = tAsset;
+    }
+    else
+        pl__probe_asset_cleanup(&tAsset);
+    return bResult;
+}
+
+static const plProbeAsset*
+pl__renderer_probe_asset(plAssetHandle tAsset, plEcsTypeKey tType)
+{
+    if(!gptAsset->is_valid(tAsset) || gptAsset->get_type_key(tAsset) != gptData->tAssetTypeKeyProbe)
+        return NULL;
+    const plProbeAsset* ptAsset = gptAsset->get_data(tAsset);
+    if(!pl__probe_asset_size(ptAsset) || !ptAsset->puData)
+        return NULL;
+    if(tType == gptData->tDiffuseProbeVolumeComponentType)
+        return ptAsset->auProbeCount[0] && (ptAsset->uFlags & ~8u) == 1 ? ptAsset : NULL;
+    if(ptAsset->auProbeCount[0])
+        return NULL;
+    return tType == gptData->tReflectionProbeComponentType && (ptAsset->uFlags & 3) == 2 ? ptAsset : NULL;
+}
+
+static size_t
+pl__probe_texture_copy(plCommandBuffer* ptCmd, plBufferHandle tBuffer, plTextureHandle tTexture, size_t szOffset, bool bUpload)
+{
+    const plTextureDesc* ptDesc = &gptGfx->get_texture(gptData->ptDevice, tTexture)->tDesc;
+    for(uint32_t i = 0; i < ptDesc->uMips; i++)
+    {
+        const plBufferImageCopy tCopy = {
+            .szBufferOffset = szOffset,
+            .uImageWidth    = pl_max(1u, (uint32_t)ptDesc->tDimensions.x >> i),
+            .uImageHeight   = pl_max(1u, (uint32_t)ptDesc->tDimensions.y >> i),
+            .uImageDepth    = 1,
+            .uMipLevel      = i,
+            .uLayerCount    = ptDesc->uLayers
+        };
+        if(bUpload)
+            gptGfx->copy_buffer_to_texture(ptCmd, tBuffer, tTexture, 1, &tCopy);
+        else
+            gptGfx->copy_texture_to_buffer(ptCmd, tTexture, tBuffer, 1, &tCopy);
+        szOffset += (size_t)tCopy.uImageWidth * tCopy.uImageHeight * tCopy.uLayerCount * (ptDesc->eFormat == PL_FORMAT_R32G32B32A32_FLOAT ? 16 : ptDesc->eFormat == PL_FORMAT_R16G16_FLOAT ? 4 : 8);
+    }
+    return szOffset;
+}
+
+static void
+pl__renderer_probe_transfer(plEnvironmentProbeData* ptProbe, plProbeAsset* ptAsset, bool bUpload)
+{
+    size_t szSize = pl__probe_asset_size(ptAsset);
+    plBufferHandle tBuffer = {0};
+    if(bUpload)
+    {
+        gptStarter->get_staging_buffer(szSize, &tBuffer, "probe asset upload");
+        memcpy(gptGfx->get_buffer(gptData->ptDevice, tBuffer)->tMemoryAllocation.pHostMapped, ptAsset->puData, szSize);
+    }
+    else
+        gptStarter->get_readback_buffer(szSize, &tBuffer, "probe asset bake");
+    plCommandBuffer* ptCmd = gptGfx->request_command_buffer(gptStarter->get_current_command_pool(), "probe asset transfer");
+    gptGfx->begin_command_recording(ptCmd);
+    gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_ALL, PL_PIPELINE_STAGE_BLIT, PL_BARRIER_SCOPE_ALL);
+    gptGfx->begin_compute_pass(ptCmd, NULL);
+    size_t szOffset = 0;
+    if(ptAsset->uFlags & 1)
+        szOffset = pl__probe_texture_copy(ptCmd, tBuffer, ptProbe->tDiffuseSHTexture, szOffset, bUpload);
+    if(ptAsset->uFlags & 2)
+        szOffset = pl__probe_texture_copy(ptCmd, tBuffer, ptProbe->tGGXEnvTexture, szOffset, bUpload);
+    if(ptAsset->uFlags & 4)
+        szOffset = pl__probe_texture_copy(ptCmd, tBuffer, ptProbe->tSheenEnvTexture, szOffset, bUpload);
+    if(ptAsset->uFlags & 8)
+        szOffset = pl__probe_texture_copy(ptCmd, tBuffer, ptProbe->tVisibilityTexture, szOffset, bUpload);
+    PL_ASSERT(szOffset == szSize);
+    gptGfx->end_compute_pass(ptCmd);
+    gptGfx->consumer_barrier(ptCmd, PL_PIPELINE_STAGE_BLIT, PL_PIPELINE_STAGE_ALL, PL_BARRIER_SCOPE_ALL);
+    gptGfx->end_command_recording(ptCmd);
+    plTimelineSemaphore* ptSemaphore = gptStarter->get_current_timeline_semaphore();
+    const plSubmitInfo tSubmit = {
+        .uWaitSemaphoreCount     = 1,
+        .atWaitSemaphores        = {ptSemaphore},
+        .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSemaphores      = {ptSemaphore},
+        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+    };
+    gptGfx->submit_command_buffer(ptCmd, &tSubmit);
+    gptGfx->wait_on_command_buffer(ptCmd);
+    gptGfx->return_command_buffer(ptCmd);
+    if(!bUpload)
+        memcpy(ptAsset->puData, gptGfx->get_buffer(gptData->ptDevice, tBuffer)->tMemoryAllocation.pHostMapped, szSize);
+    gptStarter->return_staging_buffer(&tBuffer);
+}
+
+static void
+pl__renderer_probe_upload_bake(plScene* ptScene, plEnvironmentProbeData* ptProbe, const plProbeAsset* ptAsset)
+{
+    if(ptAsset->uFlags & 4)
+    {
+        plTextureDesc tDesc = gptGfx->get_texture(gptData->ptDevice, ptProbe->tGGXEnvTexture)->tDesc;
+        tDesc.pcDebugName = "baked probe sheen";
+        gptStarter->create_texture(&tDesc, NULL, 0, &ptProbe->tSheenEnvTexture);
+        ptProbe->uSheenEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, ptProbe->tSheenEnvTexture);
+    }
+    pl__renderer_probe_transfer(ptProbe, (plProbeAsset*)ptAsset, true);
+}
+
+plAssetTypeKey
+pl_renderer_get_asset_type_key_probe(void)
+{
+    return gptData->tAssetTypeKeyProbe;
+}
+
+static bool
+pl__renderer_bake_probe(plScene* ptScene, plEntity tEntity, plEcsTypeKey tType, const char* pcPath)
+{
+    const char* pcExtension = pcPath ? strrchr(pcPath, '.') : NULL;
+    if(!ptScene || !pcExtension || strcmp(pcExtension, ".plprobe") != 0 || (tType != gptData->tReflectionProbeComponentType && tType != gptData->tDiffuseProbeVolumeComponentType))
+        return false;
+    plProbeCaptureSettings* ptCapture = pl__renderer_probe_capture(ptScene, tType, tEntity);
+    if(!ptCapture || (ptCapture->tFlags & PL_PROBE_FLAGS_DIRTY))
+        return false;
+    plEnvironmentProbeData* ptFirst = NULL;
+    for(uint32_t i = 1; i < pl_sb_size(ptScene->sbtProbeData); i++)
+    {
+        plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[i];
+        if(ptProbe->tEntity.uData != tEntity.uData || ptProbe->tComponentType != tType)
+            continue;
+        for(uint32_t j = 0; j < pl_sb_size(ptProbe->sbtSamples); j++)
+        {
+            const plProbeSample* ptSample = &ptProbe->sbtSamples[j];
+            if(!ptSample->bInitialized || ptSample->bFiltering || ptSample->uDirtyFaces || ptSample->bRefreshPending)
+                return false;
+            if(!ptProbe->bBaked && pl_length_vec3(pl_sub_vec3(pl__renderer_probe_position(ptScene, ptProbe, j), ptSample->tCapturePosition)) > 0.0001f)
+                return false;
+        }
+        if(ptProbe->auProbeCount[0] && !ptProbe->bBaked)
+        {
+            plDiffuseProbeVolumeComponent* ptVolume = gptEcs->get_component(ptScene->ptComponentLibrary, tType, tEntity);
+            if(memcmp(ptVolume->auProbeCount, ptProbe->auProbeCount, sizeof(ptProbe->auProbeCount)) != 0 || memcmp(&ptVolume->tSpacing, &ptProbe->tSpacing, sizeof(plVec3)) != 0 || ptVolume->bVisibility != ptProbe->bVisibility)
+                return false;
+        }
+        if(!ptFirst)
+            ptFirst = ptProbe;
+    }
+    if(!ptFirst)
+        return false;
+    plAssetHandle tHandle = gptAsset->find(pcPath);
+    if(gptAsset->is_valid(tHandle) && gptAsset->get_type_key(tHandle) != gptData->tAssetTypeKeyProbe)
+        return false;
+    plProbeAsset tAsset = {
+        .uFlags      = (ptFirst->bDiffuse ? 1 : 0) | (ptFirst->bReflection ? 2 : 0) | (gptGfx->is_texture_valid(gptData->ptDevice, ptFirst->tSheenEnvTexture) ? 4 : 0) | (ptFirst->bVisibility ? 8 : 0),
+        .uResolution = (uint32_t)ptFirst->tTargetSize.x,
+        .uMipCount   = ptFirst->bReflection ? (uint32_t)ptFirst->iMips : 0,
+        .tSpacing    = ptFirst->tSpacing
+    };
+    memcpy(tAsset.auProbeCount, ptFirst->auProbeCount, sizeof(tAsset.auProbeCount));
+    tAsset.puData = PL_ALLOC(pl__probe_asset_size(&tAsset));
+    if(!tAsset.puData)
+        return false;
+    pl__renderer_probe_transfer(ptFirst, &tAsset, false);
+    if(!pl__probe_asset_serialize(pcPath, &tAsset, PL_ASSET_ENCODING_BINARY))
+    {
+        pl__probe_asset_cleanup(&tAsset);
+        return false;
+    }
+    if(gptAsset->is_valid(tHandle))
+    {
+        pl__probe_asset_cleanup(gptAsset->get_data(tHandle));
+        *(plProbeAsset*)gptAsset->get_data(tHandle) = tAsset;
+        gptAsset->mark_changed(tHandle);
+    }
+    else
+    {
+        const plAssetDesc tDesc = {
+            .tType = gptData->tAssetTypeKeyProbe,
+            .pcPath = pcPath
+        };
+        tHandle = gptAsset->create(&tDesc, &tAsset);
+        if(!gptAsset->is_valid(tHandle))
+        {
+            pl__probe_asset_cleanup(&tAsset);
+            return false;
+        }
+    }
+    ptCapture->tBakedProbe = tHandle;
+    ptCapture->tFlags &= ~PL_PROBE_FLAGS_REALTIME;
+    gptEcs->mark_component_changed(ptScene->ptComponentLibrary, tEntity, tType);
+    return true;
+}
+
+bool
+pl_renderer_bake_probe(plScene* ptScene, plEntity tEntity, plEcsTypeKey tType, const char* pcPath)
+{
+    bool bResult = pl__renderer_bake_probe(ptScene, tEntity, tType, pcPath);
+    gptScreenLog->add_message_ex(0, 10.0, bResult ? PL_COLOR_32_GREEN : PL_COLOR_32_RED, 1.0f, bResult ? "Probe bake saved: %s" : "Probe bake failed: %s (check path and wait for captures; disable Real Time)", pcPath ? pcPath : "no path");
+    return bResult;
+}
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] decals
@@ -159,9 +475,15 @@ pl_renderer_get_type_key_light(void)
 }
 
 plEcsTypeKey
-pl_renderer_get_type_key_environment_probe(void)
+pl_renderer_get_type_key_reflection_probe(void)
 {
-    return gptData->tEnvironmentProbeComponentType;
+    return gptData->tReflectionProbeComponentType;
+}
+
+plEcsTypeKey
+pl_renderer_get_type_key_diffuse_probe_volume(void)
+{
+    return gptData->tDiffuseProbeVolumeComponentType;
 }
 
 plEcsTypeKey
@@ -289,6 +611,8 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     plScene* ptScene = PL_ALLOC(sizeof(plScene));
     memset(ptScene, 0, sizeof(plScene));
+    ptScene->bShowProbeLighting = true;
+    ptScene->fProbeDisplayRadius = 0.1f;
     pl_sb_push(gptData->sbptScenes, ptScene);
 
     // default limits
@@ -381,15 +705,15 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     pl_renderer_update_scene_asset(ptScene, ptMesh->atSubmeshes->tMaterial);
 
     plEnvironmentProbeData tProbeData = {
-        // .tEntity = atProbes[i],
+        .bDiffuse    = true,
+        .bReflection = true,
         .tTargetSize = {512.0f, 512.0f}
     };
+    pl_sb_push(tProbeData.sbtSamples, (plProbeSample){0});
     ptScene->tDefaultProbeData = tProbeData;
 
     pl__renderer_probe_create_textures(ptScene, &ptScene->tDefaultProbeData);
-    pl__renderer_probe_create_buffers(ptScene, &ptScene->tDefaultProbeData);
-    pl__renderer_probe_create_bindgroups(ptScene, &ptScene->tDefaultProbeData);
-    pl__renderer_probe_update_bindgroups(ptScene, &ptScene->tDefaultProbeData);
+    pl__renderer_probe_create_capture(ptScene, &ptScene->tDefaultProbeData);
     ptScene->tDefaultProbeData.uDataPackIndex = pl__renderer_probe_data_pack_index(ptScene, (uint32_t)ptScene->tDefaultProbeData.tTargetSize.x);
     ptScene->tDefaultProbeData.iMips = (int)(uint32_t)floorf(log2f(ptScene->tDefaultProbeData.tTargetSize.x)) - 3; // guarantee final dispatch during filtering is 16 threads
     pl_sb_push(ptScene->sbtProbeData, ptScene->tDefaultProbeData);
@@ -551,8 +875,10 @@ pl_renderer_load_component_library(plScene* ptScene, plComponentLibrary* ptLibra
     ptScene->tFlags |= PL_RENDERER_SCENE_FLAGS_ALL_PROBES_DIRTY;
 
     const plEntity* ptProbeEntities = NULL;
-    uint32_t uProbeCount = gptEcs->get_components(ptLibrary, gptData->tEnvironmentProbeComponentType, NULL, &ptProbeEntities);
-    pl__renderer_add_probes_to_scene(ptScene, uProbeCount, ptProbeEntities);
+    uint32_t uProbeCount = gptEcs->get_components(ptLibrary, gptData->tReflectionProbeComponentType, NULL, &ptProbeEntities);
+    pl__renderer_add_probes_to_scene(ptScene, uProbeCount, ptProbeEntities, gptData->tReflectionProbeComponentType);
+    uProbeCount = gptEcs->get_components(ptLibrary, gptData->tDiffuseProbeVolumeComponentType, NULL, &ptProbeEntities);
+    pl__renderer_add_probes_to_scene(ptScene, uProbeCount, ptProbeEntities, gptData->tDiffuseProbeVolumeComponentType);
 
     const plEntity* ptLightEntities = NULL;
     uint32_t uLightCount = gptEcs->get_components(ptLibrary, gptData->tLightComponentType, NULL, &ptLightEntities);
@@ -775,6 +1101,20 @@ pl_renderer_destroy_scene(plScene* ptScene)
             gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbePack->atLightingBindGroup[i]);
         }
     }
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtProbeCaptures); i++)
+    {
+        plEnvironmentProbeData* ptCapture = &ptScene->sbtProbeCaptures[i];
+        if(ptCapture->bBorrowedTextures) // per-frame entries share the owner's raw textures
+        {
+            ptCapture->tRawOutputTexture = (plTextureHandle){0};
+            ptCapture->tRawDistanceTexture = (plTextureHandle){0};
+            memset(ptCapture->atRawOutputTextureViews, 0, sizeof(ptCapture->atRawOutputTextureViews));
+            ptCapture->tRawOutputMipView = (plTextureHandle){0};
+        }
+        pl__renderer_probe_destroy_capture(ptCapture);
+    }
+    pl_sb_free(ptScene->sbtProbeCaptures);
+
     for(uint32_t j = 0; j < pl_sb_size(ptScene->sbtProbeData); j++)
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[j];
@@ -782,26 +1122,39 @@ pl_renderer_destroy_scene(plScene* ptScene)
         gptStarter->return_staging_buffer(&ptProbe->tDLightShadowDataBuffer);
         gptStarter->return_staging_buffer(&ptProbe->tSunCameraBuffers);
 
-        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
-        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
+        if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tVisibilityTexture))
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tVisibilityTexture);
+        if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tRawDistanceTexture))
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tRawDistanceTexture);
+        if(ptProbe->bDiffuse && gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tDiffuseSHTexture))
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tDiffuseSHTexture);
+        if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tGGXEnvTexture))
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
 
-        if(ptScene->tInternalFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED)
+        if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tSheenEnvTexture))
             gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tSheenEnvTexture);
         
-        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tRawOutputTexture);
+        if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tRawOutputTexture))
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tRawOutputTexture);
 
         pl_sb_free(ptProbe->sbtDLightShadowData);
+        pl_sb_free(ptProbe->sbtSamples); // index 0 owns the sky's (tDefaultProbeData) samples
 
         for(uint32_t i = 0; i < 6; i++)
         {
-            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atRawOutputTextureViews[i]);
+            if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->atRawOutputTextureViews[i]))
+                gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atRawOutputTextureViews[i]);
             
         }
+        if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tRawOutputMipView))
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tRawOutputMipView);
 
         gptStarter->return_staging_buffer(&ptProbe->tViewBuffer);
 
-        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tViewBG);
-        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tGBufferBG);
+        if(gptGfx->is_bind_group_valid(gptData->ptDevice, ptProbe->tViewBG))
+            gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tViewBG);
+        if(gptGfx->is_bind_group_valid(gptData->ptDevice, ptProbe->tGBufferBG))
+            gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tGBufferBG);
 
     }
 
@@ -860,6 +1213,9 @@ pl_renderer_destroy_scene(plScene* ptScene)
     pl_sb_free(ptScene->sbtSunCasterBoundsLS);
     pl_sb_free(ptScene->sbptNodeStack);
     pl_sb_free(ptScene->sbtGPUProbeData);
+    pl_sb_free(ptScene->sbuProbeCandidates);
+    pl_sb_free(ptScene->sbuProbeSelectionCache);
+    pl_sb_free(ptScene->sbtProbeSelectionCenters);
     pl_sb_free(ptScene->sbtProbeData);
     pl_sb_free(ptScene->sbtShadowRects);
     pl_sb_free(ptScene->sbtShadowRectData);
@@ -1244,45 +1600,78 @@ pl_renderer_remove_component_from_scene(plScene* ptScene, plEntity tEntity, plEc
             }
         }
     }
-    else if(tType == gptData->tEnvironmentProbeComponentType)
+    else if(tType == gptData->tReflectionProbeComponentType || tType == gptData->tDiffuseProbeVolumeComponentType)
     {
+        // Release matching entries and compact the array in a single pass.
         const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
+        uint32_t uKept = 0;
         for(uint32_t i = 0; i < uProbeCount; i++)
         {
             plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[i];
-            if(ptProbe->tEntity.uData == tEntity.uData)
+            if(ptProbe->tEntity.uData != tEntity.uData || ptProbe->tComponentType != tType)
+            {
+                if(uKept != i)
+                    ptScene->sbtProbeData[uKept] = *ptProbe;
+                uKept++;
+                continue;
+            }
             {
                 pl_sb_free(ptProbe->sbtDLightShadowData);
+                pl_sb_free(ptProbe->sbtSamples);
 
                 // free the bindless cube slots so new probes can reuse them
-                pl__renderer_return_bindless_cube_texture_index(ptScene, ptProbe->tLambertianEnvTexture);
-                pl__renderer_return_bindless_cube_texture_index(ptScene, ptProbe->tGGXEnvTexture);
+                if(ptProbe->bDiffuse)
+                    pl__renderer_return_bindless_texture_index(ptScene, ptProbe->tDiffuseSHTexture);
+                if(ptProbe->bReflection)
+                    pl__renderer_return_bindless_cube_texture_index(ptScene, ptProbe->tGGXEnvTexture);
                 if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tSheenEnvTexture))
                     pl__renderer_return_bindless_cube_texture_index(ptScene, ptProbe->tSheenEnvTexture);
 
-                gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tRawOutputTexture);
-                gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
-                gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
-                gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tSheenEnvTexture);
+                if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tRawOutputTexture))
+                    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tRawOutputTexture);
+                if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tVisibilityTexture))
+                {
+                    pl__renderer_return_bindless_texture_index(ptScene, ptProbe->tVisibilityTexture);
+                    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tVisibilityTexture);
+                }
+                if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tRawDistanceTexture))
+                    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tRawDistanceTexture);
+                if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tDiffuseSHTexture))
+                    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tDiffuseSHTexture);
+                if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tGGXEnvTexture))
+                    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
+                if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->tSheenEnvTexture))
+                    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tSheenEnvTexture);
 
                 for(uint32_t j = 0; j < 6; j++)
-                    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atRawOutputTextureViews[j]);
+                {
+                    if(gptGfx->is_texture_valid(gptData->ptDevice, ptProbe->atRawOutputTextureViews[j]))
+                        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atRawOutputTextureViews[j]);
+                }
 
-                gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tViewBuffer);
-                gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tSunCameraBuffers);
-                gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tDShadowCameraBuffers);
-                gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tDLightShadowDataBuffer);
+                if(gptGfx->is_buffer_valid(gptData->ptDevice, ptProbe->tViewBuffer))
+                    gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tViewBuffer);
+                if(gptGfx->is_buffer_valid(gptData->ptDevice, ptProbe->tSunCameraBuffers))
+                    gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tSunCameraBuffers);
+                if(gptGfx->is_buffer_valid(gptData->ptDevice, ptProbe->tDShadowCameraBuffers))
+                    gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tDShadowCameraBuffers);
+                if(gptGfx->is_buffer_valid(gptData->ptDevice, ptProbe->tDLightShadowDataBuffer))
+                    gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tDLightShadowDataBuffer);
 
-                gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tViewBG);
-                gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tGBufferBG);
-                gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tDShadowBG);
-                gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tSunCameraBG);
-                
-                pl_sb_del_swap(ptScene->sbtProbeData, i);
+                if(gptGfx->is_bind_group_valid(gptData->ptDevice, ptProbe->tViewBG))
+                    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tViewBG);
+                if(gptGfx->is_bind_group_valid(gptData->ptDevice, ptProbe->tGBufferBG))
+                    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tGBufferBG);
+                if(gptGfx->is_bind_group_valid(gptData->ptDevice, ptProbe->tDShadowBG))
+                    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tDShadowBG);
+                if(gptGfx->is_bind_group_valid(gptData->ptDevice, ptProbe->tSunCameraBG))
+                    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tSunCameraBG);
+
                 bFound = true;
-                break;
             }
         }
+        if(uKept < uProbeCount)
+            pl_sb_pop_n(ptScene->sbtProbeData, uProbeCount - uKept);
     }
 
     return bFound;
@@ -1317,15 +1706,18 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         plAssetHandle tMaterial = ptObject->atMaterialOverrides ? ptObject->atMaterialOverrides[ptDrawableResources->uSubmeshIndex - ptObject->uFirstSubmesh] : ptMesh->tMaterial;
         plMaterial* ptMaterial = gptAsset->get_data(tMaterial);
 
-        if(gptEcs->has_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, tEntity))
+        const bool bProbe = gptEcs->has_component(ptScene->ptComponentLibrary, gptData->tReflectionProbeComponentType, tEntity) || gptEcs->has_component(ptScene->ptComponentLibrary, gptData->tDiffuseProbeVolumeComponentType, tEntity);
+        ptDrawable->tFlags &= ~PL_DRAWABLE_FLAG_PROBE;
+        if(bProbe)
         {
+            ptDrawable->tFlags |= PL_DRAWABLE_FLAG_PROBE;
             if(ptScene->bShowProbes)
                 ptObject->tFlags |= PL_OBJECT_FLAGS_RENDERABLE;
             else
                 ptObject->tFlags &= ~PL_OBJECT_FLAGS_RENDERABLE;
         }
 
-        if(ptObject->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW)
+        if(!bProbe && (ptObject->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW))
             ptDrawable->tFlags |= PL_DRAWABLE_FLAG_CASTS_SHADOW;
         else
             ptDrawable->tFlags &= ~PL_DRAWABLE_FLAG_CASTS_SHADOW;
@@ -1641,6 +2033,10 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     if(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS) ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_PUNCTUAL;
     if(ptSettings->tShadows.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF)                ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_PCF_SHADOWS;
         
+    ptScene->tSceneData.iSceneFlags &= ~(PL_SCENE_FLAG_NO_DIFFUSE_PROBES | PL_SCENE_FLAG_NO_REFLECTION_PROBES);
+    if(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_NO_DIFFUSE_PROBES) ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_NO_DIFFUSE_PROBES;
+    if(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_NO_REFLECTION_PROBES) ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_NO_REFLECTION_PROBES;
+
     ptScene->tSceneData.iSceneFlags &= ~PL_SCENE_FLAG_SUN_CONTACT_SHADOWS;
     if(!(ptEnvironment->eFlags & PL_RENDERER_SKY_FLAGS_NO_CONTACT_SHADOWS))
         ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_SUN_CONTACT_SHADOWS;
@@ -2042,15 +2438,23 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
     {
         const plEcsTypeKey tTransformComponentType = gptTransform->get_ecs_type_key_transform();
         const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
-        for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
+        for(uint32_t uProbeIndex = 1; uProbeIndex < uProbeCount; uProbeIndex++)
         {
             plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
-            plEnvironmentProbeComponent* ptProbeComp = gptEcs->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
+            plProbeCaptureSettings* ptProbeComp = pl__renderer_probe_capture(ptScene, ptProbe->tComponentType, ptProbe->tEntity);
             if(ptProbeComp)
             {
                 plTransformComponent* ptTransform = gptEcs->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptProbe->tEntity);
 
-                if(ptScene->bShowProbeRange)
+                if(ptScene->bShowProbeRange && ptProbe->auProbeCount[0])
+                {
+                    plVec3 tExtent;
+                    for(uint32_t i = 0; i < 3; i++)
+                        tExtent.d[i] = 0.5f * (float)(ptProbe->auProbeCount[i] - 1) * ptProbe->tSpacing.d[i];
+                    gptDraw->add_3d_aabb(ptView->pt3DDrawList, pl_sub_vec3(ptTransform->tTranslation, tExtent), pl_add_vec3(ptTransform->tTranslation, tExtent), (plDrawLineOptions){.uColor = PL_COLOR_32_LIGHT_GREY, .fThickness = 0.005f});
+                }
+
+                if(ptScene->bShowProbeRange && ptProbe->auProbeCount[0] == 0)
                 {
                     plSphere tSphere = {
                         .fRadius = ptProbeComp->fRange,
@@ -2058,8 +2462,6 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
                     };
                     gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere, 6, 6, (plDrawLineOptions){.uColor = PL_COLOR_32_LIGHT_GREY, .fThickness = 0.005f});
 
-                    if(pl_length_vec3(pl_sub_vec3(ptCamera->tPositionF, ptTransform->tTranslation)) > ptProbeComp->fRange)
-                        gptDraw->add_3d_sphere_filled(ptView->pt3DDrawList, tSphere, 36, 36, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.25f)});
                 }
             }
         }
@@ -2904,6 +3306,9 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     pl__render_view_forward_pass(ptScene, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx], &tForwardPassInfo5);
     
 
+    if(ptScene->bShowProbes)
+        pl__render_view_probe_debug_pass(ptView, ptSceneCmdBuffer, ptCamera);
+
     if(ptView->bShowGrid)
         pl__render_view_grid_pass(ptView, ptSceneCmdBuffer, ptCamera);
 
@@ -3154,6 +3559,7 @@ pl_renderer_begin_frame(void)
             "Diffuse Transmission Strength",
             "Diffuse Transmission Color",
             "Probe Selection",
+            "Probe Visibility",
         };
 
         if(gptUI->begin_window("Renderer", &gptData->bShowTools, 0))
@@ -3195,6 +3601,12 @@ pl_renderer_begin_frame(void)
 
                     gptUI->checkbox("Show Probes", &ptScene->bShowProbes);
                     gptUI->checkbox("Show Probe Ranges", &ptScene->bShowProbeRange);
+                    if(ptScene->bShowProbes)
+                    {
+                        gptUI->checkbox("Show Probe Lighting", &ptScene->bShowProbeLighting);
+                        gptUI->slider_float("Probe Display Radius", &ptScene->fProbeDisplayRadius, 0.05f, 1.0f, 0);
+                        gptUI->text("%s", ptScene->bShowProbeLighting ? "Diffuse spheres show SH lighting; amber samples are pending." : "Diffuse samples shown as position markers.");
+                    }
                     gptUI->checkbox("Dynamic BVH", &ptScene->bDynamicBVH);
                     gptUI->checkbox("Wireframe", &ptScene->bWireframe);
 
@@ -3229,6 +3641,8 @@ pl_renderer_begin_frame(void)
                     }
 
                     gptUI->separator_text("Probe Selection Table");
+                    if(ptScene->tShaderDebugMode == PL_SHADER_DEBUG_PROBE_VISIBILITY)
+                        gptUI->text("First visibility volume: red = blocked, green = visible, blue = unavailable.");
                     const plProbeSelectionTable* ptTable = &ptScene->tProbeSelections;
                     gptUI->labeled_text("Local entries (latest frame)", "%u / %u", ptTable->uCount >= 3 ? ptTable->uCount - 3 : 0, PL_MAX_PROBE_SELECTION_INDEX - 2);
                     gptUI->labeled_text("Peak local entries (scene lifetime)", "%u", ptTable->uPeakEntries);
@@ -3881,6 +4295,8 @@ pl__renderer_serialize_settings(const char* pcName, const void* pSettings, plAss
     gptJson->add_bool_member(ptLighting, "normal_mapping", ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING);
     gptJson->add_bool_member(ptLighting, "punctual_lights", ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS);
     gptJson->add_bool_member(ptLighting, "shadows", !(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_NO_SHADOWS));
+    gptJson->add_bool_member(ptLighting, "diffuse_probes", !(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_NO_DIFFUSE_PROBES));
+    gptJson->add_bool_member(ptLighting, "reflection_probes", !(ptSettings->tLighting.tFlags & PL_RENDERER_LIGHTING_FLAGS_NO_REFLECTION_PROBES));
 
     plJsonObject* ptSky = gptJson->add_member(ptRoot, "sky");
     gptJson->add_float_array(ptSky, "sky_lut_resolution", ptSettings->tSky.tSkyLutResolution.d, 2);
@@ -4019,6 +4435,12 @@ pl__renderer_deserialize_settings(const char* pcName, void* pSettings)
                 ptSettings->tLighting.tFlags |= PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED;
             else
                 ptSettings->tLighting.tFlags &= ~PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED;
+
+            ptSettings->tLighting.tFlags &= ~(PL_RENDERER_LIGHTING_FLAGS_NO_DIFFUSE_PROBES | PL_RENDERER_LIGHTING_FLAGS_NO_REFLECTION_PROBES);
+            if(!gptJson->bool_member(ptJsonLighting, "diffuse_probes", true))
+                ptSettings->tLighting.tFlags |= PL_RENDERER_LIGHTING_FLAGS_NO_DIFFUSE_PROBES;
+            if(!gptJson->bool_member(ptJsonLighting, "reflection_probes", true))
+                ptSettings->tLighting.tFlags |= PL_RENDERER_LIGHTING_FLAGS_NO_REFLECTION_PROBES;
 
             if(gptJson->bool_member(ptJsonLighting, "normal_mapping", true))
                 ptSettings->tLighting.tFlags |= PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING;
@@ -4558,19 +4980,23 @@ pl__ecs_renderer_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary
 static void
 pl__ecs_probe_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
 {
-    plEnvironmentProbeComponent* ptComponent = pComponent;
+    plProbeCaptureSettings* ptComponent = pComponent;
 
+    if(gptAsset->is_valid(ptComponent->tBakedProbe))
+        gptJson->add_string_member(ptJson, "baked_probe", gptAsset->get_path(ptComponent->tBakedProbe));
     gptJson->add_uint32_member(ptJson, "resolution", ptComponent->uResolution);
     gptJson->add_uint32_member(ptJson, "samples", ptComponent->uSamples);
     gptJson->add_uint32_member(ptJson, "interval", ptComponent->uInterval);
     gptJson->add_float_member(ptJson, "range", ptComponent->fRange);
+    gptJson->add_float_member(ptJson, "capture_range", ptComponent->fCaptureRange);
+    gptJson->add_bool_member(ptJson, "parallax_correction_box", (ptComponent->tFlags & PL_PROBE_FLAGS_PARALLAX_CORRECTION_BOX) != 0);
 
-    if(ptComponent->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME)
+    if(ptComponent->tFlags & PL_PROBE_FLAGS_REALTIME)
         gptJson->add_bool_member(ptJson, "realtime", true);
     else
         gptJson->add_bool_member(ptJson, "realtime", false);
 
-    if(ptComponent->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY)
+    if(ptComponent->tFlags & PL_PROBE_FLAGS_INCLUDE_SKY)
         gptJson->add_bool_member(ptJson, "include_sky", true);
     else
         gptJson->add_bool_member(ptJson, "include_sky", false);
@@ -4579,15 +5005,20 @@ pl__ecs_probe_serialize(void* pComponent, const plComponentLibrary* ptLibrary, p
 static bool
 pl__ecs_probe_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
 {
-    plEnvironmentProbeComponent* ptComponent = pComponent;
+    plProbeCaptureSettings* ptComponent = pComponent;
 
-    ptComponent->fRange = gptJson->float_member(ptJson, "range", 10.0f);
-    ptComponent->uResolution = gptJson->uint32_member(ptJson, "resolution", 128);
+    char acPath[PL_MAX_PATH_LENGTH] = {0};
+    gptJson->string_member(ptJson, "baked_probe", acPath, sizeof(acPath));
+    ptComponent->tBakedProbe = acPath[0] ? gptAsset->load(acPath) : (plAssetHandle){0};
+    ptComponent->fRange = pl_maxf(0.5f, gptJson->float_member(ptJson, "range", ptComponent->fRange));
+    ptComponent->fCaptureRange = gptJson->float_member(ptJson, "capture_range", ptComponent->fCaptureRange);
+    ptComponent->uResolution = gptJson->uint32_member(ptJson, "resolution", ptComponent->uResolution);
     ptComponent->uSamples = gptJson->uint32_member(ptJson, "samples", 128);
     ptComponent->uInterval = gptJson->uint32_member(ptJson, "interval", 1);
-    ptComponent->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
-    if(gptJson->bool_member(ptJson, "include_sky", false)) ptComponent->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
-    if(gptJson->bool_member(ptJson, "realtime", false))    ptComponent->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
+    ptComponent->tFlags = PL_PROBE_FLAGS_DIRTY;
+    if(gptJson->bool_member(ptJson, "parallax_correction_box", false)) ptComponent->tFlags |= PL_PROBE_FLAGS_PARALLAX_CORRECTION_BOX;
+    if(gptJson->bool_member(ptJson, "include_sky", false)) ptComponent->tFlags |= PL_PROBE_FLAGS_INCLUDE_SKY;
+    if(gptJson->bool_member(ptJson, "realtime", false))    ptComponent->tFlags |= PL_PROBE_FLAGS_REALTIME;
     return true;
 }
 
@@ -4623,6 +5054,49 @@ pl__ecs_terrain_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary,
     plTerrainAsset* ptTerrain = gptAsset->get_data(ptComponent->tTerrain);
     gptTerrain->process(ptTerrain);
 
+    return true;
+}
+
+static void
+pl__ecs_reflection_probe_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
+{
+    plReflectionProbeComponent* ptProbe = pComponent;
+    pl__ecs_probe_serialize(&ptProbe->tSettings, ptLibrary, tEntityId, ptJson);
+}
+
+static bool
+pl__ecs_reflection_probe_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
+{
+    plReflectionProbeComponent* ptProbe = pComponent;
+    return pl__ecs_probe_deserialize(ptJson, ptLibrary, tEntityId, &ptProbe->tSettings);
+}
+
+static void
+pl__ecs_probe_volume_serialize(void* pComponent, const plComponentLibrary* ptLibrary, plEntityId tEntityId, plJsonObject* ptJson)
+{
+    plDiffuseProbeVolumeComponent* ptVolume = pComponent;
+    pl__ecs_probe_serialize(&ptVolume->tCapture, ptLibrary, tEntityId, ptJson);
+    gptJson->add_float_array(ptJson, "spacing", ptVolume->tSpacing.d, 3);
+    gptJson->add_uint32_array(ptJson, "probe_count", ptVolume->auProbeCount, 3);
+    gptJson->add_bool_member(ptJson, "visibility", ptVolume->bVisibility);
+    gptJson->add_float_member(ptJson, "normal_bias", ptVolume->fNormalBias);
+}
+
+static bool
+pl__ecs_probe_volume_deserialize(plJsonObject* ptJson, plComponentLibrary* ptLibrary, plEntityId tEntityId, void* pComponent)
+{
+    plDiffuseProbeVolumeComponent* ptVolume = pComponent;
+    pl__ecs_probe_deserialize(ptJson, ptLibrary, tEntityId, &ptVolume->tCapture);
+    uint32_t uSpacingCount = 0;
+    uint32_t uProbeCount = 0;
+    gptJson->float_array_member(ptJson, "spacing", NULL, &uSpacingCount);
+    gptJson->uint32_array_member(ptJson, "probe_count", NULL, &uProbeCount);
+    if((uSpacingCount && uSpacingCount != 3) || (uProbeCount && uProbeCount != 3))
+        return false;
+    gptJson->float_array_member(ptJson, "spacing", ptVolume->tSpacing.d, NULL);
+    gptJson->uint32_array_member(ptJson, "probe_count", ptVolume->auProbeCount, NULL);
+    ptVolume->bVisibility = gptJson->bool_member(ptJson, "visibility", false);
+    ptVolume->fNormalBias = pl_maxf(0.0f, gptJson->float_member(ptJson, "normal_bias", 0.05f));
     return true;
 }
 
@@ -4688,20 +5162,41 @@ pl_renderer_register_ecs_components(void)
     gptData->tLightComponentType = gptEcs->register_type(tLightDesc, &tLightComponentDefault);
 
     const plComponentDesc tProbeDesc = {
-        .pcName = "probe",
-        .szSize = sizeof(plEnvironmentProbeComponent),
-        .serialize = pl__ecs_probe_serialize,
-        .deserialize = pl__ecs_probe_deserialize,
+        .pcName      = "reflection_probe",
+        .szSize      = sizeof(plReflectionProbeComponent),
+        .serialize   = pl__ecs_reflection_probe_serialize,
+        .deserialize = pl__ecs_reflection_probe_deserialize,
     };
 
-    static const plEnvironmentProbeComponent tProbeDefaultComponent = {
+    static const plProbeCaptureSettings tProbeDefaultSettings = {
+        .tBakedProbe = {0},
         .fRange      = 10.0f,
         .uResolution = 128,
         .uSamples    = 128,
         .uInterval   = 1,
-        .tFlags      = PL_ENVIRONMENT_PROBE_FLAGS_DIRTY
+        .tFlags      = PL_PROBE_FLAGS_DIRTY
     };
-    gptData->tEnvironmentProbeComponentType = gptEcs->register_type(tProbeDesc, &tProbeDefaultComponent);
+    const plReflectionProbeComponent tProbeDefaultComponent = {
+        .tSettings = tProbeDefaultSettings
+    };
+    gptData->tReflectionProbeComponentType = gptEcs->register_type(tProbeDesc, &tProbeDefaultComponent);
+
+    plComponentDesc tDiffuseProbeDesc = tProbeDesc;
+    tDiffuseProbeDesc.pcName = "diffuse_probe_volume";
+    tDiffuseProbeDesc.szSize = sizeof(plDiffuseProbeVolumeComponent);
+    tDiffuseProbeDesc.serialize = pl__ecs_probe_volume_serialize;
+    tDiffuseProbeDesc.deserialize = pl__ecs_probe_volume_deserialize;
+    plDiffuseProbeVolumeComponent tDiffuseProbeDefault = {
+        .tCapture     = tProbeDefaultSettings,
+        .tSpacing     = {4.0f, 4.0f, 4.0f},
+        .auProbeCount = {4, 2, 4},
+        .bVisibility  = true,
+        .fNormalBias  = 0.05f
+    };
+    tDiffuseProbeDefault.tCapture.uResolution = 32;
+    tDiffuseProbeDefault.tCapture.fCaptureRange = 100.0f;
+    tDiffuseProbeDefault.tCapture.fRange = 2.0f;
+    gptData->tDiffuseProbeVolumeComponentType = gptEcs->register_type(tDiffuseProbeDesc, &tDiffuseProbeDefault);
 
     const plComponentDesc tTerrainDesc = {
         .pcName = "terrain",
@@ -4761,15 +5256,6 @@ pl_renderer_run_light_update_system(plComponentLibrary* ptLibrary)
 }
 
 void
-pl_renderer_run_environment_probe_update_system(plComponentLibrary* ptLibrary)
-{
-    PL_PROFILE_BEGIN_SAMPLE(gptProfile, 0, __FUNCTION__);
-
-    // not used yet
-    PL_PROFILE_END_SAMPLE(gptProfile, 0); 
-}
-
-void
 pl_renderer_register_asset_types(void)
 {
     static const plAssetTypeDesc tDesc0 = {
@@ -4789,6 +5275,16 @@ pl_renderer_register_asset_types(void)
         .deserialize     = pl__renderer_deserialize_settings,
     };
     gptData->tAssetTypeKeySettings = gptAsset->register_type(tDesc1);
+    const plAssetTypeDesc tProbeDesc = {
+        .pcName           = "Probe",
+        .szSize           = sizeof(plProbeAsset),
+        .pcFileExtension  = "plprobe",
+        .eDefaultEncoding = PL_ASSET_ENCODING_BINARY,
+        .cleanup          = pl__probe_asset_cleanup,
+        .serialize        = pl__probe_asset_serialize,
+        .deserialize      = pl__probe_asset_deserialize
+    };
+    gptData->tAssetTypeKeyProbe = gptAsset->register_type(tProbeDesc);
 }
 
 plAssetTypeKey
@@ -4820,8 +5316,8 @@ pl_renderer_add_component_to_scene(plScene* ptScene, plEntity tEntity, plEcsType
         pl__renderer_add_drawable_objects_to_scene(ptScene, 1, &tEntity);
     else if(tType == gptData->tLightComponentType)
         pl__renderer_add_lights_to_scene(ptScene, 1, &tEntity);
-    else if(tType == gptData->tEnvironmentProbeComponentType)
-        pl__renderer_add_probes_to_scene(ptScene, 1, &tEntity);
+    else if(tType == gptData->tReflectionProbeComponentType || tType == gptData->tDiffuseProbeVolumeComponentType)
+        pl__renderer_add_probes_to_scene(ptScene, 1, &tEntity, tType);
 }
 
 void
@@ -4830,7 +5326,8 @@ pl_renderer_add_entity_to_scene(plScene* ptScene, plEntity tEntity)
     pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tDecalComponentType);
     pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tObjectComponentType);
     pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tLightComponentType);
-    pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tEnvironmentProbeComponentType);
+    pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tReflectionProbeComponentType);
+    pl_renderer_add_component_to_scene(ptScene, tEntity, gptData->tDiffuseProbeVolumeComponentType);
 }
 
 bool
@@ -4848,8 +5345,10 @@ pl_renderer_remove_entity_from_scene(plScene* ptScene, plEntity tObject)
     if(pl_renderer_remove_component_from_scene(ptScene, tObject, gptData->tLightComponentType))
         bFound = true;
 
-    // check for probe
-    if(pl_renderer_remove_component_from_scene(ptScene, tObject, gptData->tEnvironmentProbeComponentType))
+    if(pl_renderer_remove_component_from_scene(ptScene, tObject, gptData->tReflectionProbeComponentType))
+        bFound = true;
+
+    if(pl_renderer_remove_component_from_scene(ptScene, tObject, gptData->tDiffuseProbeVolumeComponentType))
         bFound = true;
 
     return bFound;
@@ -4863,48 +5362,50 @@ void
 pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     plRendererI tApi0 = {0};
-    tApi0.get_ecs_type_key_decal         = pl_renderer_get_type_key_decal;
-    tApi0.initialize                     = pl_renderer_initialize;
-    tApi0.cleanup                        = pl_renderer_cleanup;
-    tApi0.create_scene                   = pl_renderer_create_scene;
-    tApi0.destroy_scene                  = pl_renderer_destroy_scene;
-    tApi0.create_view                    = pl_renderer_create_view;
-    tApi0.destroy_view                   = pl_renderer_destroy_view;
-    tApi0.begin_frame                    = pl_renderer_begin_frame;
-    tApi0.queue_drawlist                 = pl_renderer_queue_drawlist;
-    tApi0.prepare_scene                  = pl_renderer_prepare_scene;
-    tApi0.prepare_view                   = pl_renderer_prepare_view;
-    tApi0.render_view                    = pl_renderer_render_view;
-    tApi0.get_view_color_bind_group      = pl_renderer_get_view_color_bind_group;
-    tApi0.resize_view                    = pl_renderer_resize_view;
-    tApi0.set_scene_flags                = pl_renderer_set_scene_flags;
-    tApi0.load_component_library         = pl_renderer_load_component_library;
-    tApi0.get_scene_flags                = pl_renderer_get_scene_flags;
-    tApi0.register_asset_types           = pl_renderer_register_asset_types;
-    tApi0.get_asset_type_key_environment = pl_renderer_get_asset_type_key_environment;
-    tApi0.get_asset_type_key_settings    = pl_renderer_get_asset_type_key_settings;
-    tApi0.update_scene_asset             = pl_renderer_update_scene_asset;
-    tApi0.get_ecs_type_key_terrain            = pl_renderer_get_type_key_terrain;
-    tApi0.get_ecs_type_key_light              = pl_renderer_get_type_key_light;
-    tApi0.get_ecs_type_key_environment_probe  = pl_renderer_get_type_key_environment_probe;
-    tApi0.get_ecs_type_key_environment        = pl_renderer_get_type_key_environment;
-    tApi0.get_ecs_type_key_renderer           = pl_renderer_get_type_key_renderer;
-    tApi0.run_light_update_system             = pl_renderer_run_light_update_system;
-    tApi0.run_environment_probe_update_system = pl_renderer_run_environment_probe_update_system;
-    tApi0.get_ecs_type_key_object             = pl_renderer_get_type_key_object;
-    tApi0.run_object_update_system            = pl_renderer_run_object_update_system;
-    tApi0.register_ecs_components             = pl_renderer_register_ecs_components;
-    tApi0.get_drawlist                       = pl_renderer_debug_get_drawlist;
-    tApi0.update_hovered_entity              = pl_renderer_editor_update_hovered_entity;
-    tApi0.get_hovered_entity                 = pl_renderer_editor_get_hovered_entity;
-    tApi0.reload_scene_shaders               = pl_renderer_editor_reload_scene_shaders;
-    tApi0.get_gizmo_drawlist                 = pl_renderer_editor_get_gizmo_drawlist;
-    tApi0.rebuild_scene_bvh                  = pl_renderer_editor_rebuild_scene_bvh;
-    tApi0.get_terrain_chunk_file             = pl_renderer_get_terrain_chunk_file;
-    tApi0.add_entity_to_scene                = pl_renderer_add_entity_to_scene;
-    tApi0.add_component_to_scene             = pl_renderer_add_component_to_scene;
-    tApi0.remove_entity_from_scene           = pl_renderer_remove_entity_from_scene;
-    tApi0.remove_component_from_scene        = pl_renderer_remove_component_from_scene;
+    tApi0.get_ecs_type_key_decal                     = pl_renderer_get_type_key_decal;
+    tApi0.initialize                                 = pl_renderer_initialize;
+    tApi0.cleanup                                    = pl_renderer_cleanup;
+    tApi0.create_scene                               = pl_renderer_create_scene;
+    tApi0.destroy_scene                              = pl_renderer_destroy_scene;
+    tApi0.create_view                                = pl_renderer_create_view;
+    tApi0.destroy_view                               = pl_renderer_destroy_view;
+    tApi0.begin_frame                                = pl_renderer_begin_frame;
+    tApi0.queue_drawlist                             = pl_renderer_queue_drawlist;
+    tApi0.prepare_scene                              = pl_renderer_prepare_scene;
+    tApi0.prepare_view                               = pl_renderer_prepare_view;
+    tApi0.render_view                                = pl_renderer_render_view;
+    tApi0.get_view_color_bind_group                  = pl_renderer_get_view_color_bind_group;
+    tApi0.resize_view                                = pl_renderer_resize_view;
+    tApi0.set_scene_flags                            = pl_renderer_set_scene_flags;
+    tApi0.load_component_library                     = pl_renderer_load_component_library;
+    tApi0.get_scene_flags                            = pl_renderer_get_scene_flags;
+    tApi0.register_asset_types                       = pl_renderer_register_asset_types;
+    tApi0.get_asset_type_key_probe                   = pl_renderer_get_asset_type_key_probe;
+    tApi0.bake_probe                                 = pl_renderer_bake_probe;
+    tApi0.get_asset_type_key_environment             = pl_renderer_get_asset_type_key_environment;
+    tApi0.get_asset_type_key_settings                = pl_renderer_get_asset_type_key_settings;
+    tApi0.update_scene_asset                         = pl_renderer_update_scene_asset;
+    tApi0.get_ecs_type_key_terrain                   = pl_renderer_get_type_key_terrain;
+    tApi0.get_ecs_type_key_light                     = pl_renderer_get_type_key_light;
+    tApi0.get_ecs_type_key_reflection_probe          = pl_renderer_get_type_key_reflection_probe;
+    tApi0.get_ecs_type_key_diffuse_probe_volume      = pl_renderer_get_type_key_diffuse_probe_volume;
+    tApi0.get_ecs_type_key_environment               = pl_renderer_get_type_key_environment;
+    tApi0.get_ecs_type_key_renderer                  = pl_renderer_get_type_key_renderer;
+    tApi0.run_light_update_system                    = pl_renderer_run_light_update_system;
+    tApi0.get_ecs_type_key_object                    = pl_renderer_get_type_key_object;
+    tApi0.run_object_update_system                   = pl_renderer_run_object_update_system;
+    tApi0.register_ecs_components                    = pl_renderer_register_ecs_components;
+    tApi0.get_drawlist                               = pl_renderer_debug_get_drawlist;
+    tApi0.update_hovered_entity                      = pl_renderer_editor_update_hovered_entity;
+    tApi0.get_hovered_entity                         = pl_renderer_editor_get_hovered_entity;
+    tApi0.reload_scene_shaders                       = pl_renderer_editor_reload_scene_shaders;
+    tApi0.get_gizmo_drawlist                         = pl_renderer_editor_get_gizmo_drawlist;
+    tApi0.rebuild_scene_bvh                          = pl_renderer_editor_rebuild_scene_bvh;
+    tApi0.get_terrain_chunk_file                     = pl_renderer_get_terrain_chunk_file;
+    tApi0.add_entity_to_scene                        = pl_renderer_add_entity_to_scene;
+    tApi0.add_component_to_scene                     = pl_renderer_add_component_to_scene;
+    tApi0.remove_entity_from_scene                   = pl_renderer_remove_entity_from_scene;
+    tApi0.remove_component_from_scene                = pl_renderer_remove_component_from_scene;
 
     pl_set_api(ptApiRegistry, plRendererI, &tApi0);
 

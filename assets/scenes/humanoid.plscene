@@ -165,13 +165,33 @@
                 "receives_shadow": true, 
                 "renderable": true
             }, 
-            "probe": {                
+            "reflection_probe": {
                 "resolution": 128, 
                 "samples": 128, 
                 "interval": 1, 
                 "range": 30, 
                 "realtime": false, 
                 "include_sky": true
+            },
+            "diffuse_probe_volume": {
+                "resolution": 32,
+                "samples": 128,
+                "interval": 1,
+                "range": 30,
+                "realtime": false,
+                "include_sky": true,
+                "probe_count": [
+                    1,
+                    1,
+                    1
+                ],
+                "spacing": [
+                    4,
+                    4,
+                    4
+                ],
+                "visibility": false,
+                "normal_bias": 0.05
             }
         },
         {            
@@ -193,13 +213,33 @@
                 "receives_shadow": true, 
                 "renderable": true
             }, 
-            "probe": {                
+            "reflection_probe": {
                 "resolution": 128, 
                 "samples": 128, 
                 "interval": 1, 
                 "range": 30, 
                 "realtime": false, 
                 "include_sky": true
+            },
+            "diffuse_probe_volume": {
+                "resolution": 32,
+                "samples": 128,
+                "interval": 1,
+                "range": 30,
+                "realtime": false,
+                "include_sky": true,
+                "probe_count": [
+                    1,
+                    1,
+                    1
+                ],
+                "spacing": [
+                    4,
+                    4,
+                    4
+                ],
+                "visibility": false,
+                "normal_bias": 0.05
             }
         },
         {            
@@ -221,13 +261,33 @@
                 "receives_shadow": true, 
                 "renderable": true
             }, 
-            "probe": {                
+            "reflection_probe": {
                 "resolution": 128, 
                 "samples": 128, 
                 "interval": 1, 
                 "range": 30, 
                 "realtime": false, 
                 "include_sky": true
+            },
+            "diffuse_probe_volume": {
+                "resolution": 32,
+                "samples": 128,
+                "interval": 1,
+                "range": 30,
+                "realtime": false,
+                "include_sky": true,
+                "probe_count": [
+                    1,
+                    1,
+                    1
+                ],
+                "spacing": [
+                    4,
+                    4,
+                    4
+                ],
+                "visibility": false,
+                "normal_bias": 0.05
             }
         },
         {            
